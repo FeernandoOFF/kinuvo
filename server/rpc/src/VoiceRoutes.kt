@@ -3,8 +3,8 @@ package kinuvo.server.rpc
 import kinuvo.protocol.Api
 
 internal fun RouteBuilder.voiceRoutes() {
-    device(Api.LiveVoiceStart) { caller.startLiveVoice(it) }
-    device(Api.LiveVoiceEnd) { caller.endLiveVoice(it.callId) }
+    device(Api.LiveVoiceStart, ordered = true) { caller.startLiveVoice(it) }
+    device(Api.LiveVoiceEnd, ordered = true) { caller.endLiveVoice(it.callId) }
     device(Api.LiveVoiceSettings) { server.voice.liveSettings() }
     handle(Api.SaveLiveVoice) { server.voice.saveLive(it) }
     handle(Api.VoiceModels) { server.voice.models() }

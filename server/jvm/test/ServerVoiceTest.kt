@@ -26,7 +26,7 @@ class ServerVoiceTest {
         if (System.getenv("KINUVO_TEST_SERVER_VOICE_INFERENCE") != "1") return@runBlocking
         val home = temporaryDirectories.create("server-voice-inference").toFile()
         val jar = System.getenv("KINUVO_TEST_VOICE_JAR")
-        val server = if (jar == null) HarnessServer(Harness(Path(home.path))) else null
+        val server = if (jar == null) JvmServerHost(JvmAgentRuntime(Path(home.path))) else null
         val process = jar?.let { ProcessBuilder(java.io.File(System.getProperty("java.home"), "bin/java").path, "-jar", it, "serve", "--host", "127.0.0.1", "--port", "0")
             .apply { environment()["KINUVO_HOME"] = home.path; environment().remove("KINUVO_EMBEDDED_PORT"); environment().remove("KINUVO_VOICE_WORKER") }
             .redirectErrorStream(true).redirectOutput(home.resolve("server.log")).start() }
@@ -78,7 +78,7 @@ class ServerVoiceTest {
 
     @Test fun serverOwnsSettingsAndOrdinaryDevicesOnlyGetInference() = runBlocking {
         val home = temporaryDirectories.create("server-voice-test").toFile()
-        val server = HarnessServer(Harness(Path(home.path), codexAuth = CodexAuth(PrivateFile(Path(home.path, "codex-auth.json")))))
+        val server = JvmServerHost(JvmAgentRuntime(Path(home.path), codexAuth = CodexAuth(PrivateFile(Path(home.path, "codex-auth.json")))))
         val port = server.start("127.0.0.1", 0, schedule = false)
         val address = "ws://127.0.0.1:$port/ws"
         val owner = KinuvoClient(address, "owner", token = server.auth.sessionToken())

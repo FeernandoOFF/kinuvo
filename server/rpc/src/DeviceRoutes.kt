@@ -5,10 +5,10 @@ import arrow.core.raise.context.raise
 import kinuvo.server.DeviceError
 
 internal fun RouteBuilder.deviceRoutes() {
-    deviceOrLinked(Api.Presence) { caller.presence(it.active) }
-    device(Api.DeviceTools) { caller.setDeviceTools(it.tools) }
-    device(Api.RotateToken) { caller.rotateToken() }
+    deviceOrLinked(Api.Presence, ordered = true) { caller.presence(it.active) }
+    device(Api.DeviceTools, ordered = true) { caller.setDeviceTools(it.tools) }
+    device(Api.RotateToken, ordered = true) { caller.rotateToken() }
     handle(Api.Pairing) { server.auth.pairing(it.refresh, it.management) ?: raise(DeviceError.CannotPair) }
     device(Api.PairedDevices) { caller.pairedDevices() }
-    device(Api.RevokeDevice) { caller.revokeDevice(it.id, requestId) }
+    device(Api.RevokeDevice, ordered = true) { caller.revokeDevice(it.id, requestId) }
 }

@@ -45,7 +45,10 @@ class Runs(private val log: SessionLog, private val scope: CoroutineScope, priva
     class StoppedBeforeStart : IllegalStateException("Stopped before it started")
 
     var onBegin: suspend (AgentId, SessionId) -> Unit = { _, _ -> }
-    var onFinish: suspend (AgentId, SessionId, Boolean) -> Unit = { _, _, _ -> }
+    private val finishListeners = mutableListOf<suspend (AgentId, SessionId, Boolean) -> Unit>()
+
+    /** Adds a listener told when a run ends, [Boolean] being whether it was stopped; listeners run in the order added. */
+    fun onFinish(listener: suspend (AgentId, SessionId, Boolean) -> Unit) { finishListeners += listener }
     var onCancel: suspend (SessionId) -> Unit = {}
     private val active = ConcurrentMutableMap<SessionId, Job>()
     /** The Routine behind each active run a Routine started, by Session. */
@@ -125,7 +128,7 @@ class Runs(private val log: SessionLog, private val scope: CoroutineScope, priva
                         stopped = true
                         throw e
                     } finally {
-                        withContext(NonCancellable) { try { session.close() } finally { if (stopped) onCancel(sessionId); onFinish(agent.id, sessionId, stopped); onDone(stopped) } }
+                        withContext(NonCancellable) { try { session.close() } finally { if (stopped) onCancel(sessionId); finishListeners.forEach { it(agent.id, sessionId, stopped) }; onDone(stopped) } }
                     }
                 }.also { job ->
                     runs[sessionId] = job

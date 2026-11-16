@@ -17,7 +17,7 @@ class ExecutionEventAccessTest {
 
     @Test fun executionCatalogEventsRequireManagementAccess() = runBlocking {
         val dir = temporaryDirectories.create("kinuvo-execution-access").toFile()
-        val server = HarnessServer(Harness(home = Path(dir.path)))
+        val server = JvmServerHost(JvmAgentRuntime(home = Path(dir.path)))
         var manager: KinuvoClient? = null
         var device: KinuvoClient? = null
         try {

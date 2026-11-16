@@ -20,5 +20,8 @@ interface Routes {
 
     fun access(method: String): RouteAccess?
 
+    /** Whether the method must finish, in arrival order, before the connection reads the next request. */
+    fun ordered(method: String): Boolean
+
     suspend fun dispatch(call: Call, request: Frame.Request): Frame.Response
 }

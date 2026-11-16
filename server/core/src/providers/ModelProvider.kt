@@ -1,6 +1,6 @@
 package kinuvo.server.providers
 
-import kinuvo.server.plugin.HarnessPlugin
+import kinuvo.server.plugin.ServerPlugin
 import kinuvo.server.plugin.ProviderAdmin
 import kinuvo.server.plugin.ProviderPlugin
 
@@ -29,8 +29,15 @@ class ModelProviders<out S : ModelPolicy>(val plugins: List<ProviderPlugin> = em
 
 operator fun <S : ModelPolicy> ModelProviders<S>.plus(other: ModelProviders<S>) = ModelProviders(plugins + other.plugins) { sources() + other.sources() }
 
+/** Policy and execution look a source up by ID, so two sources with one ID could pair one with the other. */
+internal fun checkModelSources(sources: List<ModelPolicy>) {
+    val duplicates = sources.groupBy { it.id }.filterValues { it.size > 1 }.keys
+    require(duplicates.isEmpty()) { "Model sources registered twice: ${duplicates.joinToString()}" }
+}
+
 /** Pairs each admin of [plugins] with the source of its ID; an admin without one can't run models, so it fails. */
-internal fun pairModelProviders(plugins: List<HarnessPlugin>, sources: List<ModelPolicy>): List<ModelProvider> {
+internal fun pairModelProviders(plugins: List<ServerPlugin>, sources: List<ModelPolicy>): List<ModelProvider> {
+    checkModelSources(sources)
     val byId = sources.associateBy { it.id }
     return plugins.filterIsInstance<ProviderPlugin>().flatMap { it.providerAdmins }.map { admin ->
         PairedModelProvider(byId[admin.id] ?: error("No model source registered for provider '${admin.id}'"), admin)

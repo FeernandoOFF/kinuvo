@@ -57,8 +57,8 @@ class PluginsTest {
 
     @Test
     fun authenticatedClientsDiscoverInstalledPluginModels() = runBlocking {
-        val harness = Harness(home = Path(temporaryDirectories.create("plugin-model-list").toString()), providers = ModelProviders.of(plugin), plugins = listOf(plugin))
-        val server = HarnessServer(harness)
+        val harness = JvmAgentRuntime(home = Path(temporaryDirectories.create("plugin-model-list").toString()), providers = ModelProviders.of(plugin), plugins = listOf(plugin))
+        val server = JvmServerHost(harness)
         val port = server.start("127.0.0.1", 0, schedule = false)
         val client = KinuvoClient("ws://127.0.0.1:$port/ws", "test", pairingCode = server.auth.currentPairingCode())
         try {
@@ -71,13 +71,13 @@ class PluginsTest {
 
     @Test
     fun pluginsContributeModelsToolsAndInstructions() = runBlocking {
-        val harness = Harness(home = Path(temporaryDirectories.create("harness-plugins").toString()), providers = ModelProviders.of(plugin), plugins = listOf(plugin))
+        val harness = JvmAgentRuntime(home = Path(temporaryDirectories.create("harness-plugins").toString()), providers = ModelProviders.of(plugin), plugins = listOf(plugin))
         val agent = harness.store.agents().single().let { it.copy(config = it.config.copy(provider = "fake", tools = emptyList())) }
         val session = harness.newSession(agent)
         val started = harness.store.entries(agent.id, session.id).filterIsInstance<SessionEntry.Started>().single()
         assertTrue("Plugin section" !in started.instructions)
 
-        val events = harness.runner(agent, session.id).run(session.id, "hi").toList()
+        val events = harness.composer.runner(agent, session.id).run(session.id, "hi").toList()
         assertTrue(harness.store.entries(agent.id, session.id).filterIsInstance<SessionEntry.Context>().any { "## Fake\n\nPlugin section" in it.content })
         assertTrue(events.any { it is kinuvo.protocol.session.AgentEvent.Warning && it.message == "half up" })
         assertEquals("ping", harness.store.entries(agent.id, session.id).filterIsInstance<SessionEntry.AssistantMessage>().single().text)
@@ -88,9 +88,9 @@ class PluginsTest {
 
     @Test
     fun unknownProviderIsReported() = runBlocking {
-        val harness = Harness(home = Path(temporaryDirectories.create("harness-plugins").toString()), providers = ModelProviders.of(plugin), plugins = listOf(plugin))
+        val harness = JvmAgentRuntime(home = Path(temporaryDirectories.create("harness-plugins").toString()), providers = ModelProviders.of(plugin), plugins = listOf(plugin))
         val agent = harness.store.agents().single()
-        val error = runCatching { harness.runner(agent) }.exceptionOrNull()
+        val error = runCatching { harness.composer.runner(agent) }.exceptionOrNull()
         assertTrue("No model provider 'codex'" in error?.message.orEmpty())
     }
 }

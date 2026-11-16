@@ -47,12 +47,12 @@ class McpLiveTest {
         if (System.getenv("KINUVO_LIVE") != "1") return@runBlocking
         val home = temporaryDirectories.create("harness-live-mcp").toFile()
         File(home, "mcp.json").writeText(config.replace("\"args\"", "\"includeTools\": [\"echo\"], \"args\""))
-        val harness = Harness(Path(home.path))
+        val harness = JvmAgentRuntime(Path(home.path))
         val agent = harness.store.agents().single().let { it.copy(config = it.config.copy(reasoning = "low")) }
         val session = harness.newSession(agent)
         runBlocking {
             try {
-                val events = harness.runner(agent).run(session.id, "Use the echo tool to echo 'pineapple-42', then tell me what it returned.").toList()
+                val events = harness.composer.runner(agent).run(session.id, "Use the echo tool to echo 'pineapple-42', then tell me what it returned.").toList()
                 val calls = events.filterIsInstance<AgentEvent.ToolCallStart>()
                 assertTrue(calls.any { it.toolCallName == "everything__echo" }, "calls: $calls, events: $events")
                 assertTrue(events.filterIsInstance<AgentEvent.TextMessageEnd>().any { "pineapple-42" in it.text })

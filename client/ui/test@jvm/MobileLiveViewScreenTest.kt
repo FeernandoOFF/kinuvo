@@ -14,7 +14,7 @@ import kinuvo.protocol.*
 import kinuvo.protocol.browser.*
 import kinuvo.protocol.screen.*
 import kinuvo.protocol.agent.AgentId
-import kinuvo.ui.design.HarnessTheme
+import kinuvo.ui.design.KinuvoTheme
 import kinuvo.ui.screen.*
 import java.io.File
 import kotlinx.coroutines.Dispatchers
@@ -68,7 +68,7 @@ class MobileLiveViewScreenTest {
                 override fun setText(annotatedString: AnnotatedString) = Unit
             }
             @Suppress("DEPRECATION")
-            ImageComposeScene(390, 844, Density(1f), content = { HarnessTheme(dark = true) {
+            ImageComposeScene(390, 844, Density(1f), content = { KinuvoTheme(dark = true) {
                 CompositionLocalProvider(androidx.compose.ui.platform.LocalClipboardManager provides clipboard) {
                     LiveViewContent(state.value, LiveActions(input = { _, actions -> inputs.addAll(actions) }), {})
                 }
@@ -127,7 +127,7 @@ class MobileLiveViewScreenTest {
             override fun hide() = Unit
         }
         val sent = mutableListOf<ScreenAction>()
-        ImageComposeScene(390, 844, Density(1f), coroutineContext = Dispatchers.Main, content = { HarnessTheme {
+        ImageComposeScene(390, 844, Density(1f), coroutineContext = Dispatchers.Main, content = { KinuvoTheme {
             CompositionLocalProvider(androidx.compose.ui.platform.LocalSoftwareKeyboardController provides keyboard) {
                 LiveViewContent(state, LiveActions(input = { _, actions -> sent.addAll(actions) }), {})
             }
@@ -158,7 +158,7 @@ class MobileLiveViewScreenTest {
         val info = ScreenInfo(first, "First", ScreenCapabilities(ScreenDelivery.Continuous, setOf("tap"), tabs = true), ScreenStatus.Ready)
         var state by mutableStateOf(LiveViewState(screens = listOf(info, info.copy(ref = second, title = "Second")), selected = first,
             connected = true, owner = owner, frame = frame, displayed = frame, thumbnails = mapOf(second to frame.copy(screen = second))))
-        ImageComposeScene(390, 844, Density(1f), coroutineContext = Dispatchers.Main, content = { HarnessTheme {
+        ImageComposeScene(390, 844, Density(1f), coroutineContext = Dispatchers.Main, content = { KinuvoTheme {
             LiveViewContent(state, LiveActions(select = { state = state.copy(selected = it) }), {})
         } }).use { scene ->
             awaitFrame(scene)
@@ -184,7 +184,7 @@ class MobileLiveViewScreenTest {
     @Test fun browserHeadlessRestartRequiresConfirmationAndCanBeCancelled() = javax.swing.SwingUtilities.invokeAndWait {
         var state by mutableStateOf(LiveViewState(connected = true, presentation = BrowserPresentation(headless = false, runningHeadless = false)))
         val sent = mutableListOf<Pair<Boolean, Boolean>>()
-        ImageComposeScene(390, 844, Density(1f), content = { HarnessTheme {
+        ImageComposeScene(390, 844, Density(1f), content = { KinuvoTheme {
             BrowserWindowControls(state, LiveActions(presentation = { headless, hidden ->
                 sent.add(headless to hidden)
                 state = state.copy(presentation = BrowserPresentation(headless, hidden, runningHeadless = headless))
@@ -218,7 +218,7 @@ class MobileLiveViewScreenTest {
             val state = LiveViewState(screens = listOf(ScreenInfo(ref, "Computer", capabilities, ScreenStatus.Ready, ScreenControl(1, "device"))),
                 selected = ref, connected = true, device = "device", frame = frame, displayed = frame)
             val sent = mutableListOf<ScreenAction>()
-            ImageComposeScene(390, 844, Density(1f), content = { HarnessTheme {
+            ImageComposeScene(390, 844, Density(1f), content = { KinuvoTheme {
                 MobileKeyTray(state, LiveActions(input = { _, actions -> sent.addAll(actions) }))
             } }).use { scene ->
                 repeat(5) { scene.render(System.nanoTime()) }
@@ -240,7 +240,7 @@ class MobileLiveViewScreenTest {
         val frame = ScreenFrame(ScreenRef("browser", "one", BrowserOwner(AgentId("agent"))), "sub", "epoch", 1, sample(1000, 500))
         var recenter by mutableIntStateOf(0)
         val sent = mutableListOf<Pair<ScreenFrame, List<ScreenAction>>>()
-        ImageComposeScene(200, 100, Density(1f), coroutineContext = Dispatchers.Main, content = { HarnessTheme {
+        ImageComposeScene(200, 100, Density(1f), coroutineContext = Dispatchers.Main, content = { KinuvoTheme {
             LiveCanvas(frame, true, { f, actions -> sent.add(f to actions) }, {}, {}, trackpad = true, recenter = recenter)
         } }).use { scene ->
             awaitFrame(scene)
@@ -265,7 +265,7 @@ class MobileLiveViewScreenTest {
     @Test fun twoFingerTrackpadMotionScrollsWithoutClicking() = javax.swing.SwingUtilities.invokeAndWait {
         val frame = ScreenFrame(ScreenRef("computer", "one"), "sub", "epoch", 1, sample(1000, 500))
         val sent = mutableListOf<ScreenAction>()
-        ImageComposeScene(200, 200, Density(1f), coroutineContext = Dispatchers.Main, content = { HarnessTheme {
+        ImageComposeScene(200, 200, Density(1f), coroutineContext = Dispatchers.Main, content = { KinuvoTheme {
             LiveCanvas(frame, true, { _, actions -> sent.addAll(actions) }, {}, {}, scroll = true, trackpad = true)
         } }).use { scene ->
             awaitFrame(scene)
@@ -283,7 +283,7 @@ class MobileLiveViewScreenTest {
         val frame = ScreenFrame(ScreenRef("browser", "one", BrowserOwner(AgentId("agent"))), "sub", "epoch", 1, sample(1000, 500))
         var trackpad by mutableStateOf(true)
         val sent = mutableListOf<ScreenAction>()
-        ImageComposeScene(200, 200, Density(1f), coroutineContext = Dispatchers.Main, content = { HarnessTheme {
+        ImageComposeScene(200, 200, Density(1f), coroutineContext = Dispatchers.Main, content = { KinuvoTheme {
             LiveCanvas(frame, true, { _, actions -> sent.addAll(actions) }, {}, {}, trackpad = trackpad)
         } }).use { scene ->
             awaitFrame(scene)

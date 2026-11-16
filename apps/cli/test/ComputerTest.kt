@@ -5,8 +5,8 @@ import com.github.ajalt.clikt.core.CliktError
 import kinuvo.client.KinuvoClient
 import kinuvo.plugins.cua.DesktopComputer
 import kinuvo.plugins.cua.Driver
-import kinuvo.server.jvm.Harness
-import kinuvo.server.jvm.HarnessServer
+import kinuvo.server.jvm.JvmAgentRuntime
+import kinuvo.server.jvm.JvmServerHost
 import kinuvo.protocol.*
 import kinuvo.protocol.computer.*
 import kinuvo.protocol.device.*
@@ -27,7 +27,7 @@ class ComputerTest {
     @Test fun cliDesktopSupportsLiveViewInputAndTakeoverThroughScreens() = runBlocking {
         withTimeout(10_000) {
             val home = temporaryDirectories.create("kinuvo-cli-computer").toFile()
-            val server = HarnessServer(Harness(Path(home.path), plugins = emptyList()))
+            val server = JvmServerHost(JvmAgentRuntime(Path(home.path), plugins = emptyList()))
             val calls = mutableListOf<Pair<String, JsonObject>>()
             val png = java.io.ByteArrayOutputStream().also {
                 javax.imageio.ImageIO.write(java.awt.image.BufferedImage(4, 2, java.awt.image.BufferedImage.TYPE_INT_RGB), "png", it)
@@ -87,7 +87,7 @@ class ComputerTest {
 
     @Test fun missingDriverDoesNotRegisterAComputer() {
         val home = temporaryDirectories.create("kinuvo-cli-no-computer").toFile()
-        val server = HarnessServer(Harness(Path(home.path), plugins = emptyList()))
+        val server = JvmServerHost(JvmAgentRuntime(Path(home.path), plugins = emptyList()))
         try {
             val error = assertFailsWith<CliktError> { CliComputer(server, "127.0.0.1", 0, DesktopComputer(connect = null)) }
             assertContains(error.message.orEmpty(), "cua-driver permissions grant")

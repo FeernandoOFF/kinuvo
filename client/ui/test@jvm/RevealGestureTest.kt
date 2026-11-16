@@ -26,7 +26,7 @@ import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.use
-import kinuvo.ui.design.HarnessTheme
+import kinuvo.ui.design.KinuvoTheme
 import kinuvo.ui.design.Reveal
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -199,7 +199,7 @@ class RevealGestureTest {
         private var time = 0L
         private val scene = ImageComposeScene(390, 844, Density(1f), content = {
             CompositionLocalProvider(LocalHapticFeedback provides feedback) {
-                HarnessTheme(dark = false) {
+                KinuvoTheme(dark = false) {
                     Reveal(open.value, { open.value = it }, behind = { Box(Modifier.fillMaxSize()) }) {
                         Box(Modifier.fillMaxSize().onGloballyPositioned { contentX = it.positionInRoot().x }) {
                             if (scroll != null) Box(Modifier.fillMaxSize().then(if (vertical) Modifier.verticalScroll(scroll) else Modifier.horizontalScroll(scroll))) {

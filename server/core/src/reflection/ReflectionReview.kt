@@ -16,7 +16,7 @@ import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 
 /** The Session log holds drafts and their decisions, so review survives a Server restart. */
-class ReflectionReview(private val harness: HarnessRuntime) {
+class ReflectionReview(private val harness: AgentRuntime) {
     private val lock = Mutex()
 
     suspend fun respond(agent: Agent, sessionId: SessionId, proposalId: String, approve: Boolean, note: String? = null) = lock.withLock {

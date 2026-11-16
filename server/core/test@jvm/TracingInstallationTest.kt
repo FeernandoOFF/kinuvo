@@ -29,7 +29,7 @@ class TracingInstallationTest {
         try {
             val agent = runtime.store.agents().single()
             val session = runtime.newSession(agent)
-            assertIs<AgentEvent.RunFinished>(runtime.runner(agent, session.id).run(session.id, "private-input-secret").toList().last())
+            assertIs<AgentEvent.RunFinished>(runtime.composer.runner(agent, session.id).run(session.id, "private-input-secret").toList().last())
             val history = runtime.store.entries(agent.id, session.id)
             assertNull(runtime.reflect(agent, session.id, history).error)
             val content = files.traces.children().filter { it.name.endsWith(".jsonl") }.joinToString("") { it.readText() }
@@ -51,7 +51,7 @@ class TracingInstallationTest {
             assertNull(dependencies.traces)
             val agent = runtime.store.agents().single()
             val session = runtime.newSession(agent)
-            assertIs<AgentEvent.RunFinished>(runtime.runner(agent, session.id).run(session.id, "go").toList().last())
+            assertIs<AgentEvent.RunFinished>(runtime.composer.runner(agent, session.id).run(session.id, "go").toList().last())
             assertFalse(files.traces.exists())
             assertFalse(files.config().tracing)
         } finally { runtime.close() }

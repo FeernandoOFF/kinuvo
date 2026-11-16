@@ -23,7 +23,7 @@ class DeviceToolsTest {
     fun deleteTemporaryDirectories() = temporaryDirectories.close()
 
     private val home = temporaryDirectories.create("device-tools").toFile()
-    private val harness = Harness(home = Path(home.path), modelFactory = { scriptedModel { _, _ -> kotlinx.coroutines.flow.emptyFlow() } })
+    private val harness = JvmAgentRuntime(home = Path(home.path), modelFactory = { scriptedModel { _, _ -> kotlinx.coroutines.flow.emptyFlow() } })
     private val device = ToolDevice("phone", "iPhone", setOf(DeviceToolKind.Contacts))
     private val events = Channel<AgentEvent>(Channel.UNLIMITED)
 
@@ -143,7 +143,7 @@ class DeviceToolsTest {
 
     @Test
     fun disconnectDuringANativeReadWaitsAndResumesOnTheNewSocket() = runBlocking {
-        val server = HarnessServer(harness)
+        val server = JvmServerHost(harness)
         val port = server.start("127.0.0.1", 0, schedule = false)
         val started = CompletableDeferred<Unit>()
         val cancelled = CompletableDeferred<Unit>()
@@ -179,7 +179,7 @@ class DeviceToolsTest {
 
     @Test
     fun oldSocketPresenceAndToolsCannotReplaceTheReconnectedDevice() = runBlocking {
-        val server = HarnessServer(harness)
+        val server = JvmServerHost(harness)
         val port = server.start("127.0.0.1", 0, schedule = false)
         var token: String? = null
         val old = kinuvo.client.KinuvoClient("ws://127.0.0.1:$port/ws", "iPhone", pairingCode = server.auth.currentPairingCode(),
@@ -208,7 +208,7 @@ class DeviceToolsTest {
 
     @Test
     fun actionConnectionLeavesForegroundDeviceToolsUntouched() = runBlocking {
-        val server = HarnessServer(harness)
+        val server = JvmServerHost(harness)
         val port = server.start("127.0.0.1", 0, schedule = false)
         val client = kinuvo.client.KinuvoClient("ws://127.0.0.1:$port/ws", "iPhone", pairingCode = server.auth.currentPairingCode(),
             deviceTools = { device.tools }, deviceRead = { DeviceToolResult(DeviceToolStatus.Ready) })
@@ -241,7 +241,7 @@ class DeviceToolsTest {
 
     @Test
     fun authenticatedClientAnswersReverseRequestsAndCanDisableTools() = runBlocking {
-        val server = HarnessServer(harness)
+        val server = JvmServerHost(harness)
         val port = server.start("127.0.0.1", 0, schedule = false)
         var enabled = setOf(DeviceToolKind.Contacts)
         var token: String? = null

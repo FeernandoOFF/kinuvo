@@ -1,7 +1,7 @@
 package kinuvo.server
 
 import kinuvo.server.plugin.ConfigurableProvider
-import kinuvo.server.plugin.HarnessPlugin
+import kinuvo.server.plugin.ServerPlugin
 import kinuvo.server.plugin.NoPluginHost
 import kinuvo.server.plugin.Notification
 import kinuvo.server.plugin.NotificationProvider
@@ -63,7 +63,7 @@ internal class FileServerSettings(
     private val files: AgentFiles,
     private val userHome: Path,
     private val store: Store,
-    private val external: List<HarnessPlugin>,
+    private val external: List<ServerPlugin>,
     private val secrets: Secrets,
     private val hosts: PluginHosts,
     clock: () -> Long,
@@ -257,7 +257,7 @@ internal class FileServerSettings(
         external.single { plugin -> (if (kind == ServiceKind.Search) plugin.webSearch else plugin.notifications).any { it === provider } }
 
     /** [plugin]'s host, granting what [options] for its [provider] let it reach. */
-    private fun host(plugin: HarnessPlugin, provider: ConfigurableProvider, options: Map<String, String>): PluginHost {
+    private fun host(plugin: ServerPlugin, provider: ConfigurableProvider, options: Map<String, String>): PluginHost {
         val grant = provider.grants(plugin.instance, options)
         return hosts.bind(plugin.manifest, plugin.instance) { grant }
     }

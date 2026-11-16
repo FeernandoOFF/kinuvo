@@ -1,7 +1,7 @@
 package kinuvo.testing.server
 
 import kinuvo.server.plugin.BrowserService
-import kinuvo.server.plugin.HarnessPlugin
+import kinuvo.server.plugin.ServerPlugin
 import kinuvo.server.plugin.ScreenGate
 import kinuvo.server.plugin.ScreenSource
 import kinuvo.protocol.browser.BrowserCommand
@@ -64,7 +64,7 @@ class FakeBrowser(private val tabs: List<BrowserTab>) : BrowserService {
 }
 
 /** Gives a Server a [FakeBrowser], so Agents have the browser tool group and clients see its tabs. */
-class FakeBrowserPlugin(override val browser: FakeBrowser) : HarnessPlugin {
+class FakeBrowserPlugin(override val browser: FakeBrowser) : ServerPlugin {
     override val definition = PluginDefinition("test.browser", "Test browser")
     override val features = setOf(ServerFeature.Browser)
     override val integrations = mapOf(Integration.Tools to setOf("browser"))

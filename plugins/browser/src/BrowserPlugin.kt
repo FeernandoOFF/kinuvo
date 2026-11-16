@@ -6,7 +6,7 @@ import kinuvo.server.plugin.ToolParameter
 import kinuvo.harness.Agent
 import kinuvo.server.plugin.BrowserService
 import kinuvo.server.plugin.CoreTool
-import kinuvo.server.plugin.HarnessPlugin
+import kinuvo.server.plugin.ServerPlugin
 import kinuvo.server.plugin.InstructionSection
 import kinuvo.server.plugin.PluginTools
 import kinuvo.server.plugin.RunContext
@@ -21,7 +21,7 @@ import kinuvo.protocol.agent.AgentId
 import kotlinx.serialization.json.*
 import kotlin.io.encoding.Base64
 
-class BrowserPlugin(override val browser: BrowserService) : HarnessPlugin {
+class BrowserPlugin(override val browser: BrowserService) : ServerPlugin {
     override val definition = PluginDefinition("kinuvo.browser", "Browser")
     override val features = setOf(ServerFeature.Browser)
     override val integrations = mapOf(Integration.Tools to setOf("browser"))

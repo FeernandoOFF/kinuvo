@@ -19,7 +19,7 @@ import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.use
 import kinuvo.ui.design.accentColor
-import kinuvo.ui.design.HarnessTheme
+import kinuvo.ui.design.KinuvoTheme
 import kinuvo.ui.design.Input
 import kinuvo.ui.design.color
 import org.jetbrains.skia.EncodedImageFormat
@@ -31,7 +31,7 @@ class SurfaceInputTest {
     @Test fun pointerRepositionsCaretAndDragsSelection() = javax.swing.SwingUtilities.invokeAndWait {
         val state = TextFieldState("Trip name budget", TextRange(16))
         ImageComposeScene(300, 100, Density(1f), content = {
-            HarnessTheme(dark = false) {
+            KinuvoTheme(dark = false) {
                 SelectionContainer { Box(Modifier.padding(10.dp)) { Input(state, "") } }
             }
         }).use { scene ->
@@ -56,7 +56,7 @@ class SurfaceInputTest {
         for (limits in listOf(TextFieldLineLimits.SingleLine, TextFieldLineLimits.MultiLine(maxHeightInLines = 4))) {
             var accent = 0
             ImageComposeScene(300, 100, Density(1f), content = {
-                HarnessTheme(dark = false) {
+                KinuvoTheme(dark = false) {
                     accent = color(accentColor).toArgb()
                     Box(Modifier.padding(10.dp)) { Input(rememberTextFieldState(), "", lineLimits = limits) }
                 }

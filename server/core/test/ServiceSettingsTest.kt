@@ -1,6 +1,6 @@
 package kinuvo.server
 
-import kinuvo.server.plugin.HarnessPlugin
+import kinuvo.server.plugin.ServerPlugin
 import kinuvo.server.plugin.NotificationProvider
 import kinuvo.server.plugin.Notifier
 import kinuvo.server.plugin.deleteTree
@@ -38,7 +38,7 @@ class ServiceSettingsTest {
             return Notifier { sentOptions = options }
         }
     }
-    private val plugin = object : HarnessPlugin {
+    private val plugin = object : ServerPlugin {
         override val definition = kinuvo.protocol.plugin.PluginDefinition("test.servicesettingstest.1", "Test")
             override val notifications = listOf(provider("first"), provider("second")) }
 
@@ -135,7 +135,7 @@ class ServiceSettingsTest {
     }
 
     @Test fun duplicateProviderIdsFailDuringAssembly() = runTest {
-        val duplicate = object : HarnessPlugin {
+        val duplicate = object : ServerPlugin {
             override val definition = kinuvo.protocol.plugin.PluginDefinition("test.servicesettingstest.2", "Test")
             override val notifications = listOf(provider("same"), provider("same")) }
         assertFailsWith<IllegalArgumentException> { ServerInstallation.assemble(files, plugins = listOf(duplicate)) }

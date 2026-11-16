@@ -23,7 +23,7 @@ class McpGatewayTest {
         }).use { server ->
             suspend fun names(who: Agent): Set<String> {
                 val session = server.startSession(who.id)
-                val composed = server.harness.compose(who, session.id, scope = ToolScope.only("agent_manage"))
+                val composed = server.harness.composer.compose(who, session.id, scope = ToolScope.only("agent_manage"))
                 val access = McpAccess()
                 val run = McpAccess.Run(composed.tools, composed.gate, ToolTurn(emit = {}), SupervisorJob())
                 val token = access.issue(run)
@@ -47,7 +47,7 @@ class McpGatewayTest {
             externalAgent(external, caller.id.value)
         }).use { server ->
             val session = server.startSession(caller.id)
-            val composed = server.harness.compose(caller, session.id, scope = ToolScope.only("agents_spawn", "agents_wait"))
+            val composed = server.harness.composer.compose(caller, session.id, scope = ToolScope.only("agents_spawn", "agents_wait"))
             val access = McpAccess()
             val endpoint = McpEndpoint(access)
             val run = McpAccess.Run(composed.tools, composed.gate, ToolTurn(emit = { server.harness.log.publish(caller.id, session.id, it) }), SupervisorJob())
@@ -89,7 +89,7 @@ class McpGatewayTest {
         )), scenario = { agent = agent("work"); withoutDefaultAgent() })
         server.use {
             val session = server.startSession(agent.id)
-            val composed = server.harness.compose(agent, session.id, scope = ToolScope.only("deploy"))
+            val composed = server.harness.composer.compose(agent, session.id, scope = ToolScope.only("deploy"))
             val access = McpAccess()
             val endpoint = McpEndpoint(access)
             val run = McpAccess.Run(composed.tools, composed.gate, ToolTurn(emit = { event ->

@@ -1,6 +1,6 @@
 package kinuvo.server
 
-import kinuvo.server.plugin.HarnessPlugin
+import kinuvo.server.plugin.ServerPlugin
 import kinuvo.server.plugin.PluginHosts
 import kinuvo.server.plugin.checkPluginInstances
 import kinuvo.server.plugin.readTextOrNull
@@ -27,6 +27,7 @@ import kotlinx.serialization.builtins.serializer
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.jsonObject
 import kinuvo.server.providers.ModelProvider
+import kinuvo.server.providers.checkModelSources
 import kinuvo.server.providers.pairModelProviders
 
 /** Both hosts install the same disk adapters and own the resulting resources through the runtime. */
@@ -34,7 +35,7 @@ object ServerInstallation {
     suspend fun assemble(
         files: AgentFiles,
         store: Store? = null,
-        plugins: List<HarnessPlugin> = emptyList(),
+        plugins: List<ServerPlugin> = emptyList(),
         modelProviders: List<ModelProvider> = emptyList(),
         modelSources: () -> List<ModelPolicy> = { emptyList() },
         secrets: Secrets = Secrets(),
@@ -47,6 +48,7 @@ object ServerInstallation {
         val resources = ServerResources(plugins) { try { voice?.close() } finally { try { hosts?.close() } finally { http?.close() } } }
         try {
             plugins.checkPluginInstances()
+            checkModelSources(modelSources())
             val installedStore = store ?: FileStore(files, clock)
             val docs = FileAgentDocs(files)
             val providers = object : AbstractList<ModelProvider>() {

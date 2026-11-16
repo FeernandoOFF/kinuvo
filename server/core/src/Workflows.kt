@@ -28,7 +28,7 @@ sealed class WorkflowError(override val code: String, override val message: Stri
 /** Durable graph snapshots and results; interrupted execution is never replayed. */
 @OptIn(ExperimentalCoroutinesApi::class, DelicateCoroutinesApi::class)
 class Workflows internal constructor(
-    private val harness: HarnessRuntime, private val runs: Runs, private val scope: CoroutineScope,
+    private val harness: AgentRuntime, private val runs: Runs, private val scope: CoroutineScope,
     private val changed: (List<Workflow>) -> Unit = {}, private val runChanged: (WorkflowRun) -> Unit = {},
     private val wakeScheduler: () -> Unit = {},
     private val clock: () -> Long = { Clock.System.now().toEpochMilliseconds() },

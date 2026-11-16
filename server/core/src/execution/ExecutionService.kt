@@ -8,7 +8,7 @@ import kinuvo.protocol.capability.*
 import kinuvo.protocol.execution.*
 import kinuvo.protocol.session.*
 import kinuvo.server.Admin
-import kinuvo.server.HarnessRuntime
+import kinuvo.server.AgentRuntime
 import arrow.core.raise.Raise
 import arrow.core.raise.context.raise
 import kinuvo.server.AccessError
@@ -25,7 +25,7 @@ import kotlinx.coroutines.withTimeoutOrNull
 
 /** Harness connections, external Agents, remote links and the Agent list that merges them with native Agents. */
 class ExecutionService internal constructor(
-    private val harness: HarnessRuntime,
+    private val harness: AgentRuntime,
     private val admin: Admin,
     private val registry: ExecutionRegistry,
     private val external: ExecutionCoordinator,
@@ -155,7 +155,7 @@ class ExecutionService internal constructor(
     context(_: Raise<AgentError>)
     suspend fun sessionCapabilities(p: CapabilitiesParams): SessionCapabilities {
         val registration = external.registrationOrArchived(p.agentId)
-        return if (registration == null) harness.capabilities(admin.agent(p.agentId), p.sessionId, p.settings, capabilities(), sequence())
+        return if (registration == null) harness.composer.capabilities(admin.agent(p.agentId), p.sessionId, p.settings, capabilities(), sequence())
         else external.capabilities(p.agentId, p.sessionId, externalInfo(registration).readiness, capabilities(), sequence())
     }
 

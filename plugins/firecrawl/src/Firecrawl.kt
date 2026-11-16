@@ -1,6 +1,6 @@
 package kinuvo.plugins.firecrawl
 
-import kinuvo.server.plugin.HarnessPlugin
+import kinuvo.server.plugin.ServerPlugin
 import kinuvo.server.plugin.PluginHost
 import kinuvo.server.plugin.SearchRegion
 import kinuvo.server.plugin.WebResult
@@ -11,7 +11,7 @@ import kinuvo.protocol.plugin.*
 import kinuvo.protocol.settings.*
 import kotlinx.serialization.json.*
 
-class FirecrawlPlugin : HarnessPlugin {
+class FirecrawlPlugin : ServerPlugin {
     override val definition = PluginDefinition("kinuvo.firecrawl", "Firecrawl")
     override val webSearch = listOf(object : WebSearchProvider {
         override val id = "firecrawl"

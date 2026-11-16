@@ -7,7 +7,7 @@ import com.github.ajalt.clikt.parameters.options.default
 import com.github.ajalt.clikt.parameters.options.flag
 import com.github.ajalt.clikt.parameters.options.option
 import com.github.ajalt.clikt.parameters.types.int
-import kinuvo.server.jvm.HarnessServer
+import kinuvo.server.jvm.JvmServerHost
 import kinuvo.server.jvm.LocalServer
 import kinuvo.server.jvm.ServeException
 import kinuvo.server.jvm.ServeOptions
@@ -282,7 +282,7 @@ internal class Systemd(home: File = File(System.getProperty("user.home"))) : Ser
 
 private class InstallService : CoreSuspendingCliktCommand("install") {
     private val host by option("--host", help = "Interface to listen on").default("127.0.0.1")
-    private val port by option("--port").int().default(HarnessServer.DEFAULT_PORT)
+    private val port by option("--port").int().default(JvmServerHost.DEFAULT_PORT)
     private val publicUrl by option("--public-url", help = "HTTPS origin served by a reverse proxy")
     private val computer by option("--computer", help = "Expose this desktop as a Computer through cua-driver").flag()
     private val tailscale by option("--tailscale", help = "Provide private HTTPS through Tailscale Serve and retain it across service restarts").flag()

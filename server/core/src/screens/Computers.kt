@@ -10,7 +10,7 @@ import kinuvo.server.plugin.Assessment
 import kinuvo.server.plugin.BrowserService
 import kinuvo.server.plugin.Computer
 import kinuvo.server.plugin.CoreTool
-import kinuvo.server.plugin.HarnessPlugin
+import kinuvo.server.plugin.ServerPlugin
 import kinuvo.server.plugin.InstructionSection
 import kinuvo.server.plugin.PluginTools
 import kinuvo.server.plugin.RunContext
@@ -58,7 +58,7 @@ import kotlinx.serialization.builtins.ListSerializer
 class Computers(
     private val log: SessionLog,
     private val questions: () -> Broker<Map<String, List<String>>?>,
-) : HarnessPlugin {
+) : ServerPlugin {
     override val definition = PluginDefinition("kinuvo.computer", "Computer")
     var browserService: () -> BrowserService? = { null }
     var paired: () -> List<ToolDevice> = { emptyList() }

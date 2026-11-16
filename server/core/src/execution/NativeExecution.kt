@@ -12,7 +12,7 @@ import kinuvo.harness.ExecutionDispatch
 import kinuvo.harness.ExecutionInput
 import kinuvo.harness.RunKind
 import kinuvo.harness.ToolReports
-import kinuvo.server.HarnessRuntime
+import kinuvo.server.AgentRuntime
 import kinuvo.server.Runs
 import kinuvo.protocol.approval.*
 import kinuvo.protocol.capability.*
@@ -31,7 +31,7 @@ private val log = KotlinLogging.logger("kinuvo.server")
 
 /** Runs the Server's own Agents: each turn is a [Runs] run that opens a Session of the built-in harness. */
 class NativeExecution(
-    private val harness: HarnessRuntime,
+    private val harness: AgentRuntime,
     private val runs: Runs,
     private val scope: CoroutineScope,
     private val agent: suspend context(Raise<AgentError>) (AgentId) -> Agent,
@@ -74,7 +74,7 @@ class NativeExecution(
         val sessionId = p.sessionId?.also { id ->
             if (harness.store.sessions(agent.id).none { it.id == id }) raise(SessionError.NotOfAgent(id, agent.id))
         } ?: harness.newSession(agent).id
-        val effective = harness.capabilities(agent, sessionId, null, capabilities())
+        val effective = harness.composer.capabilities(agent, sessionId, null, capabilities())
         effective.chat.requireReady()
         attachments.forEach { attachment -> effective.attachment(attachment.mimeType).requireReady() }
         val (activation, message) = (if (ServerFeature.Skills in capabilities().features) harness.slashActivation(agent, p.text) else null) ?: (null to p.text)

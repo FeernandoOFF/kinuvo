@@ -119,7 +119,7 @@ fun KinuvoApp(app: AppViewModel = koinViewModel(), initialRoute: Route? = null, 
     val appState by app.state.collectAsState()
     if (appState.onboarding) {
         // One for the whole first run: connecting a Server mustn't start it over, as one keyed by the Server would.
-        HarnessTheme { OnboardingScreen(app, koinViewModel<OnboardingViewModel>(key = "first-run-${appState.firstRun}")) }
+        KinuvoTheme { OnboardingScreen(app, koinViewModel<OnboardingViewModel>(key = "first-run-${appState.firstRun}")) }
         return
     }
     val connection = appState.connection
@@ -204,7 +204,7 @@ fun KinuvoApp(app: AppViewModel = koinViewModel(), initialRoute: Route? = null, 
     // Tooltips draw in this host, over everything else.
     val agent = appState.agents.firstOrNull { it.id == appState.agentId } ?: appState.agents.firstOrNull()
     val accent by animateColorAsState(agent?.ink ?: AvatarInk[0], tween(Motion.accent))
-    HarnessTheme(accent = agent?.let { accent }) { TooltipHost(Modifier.fillMaxSize()) {
+    KinuvoTheme(accent = agent?.let { accent }) { TooltipHost(Modifier.fillMaxSize()) {
         BoxWithConstraints(Modifier
             .fillMaxSize()
             .background(color(backgroundColor))

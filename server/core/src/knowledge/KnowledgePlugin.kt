@@ -1,7 +1,7 @@
 package kinuvo.server.knowledge
 
 import kinuvo.harness.Agent
-import kinuvo.server.plugin.HarnessPlugin
+import kinuvo.server.plugin.ServerPlugin
 import kinuvo.server.plugin.InstructionSection
 import kinuvo.server.plugin.PluginTools
 import kinuvo.server.plugin.RunContext
@@ -9,7 +9,7 @@ import kinuvo.protocol.tool.ToolNames
 import kinuvo.protocol.plugin.PluginDefinition
 
 /** The knowledge tools for Agents that have `knowledge` in their tools, and the user's conventions in their instructions. */
-class KnowledgePlugin(private val knowledge: Knowledge) : HarnessPlugin {
+class KnowledgePlugin(private val knowledge: Knowledge) : ServerPlugin {
     override val definition = PluginDefinition("kinuvo.knowledge", "Knowledge")
     override suspend fun prepare(run: RunContext, activate: Boolean): PluginTools {
         if (!enabled(run.agent)) return PluginTools()

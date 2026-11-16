@@ -26,7 +26,7 @@ class ComputersTest {
     fun deleteTemporaryDirectories() = temporaryDirectories.close()
 
     private val home = temporaryDirectories.create("computers").toFile()
-    private val harness = Harness(home = Path(home.path), modelFactory = { scriptedModel { _, _ -> kotlinx.coroutines.flow.emptyFlow() } })
+    private val harness = JvmAgentRuntime(home = Path(home.path), modelFactory = { scriptedModel { _, _ -> kotlinx.coroutines.flow.emptyFlow() } })
     private val phone = ToolDevice("phone", "Pixel", setOf(DeviceToolKind.Computer))
     private val attached = mutableListOf<String>()
     private val run = object : ToolRun {
@@ -103,7 +103,7 @@ class ComputersTest {
 
     @Test
     fun aPairedPhoneIsControlledOverItsConnectionInTheBackground() = runBlocking {
-        val server = HarnessServer(harness)
+        val server = JvmServerHost(harness)
         val port = server.start("127.0.0.1", 0, schedule = false)
         val client = kinuvo.client.KinuvoClient("ws://127.0.0.1:$port/ws", "Pixel", pairingCode = server.auth.currentPairingCode(),
             deviceTools = { setOf(DeviceToolKind.Computer) }, computer = { ComputerResult(DeviceToolStatus.Ready, screen = screen) })
@@ -234,7 +234,7 @@ class ComputersTest {
 
     @Test
     fun theDesktopAppOffersItsOwnScreenToTheServerItEmbeds(): Unit = runBlocking {
-        val server = HarnessServer(harness)
+        val server = JvmServerHost(harness)
         val port = server.start("127.0.0.1", 0, schedule = false)
         val desktop = kinuvo.client.KinuvoClient("ws://127.0.0.1:$port/ws", "Mac", token = server.auth.sessionToken(),
             deviceTools = { setOf(DeviceToolKind.Computer) }, computer = { ComputerResult(DeviceToolStatus.Ready, screen = screen.copy(platform = "macOS")) })

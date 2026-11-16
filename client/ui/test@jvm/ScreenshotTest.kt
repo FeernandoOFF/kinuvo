@@ -82,7 +82,7 @@ import kinuvo.protocol.session.*
 import kinuvo.protocol.settings.*
 import kinuvo.protocol.skill.*
 import kinuvo.protocol.usage.*
-import kinuvo.ui.design.HarnessTheme
+import kinuvo.ui.design.KinuvoTheme
 import kinuvo.ui.voice.AgentOrb
 import kinuvo.ui.voice.CallStrip
 import kinuvo.ui.design.Strips
@@ -124,7 +124,7 @@ class ScreenshotTest {
         val attachment = Attachment("generated", "generated-1.png", "image/png", bytes.size)
         val item = ChatItem.ToolCall("image", ToolCallId("image"), "generate_image", "{}", result = "Image attachment: generated", attachments = listOf(attachment))
         render("chat-generated-image", 420, 860) {
-            HarnessTheme(dark = true) {
+            KinuvoTheme(dark = true) {
                 ChatContent(state.copy(items = listOf(ChatItem.User("user", "Draw a golden sun"), item), running = false),
                     ConnectionState.Connected("x"), null, ChatActions(downloads = mapOf(attachment.id to AttachmentData(attachment, Base64.encode(bytes)))))
             }
@@ -134,7 +134,7 @@ class ScreenshotTest {
     @Test fun backgroundReportInChat() {
         val report = ChatItem.ToolReport("report", "shell", ToolCallId("call"), "[bg1 exit 0] ./kotlin test -m core -p jvm\n[ 277 tests successful ]\n[ 0 tests failed ]")
         render("chat-tool-report", 420, 620) {
-            HarnessTheme(dark = true) {
+            KinuvoTheme(dark = true) {
                 ChatContent(state.copy(items = listOf(ChatItem.User("user", "Run the core tests"), ChatItem.Assistant("started", "Started the tests in the background."), report,
                     ChatItem.Assistant("done", "All 277 core tests passed.")), running = false), ConnectionState.Connected("x"), null, ChatActions())
             }
@@ -144,7 +144,7 @@ class ScreenshotTest {
     @Test fun generatingImageInChat() {
         val item = ChatItem.ToolCall("image", ToolCallId("image"), "generate_image", "{}")
         render("chat-generating-image", 420, 860) {
-            HarnessTheme(dark = true) {
+            KinuvoTheme(dark = true) {
                 ChatContent(state.copy(items = listOf(ChatItem.User("user", "Draw a golden sun"), item), running = true), ConnectionState.Connected("x"), null, ChatActions())
             }
         }
@@ -152,7 +152,7 @@ class ScreenshotTest {
 
     @Test fun renderToolResultPreview() {
         render("tool-result-preview-phone", 390, 420) {
-            HarnessTheme(dark = true) {
+            KinuvoTheme(dark = true) {
                 Column(Modifier.fillMaxSize().background(color(backgroundColor)).padding(16.dp)) {
                     kinuvo.ui.design.CodeBlock("HTTP 200\n\n" + "Caption text from the fetched page.\n".repeat(30), language = "result", previewChars = 200)
                 }
@@ -268,22 +268,22 @@ class ScreenshotTest {
         for (dark in listOf(false, true)) {
             val suffix = if (dark) "dark" else "light"
             render("connect-prefilled-$suffix", 390, 844) {
-                HarnessTheme(dark = dark) {
+                KinuvoTheme(dark = dark) {
                     ConnectScreen(null, { _, _, _ -> }, emptyList(), {}, pending = PairLink("http://192.168.1.12:8787", "123456"))
                 }
             }
             val saved = listOf(Server.Remote("ws://192.168.1.12:8787/ws", "token", "Home", "home"), Server.Remote("wss://work.example/ws", null, "Work"), Server.Embedded)
             render("connect-servers-$suffix", 390, 1100) {
-                HarnessTheme(dark = dark) { ConnectScreen("Couldn't reach 192.168.1.40:8787", { _, _, _ -> }, saved, {}, initialUrl = "192.168.1.40:8787", onCancel = {}) }
+                KinuvoTheme(dark = dark) { ConnectScreen("Couldn't reach 192.168.1.40:8787", { _, _, _ -> }, saved, {}, initialUrl = "192.168.1.40:8787", onCancel = {}) }
             }
             render("connect-from-this-device-$suffix", 390, 844) {
-                HarnessTheme(dark = dark) { ConnectScreen(null, { _, _, _ -> }, saved, {}, onCancel = {}, from = Server.Embedded) }
+                KinuvoTheme(dark = dark) { ConnectScreen(null, { _, _, _ -> }, saved, {}, onCancel = {}, from = Server.Embedded) }
             }
             render("connect-connecting-$suffix", 1100, 900) {
-                HarnessTheme(dark = dark) { ConnectScreen(null, { _, _, _ -> }, saved, {}, pending = PairLink("http://192.168.1.12:8787", "123456"), connecting = saved[0]) }
+                KinuvoTheme(dark = dark) { ConnectScreen(null, { _, _, _ -> }, saved, {}, pending = PairLink("http://192.168.1.12:8787", "123456"), connecting = saved[0]) }
             }
             render("pairing-qr-$suffix", 340, 650) {
-                HarnessTheme(dark = dark) {
+                KinuvoTheme(dark = dark) {
                     Column(Modifier.fillMaxSize().background(color(backgroundColor)).padding(16.dp)) {
                         PairingPanel(pairing, "http://192.168.1.12:8787", {}, {})
                     }
@@ -294,12 +294,12 @@ class ScreenshotTest {
                 PairedDeviceInfo("tablet", "iPad", "2026-10-01T12:00:00Z", lastSeen = "2026-10-09T18:30:00Z"),
             )
             render("paired-devices-$suffix", 390, 650) {
-                HarnessTheme(dark = dark) {
+                KinuvoTheme(dark = dark) {
                     Column(Modifier.fillMaxSize().background(color(backgroundColor)).padding(16.dp)) { PairedDevices(DevicesState(paired), {}) }
                 }
             }
             render("connection-settings-$suffix", 1000, 1100) {
-                HarnessTheme(dark = dark) {
+                KinuvoTheme(dark = dark) {
                     SettingsContent(settingsAt(Route.Settings(AgentId("main"), SettingsSection.Connection)).copy(
                         capabilities = ServerCapabilities("home", setOf(ServerFeature.Pairing)),
                         server = Server.Remote("ws://192.168.1.12:8787/ws", "token", "Home", "home"),
@@ -309,7 +309,7 @@ class ScreenshotTest {
             }
             val browser = Server.Remote("wss://home.example/ws", "browser-session", "Home", "home")
             render("connection-settings-browser-$suffix", 1000, 700) {
-                HarnessTheme(dark = dark) {
+                KinuvoTheme(dark = dark) {
                     SettingsContent(settingsAt(Route.Settings(AgentId("main"), SettingsSection.Connection)).copy(
                         server = browser, servers = listOf(browser),
                     ), SettingsActions())
@@ -322,11 +322,11 @@ class ScreenshotTest {
     @Test
     fun renderScreens() {
         val waiting = state.copy(pending = listOf(state.items.filterIsInstance<ChatItem.ToolCall>().firstNotNullOf { it.approval }))
-        render("chat-wide-light", 1200, 900) { HarnessTheme(dark = false) { ChatContent(waiting, ConnectionState.Connected("x"), usage, ChatActions()) } }
-        render("chat-wide-dark", 1200, 900) { HarnessTheme(dark = true) { ChatContent(waiting, ConnectionState.Disconnected("x"), usage, ChatActions()) } }
+        render("chat-wide-light", 1200, 900) { KinuvoTheme(dark = false) { ChatContent(waiting, ConnectionState.Connected("x"), usage, ChatActions()) } }
+        render("chat-wide-dark", 1200, 900) { KinuvoTheme(dark = true) { ChatContent(waiting, ConnectionState.Disconnected("x"), usage, ChatActions()) } }
         val defaults = AgentSettings("gpt-5.6-sol", "medium", "default", "host")
         render("composer-dark", 390, 152) {
-            HarnessTheme(dark = true) {
+            KinuvoTheme(dark = true) {
                 Column(Modifier.fillMaxSize().background(color(backgroundColor)).padding(12.dp)) {
                     Composer(false, {}, {}, placeholder = "Chat with Kinuvo",
                         controls = { ComposerSettings(SessionSettings(), defaults, ModelsCatalog(listOf(ProviderModels("codex", "ChatGPT / Codex", listOf(ModelInfo(defaults.model))))), {}) })
@@ -337,58 +337,58 @@ class ScreenshotTest {
         val png = ByteArrayOutputStream().also { ImageIO.write(BufferedImage(64, 64, BufferedImage.TYPE_INT_RGB), "png", it) }.toByteArray()
         val photo = UploadAttachmentParams("screenshot.png", kotlin.io.encoding.Base64.encode(png))
         render("chat-attachments", 420, 860) {
-            HarnessTheme(dark = true) {
+            KinuvoTheme(dark = true) {
                 ChatContent(state.copy(running = false, defaults = defaults, attachments = listOf(PendingAttachment("draft", file), PendingAttachment("photo", photo)), items = listOf(ChatItem.User("attached", "Can you check this?", attachments = listOf(Attachment("file", "sleep.pdf", "application/pdf", 12000))))), ConnectionState.Connected("x"), null, ChatActions())
             }
         }
         render("attachment-preview", 400, 800) {
-            HarnessTheme(dark = true) { ChatContent(state.copy(preview = AttachmentPreview(Attachment("notes", "notes.md", "text/plain", 40), kotlin.io.encoding.Base64.encode("# Notes\n\nSome **bold** text\n\n- one\n- two".encodeToByteArray()))), ConnectionState.Connected("x"), null, ChatActions()) }
+            KinuvoTheme(dark = true) { ChatContent(state.copy(preview = AttachmentPreview(Attachment("notes", "notes.md", "text/plain", 40), kotlin.io.encoding.Base64.encode("# Notes\n\nSome **bold** text\n\n- one\n- two".encodeToByteArray()))), ConnectionState.Connected("x"), null, ChatActions()) }
         }
         render("composer-light", 390, 152) {
-            HarnessTheme(dark = false) {
+            KinuvoTheme(dark = false) {
                 Column(Modifier.fillMaxSize().background(color(backgroundColor)).padding(12.dp)) {
                     Composer(false, {}, {}, placeholder = "Chat with Kinuvo",
                         controls = { ComposerSettings(SessionSettings(), defaults, ModelsCatalog(listOf(ProviderModels("codex", "ChatGPT / Codex", listOf(ModelInfo(defaults.model))))), {}) })
                 }
             }
         }
-        render("chat-session-settings", 390, 844) { HarnessTheme(dark = false) { ChatContent(state.copy(running = false, defaults = defaults, models = ModelsCatalog(listOf(ProviderModels("codex", "ChatGPT / Codex", listOf(ModelInfo("gpt-5.6-sol"), ModelInfo("gpt-5.6-mini"))))), settings = SessionSettings(reasoning = "high")), ConnectionState.Connected("x"), null, ChatActions()) } }
-        render("chat-narrow", 420, 860) { HarnessTheme(dark = false) { ChatContent(state.copy(running = false), ConnectionState.Connected("x"), null, ChatActions()) } }
+        render("chat-session-settings", 390, 844) { KinuvoTheme(dark = false) { ChatContent(state.copy(running = false, defaults = defaults, models = ModelsCatalog(listOf(ProviderModels("codex", "ChatGPT / Codex", listOf(ModelInfo("gpt-5.6-sol"), ModelInfo("gpt-5.6-mini"))))), settings = SessionSettings(reasoning = "high")), ConnectionState.Connected("x"), null, ChatActions()) } }
+        render("chat-narrow", 420, 860) { KinuvoTheme(dark = false) { ChatContent(state.copy(running = false), ConnectionState.Connected("x"), null, ChatActions()) } }
         render("chat-phone", 400, 860) {
-            HarnessTheme(dark = true) {
+            KinuvoTheme(dark = true) {
                 androidx.compose.runtime.CompositionLocalProvider(com.composables.ui.theme.LocalInteractionMode provides com.composables.ui.theme.InteractionMode.Touch) {
                     ChatContent(state.copy(running = false), ConnectionState.Connected("x"), null, ChatActions(), onToggleShell = {})
                 }
             }
         }
-        render("chat-empty", 1200, 700) { HarnessTheme(dark = true) { ChatContent(state.copy(items = emptyList(), running = false), ConnectionState.Connected("x"), usage, ChatActions()) } }
-        render("agent-long-name", 1400, 900) { HarnessTheme(dark = true) { AgentContent(settingsAt(Route.Settings(AgentId("main"))).copy(agents = listOf(AgentInfo(AgentId("main"), "House Agent for the Family", "host"))), {}) } }
-        render("agent-long-name-phone", 390, 1300) { HarnessTheme(dark = true) { AgentContent(settingsAt(Route.Settings(AgentId("main"))).copy(agents = listOf(AgentInfo(AgentId("main"), "House Agent for the Family", "host"))), {}) } }
-        render("agent-wide", 1400, 900) { HarnessTheme(dark = true) { AgentContent(settingsAt(Route.Settings(AgentId("main"))), {}) } }
-        render("agent-empty-light", 1400, 900) { HarnessTheme(dark = false) { AgentContent(settingsAt(Route.Settings(AgentId("main"))).let { it.copy(state = it.state.copy(routines = emptyList())) }, {}) } }
-        render("agent-phone", 390, 1300) { HarnessTheme(dark = true) { AgentContent(settingsAt(Route.Settings(AgentId("main"))), {}, onBack = {}) } }
-        render("settings-overview", 1600, 900) { HarnessTheme(dark = true) { SettingsContent(settingsAt(Route.Settings(AgentId("main"), SettingsSection.Overview)), SettingsActions()) } }
-        render("settings-wide", 1280, 860) { HarnessTheme(dark = false) { SettingsContent(settings, SettingsActions()) } }
+        render("chat-empty", 1200, 700) { KinuvoTheme(dark = true) { ChatContent(state.copy(items = emptyList(), running = false), ConnectionState.Connected("x"), usage, ChatActions()) } }
+        render("agent-long-name", 1400, 900) { KinuvoTheme(dark = true) { AgentContent(settingsAt(Route.Settings(AgentId("main"))).copy(agents = listOf(AgentInfo(AgentId("main"), "House Agent for the Family", "host"))), {}) } }
+        render("agent-long-name-phone", 390, 1300) { KinuvoTheme(dark = true) { AgentContent(settingsAt(Route.Settings(AgentId("main"))).copy(agents = listOf(AgentInfo(AgentId("main"), "House Agent for the Family", "host"))), {}) } }
+        render("agent-wide", 1400, 900) { KinuvoTheme(dark = true) { AgentContent(settingsAt(Route.Settings(AgentId("main"))), {}) } }
+        render("agent-empty-light", 1400, 900) { KinuvoTheme(dark = false) { AgentContent(settingsAt(Route.Settings(AgentId("main"))).let { it.copy(state = it.state.copy(routines = emptyList())) }, {}) } }
+        render("agent-phone", 390, 1300) { KinuvoTheme(dark = true) { AgentContent(settingsAt(Route.Settings(AgentId("main"))), {}, onBack = {}) } }
+        render("settings-overview", 1600, 900) { KinuvoTheme(dark = true) { SettingsContent(settingsAt(Route.Settings(AgentId("main"), SettingsSection.Overview)), SettingsActions()) } }
+        render("settings-wide", 1280, 860) { KinuvoTheme(dark = false) { SettingsContent(settings, SettingsActions()) } }
         for ((name, restricted, error) in listOf(
             Triple("restricted", true, null),
             Triple("error", false, "The Server took too long to respond. Try again."),
             Triple("empty", false, null),
         )) render("routines-$name", 420, 760) {
             val ui = settingsAt(Route.Settings(AgentId("main"), SettingsSection.Routines))
-            HarnessTheme(dark = true) {
+            KinuvoTheme(dark = true) {
                 SettingsContent(ui.copy(management = !restricted, state = ui.state.copy(routines = if (name == "empty") emptyList() else null, routinesError = error)), SettingsActions(), sidebar = false)
             }
         }
         render("settings-tasks-management", 420, 760) {
             val ui = settingsAt(Route.Settings(AgentId("main"), SettingsSection.Tasks))
-            HarnessTheme(dark = true) { SettingsContent(ui.copy(management = false, state = ui.state.copy(tasks = null, errors = listOf(ManagementAccessMessage))), SettingsActions(), sidebar = false) }
+            KinuvoTheme(dark = true) { SettingsContent(ui.copy(management = false, state = ui.state.copy(tasks = null, errors = listOf(ManagementAccessMessage))), SettingsActions(), sidebar = false) }
         }
         render("settings-voice-management", 420, 760) {
-            HarnessTheme(dark = true) { kinuvo.ui.settings.DetailPane(null, "Voice") { kinuvo.ui.design.LoadFailure(ManagementAccessMessage) {} } }
+            KinuvoTheme(dark = true) { kinuvo.ui.settings.DetailPane(null, "Voice") { kinuvo.ui.design.LoadFailure(ManagementAccessMessage) {} } }
         }
-        render("settings-medium-dark", 900, 760) { HarnessTheme(dark = true) { SettingsContent(settingsAt(Route.Settings(AgentId("main"), SettingsSection.Routines)), SettingsActions()) } }
-        render("settings-narrow-detail", 420, 860) { HarnessTheme(dark = false) { SettingsContent(settingsAt(Route.Settings(AgentId("main"), SettingsSection.Routines, "heartbeat")), SettingsActions()) } }
-        render("settings-narrow-sections", 420, 860) { HarnessTheme(dark = false) { SettingsContent(settingsAt(Route.Settings(AgentId("main"))), SettingsActions()) } }
+        render("settings-medium-dark", 900, 760) { KinuvoTheme(dark = true) { SettingsContent(settingsAt(Route.Settings(AgentId("main"), SettingsSection.Routines)), SettingsActions()) } }
+        render("settings-narrow-detail", 420, 860) { KinuvoTheme(dark = false) { SettingsContent(settingsAt(Route.Settings(AgentId("main"), SettingsSection.Routines, "heartbeat")), SettingsActions()) } }
+        render("settings-narrow-sections", 420, 860) { KinuvoTheme(dark = false) { SettingsContent(settingsAt(Route.Settings(AgentId("main"))), SettingsActions()) } }
         render("settings-providers", 1280, 760) {
             val providers = listOf(
                 kinuvo.protocol.model.ProviderInfo("codex", "ChatGPT / Codex", kinuvo.protocol.model.ProviderAccount(false)),
@@ -396,7 +396,7 @@ class ScreenshotTest {
                 ProviderInfo("openai", "OpenAI API", apiKey = ProviderApiKeyStatus(false, "macOS Keychain")),
             )
             val ui = settingsAt(Route.Settings(AgentId("main"), SettingsSection.Providers))
-            HarnessTheme(dark = false) { SettingsContent(ui.copy(state = ui.state.copy(providers = providers, deviceCode = "codex" to kinuvo.protocol.model.DeviceCode("https://auth.openai.com/codex/device", "ABCD-1234", 0))), SettingsActions()) }
+            KinuvoTheme(dark = false) { SettingsContent(ui.copy(state = ui.state.copy(providers = providers, deviceCode = "codex" to kinuvo.protocol.model.DeviceCode("https://auth.openai.com/codex/device", "ABCD-1234", 0))), SettingsActions()) }
         }
         render("settings-compatible-providers", 900, 1050) {
             val providers = listOf(
@@ -404,18 +404,18 @@ class ScreenshotTest {
                 ProviderInfo("local-models", "Local models"),
             )
             val ui = settingsAt(Route.Settings(AgentId("main"), SettingsSection.Providers))
-            HarnessTheme(dark = false) { SettingsContent(ui.copy(state = ui.state.copy(providers = providers)), SettingsActions()) }
+            KinuvoTheme(dark = false) { SettingsContent(ui.copy(state = ui.state.copy(providers = providers)), SettingsActions()) }
         }
         render("settings-provider-key", 900, 850) {
             val ui = settingsAt(Route.Settings(AgentId("main"), SettingsSection.Providers))
             val key = ProviderApiKeyStatus(true, "~/.kinuvo/credentials/openai-reference (reference only)", true, "\${pass://Kinuvo/OpenAI/api key}")
             val state = ui.state.copy(providers = listOf(ProviderInfo("openai", "OpenAI API", apiKey = key)), secrets = listOf(SecretProviderStatus("pass", "Proton Pass", installed = true, connected = true)))
-            HarnessTheme(dark = false) { SettingsContent(ui.copy(state = state), SettingsActions()) }
+            KinuvoTheme(dark = false) { SettingsContent(ui.copy(state = state), SettingsActions()) }
         }
-        render("settings-agent", 1280, 1000) { HarnessTheme(dark = false) { SettingsContent(settingsAt(Route.Settings(AgentId("main"), SettingsSection.Agent)), SettingsActions()) } }
-        render("settings-agent-phone", 420, 1100) { HarnessTheme(dark = true) { SettingsContent(settingsAt(Route.Settings(AgentId("main"), SettingsSection.Agent)), SettingsActions()) } }
-        render("settings-agent-tools", 1280, 1100) { HarnessTheme(dark = false) { SettingsContent(settingsAt(Route.Settings(AgentId("main"), SettingsSection.Tools)), SettingsActions()) } }
-        render("settings-agent-workspace-phone", 420, 900) { HarnessTheme(dark = true) { SettingsContent(settingsAt(Route.Settings(AgentId("main"), SettingsSection.Workspace)), SettingsActions()) } }
+        render("settings-agent", 1280, 1000) { KinuvoTheme(dark = false) { SettingsContent(settingsAt(Route.Settings(AgentId("main"), SettingsSection.Agent)), SettingsActions()) } }
+        render("settings-agent-phone", 420, 1100) { KinuvoTheme(dark = true) { SettingsContent(settingsAt(Route.Settings(AgentId("main"), SettingsSection.Agent)), SettingsActions()) } }
+        render("settings-agent-tools", 1280, 1100) { KinuvoTheme(dark = false) { SettingsContent(settingsAt(Route.Settings(AgentId("main"), SettingsSection.Tools)), SettingsActions()) } }
+        render("settings-agent-workspace-phone", 420, 900) { KinuvoTheme(dark = true) { SettingsContent(settingsAt(Route.Settings(AgentId("main"), SettingsSection.Workspace)), SettingsActions()) } }
         val ssh = config.copy(details = config.details!!.copy(settings = config.details!!.settings.copy(exec = "ssh", workspace = listOf("/srv/app"), ssh = SshSettings("build.local", "alex"))))
         val tested = settingsAt(Route.Settings(AgentId("main"), SettingsSection.Workspace)).let { it.copy(state = it.state.copy(config = ssh,
             execTest = ExecTestResult("build.local", listOf(".git/", "README.md", "src/"), "git status -s", " M src/main.kt\n", 0)),
@@ -423,30 +423,30 @@ class ScreenshotTest {
         val mobile = ServerCapabilities("phone", setOf(ServerFeature.Mcp, ServerFeature.Tasks, ServerFeature.Knowledge, ServerFeature.Skills, ServerFeature.Routines),
             integrations = mapOf(Integration.Mcp.name to setOf("http"), Integration.Tasks.name to setOf("local"), Integration.Knowledge.name to setOf("markdown")))
         render("settings-mobile-server-mcp-new", 1280, 1100) {
-            HarnessTheme(dark = false) { SettingsContent(settingsAt(Route.Settings(AgentId("main"), SettingsSection.Mcp, editing = true)).copy(capabilities = mobile), SettingsActions()) }
+            KinuvoTheme(dark = false) { SettingsContent(settingsAt(Route.Settings(AgentId("main"), SettingsSection.Mcp, editing = true)).copy(capabilities = mobile), SettingsActions()) }
         }
         val hub = settingsAt(Route.Settings(AgentId("main"), SettingsSection.Hub)).let { ui ->
             ui.copy(state = ui.state.copy(configs = mapOf(AgentId("main") to config.copy(mcp = config.mcp!!.map { if (it.name == "fs") it.copy(agents = listOf(AgentId("main"))) else it })),
                 serverRules = TrustRules(deny = DenyRules(tools = listOf("skill_manage"), shell = listOf("rm -rf*")))),
                 capabilities = ServerCapabilities("s", setOf(ServerFeature.Mcp, ServerFeature.Skills, ServerFeature.Routines)))
         }
-        render("settings-tool-hub", 1280, 1700) { HarnessTheme(dark = false) { SettingsContent(hub, SettingsActions()) } }
+        render("settings-tool-hub", 1280, 1700) { KinuvoTheme(dark = false) { SettingsContent(hub, SettingsActions()) } }
         render("settings-mcp-catalog", 1280, 1100) {
-            HarnessTheme(dark = false) { SettingsContent(settingsAt(Route.Settings(AgentId("main"), SettingsSection.Mcp, presetItem(McpCatalog.first { it.id == "gmail" }), editing = true)), SettingsActions()) }
+            KinuvoTheme(dark = false) { SettingsContent(settingsAt(Route.Settings(AgentId("main"), SettingsSection.Mcp, presetItem(McpCatalog.first { it.id == "gmail" }), editing = true)), SettingsActions()) }
         }
-        render("settings-agent-workspace-ssh", 1280, 1300) { HarnessTheme(dark = false) { SettingsContent(tested, SettingsActions()) } }
-        render("settings-new-agent", 900, 700) { HarnessTheme(dark = true) { SettingsContent(settingsAt(Route.Settings(AgentId("main"), SettingsSection.Agent, editing = true)), SettingsActions()) } }
-        render("settings-routine-form", 1280, 900) { HarnessTheme(dark = false) { SettingsContent(settingsAt(Route.Settings(AgentId("main"), SettingsSection.Routines, "r1", editing = true)), SettingsActions()) } }
-        render("settings-skills", 1280, 860) { HarnessTheme(dark = false) { SettingsContent(settingsAt(Route.Settings(AgentId("main"), SettingsSection.Skills, "Agent/weekly-review")), SettingsActions()) } }
-        render("settings-skill-new", 420, 860) { HarnessTheme(dark = true) { SettingsContent(settingsAt(Route.Settings(AgentId("main"), SettingsSection.Skills, editing = true)), SettingsActions()) } }
-        render("settings-mcp", 1280, 860) { HarnessTheme(dark = true) { SettingsContent(settingsAt(Route.Settings(AgentId("main"), SettingsSection.Mcp, "Agent/github")), SettingsActions()) } }
+        render("settings-agent-workspace-ssh", 1280, 1300) { KinuvoTheme(dark = false) { SettingsContent(tested, SettingsActions()) } }
+        render("settings-new-agent", 900, 700) { KinuvoTheme(dark = true) { SettingsContent(settingsAt(Route.Settings(AgentId("main"), SettingsSection.Agent, editing = true)), SettingsActions()) } }
+        render("settings-routine-form", 1280, 900) { KinuvoTheme(dark = false) { SettingsContent(settingsAt(Route.Settings(AgentId("main"), SettingsSection.Routines, "r1", editing = true)), SettingsActions()) } }
+        render("settings-skills", 1280, 860) { KinuvoTheme(dark = false) { SettingsContent(settingsAt(Route.Settings(AgentId("main"), SettingsSection.Skills, "Agent/weekly-review")), SettingsActions()) } }
+        render("settings-skill-new", 420, 860) { KinuvoTheme(dark = true) { SettingsContent(settingsAt(Route.Settings(AgentId("main"), SettingsSection.Skills, editing = true)), SettingsActions()) } }
+        render("settings-mcp", 1280, 860) { KinuvoTheme(dark = true) { SettingsContent(settingsAt(Route.Settings(AgentId("main"), SettingsSection.Mcp, "Agent/github")), SettingsActions()) } }
         render("settings-mcp-signin", 1280, 860) {
             val signingIn = settingsAt(Route.Settings(AgentId("main"), SettingsSection.Mcp, "Agent/linear"))
-            HarnessTheme(dark = false) { SettingsContent(signingIn.copy(state = signingIn.state.copy(mcpTest = null, signInUrl = "https://mcp.linear.app/authorize?response_type=code&client_id=kinuvo&state=…")), SettingsActions()) }
+            KinuvoTheme(dark = false) { SettingsContent(signingIn.copy(state = signingIn.state.copy(mcpTest = null, signInUrl = "https://mcp.linear.app/authorize?response_type=code&client_id=kinuvo&state=…")), SettingsActions()) }
         }
-        render("settings-mcp-form", 1280, 960) { HarnessTheme(dark = false) { SettingsContent(settingsAt(Route.Settings(AgentId("main"), SettingsSection.Mcp, "Shared/fs", editing = true)), SettingsActions()) } }
+        render("settings-mcp-form", 1280, 960) { KinuvoTheme(dark = false) { SettingsContent(settingsAt(Route.Settings(AgentId("main"), SettingsSection.Mcp, "Shared/fs", editing = true)), SettingsActions()) } }
         render("chat-routine-turn", 1000, 600) {
-            HarnessTheme(dark = false) {
+            KinuvoTheme(dark = false) {
                 ChatContent(state.copy(items = listOf(ChatItem.User("u1", "Summarize my unread email.", "Morning brief"), ChatItem.Assistant("a1", "Three new emails; nothing urgent."))), ConnectionState.Connected("x"), null, ChatActions())
             }
         }
@@ -463,8 +463,8 @@ class ScreenshotTest {
             ChatItem.ToolCall("t2", ToolCallId("c2"), "artifact", """{"action":"create","title":"Lisbon options"}""", """{"id":"lisbon-options-3f2a","title":"Lisbon options","type":"html"}"""),
             ChatItem.ToolCall("t3", ToolCallId("c1"), "ask_user", "{}", questions = form),
         )
-        render("chat-ask-user", 1000, 1100) { HarnessTheme(dark = false) { ChatContent(state.copy(items = cards), ConnectionState.Connected("x"), null, ChatActions()) } }
-        render("chat-ask-user-dark", 420, 1200) { HarnessTheme(dark = true) { ChatContent(state.copy(items = cards), ConnectionState.Connected("x"), null, ChatActions()) } }
+        render("chat-ask-user", 1000, 1100) { KinuvoTheme(dark = false) { ChatContent(state.copy(items = cards), ConnectionState.Connected("x"), null, ChatActions()) } }
+        render("chat-ask-user-dark", 420, 1200) { KinuvoTheme(dark = true) { ChatContent(state.copy(items = cards), ConnectionState.Connected("x"), null, ChatActions()) } }
         renderSteps()
         renderRequests(form)
         val artifacts = ArtifactsState(
@@ -477,19 +477,19 @@ class ScreenshotTest {
             open = ArtifactData(ArtifactInfo("plan-1", "Lisbon plan", "md", AgentId("main"), SessionId("s1"), 1_790_000_000_000L, 1_790_000_300_000L), "# Lisbon\n\n- Flights under €300\n- Hotel near Alfama"),
         )
         val team = listOf(agent, AgentInfo(AgentId("research"), "Researcher", "container"))
-        render("artifacts-wide", 1280, 800) { HarnessTheme(dark = false) { ArtifactsContent(artifacts, team, 1_790_000_600_000L, ArtifactsActions()) } }
+        render("artifacts-wide", 1280, 800) { KinuvoTheme(dark = false) { ArtifactsContent(artifacts, team, 1_790_000_600_000L, ArtifactsActions()) } }
         val editing = artifacts.copy(draft = ArtifactDraft("# Lisbon\n\n- Flights under €250\n- Hotel near Alfama", 1_790_000_300_000L))
-        render("artifacts-editing", 1280, 800) { HarnessTheme(dark = false) { ArtifactsContent(editing, team, 1_790_000_600_000L, ArtifactsActions()) } }
-        render("artifacts-editing-stale", 1280, 800) { HarnessTheme(dark = false) { ArtifactsContent(editing.copy(draft = editing.draft?.copy(base = 1L)), team, 1_790_000_600_000L, ArtifactsActions()) } }
-        render("artifacts-full-screen", 1280, 800) { HarnessTheme(dark = false) { ArtifactsContent(artifacts.copy(route = Route.Artifacts("plan-1", fullScreen = true)), team, 1_790_000_600_000L, ArtifactsActions()) } }
+        render("artifacts-editing", 1280, 800) { KinuvoTheme(dark = false) { ArtifactsContent(editing, team, 1_790_000_600_000L, ArtifactsActions()) } }
+        render("artifacts-editing-stale", 1280, 800) { KinuvoTheme(dark = false) { ArtifactsContent(editing.copy(draft = editing.draft?.copy(base = 1L)), team, 1_790_000_600_000L, ArtifactsActions()) } }
+        render("artifacts-full-screen", 1280, 800) { KinuvoTheme(dark = false) { ArtifactsContent(artifacts.copy(route = Route.Artifacts("plan-1", fullScreen = true)), team, 1_790_000_600_000L, ArtifactsActions()) } }
         render("nav-phone-artifacts", 390, 844) {
-            HarnessTheme(dark = true) { CompositionLocalProvider(LocalInteractionMode provides InteractionMode.Touch, LocalHomeChrome provides HomeChrome({}, wide = false)) {
+            KinuvoTheme(dark = true) { CompositionLocalProvider(LocalInteractionMode provides InteractionMode.Touch, LocalHomeChrome provides HomeChrome({}, wide = false)) {
                 ArtifactsContent(artifacts.copy(route = Route.Artifacts()), team, 1_790_000_600_000L, ArtifactsActions())
             } }
         }
-        render("artifacts-narrow-open", 420, 860) { HarnessTheme(dark = true) { CompositionLocalProvider(LocalInteractionMode provides InteractionMode.Touch) { ArtifactsContent(artifacts, team, 1_790_000_600_000L, ArtifactsActions(onBack = {})) } } }
-        render("artifacts-narrow-editing", 420, 860) { HarnessTheme(dark = false) { CompositionLocalProvider(LocalInteractionMode provides InteractionMode.Touch) { ArtifactsContent(editing, team, 1_790_000_600_000L, ArtifactsActions(onBack = {})) } } }
-        render("artifacts-narrow-list", 420, 860) { HarnessTheme(dark = true) { ArtifactsContent(artifacts.copy(route = Route.Artifacts()), team, 1_790_000_600_000L, ArtifactsActions(onBack = {})) } }
+        render("artifacts-narrow-open", 420, 860) { KinuvoTheme(dark = true) { CompositionLocalProvider(LocalInteractionMode provides InteractionMode.Touch) { ArtifactsContent(artifacts, team, 1_790_000_600_000L, ArtifactsActions(onBack = {})) } } }
+        render("artifacts-narrow-editing", 420, 860) { KinuvoTheme(dark = false) { CompositionLocalProvider(LocalInteractionMode provides InteractionMode.Touch) { ArtifactsContent(editing, team, 1_790_000_600_000L, ArtifactsActions(onBack = {})) } } }
+        render("artifacts-narrow-list", 420, 860) { KinuvoTheme(dark = true) { ArtifactsContent(artifacts.copy(route = Route.Artifacts()), team, 1_790_000_600_000L, ArtifactsActions(onBack = {})) } }
         startKinuvo(module { single<Preferences> { object : Preferences {
             private val values = mutableMapOf<String, String>()
             override fun get(key: String) = values[key]
@@ -511,12 +511,12 @@ class ScreenshotTest {
             state = ui.state.copy(config = config.copy(details = config.details!!.copy(settings = config.details!!.settings.copy(workspace = emptyList())))),
             capabilities = capabilities,
         ) }
-        render("settings-agent-workspace-windows", 1280, 1000) { HarnessTheme(dark = false) { SettingsContent(windows, SettingsActions()) } }
+        render("settings-agent-workspace-windows", 1280, 1000) { KinuvoTheme(dark = false) { SettingsContent(windows, SettingsActions()) } }
         val tasks = windows.copy(state = windows.state.copy(route = Route.Settings(AgentId("main"), SettingsSection.Tasks), tasks = TasksSetup(TasksSettings(), listOf(SettingsProvider("local", "Kinuvo (built in)"))), providerLists = mapOf("local" to emptyList())))
-        render("settings-tasks-windows", 1280, 860) { HarnessTheme(dark = false) { SettingsContent(tasks, SettingsActions()) } }
+        render("settings-tasks-windows", 1280, 860) { KinuvoTheme(dark = false) { SettingsContent(tasks, SettingsActions()) } }
         val secrets = windows.copy(state = windows.state.copy(route = Route.Settings(AgentId("main"), SettingsSection.Secrets), secrets = listOf(
             SecretProviderStatus("pass", "Proton Pass", installed = true, tokenStorage = "Windows secure storage"))))
-        render("settings-secrets-windows", 900, 760) { HarnessTheme(dark = false) { SettingsContent(secrets, SettingsActions()) } }
+        render("settings-secrets-windows", 900, 760) { KinuvoTheme(dark = false) { SettingsContent(secrets, SettingsActions()) } }
     }
 
     /** The rail of Agents and the shown Agent's column, beside a Session and alone as the phone's home screen. */
@@ -528,7 +528,7 @@ class ScreenshotTest {
             routines = mapOf(AgentId("main") to listOf(Routine("r2", AgentId("main"), "Inbox triage", "Triage my inbox", Trigger.Every(60), "UTC", sessionId = SessionId("20250101-090000-a7")))))
         listOf(false, true).forEach { dark ->
             render("shell-wide-${if (dark) "dark" else "light"}", 1400, 900) {
-                HarnessTheme(dark = dark) {
+                KinuvoTheme(dark = dark) {
                     androidx.compose.foundation.layout.Row {
                         Shell(shellState, ShellActions(), ShellChrome(androidx.compose.runtime.mutableStateOf(true)))
                         com.composables.ui.components.VerticalSeparator()
@@ -540,7 +540,7 @@ class ScreenshotTest {
         val embedded = ServerCapabilities("device")
         val blocked = SessionCapabilities(server = embedded, chat = CapabilityState.unavailable("On-device chat needs a physical Apple Intelligence-capable device."))
         render("shell-embedded", 1400, 900) {
-            HarnessTheme(dark = false) {
+            KinuvoTheme(dark = false) {
                 androidx.compose.foundation.layout.Row {
                     Shell(shellState.copy(capabilities = embedded), ShellActions(), ShellChrome(androidx.compose.runtime.mutableStateOf(true)))
                     com.composables.ui.components.VerticalSeparator()
@@ -548,9 +548,9 @@ class ScreenshotTest {
                 }
             }
         }
-        render("agent-embedded", 1400, 900) { HarnessTheme(dark = true) { AgentContent(settingsAt(Route.Settings(AgentId("main"))).copy(capabilities = embedded), {}) } }
+        render("agent-embedded", 1400, 900) { KinuvoTheme(dark = true) { AgentContent(settingsAt(Route.Settings(AgentId("main"))).copy(capabilities = embedded), {}) } }
         render("shell-phone", 390, 844) {
-            HarnessTheme(dark = true) {
+            KinuvoTheme(dark = true) {
                 kinuvo.ui.design.Reveal(true, {}, behind = { Shell(shellState, ShellActions(), ShellChrome(androidx.compose.runtime.mutableStateOf(true)), Modifier.fillMaxSize(), fill = true) }) {
                     ChatContent(state.copy(running = false), ConnectionState.Connected("x"), null, ChatActions(), wide = false, onToggleShell = {})
                 }
@@ -558,7 +558,7 @@ class ScreenshotTest {
         }
         render("quick-chat", 390, 844) {
             val draft = androidx.compose.foundation.text.input.TextFieldState("Remind me to call the dentist tomorrow at 10")
-            HarnessTheme(dark = true) {
+            KinuvoTheme(dark = true) {
                 androidx.compose.foundation.layout.Box {
                     androidx.compose.foundation.layout.Box(Modifier.blur(16.dp)) {
                         kinuvo.ui.design.Reveal(true, {}, behind = { Shell(shellState, ShellActions(), ShellChrome(androidx.compose.runtime.mutableStateOf(true)), Modifier.fillMaxSize(), fill = true) }) {
@@ -571,10 +571,10 @@ class ScreenshotTest {
         }
         render("shell-collapsed", 1400, 800) {
             val chrome = ShellChrome(androidx.compose.runtime.mutableStateOf(true)).apply { collapsed = ShellSection.entries.toSet() }
-            HarnessTheme(dark = true) { Shell(shellState, ShellActions(), chrome) }
+            KinuvoTheme(dark = true) { Shell(shellState, ShellActions(), chrome) }
         }
         render("shell-board", 1400, 800) {
-            HarnessTheme(dark = false) { Shell(shellState.copy(view = Route.Board, home = true), ShellActions(), ShellChrome(androidx.compose.runtime.mutableStateOf(true))) }
+            KinuvoTheme(dark = false) { Shell(shellState.copy(view = Route.Board, home = true), ShellActions(), ShellChrome(androidx.compose.runtime.mutableStateOf(true))) }
         }
     }
 
@@ -623,7 +623,7 @@ class ScreenshotTest {
                 ChatItem.Assistant("a1", "Hey Fernando, how did Monday land? Last week's notes had you helping David through a production deployment and making room for Mockstro. What happened today that felt worth keeping?"),
             ))
         @Composable fun theme(phone: Boolean = false, content: @Composable () -> Unit) {
-            HarnessTheme(dark = true) {
+            KinuvoTheme(dark = true) {
                 CompositionLocalProvider(LocalInteractionMode provides if (phone) InteractionMode.Touch else InteractionMode.Pointer) {
                     content()
                 }
@@ -804,7 +804,7 @@ class ScreenshotTest {
         val asking = state.copy(items = talk + ask, running = false, pending = listOf(form))
         val handing = state.copy(items = talk + hand, running = false, pending = listOf(takeover))
         fun chat(name: String, width: Int, height: Int, dark: Boolean, chat: ChatState) =
-            render(name, width, height) { HarnessTheme(dark = dark) { ChatContent(chat, ConnectionState.Connected("x"), null, ChatActions()) } }
+            render(name, width, height) { KinuvoTheme(dark = dark) { ChatContent(chat, ConnectionState.Connected("x"), null, ChatActions()) } }
         chat("request-approval-phone", 390, 844, false, approving)
         chat("request-approval-desktop-dark", 1100, 760, true, approving)
         chat("request-form-phone-dark", 390, 844, true, asking)
@@ -836,11 +836,11 @@ class ScreenshotTest {
             ChatItem.Reasoning("r2", "The user asked to push; that needs approval."), push,
         )
         val phone = state.copy(items = items, running = false, pending = listOfNotNull(push.approval))
-        render("chat-steps-phone", 390, 844) { HarnessTheme(dark = false) { ChatContent(phone, ConnectionState.Connected("x"), null, ChatActions()) } }
+        render("chat-steps-phone", 390, 844) { KinuvoTheme(dark = false) { ChatContent(phone, ConnectionState.Connected("x"), null, ChatActions()) } }
         val running = state.copy(items = items.take(4) + status.copy(id = "t7", callId = ToolCallId("t7"), args = """{"command":"git diff --stat HEAD~3"}""", result = null), running = true)
-        render("chat-steps-running-dark", 390, 600) { HarnessTheme(dark = true) { ChatContent(running, ConnectionState.Connected("x"), null, ChatActions()) } }
+        render("chat-steps-running-dark", 390, 600) { KinuvoTheme(dark = true) { ChatContent(running, ConnectionState.Connected("x"), null, ChatActions()) } }
         render("chat-steps-expanded", 390, 520) {
-            HarnessTheme(dark = false) {
+            KinuvoTheme(dark = false) {
                 Column(Modifier.fillMaxSize().background(color(backgroundColor)).padding(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
                     StepsView(ChatRow.Steps(listOf(think, status, prs, read)), active = false, initiallyExpanded = true)
                     StepsView(ChatRow.Steps(listOf(failed, fetch)), active = false, initiallyExpanded = true)
@@ -902,7 +902,7 @@ class ScreenshotTest {
         }
         for (dark in listOf(false, true)) {
             render("reflection-memory-${if (dark) "dark" else "light"}", 420, 650) {
-                HarnessTheme(dark = dark) {
+                KinuvoTheme(dark = dark) {
                     Column(Modifier.fillMaxSize().background(color(backgroundColor)).padding(16.dp)) {
                         ReflectionView(ChatItem.Reflection("memory", ReflectionResult(memory = 1, userNotes = 2, memoryChanges = listOf(
                             ReflectionMemoryChange("memory", "", "- Give concrete examples\n"),
@@ -913,7 +913,7 @@ class ScreenshotTest {
                 }
             }
             render("reflection-review-${if (dark) "dark" else "light"}", 420, 650) {
-                HarnessTheme(dark = dark) {
+                KinuvoTheme(dark = dark) {
                     Column(Modifier.fillMaxSize().background(color(backgroundColor)).padding(16.dp)) {
                         ReflectionView(ChatItem.Reflection("r1", ReflectionResult(memory = 1, proposals = listOf(proposal))), initiallyExpanded = true)
                     }
@@ -925,14 +925,14 @@ class ScreenshotTest {
                         put("action", kotlinx.serialization.json.JsonPrimitive("edit"))
                         put("content", kotlinx.serialization.json.JsonPrimitive("Keep project Notes.\nCities stay in their project Notes."))
                     }, conventionsBefore = "Keep project Notes.", reason = "Keep cities with their projects.", evidence = "User: Don't make Notes for cities")
-                HarnessTheme(dark = dark) {
+                KinuvoTheme(dark = dark) {
                     Column(Modifier.fillMaxSize().background(color(backgroundColor)).padding(16.dp)) {
                         ReflectionView(ChatItem.Reflection("conventions", ReflectionResult(proposals = listOf(conventions))), initiallyExpanded = true)
                     }
                 }
             }
             render("reflection-revised-${if (dark) "dark" else "light"}", 420, 650) {
-                HarnessTheme(dark = dark) {
+                KinuvoTheme(dark = dark) {
                     Column(Modifier.fillMaxSize().background(color(backgroundColor)).padding(16.dp)) {
                         ReflectionView(ChatItem.Reflection("revised", ReflectionResult(proposals = listOf(proposal)),
                             reviews = mapOf(proposal.id to true), revised = setOf(proposal.id)), initiallyExpanded = true)
@@ -940,7 +940,7 @@ class ScreenshotTest {
                 }
             }
             render("reflection-skill-${if (dark) "dark" else "light"}", 420, 650) {
-                HarnessTheme(dark = dark) {
+                KinuvoTheme(dark = dark) {
                     Column(Modifier.fillMaxSize().background(color(backgroundColor)).padding(16.dp)) {
                         ReflectionView(ChatItem.Reflection("r2", ReflectionResult(proposals = listOf(proposal.copy(id = "p2", tool = "skill_manage", args = skillArgs,
                             reason = "Reuse the verified release workflow.", evidence = "check-1: release checks passed", note = null, scope = null)))), initiallyExpanded = true)
@@ -954,7 +954,7 @@ class ScreenshotTest {
                     put("name", kotlinx.serialization.json.JsonPrimitive("release-check"))
                     put("content", kotlinx.serialization.json.JsonPrimitive("$before\n\n## Pitfalls\n- Tag after the changelog is merged."))
                 }
-                HarnessTheme(dark = dark) {
+                KinuvoTheme(dark = dark) {
                     Column(Modifier.fillMaxSize().background(color(backgroundColor)).padding(16.dp)) {
                         ReflectionView(ChatItem.Reflection("r3", ReflectionResult(proposals = listOf(proposal.copy(id = "p3", tool = "skill_manage", args = edit, skillBefore = before,
                             reason = "Tagging early broke the release.", evidence = "user-4: the tag went out before the changelog merged, so the release notes were empty and we had to redo it", note = null, scope = null)))), initiallyExpanded = true)
@@ -973,14 +973,14 @@ class ScreenshotTest {
             ChatItem.Assistant("reply", "Here is the **result**.\n\n```kotlin\nval greeting = \"Hello\"\n```", at = 1_790_000_000_000L),
         ))
         for (dark in listOf(false, true)) render("chat-footer-${if (dark) "dark" else "light"}", 420, 640) {
-            HarnessTheme(dark = dark) { ChatContent(state, ConnectionState.Connected("x"), null, ChatActions()) }
+            KinuvoTheme(dark = dark) { ChatContent(state, ConnectionState.Connected("x"), null, ChatActions()) }
         }
     }
 
     @Test
     fun renderMarkdownSource() {
         for (dark in listOf(false, true)) render("markdown-source-${if (dark) "dark" else "light"}", 620, 900) {
-            HarnessTheme(dark = dark) {
+            KinuvoTheme(dark = dark) {
                 Column(Modifier.fillMaxSize().background(color(backgroundColor)).padding(24.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
                     Markdown("""
                         # Heading one
@@ -1016,7 +1016,7 @@ class ScreenshotTest {
     @Test
     fun renderMarkdownRegressions() {
         for (dark in listOf(false, true)) render("markdown-regressions-${if (dark) "dark" else "light"}", 330, 600) {
-            HarnessTheme(dark = dark) {
+            KinuvoTheme(dark = dark) {
                 Column(Modifier.fillMaxSize().background(color(backgroundColor)).padding(16.dp)) {
                     Markdown("""
                         A paragraph with **bold**, *italic*, ~~strike~~, `inline code` and more text.
@@ -1041,7 +1041,7 @@ class ScreenshotTest {
     @Test
     fun renderMarkdownImage() {
         render("markdown-image", 390, 260) {
-            HarnessTheme(dark = false) {
+            KinuvoTheme(dark = false) {
                 Column(Modifier.fillMaxSize().background(color(backgroundColor)).padding(16.dp)) {
                     Markdown("Here is the chart:\n\n![Chart](data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAHgAAAA8CAIAAAAiz+n/AAAAhklEQVR4nO3QAQkAIADAMOMY0dhGsIXCHTzA2dhr6kLj+cEngQbdCjToVqBBtwINuhVo0K1Ag24FGnQr0KBbgQbdCjToVqBBtwINuhVo0K1Ag24FGnQr0KBbgQbdCjToVqBBtwINuhVo0K1Ag24FGnQr0KBbgQbdCjToVqBBtwINuhVo0K0O/6L0hoP34ewAAAAASUVORK5CYII=)\n\n![Kotlin logo](https://example.com/kotlin.svg)\n\nDone.")
                 }
@@ -1052,7 +1052,7 @@ class ScreenshotTest {
     @Test
     fun renderWideTable() {
         render("markdown-wide-table", 390, 260) {
-            HarnessTheme(dark = true) {
+            KinuvoTheme(dark = true) {
                 Column(Modifier.fillMaxSize().background(color(backgroundColor)).padding(16.dp)) {
                     Markdown("""
                         | Night | Asleep | Deep | REM | Awake | Score |
@@ -1068,7 +1068,7 @@ class ScreenshotTest {
     @Test
     fun renderMarkdownTypography() {
         for (dark in listOf(false, true)) render("markdown-inter-${if (dark) "dark" else "light"}", 620, 520) {
-            HarnessTheme(dark = dark) {
+            KinuvoTheme(dark = dark) {
                 Column(Modifier.fillMaxSize().background(color(backgroundColor)).padding(24.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
                     Text("Markdown typography", fontSize = 14.sp)
                     Markdown("""Here's what I know from what you've told me:
@@ -1095,7 +1095,7 @@ I checked your knowledge base just now and didn't find a profile note for you.
     fun renderAgentOrb() {
         val moods = listOf(OrbMood.Idle to 0f, OrbMood.Listening to 0.6f, OrbMood.Thinking to 0f, OrbMood.Speaking to 0.9f)
         render("agent-orb-dark", 720, 760) {
-            HarnessTheme(dark = true) {
+            KinuvoTheme(dark = true) {
                 Column(Modifier.fillMaxSize().background(color(backgroundColor)).padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     for (ink in AvatarInk.take(4)) Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         moods.forEachIndexed { i, (mood, level) -> AgentOrb(ink, mood, level, Modifier.size(170.dp), time = 3f + i) }
@@ -1111,7 +1111,7 @@ I checked your knowledge base just now and didn't find a profile note for you.
         val listening = VoiceChatState(VoicePhase.Listening, live = true, inputLevel = 0.5f)
         val speaking = VoiceChatState(VoicePhase.Speaking, live = true, outputLevel = 0.8f, heard = "What's on my calendar tomorrow?", caption = "You have the dentist at ten, then lunch with Michelle at one. Want me to move the dentist?")
         fun call(name: String, voice: VoiceChatState, captions: Boolean = false) = render(name, 390, 844) {
-            HarnessTheme(dark = true) { LiveCallScreen("Kinuvo", ink, voice, 134, captions, {}, {}, {}, {}, {}, time = 3f) }
+            KinuvoTheme(dark = true) { LiveCallScreen("Kinuvo", ink, voice, 134, captions, {}, {}, {}, {}, {}, time = 3f) }
         }
         call("live-call-listening-dark", listening)
         call("live-call-captions-dark", speaking, captions = true)
@@ -1119,21 +1119,21 @@ I checked your knowledge base just now and didn't find a profile note for you.
         call("live-call-long-caption-dark", speaking.copy(caption = List(12) { "Then at ${it + 1} there's another meeting about the roadmap, budgets and hiring." }.joinToString(" ") + " Last words."), captions = true)
         call("live-call-muted-dark", listening.copy(paused = true))
         call("live-call-holding-dark", listening.copy(holding = true))
-        render("live-call-light", 390, 844) { HarnessTheme(dark = false) { LiveCallScreen("Kinuvo", AvatarInk[2], listening, 75, false, {}, {}, {}, {}, {}, time = 3f) } }
+        render("live-call-light", 390, 844) { KinuvoTheme(dark = false) { LiveCallScreen("Kinuvo", AvatarInk[2], listening, 75, false, {}, {}, {}, {}, {}, time = 3f) } }
         val event = PendingInteraction.Approval(InteractionId("ap"), ToolCallId("t"), "calendar_update", """{"event":"Dentist","start":"2026-11-07T10:00"}""", reason = "Dentist → Friday, 10:00")
         render("live-call-approval-dark", 390, 844) {
-            HarnessTheme(dark = true) { Box { LiveCallScreen("Kinuvo", ink, VoiceChatState(VoicePhase.Thinking, live = true), 182, false, {}, {}, {}, {}, {}, time = 3f); CallApprovalSheet("Kinuvo", event, {}, {}) } }
+            KinuvoTheme(dark = true) { Box { LiveCallScreen("Kinuvo", ink, VoiceChatState(VoicePhase.Thinking, live = true), 182, false, {}, {}, {}, {}, {}, time = 3f); CallApprovalSheet("Kinuvo", event, {}, {}) } }
         }
         render("live-call-approval-shell-light", 390, 844) {
-            HarnessTheme(dark = false) { Box { LiveCallScreen("Kinuvo", ink, listening, 40, false, {}, {}, {}, {}, {}, time = 3f); CallApprovalSheet("Kinuvo", event.copy(toolCallName = "shell", args = """{"command":"rm -rf build"}""", risk = Risk.High, reason = null, identity = ToolIdentity(PluginInstanceId("kinuvo.exec", "default"), "shell")), {}, {}) } }
+            KinuvoTheme(dark = false) { Box { LiveCallScreen("Kinuvo", ink, listening, 40, false, {}, {}, {}, {}, {}, time = 3f); CallApprovalSheet("Kinuvo", event.copy(toolCallName = "shell", args = """{"command":"rm -rf build"}""", risk = Risk.High, reason = null, identity = ToolIdentity(PluginInstanceId("kinuvo.exec", "default"), "shell")), {}, {}) } }
         }
         render("live-call-approval-long-small-dark", 375, 560) {
-            HarnessTheme(dark = true) { Box { LiveCallScreen("Kinuvo", ink, listening, 40, false, {}, {}, {}, {}, {}, time = 3f); CallApprovalSheet("Kinuvo", event.copy(args = (1..30).joinToString(",", "{", "}") { "\"field$it\":\"value $it\"" }, reason = "Update the event with a long list of changed fields that wraps across several lines of the sheet."), {}, {}) } }
+            KinuvoTheme(dark = true) { Box { LiveCallScreen("Kinuvo", ink, listening, 40, false, {}, {}, {}, {}, {}, time = 3f); CallApprovalSheet("Kinuvo", event.copy(args = (1..30).joinToString(",", "{", "}") { "\"field$it\":\"value $it\"" }, reason = "Update the event with a long list of changed fields that wraps across several lines of the sheet."), {}, {}) } }
         }
         val external = PendingInteraction.HarnessApproval(InteractionId("x1"), "Edit config.yaml", "Replace 3 lines in config.yaml", listOf(
             ExternalApprovalOption("allow_always", "Always allow edits", "allow_always"), ExternalApprovalOption("allow_once", "Allow", "allow_once"), ExternalApprovalOption("reject_once", "Reject", "reject_once")))
         render("live-call-approval-external-dark", 390, 844) {
-            HarnessTheme(dark = true) { Box { LiveCallScreen("Claude Code", AvatarInk[1], VoiceChatState(VoicePhase.Thinking, live = true), 95, false, {}, {}, {}, {}, {}, time = 3f); CallExternalApprovalSheet("Claude Code", external, {}, {}) } }
+            KinuvoTheme(dark = true) { Box { LiveCallScreen("Claude Code", AvatarInk[1], VoiceChatState(VoicePhase.Thinking, live = true), 95, false, {}, {}, {}, {}, {}, time = 3f); CallExternalApprovalSheet("Claude Code", external, {}, {}) } }
         }
         val afterCall = listOf(
             ChatItem.User("u0", "Can you plan my week?"),
@@ -1143,12 +1143,12 @@ I checked your knowledge base just now and didn't find a profile note for you.
             ChatItem.VoiceCall("c1", listOf(VoiceTurn(true, "What's on my calendar tomorrow?"), VoiceTurn(false, "The dentist at ten, then lunch with Michelle at one."), VoiceTurn(true, "Move the dentist to Friday."), VoiceTurn(false, "Done, it's Friday at ten.")), 0, 372_000),
         )
         render("chat-after-call-dark", 390, 844) {
-            HarnessTheme(dark = true) { ChatContent(state.copy(items = afterCall, running = false), ConnectionState.Connected("x"), null, ChatActions()) }
+            KinuvoTheme(dark = true) { ChatContent(state.copy(items = afterCall, running = false), ConnectionState.Connected("x"), null, ChatActions()) }
         }
         val failed = VoiceChatState(VoicePhase.Off, live = true, error = "ChatGPT's usage limit is reached. It resets in 49 minutes.")
         call("live-call-error-dark", failed)
         render("live-call-strip-dark", 390, 844) {
-            HarnessTheme(dark = true) {
+            KinuvoTheme(dark = true) {
                 val strips = remember { Strips() }
                 CompositionLocalProvider(LocalStrips provides strips) {
                     StripFrame(strips) { ChatContent(state.copy(items = afterCall, running = false), ConnectionState.Connected("x"), null, ChatActions()) }
@@ -1158,7 +1158,7 @@ I checked your knowledge base just now and didn't find a profile note for you.
             }
         }
         render("live-call-strip-states-dark", 390, 200) {
-            HarnessTheme(dark = true) {
+            KinuvoTheme(dark = true) {
                 val strips = remember { Strips() }
                 CompositionLocalProvider(LocalStrips provides strips) {
                     Column(Modifier.fillMaxSize().background(color(backgroundColor))) { StripHost(strips) }
@@ -1176,13 +1176,13 @@ I checked your knowledge base just now and didn't find a profile note for you.
         val defaults = AgentSettings("gpt-5.6-sol", "medium", "default", "host")
         val voice = state.copy(items = items, running = false, defaults = defaults, models = ModelsCatalog(listOf(ProviderModels("codex", "ChatGPT / Codex", listOf(ModelInfo("gpt-5.6-sol"))))))
         val speaking = VoiceChatState(VoicePhase.Speaking, spoken = mapOf("a" to reply.indexOf("so think")))
-        render("voice-speaking-dark", 390, 844) { HarnessTheme(dark = true) { ChatContent(voice.copy(voice = speaking), ConnectionState.Connected("x"), null, ChatActions()) } }
-        render("voice-paused-light", 390, 844) { HarnessTheme(dark = false) { ChatContent(voice.copy(voice = VoiceChatState(VoicePhase.Listening, paused = true)), ConnectionState.Connected("x"), null, ChatActions()) } }
+        render("voice-speaking-dark", 390, 844) { KinuvoTheme(dark = true) { ChatContent(voice.copy(voice = speaking), ConnectionState.Connected("x"), null, ChatActions()) } }
+        render("voice-paused-light", 390, 844) { KinuvoTheme(dark = false) { ChatContent(voice.copy(voice = VoiceChatState(VoicePhase.Listening, paused = true)), ConnectionState.Connected("x"), null, ChatActions()) } }
         render("voice-listening-dark", 390, 844) {
-            HarnessTheme(dark = true) { ChatContent(voice.copy(voice = VoiceChatState(VoicePhase.Listening, heard = "What's on my calendar")), ConnectionState.Connected("x"), null, ChatActions()) }
+            KinuvoTheme(dark = true) { ChatContent(voice.copy(voice = VoiceChatState(VoicePhase.Listening, heard = "What's on my calendar")), ConnectionState.Connected("x"), null, ChatActions()) }
         }
         render("voice-holding-dark", 390, 844) {
-            HarnessTheme(dark = true) { ChatContent(voice.copy(voice = VoiceChatState(VoicePhase.Listening, heard = "Let me think about", paused = true, holding = true)), ConnectionState.Connected("x"), null, ChatActions()) }
+            KinuvoTheme(dark = true) { ChatContent(voice.copy(voice = VoiceChatState(VoicePhase.Listening, heard = "Let me think about", paused = true, holding = true)), ConnectionState.Connected("x"), null, ChatActions()) }
         }
     }
 
@@ -1192,7 +1192,7 @@ I checked your knowledge base just now and didn't find a profile note for you.
         val items = listOf(ChatItem.Measurement("m1", metrics))
         kotlin.test.assertEquals(emptyList(), items.rows())
         for (running in listOf(false, true)) render("chat-measurement-only-$running", 390, 844) {
-            HarnessTheme(dark = false) {
+            KinuvoTheme(dark = false) {
                 ChatContent(state.copy(items = items, running = running, loaded = true), ConnectionState.Connected("x"), null, ChatActions())
             }
         }
@@ -1202,7 +1202,7 @@ I checked your knowledge base just now and didn't find a profile note for you.
     fun renderRequestMeasurements() {
         val metrics = kinuvo.protocol.usage.RequestMetrics("m1", 123, kinuvo.protocol.usage.RequestKind.Chat, "codex", "gpt-5.6-sol", "medium", 2340, 320, 12000, 560, 10240)
         for (dark in listOf(false, true)) render("request-metrics-${if (dark) "dark" else "light"}", 420, 640) {
-            HarnessTheme(dark = dark) {
+            KinuvoTheme(dark = dark) {
                 Column(Modifier.fillMaxSize().background(color(backgroundColor)).padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     ChatStatisticsContent(usage, listOf(
                         metrics,
@@ -1213,15 +1213,15 @@ I checked your knowledge base just now and didn't find a profile note for you.
             }
         }
         render("statistics-empty", 390, 400) {
-            HarnessTheme(dark = false) { ChatStatisticsContent(null, emptyList()) }
+            KinuvoTheme(dark = false) { ChatStatisticsContent(null, emptyList()) }
         }
-        render("statistics-menu", 420, 640) { HarnessTheme(dark = false) { ChatStatisticsContent(usage, listOf(metrics)) } }
+        render("statistics-menu", 420, 640) { KinuvoTheme(dark = false) { ChatStatisticsContent(usage, listOf(metrics)) } }
     }
 
     @Test
     fun renderReflection() {
         for (dark in listOf(false, true)) render("reflection-${if (dark) "dark" else "light"}", 420, 480) {
-            HarnessTheme(dark = dark) {
+            KinuvoTheme(dark = dark) {
                 Column(Modifier.fillMaxSize().background(color(backgroundColor)).padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     ReflectionView(ChatItem.Reflection("running"))
                     ReflectionView(ChatItem.Reflection("done", ReflectionResult(knowledge = 2, memory = 1, userNotes = 1)), initiallyExpanded = true)
@@ -1234,14 +1234,14 @@ I checked your knowledge base just now and didn't find a profile note for you.
 
     @Test
     fun renderBoardAndKnowledge() {
-        render("board-wide", 1280, 800) { HarnessTheme(dark = false) { BoardContent(board, BoardActions()) } }
-        render("board-adding-dark", 1280, 800) { HarnessTheme(dark = true) { BoardContent(board.copy(state = board.state.copy(adding = true, showDone = false)), BoardActions()) } }
-        render("board-narrow", 420, 860) { HarnessTheme(dark = false) { BoardContent(board, BoardActions()) } }
-        render("knowledge-wide", 1280, 800) { HarnessTheme(dark = false) { KnowledgeContent(knowledge, KnowledgeActions()) } }
+        render("board-wide", 1280, 800) { KinuvoTheme(dark = false) { BoardContent(board, BoardActions()) } }
+        render("board-adding-dark", 1280, 800) { KinuvoTheme(dark = true) { BoardContent(board.copy(state = board.state.copy(adding = true, showDone = false)), BoardActions()) } }
+        render("board-narrow", 420, 860) { KinuvoTheme(dark = false) { BoardContent(board, BoardActions()) } }
+        render("knowledge-wide", 1280, 800) { KinuvoTheme(dark = false) { KnowledgeContent(knowledge, KnowledgeActions()) } }
         render("knowledge-narrow-list", 420, 860) {
-            HarnessTheme(dark = true) { KnowledgeContent(knowledge.copy(state = knowledge.state.copy(route = Route.Knowledge(), query = "ana", results = listOf(NoteSummary(ana.ref, ana.type, ana.title)))), KnowledgeActions(onBack = {})) }
+            KinuvoTheme(dark = true) { KnowledgeContent(knowledge.copy(state = knowledge.state.copy(route = Route.Knowledge(), query = "ana", results = listOf(NoteSummary(ana.ref, ana.type, ana.title)))), KnowledgeActions(onBack = {})) }
         }
-        render("knowledge-narrow-note", 420, 860) { HarnessTheme(dark = false) { KnowledgeContent(knowledge, KnowledgeActions(onBack = {})) } }
+        render("knowledge-narrow-note", 420, 860) { KinuvoTheme(dark = false) { KnowledgeContent(knowledge, KnowledgeActions(onBack = {})) } }
         val tasksSettings = settings.copy(state = settings.state.copy(
             route = Route.Settings(AgentId("main"), SettingsSection.Tasks),
             tasks = TasksSetup(TasksSettings("reminders", mapOf("Errands" to "main", "Travel" to "")), listOf(
@@ -1249,13 +1249,13 @@ I checked your knowledge base just now and didn't find a profile note for you.
             )),
             providerLists = mapOf("reminders" to listOf(TaskListInfo("a", "Errands"), TaskListInfo("b", "Travel"), TaskListInfo("c", "Groceries"))),
         ))
-        render("settings-tasks", 1280, 860) { HarnessTheme(dark = false) { SettingsContent(tasksSettings, SettingsActions()) } }
-        render("settings-tasks-narrow", 390, 1000) { HarnessTheme(dark = true) { SettingsContent(tasksSettings, SettingsActions(onBack = {})) } }
+        render("settings-tasks", 1280, 860) { KinuvoTheme(dark = false) { SettingsContent(tasksSettings, SettingsActions()) } }
+        render("settings-tasks-narrow", 390, 1000) { KinuvoTheme(dark = true) { SettingsContent(tasksSettings, SettingsActions(onBack = {})) } }
         val deniedTasks = tasksSettings.copy(state = tasksSettings.state.copy(
             providerLists = emptyMap(),
             errors = listOf("Reminders access is denied. Enable Kinuvo in System Settings → Privacy & Security → Reminders, then try again."),
         ))
-        render("settings-tasks-denied", 900, 1100) { HarnessTheme(dark = true) { SettingsContent(deniedTasks, SettingsActions()) } }
+        render("settings-tasks-denied", 900, 1100) { KinuvoTheme(dark = true) { SettingsContent(deniedTasks, SettingsActions()) } }
         val todoist = SettingsProvider("todoist", "Todoist", SettingsSchema(listOf(
             SettingsField("token", "API token", description = "From Todoist → Settings → Integrations → Developer.", required = true, sensitive = true),
             SettingsField("url", "API URL", SettingsFieldType.Url, "Only to reach Todoist through a proxy.", defaultValue = "https://api.todoist.com"),
@@ -1264,15 +1264,15 @@ I checked your knowledge base just now and didn't find a profile note for you.
             tasks = TasksSetup(TasksSettings("todoist", options = mapOf("token" to KnowledgeSettings.SECRET)), listOf(SettingsProvider("local", "Kinuvo (built in)"), todoist), setOf("token")),
             providerLists = mapOf("todoist" to listOf(TaskListInfo("1", "Inbox"), TaskListInfo("2", "Home"))),
         ))
-        render("settings-tasks-todoist", 900, 1100) { HarnessTheme(dark = false) { SettingsContent(todoistTasks, SettingsActions()) } }
-        render("settings-tasks-denied-narrow", 420, 1400) { HarnessTheme(dark = true) { SettingsContent(deniedTasks, SettingsActions(onBack = {})) } }
+        render("settings-tasks-todoist", 900, 1100) { KinuvoTheme(dark = false) { SettingsContent(todoistTasks, SettingsActions()) } }
+        render("settings-tasks-denied-narrow", 420, 1400) { KinuvoTheme(dark = true) { SettingsContent(deniedTasks, SettingsActions(onBack = {})) } }
 
         val knowledgeSettings = settings.copy(state = settings.state.copy(
             route = Route.Settings(AgentId("main"), SettingsSection.Knowledge),
             knowledge = KnowledgeSetup(KnowledgeSettings("~/Vault/Kinuvo"), "/Users/me/Vault/Kinuvo"),
         ))
         render("settings-knowledge-failed", 420, 860) {
-            HarnessTheme(dark = false) { SettingsContent(knowledgeSettings.copy(state = knowledgeSettings.state.copy(knowledge = null, errors = listOf("Not connected"))), SettingsActions(onBack = {})) }
+            KinuvoTheme(dark = false) { SettingsContent(knowledgeSettings.copy(state = knowledgeSettings.state.copy(knowledge = null, errors = listOf("Not connected"))), SettingsActions(onBack = {})) }
         }
         val ntfy = SettingsProvider("ntfy", schema = SettingsSchema(listOf(
             SettingsField("topic", "Topic", description = "Install the ntfy app on your phone and subscribe to this topic. Anyone who knows the topic can read it on a public server, so make it long and random.",
@@ -1291,14 +1291,14 @@ I checked your knowledge base just now and didn't find a profile note for you.
             serviceTest = ServiceTestResult("Sent"),
         ), capabilities = ServerCapabilities("home", setOf(ServerFeature.Push)), devices = DevicesState(listOf(
             PairedDeviceInfo("p", "Pixel 8", "2026-10-08T12:00:00Z", push = true), PairedDeviceInfo("w", "Web browser", "2026-10-08T12:00:00Z"))))
-        render("settings-notifications-narrow", 390, 1000) { HarnessTheme(dark = false) { SettingsContent(notifySettings, SettingsActions(onBack = {})) } }
+        render("settings-notifications-narrow", 390, 1000) { KinuvoTheme(dark = false) { SettingsContent(notifySettings, SettingsActions(onBack = {})) } }
         val searchSettings = settings.copy(state = settings.state.copy(
             route = Route.Settings(AgentId("main"), SettingsSection.Search),
             services = mapOf(ServiceKind.Search to ServiceSetup(ServiceKind.Search, ServiceSettings("firecrawl", mapOf("apiKey" to KnowledgeSettings.SECRET)),
                 listOf(firecrawl), setOf("apiKey"))),
         ))
-        render("settings-search", 900, 760) { HarnessTheme(dark = true) { SettingsContent(searchSettings, SettingsActions()) } }
-        render("settings-search-narrow", 390, 760) { HarnessTheme(dark = true) { SettingsContent(searchSettings, SettingsActions(onBack = {})) } }
+        render("settings-search", 900, 760) { KinuvoTheme(dark = true) { SettingsContent(searchSettings, SettingsActions()) } }
+        render("settings-search-narrow", 390, 760) { KinuvoTheme(dark = true) { SettingsContent(searchSettings, SettingsActions(onBack = {})) } }
         val custom = SettingsProvider("custom", "Custom search", SettingsSchema(listOf(
             SettingsField("endpoint", "Endpoint", SettingsFieldType.Url, defaultValue = "https://search.example.org"),
             SettingsField("enabled", "Include summaries", SettingsFieldType.Boolean, defaultValue = "true"),
@@ -1307,21 +1307,21 @@ I checked your knowledge base just now and didn't find a profile note for you.
         )))
         val customSettings = searchSettings.copy(state = searchSettings.state.copy(services = mapOf(ServiceKind.Search to
             ServiceSetup(ServiceKind.Search, ServiceSettings("custom"), listOf(custom)))))
-        render("settings-custom-provider", 420, 1000) { HarnessTheme(dark = false) { SettingsContent(customSettings, SettingsActions(onBack = {})) } }
+        render("settings-custom-provider", 420, 1000) { KinuvoTheme(dark = false) { SettingsContent(customSettings, SettingsActions(onBack = {})) } }
         val unsupported = customSettings.copy(state = customSettings.state.copy(services = mapOf(ServiceKind.Search to
             ServiceSetup(ServiceKind.Search, ServiceSettings("custom"), listOf(custom.copy(schema = SettingsSchema(
                 listOf(SettingsField("timeout", "Timeout", SettingsFieldType("Duration"))), version = 2)))))))
-        render("settings-provider-update-required", 390, 700) { HarnessTheme(dark = true) { SettingsContent(unsupported, SettingsActions(onBack = {})) } }
-        render("settings-reflection-prompt", 900, 1200) { HarnessTheme(dark = false) { SettingsContent(knowledgeSettings, SettingsActions()) } }
+        render("settings-provider-update-required", 390, 700) { KinuvoTheme(dark = true) { SettingsContent(unsupported, SettingsActions(onBack = {})) } }
+        render("settings-reflection-prompt", 900, 1200) { KinuvoTheme(dark = false) { SettingsContent(knowledgeSettings, SettingsActions()) } }
         val builtIn = knowledgeSettings.copy(state = knowledgeSettings.state.copy(knowledge = KnowledgeSetup(KnowledgeSettings(), "/Users/me/.kinuvo/knowledge")))
-        render("settings-knowledge-built-in-narrow", 390, 900) { HarnessTheme(dark = true) { SettingsContent(builtIn, SettingsActions(onBack = {})) } }
+        render("settings-knowledge-built-in-narrow", 390, 900) { KinuvoTheme(dark = true) { SettingsContent(builtIn, SettingsActions(onBack = {})) } }
         render("settings-mcp-onboarding-narrow", 390, 900) {
-            HarnessTheme(dark = true) { CompositionLocalProvider(LocalInteractionMode provides InteractionMode.Touch) {
+            KinuvoTheme(dark = true) { CompositionLocalProvider(LocalInteractionMode provides InteractionMode.Touch) {
                 SettingsContent(settingsAt(Route.Settings(AgentId("main"), SettingsSection.Mcp)), SettingsActions(onBack = {}), sidebar = false)
             } }
         }
-        render("settings-reflection-prompt-narrow", 420, 1400) { HarnessTheme(dark = true) { SettingsContent(knowledgeSettings, SettingsActions(onBack = {})) } }
-        render("settings-knowledge", 900, 760) { HarnessTheme(dark = true) { SettingsContent(knowledgeSettings, SettingsActions()) } }
+        render("settings-reflection-prompt-narrow", 420, 1400) { KinuvoTheme(dark = true) { SettingsContent(knowledgeSettings, SettingsActions(onBack = {})) } }
+        render("settings-knowledge", 900, 760) { KinuvoTheme(dark = true) { SettingsContent(knowledgeSettings, SettingsActions()) } }
         val anytypeSettings = knowledgeSettings.copy(state = knowledgeSettings.state.copy(
             knowledge = KnowledgeSetup(
                 KnowledgeSettings(provider = "anytype", options = mapOf("apiKey" to KnowledgeSettings.SECRET, "space" to "my-space"),
@@ -1329,24 +1329,24 @@ I checked your knowledge base just now and didn't find a profile note for you.
                 "/Users/me/.kinuvo/knowledge", listOf("markdown", "anytype"),
             ),
         ))
-        render("settings-anytype", 900, 860) { HarnessTheme(dark = false) { SettingsContent(anytypeSettings, SettingsActions()) } }
-        render("settings-anytype-narrow", 420, 860) { HarnessTheme(dark = true) { SettingsContent(anytypeSettings, SettingsActions(onBack = {})) } }
+        render("settings-anytype", 900, 860) { KinuvoTheme(dark = false) { SettingsContent(anytypeSettings, SettingsActions()) } }
+        render("settings-anytype-narrow", 420, 860) { KinuvoTheme(dark = true) { SettingsContent(anytypeSettings, SettingsActions(onBack = {})) } }
 
         val pass = SecretProviderStatus("pass", "Proton Pass", installed = true, tokenStorage = "macOS Keychain",
             detail = "Add an AI agent access token from Proton Pass → Settings → Access tokens")
         val secretsSettings = settings.copy(state = settings.state.copy(route = Route.Settings(AgentId("main"), SettingsSection.Secrets), secrets = listOf(pass)))
-        render("settings-secrets", 900, 760) { HarnessTheme(dark = false) { SettingsContent(secretsSettings, SettingsActions()) } }
+        render("settings-secrets", 900, 760) { KinuvoTheme(dark = false) { SettingsContent(secretsSettings, SettingsActions()) } }
         val connected = pass.copy(connected = true, detail = "Signed in; 2 vaults shared with Kinuvo")
         render("settings-secrets-connected", 420, 860) {
-            HarnessTheme(dark = true) { SettingsContent(secretsSettings.copy(state = secretsSettings.state.copy(secrets = listOf(connected))), SettingsActions(onBack = {})) }
+            KinuvoTheme(dark = true) { SettingsContent(secretsSettings.copy(state = secretsSettings.state.copy(secrets = listOf(connected))), SettingsActions(onBack = {})) }
         }
         val anytypeReference = anytypeSettings.copy(state = anytypeSettings.state.copy(
             secrets = listOf(connected),
             knowledge = anytypeSettings.state.knowledge!!.let { k -> k.copy(settings = k.settings.copy(options = k.settings.options + ("apiKey" to "\${pass://Kinuvo/Anytype/api key}"))) },
         ))
         val anytypeFailed = anytypeReference.copy(state = anytypeReference.state.copy(knowledgeTest = KnowledgeTestResult(error = "Anytype rejected the API key (401). Check it in Settings → Server → Knowledge.")))
-        render("settings-anytype-test-failed", 900, 1000) { HarnessTheme(dark = true) { SettingsContent(anytypeFailed, SettingsActions()) } }
-        render("settings-anytype-reference", 900, 860) { HarnessTheme(dark = false) { SettingsContent(anytypeReference, SettingsActions()) } }
+        render("settings-anytype-test-failed", 900, 1000) { KinuvoTheme(dark = true) { SettingsContent(anytypeFailed, SettingsActions()) } }
+        render("settings-anytype-reference", 900, 860) { KinuvoTheme(dark = false) { SettingsContent(anytypeReference, SettingsActions()) } }
     }
 
     private fun render(name: String, width: Int, height: Int, content: @Composable () -> Unit) = javax.swing.SwingUtilities.invokeAndWait {

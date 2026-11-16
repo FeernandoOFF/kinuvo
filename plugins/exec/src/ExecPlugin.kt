@@ -1,7 +1,7 @@
 package kinuvo.plugins.exec
 
 import kinuvo.harness.Agent
-import kinuvo.server.plugin.HarnessPlugin
+import kinuvo.server.plugin.ServerPlugin
 import kinuvo.server.plugin.InstructionSection
 import kinuvo.server.plugin.PluginTools
 import kinuvo.server.plugin.RunContext
@@ -25,7 +25,7 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.NonCancellable
 
 /** Shell, file and process tools on each Agent's exec backend, started on first use. */
-class ExecPlugin(private val files: PluginStorage, private val secrets: SecretResolver = SecretResolver.None) : HarnessPlugin {
+class ExecPlugin(private val files: PluginStorage, private val secrets: SecretResolver = SecretResolver.None) : ServerPlugin {
     override val definition = PluginDefinition("kinuvo.exec", "Shell and files")
     override val features = setOf(ServerFeature.Shell)
     private val lock = Mutex()

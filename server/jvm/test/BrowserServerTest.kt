@@ -39,7 +39,7 @@ class BrowserServerTest {
     @Test fun agentRunCanOpenBrowserThroughTheRealToolLoop(): Unit = runBlocking {
         val root = File(System.getenv("KINUVO_HOME") ?: System.getProperty("java.io.tmpdir")).apply { mkdirs() }
         val home = temporaryDirectories.create(root.toPath(), "browser-agent-").toFile()
-        val harness = Harness(Path(home.path), plugins = listOf(BrowserPlugin(File(home, "browser"))),
+        val harness = JvmAgentRuntime(Path(home.path), plugins = listOf(BrowserPlugin(File(home, "browser"))),
             modelFactory = { scriptedModel { prompt, tools ->
                 if (prompt.messages.toolResults.isEmpty()) flowOf(StreamFrame.ToolCallComplete("open", tools.first { "browser_open" in it.name }.name, """{"text":"about:blank"}"""), StreamFrame.End())
                 else flowOf(StreamFrame.TextDelta("Browser opened"), StreamFrame.End())
@@ -49,13 +49,13 @@ class BrowserServerTest {
             harness.store.saveConfig(base, base.config.copy(tools = listOf("browser"), approvals = "default"))
             val agent = harness.store.agents().first()
             val session = harness.newSession(agent)
-            harness.runner(agent, session.id).run(session.id, "Open a browser").toList()
+            harness.composer.runner(agent, session.id).run(session.id, "Open a browser").toList()
             val entries = harness.store.entries(agent.id, session.id)
             val result = entries.filterIsInstance<SessionEntry.ToolResult>().single()
             assertFalse(result.isError, result.toString())
             val tabs = harness.browser!!.tabs(BrowserOwner(agent.id))
             val secondSession = harness.newSession(agent)
-            harness.runner(agent, secondSession.id).run(secondSession.id, "Open another browser tab").toList()
+            harness.composer.runner(agent, secondSession.id).run(secondSession.id, "Open another browser tab").toList()
             assertEquals(2, harness.browser!!.tabs(BrowserOwner(agent.id)).size)
             harness.log.deleteSession(agent.id, session.id)
             assertEquals(2, harness.browser!!.tabs(BrowserOwner(agent.id)).size)
@@ -68,7 +68,7 @@ class BrowserServerTest {
         val home = System.getenv("KINUVO_BROWSER_PROOF_HOME")?.let { File(it).apply { mkdirs() } }
             ?: temporaryDirectories.create(root.toPath(), "browser-server-").toFile()
         val jar = System.getenv("KINUVO_BROWSER_PACKAGED_JAR")
-        var server: HarnessServer? = null
+        var server: JvmServerHost? = null
         var process: Process? = null
         var client: KinuvoClient? = null
         var ordinary: KinuvoClient? = null
@@ -90,9 +90,9 @@ class BrowserServerTest {
                     LocalServer.read(Path(home.path))
                 }
             } else {
-                val harness = Harness(Path(home.path), modelFactory = { scriptedModel { _, _ -> emptyFlow() } },
+                val harness = JvmAgentRuntime(Path(home.path), modelFactory = { scriptedModel { _, _ -> emptyFlow() } },
                     plugins = listOf(BrowserPlugin(File(home, "browser"))))
-                server = HarnessServer(harness)
+                server = JvmServerHost(harness)
                 val port = server.start("127.0.0.1", 0, schedule = false)
                 LocalServer("127.0.0.1", port, server.auth.sessionToken(), ProcessHandle.current().pid())
             }
@@ -163,8 +163,8 @@ class BrowserServerTest {
             if (jar == null) {
                 client.close()
                 server!!.stop()
-                val restartedHarness = Harness(Path(home.path), modelFactory = { scriptedModel { _, _ -> emptyFlow() } }, plugins = listOf(BrowserPlugin(File(home, "browser"))))
-                server = HarnessServer(restartedHarness)
+                val restartedHarness = JvmAgentRuntime(Path(home.path), modelFactory = { scriptedModel { _, _ -> emptyFlow() } }, plugins = listOf(BrowserPlugin(File(home, "browser"))))
+                server = JvmServerHost(restartedHarness)
                 val restartedPort = server.start("127.0.0.1", 0, schedule = false)
                 activeAddress = "ws://127.0.0.1:$restartedPort/ws"
                 client = KinuvoClient(activeAddress, "Restored viewer", token = pairedToken)

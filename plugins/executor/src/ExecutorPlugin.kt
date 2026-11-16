@@ -4,7 +4,7 @@ import kinuvo.server.plugin.toolSpec
 import kinuvo.server.plugin.ParameterType
 import kinuvo.server.plugin.ToolParameter
 import kinuvo.server.plugin.CoreTool
-import kinuvo.server.plugin.HarnessPlugin
+import kinuvo.server.plugin.ServerPlugin
 import kinuvo.server.plugin.PluginTools
 import kinuvo.server.plugin.RunContext
 import kinuvo.protocol.tool.ToolNames
@@ -16,7 +16,7 @@ import kinuvo.protocol.capability.Integration
 import kinuvo.protocol.plugin.PluginDefinition
 
 /** Contributes [RunCodeTool] to Agents with the `run_code` tool group. */
-class ExecutorPlugin(private val limits: Limits = Limits()) : HarnessPlugin {
+class ExecutorPlugin(private val limits: Limits = Limits()) : ServerPlugin {
     override val definition = PluginDefinition("kinuvo.executor", "Scripts")
     override val integrations = mapOf(Integration.Tools to setOf(ToolNames.RUN_CODE))
     override suspend fun prepare(run: RunContext, activate: Boolean) =

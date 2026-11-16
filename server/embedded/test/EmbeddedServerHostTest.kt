@@ -2,7 +2,7 @@ package kinuvo.server.embedded
 
 import kinuvo.harness.AgentConfig
 import kinuvo.harness.AgentDoc
-import kinuvo.server.plugin.HarnessPlugin
+import kinuvo.server.plugin.ServerPlugin
 import kinuvo.server.plugin.ProviderApiKey
 import kinuvo.server.plugin.ProviderAuth
 import kinuvo.server.plugin.deleteTree
@@ -67,7 +67,7 @@ class EmbeddedServerHostTest {
     @Test
     fun failedFreshInstallationClosesPluginsOnce() = runBlocking {
         var closes = 0
-        val plugin = object : HarnessPlugin {
+        val plugin = object : ServerPlugin {
             override val definition = kinuvo.protocol.plugin.PluginDefinition("test.localservertest.1", "Test")
             override suspend fun close() { closes++ }
         }
@@ -96,7 +96,7 @@ class EmbeddedServerHostTest {
         withTimeout(10_000) {
             var closes = 0
             val discovering = CompletableDeferred<Unit>()
-            val plugin = object : HarnessPlugin {
+            val plugin = object : ServerPlugin {
                 override val definition = kinuvo.protocol.plugin.PluginDefinition("test.localservertest.2", "Test")
                 override suspend fun close() { yield(); closes++ }
             }

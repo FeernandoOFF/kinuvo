@@ -28,7 +28,7 @@ private val log = KotlinLogging.logger("kinuvo.tasks")
  * due soon or undated) gets a run in a new Session. A Task runs once at a time; a run that ends with it still in progress,
  * or never starts, leaves it waiting for the user. On start, Tasks left in progress by a previous process wait too.
  */
-class TaskDispatcher(private val harness: HarnessRuntime, private val runs: Runs, private val scope: CoroutineScope) {
+class TaskDispatcher(private val harness: AgentRuntime, private val runs: Runs, private val scope: CoroutineScope) {
     private val wake = Channel<Unit>(Channel.CONFLATED)
     private val ticking = Mutex()
     /** Tasks with a run starting or going. */

@@ -19,7 +19,7 @@ import kinuvo.protocol.execution.ExecutionKind
 import kinuvo.protocol.execution.ExecutionReadiness
 import kinuvo.protocol.agent.AgentId
 import kinuvo.ui.agent.AgentAvatar
-import kinuvo.ui.design.HarnessTheme
+import kinuvo.ui.design.KinuvoTheme
 import org.jetbrains.skia.EncodedImageFormat
 import java.io.File
 import javax.swing.SwingUtilities
@@ -35,7 +35,7 @@ class AgentAvatarTest {
                 readiness = ExecutionReadiness(true, false, "Command missing", "not_found")),
         )
         ImageComposeScene(240, 64, Density(1f), content = {
-            HarnessTheme(dark = true) {
+            KinuvoTheme(dark = true) {
                 Row(Modifier.fillMaxSize().background(color(backgroundColor)), horizontalArrangement = Arrangement.spacedBy(16.dp)) { agents.forEach { AgentAvatar(it, 40.dp) } }
             }
         }).use { scene ->

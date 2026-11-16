@@ -22,7 +22,7 @@ import kinuvo.protocol.capability.*
 import kinuvo.protocol.execution.*
 import kinuvo.protocol.session.SessionId
 import kinuvo.protocol.session.ToolCallId
-import kinuvo.ui.design.HarnessTheme
+import kinuvo.ui.design.KinuvoTheme
 import kotlinx.serialization.json.Json
 import org.jetbrains.skia.EncodedImageFormat
 import java.io.File
@@ -148,7 +148,7 @@ class HarnessScreenshotTest {
     private fun details(agent: AgentInfo) = AgentDetails(agent, AgentSettings("", "", "", "external"), "", "", managed = true, cwd = "/Users/fer/dev/kinuvo")
 
     @Composable
-    private fun theme(touch: Boolean = false, content: @Composable () -> Unit) = HarnessTheme(dark = false) {
+    private fun theme(touch: Boolean = false, content: @Composable () -> Unit) = KinuvoTheme(dark = false) {
         if (touch) androidx.compose.runtime.CompositionLocalProvider(com.composables.ui.theme.LocalInteractionMode provides com.composables.ui.theme.InteractionMode.Touch, content = content)
         else content()
     }

@@ -30,11 +30,14 @@ class RunsTest {
         }
         val runs = Runs(SessionLog(fixture.store), this, factory)
         runs.onCancel = { cancelled += it }
-        runs.onFinish = { _, _, stopped -> finished += stopped }
+        val order = mutableListOf<String>()
+        runs.onFinish { _, _, stopped -> finished += stopped; order += "first" }
+        runs.onFinish { _, _, _ -> order += "second" }
         val run = runs.start(fixture.agent, session.id, ExecutionInput("start"), onDone = { done += it })
         runs.stop(session.id)
         run.job.join()
         assertEquals(listOf(true), finished)
+        assertEquals(listOf("first", "second"), order)
         assertEquals(listOf(true), done)
         assertEquals(listOf(session.id), cancelled)
         assertEquals(1, closed)

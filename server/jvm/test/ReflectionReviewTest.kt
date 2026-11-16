@@ -35,7 +35,7 @@ class ReflectionReviewTest {
     fun deleteTemporaryDirectories() = temporaryDirectories.close()
 
     private val home = temporaryDirectories.create("reflection-review").toFile()
-    private fun harness(model: kinuvo.harness.builtin.AgentModel = scriptedModel { _, _ -> emptyFlow() }) = Harness(home = Path(home.path), providers = ModelProviders.of(CodexProvider(CodexAuth(PrivateFile(Path(home.path, "none.json"))))),
+    private fun harness(model: kinuvo.harness.builtin.AgentModel = scriptedModel { _, _ -> emptyFlow() }) = JvmAgentRuntime(home = Path(home.path), providers = ModelProviders.of(CodexProvider(CodexAuth(PrivateFile(Path(home.path, "none.json"))))),
         modelFactory = { model }, plugins = emptyList())
 
     @Test
@@ -148,7 +148,7 @@ class ReflectionReviewTest {
         val proposal = ReflectionProposal("skill-1", "skill_manage", args, "Verified release workflow", "tool-1")
         harness.log.append(agent.id, session, SessionEntry.Reflection("r1", 0, ReflectionResult(proposals = listOf(proposal))))
         assertTrue(harness.skills.load(agent).none { it.name == "release-check" })
-        val server = HarnessServer(harness)
+        val server = JvmServerHost(harness)
         val port = server.start("127.0.0.1", 0)
         val client = KinuvoClient("ws://127.0.0.1:$port/ws", "test", pairingCode = server.auth.currentPairingCode())
         try {

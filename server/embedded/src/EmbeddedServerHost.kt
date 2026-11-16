@@ -2,7 +2,7 @@ package kinuvo.server.embedded
 
 import kinuvo.server.rpc.serverRoutes
 import kinuvo.harness.AgentConfig
-import kinuvo.server.plugin.HarnessPlugin
+import kinuvo.server.plugin.ServerPlugin
 import kinuvo.server.plugin.exists
 import kinuvo.server.devices.*
 import kinuvo.harness.builtin.NativeExecutionFactory
@@ -25,7 +25,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.io.files.Path
 import kotlin.uuid.Uuid
-import kinuvo.server.HarnessRuntime
+import kinuvo.server.AgentRuntime
 import kinuvo.server.ServerInstallation
 import kinuvo.server.ServerResources
 import kinuvo.server.ServerRuntime
@@ -55,7 +55,7 @@ class EmbeddedServerHost(val runtime: ServerRuntime, val token: String) {
          * The first model provider, from [providers] then [plugins], runs the default Agent on a fresh install.
          * A [continuous] Server keeps running and scheduling Routines while its app is in the background.
          */
-        suspend fun create(home: Path, providers: List<ModelProvider> = emptyList(), plugins: List<HarnessPlugin> = emptyList(), modelSources: () -> List<ModelSource> = { emptyList() }, continuous: Boolean = false,
+        suspend fun create(home: Path, providers: List<ModelProvider> = emptyList(), plugins: List<ServerPlugin> = emptyList(), modelSources: () -> List<ModelSource> = { emptyList() }, continuous: Boolean = false,
                            features: Set<ServerFeature> = setOf(ServerFeature.DeviceTools, ServerFeature.Computer),
                            peers: (PeerRegistry) -> PeerRegistry = { it }): EmbeddedServerHost {
             val files = AgentFiles(home)
@@ -65,7 +65,7 @@ class EmbeddedServerHost(val runtime: ServerRuntime, val token: String) {
             }
             val dependencies = ServerInstallation.assemble(files, plugins = plugins, modelProviders = providers, modelSources = modelSources)
             try {
-                val harness = HarnessRuntime(dependencies, { NativeExecutionFactory(it, modelSources) }, builtInFeatures = features)
+                val harness = AgentRuntime(dependencies, { NativeExecutionFactory(it, modelSources) }, builtInFeatures = features)
                 if (fresh) {
                     val provider = harness.modelProviders.first()
                     val agent = harness.store.agents().single()

@@ -7,7 +7,7 @@ import androidx.compose.ui.use
 import kinuvo.app.onboarding.AgentSteps
 import kinuvo.app.onboarding.OnboardingState
 import kinuvo.ui.onboarding.OnboardingContent
-import kinuvo.ui.design.HarnessTheme
+import kinuvo.ui.design.KinuvoTheme
 import kinuvo.ui.design.rememberBackDispatch
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -21,7 +21,7 @@ class OnboardingBackTest {
         var back: () -> Boolean = { false }
         ImageComposeScene(390, 844, Density(1f), content = {
             back = rememberBackDispatch()
-            HarnessTheme(dark = false) { OnboardingContent(state.value, onEdit = { state.value = it(state.value) }, onClose = { closed = true }) }
+            KinuvoTheme(dark = false) { OnboardingContent(state.value, onEdit = { state.value = it(state.value) }, onClose = { closed = true }) }
         }).use { scene ->
             var time = 0L
             fun frame() = repeat(3) { scene.render(time.also { time += 100_000_000 }) }

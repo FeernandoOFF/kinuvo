@@ -26,7 +26,7 @@ import kotlin.time.Duration.Companion.minutes
  * what was said since its last reflection. How far each Session got is kept in `reflections.json`.
  */
 class Reflector(
-    private val harness: HarnessRuntime,
+    private val harness: AgentRuntime,
     private val scope: CoroutineScope,
     private val busy: (sessionId: SessionId) -> Boolean,
     private val idle: Duration = 2.minutes,

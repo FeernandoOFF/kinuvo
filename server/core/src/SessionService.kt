@@ -7,7 +7,7 @@ import kinuvo.protocol.agent.AgentId
 import kinuvo.protocol.session.*
 
 /** Changes to a Session's settings and details, for Sessions that exist. */
-class SessionService internal constructor(private val harness: HarnessRuntime, private val admin: Admin) {
+class SessionService internal constructor(private val harness: AgentRuntime, private val admin: Admin) {
     context(_: Raise<SessionError>)
     suspend fun requireSession(agentId: AgentId, sessionId: SessionId) {
         if (harness.store.entries(agentId, sessionId).isEmpty()) raise(SessionError.NotFound(sessionId))

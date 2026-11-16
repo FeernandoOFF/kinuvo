@@ -1,6 +1,6 @@
 package kinuvo.server
 
-import kinuvo.server.plugin.HarnessPlugin
+import kinuvo.server.plugin.ServerPlugin
 import kinuvo.server.plugin.PluginHost
 import kinuvo.server.plugin.deleteTree
 import kinuvo.harness.builtin.*
@@ -39,7 +39,7 @@ class TaskProviderSettingsTest {
         }
     }
 
-    private val plugin = object : HarnessPlugin {
+    private val plugin = object : ServerPlugin {
         override val definition = PluginDefinition("test.tasksettings", "Test")
         override val taskProviders = listOf<TaskProvider>(Remote)
     }

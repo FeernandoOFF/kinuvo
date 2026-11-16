@@ -99,7 +99,7 @@ object TextStyles {
 
 val MonoStyle = TextStyle(fontFamily = FontFamily.Monospace, fontSize = 13.sp, lineHeight = 19.sp)
 
-private val HarnessThemeComposable = buildTheme {
+private val KinuvoThemeComposable = buildTheme {
     name = "Kinuvo"
     val dark = LocalColorScheme.current == ColorScheme.Dark
     val base = if (dark) Dark else Light
@@ -191,9 +191,9 @@ internal fun interactionMode(platform: Platform, hasPointer: Boolean): Interacti
 
 /** Kinuvo design system root: Composables UI tokens with the Kinuvo palette, following the system dark mode. [accent] overrides the palette's. */
 @Composable
-fun HarnessTheme(dark: Boolean = isSystemInDarkTheme(), accent: Color? = null, content: @Composable () -> Unit) {
+fun KinuvoTheme(dark: Boolean = isSystemInDarkTheme(), accent: Color? = null, content: @Composable () -> Unit) {
     CompositionLocalProvider(LocalColorScheme provides if (dark) ColorScheme.Dark else ColorScheme.Light, LocalAccent provides accent) {
-        HarnessThemeComposable(content)
+        KinuvoThemeComposable(content)
     }
 }
 

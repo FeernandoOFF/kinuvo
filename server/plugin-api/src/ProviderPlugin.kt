@@ -7,7 +7,7 @@ import kinuvo.protocol.plugin.PluginProviderKind
 import kotlinx.serialization.Serializable
 
 /** A plugin that brings the admin half of model providers; hosts pair each with the built-in harness's source of the same ID. */
-interface ProviderPlugin : HarnessPlugin {
+interface ProviderPlugin : ServerPlugin {
     val providerAdmins: List<ProviderAdmin>
 
     override val manifest: PluginManifest get() = super.manifest.let { base ->

@@ -1,6 +1,6 @@
 package kinuvo.plugins.todoist
 
-import kinuvo.server.plugin.HarnessPlugin
+import kinuvo.server.plugin.ServerPlugin
 import kinuvo.server.plugin.PluginHost
 import kinuvo.server.plugin.ProviderTask
 import kinuvo.server.plugin.TaskChange
@@ -28,7 +28,7 @@ import kotlinx.serialization.json.put
 import kotlin.time.Clock
 import kotlin.time.Duration.Companion.days
 
-class TodoistPlugin : HarnessPlugin {
+class TodoistPlugin : ServerPlugin {
     override val definition = PluginDefinition("kinuvo.todoist", "Todoist")
     override val taskProviders = listOf(TodoistProvider)
     override val manifest get() = super.manifest.copy(discoversTools = false)

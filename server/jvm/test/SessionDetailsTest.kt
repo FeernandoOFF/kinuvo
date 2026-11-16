@@ -26,20 +26,20 @@ class SessionDetailsTest {
     @Test
     fun renamesAndFavoritesStayOutOfTheModelsHistory(): Unit = runBlocking {
         val seen = mutableListOf<List<Message>>()
-        val harness = Harness(Path(home.path), modelFactory = { scriptedModel { prompt, _ -> seen += prompt.messages; flowOf(StreamFrame.TextDelta("ok"), StreamFrame.End()) } }, plugins = emptyList())
+        val harness = JvmAgentRuntime(Path(home.path), modelFactory = { scriptedModel { prompt, _ -> seen += prompt.messages; flowOf(StreamFrame.TextDelta("ok"), StreamFrame.End()) } }, plugins = emptyList())
         try {
             val agent = harness.store.agents().single()
             val session = harness.newSession(agent).id
-            harness.runner(agent, session).run(session, "first message").toList()
+            harness.composer.runner(agent, session).run(session, "first message").toList()
             val older = harness.newSession(agent).id
-            harness.runner(agent, older).run(older, "other").toList()
+            harness.composer.runner(agent, older).run(older, "other").toList()
 
             assertEquals("Trip plans", harness.update(agent, session, "  Trip plans ", null).title)
             assertTrue(harness.update(agent, session, null, true).let { it.favorite && it.title == "Trip plans" })
             assertEquals(listOf(session), harness.log.page(agent.id, null, 1).favorites.map { it.id })
             assertEquals(emptyList(), harness.log.page(agent.id, older.value, 1).favorites)
 
-            harness.runner(agent, session).run(session, "again").toList()
+            harness.composer.runner(agent, session).run(session, "again").toList()
             assertEquals(listOf("first message", "again"), seen.last().filterIsInstance<Message.User>().map { it.textContent() })
 
             val reset = harness.update(agent, session, " ", false)

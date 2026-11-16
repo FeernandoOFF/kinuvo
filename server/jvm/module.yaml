@@ -1,10 +1,11 @@
-# Assembles the engine (Harness) and serves it to clients over WebSocket.
+# Assembles the engine (AgentRuntime) and serves it to clients over WebSocket.
 product: jvm/lib
 
 dependencies:
   - ../../harness/builtin: exported
   - ../core: exported
   - ../rpc
+  - ../embedded
   - ../../gateways/kinuvo-mcp
   - ../../harness/acp
   - ../../harness/remote

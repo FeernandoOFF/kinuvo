@@ -24,13 +24,13 @@ class CodexExecLiveTest {
         if (System.getenv("KINUVO_LIVE") != "1") return@runBlocking
         val home = temporaryDirectories.create("harness-live-exec").toFile()
         val ws = temporaryDirectories.create("harness-ws").toFile().canonicalFile
-        val harness = Harness(Path(home.path))
+        val harness = JvmAgentRuntime(Path(home.path))
         val agent = harness.store.agents().single().let {
             it.copy(config = it.config.copy(reasoning = "low", exec = "host", workspace = listOf(ws.path), approvals = "full"))
         }
         val session = harness.newSession(agent)
         val events = runBlocking {
-            harness.runner(agent).run(session.id, "Create hello.txt containing exactly 'hi from harness', then run `wc -c hello.txt` and tell me the byte count.").toList()
+            harness.composer.runner(agent).run(session.id, "Create hello.txt containing exactly 'hi from harness', then run `wc -c hello.txt` and tell me the byte count.").toList()
         }
         val tools = events.filterIsInstance<AgentEvent.ToolCallStart>().map { it.toolCallName }
         assertEquals("hi from harness", File(ws, "hello.txt").readText().trim())

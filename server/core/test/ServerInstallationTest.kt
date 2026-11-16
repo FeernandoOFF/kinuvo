@@ -2,7 +2,7 @@ package kinuvo.server
 
 import kinuvo.server.plugin.ProviderAdmin
 import kinuvo.server.plugin.ProviderPlugin
-import kinuvo.server.plugin.HarnessPlugin
+import kinuvo.server.plugin.ServerPlugin
 import kinuvo.server.plugin.deleteTree
 import kinuvo.harness.builtin.plugin.*
 import kinuvo.server.plugin.*
@@ -34,7 +34,7 @@ class ServerInstallationTest {
     }
     @Test fun duplicateNamedInstancesFailDuringAssemblyAndCloseTheirResources() = runTest {
         var closes = 0
-        fun plugin() = object : HarnessPlugin {
+        fun plugin() = object : ServerPlugin {
             override val definition = PluginDefinition("example.plugin", "Example")
             override suspend fun close() { closes++ }
         }

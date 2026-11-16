@@ -12,8 +12,8 @@ import androidx.compose.ui.window.Tray
 import androidx.compose.ui.window.Window
 import androidx.compose.ui.window.application
 import androidx.compose.ui.window.rememberWindowState
-import kinuvo.server.jvm.Harness
-import kinuvo.server.jvm.HarnessServer
+import kinuvo.server.jvm.JvmAgentRuntime
+import kinuvo.server.jvm.JvmServerHost
 import kinuvo.server.jvm.LocalServer
 import kinuvo.server.jvm.LoginServiceSettings
 import kinuvo.server.jvm.kinuvoHome
@@ -39,14 +39,14 @@ import kotlin.system.exitProcess
 /** Runs the Kinuvo server (the harness) inside the app; phones on the LAN can pair with it. */
 private object HarnessEmbeddedServer : EmbeddedServer {
     private val mutex = Mutex()
-    private var server: HarnessServer? = null
+    private var server: JvmServerHost? = null
     private var port = 0
     /** One credential for the app's lifetime, so reconnecting stays the same Device, e.g. with its Computer. */
     private var token: String? = null
 
-    private suspend fun started(): HarnessServer = mutex.withLock {
-        server ?: HarnessServer(Harness()).also { s ->
-            port = s.start("0.0.0.0", System.getenv("KINUVO_EMBEDDED_PORT")?.toInt()?.let(::listOf) ?: HarnessServer.EMBEDDED_PORTS)
+    private suspend fun started(): JvmServerHost = mutex.withLock {
+        server ?: JvmServerHost(JvmAgentRuntime()).also { s ->
+            port = s.start("0.0.0.0", System.getenv("KINUVO_EMBEDDED_PORT")?.toInt()?.let(::listOf) ?: JvmServerHost.EMBEDDED_PORTS)
             s.advertise()
             Runtime.getRuntime().addShutdownHook(Thread { s.stop() })
             server = s
