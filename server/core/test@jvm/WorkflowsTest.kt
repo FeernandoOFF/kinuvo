@@ -8,6 +8,7 @@ import kinuvo.protocol.Api
 import kinuvo.protocol.agent.AgentId
 import kinuvo.protocol.approval.*
 import kinuvo.protocol.routine.Trigger
+import kinuvo.protocol.session.*
 import kinuvo.protocol.workflow.*
 import kinuvo.server.store.AgentFiles
 import kinuvo.server.store.FileStore
@@ -118,22 +119,102 @@ class WorkflowsTest {
         }
     }
 
-    @Test fun recoveryPreservesDoneOutputsAndCancelsInterruptedSteps() = runBlocking<Unit> {
+    private val deployed = java.util.concurrent.atomic.AtomicInteger()
+    private val restartTools = FakeTools(FakeTool("deploy", Risk.High, reason = "Pushes to production") { "deployed${deployed.incrementAndGet()}" })
+
+    /** Starts a Server on a home whose store already holds [w] with one Running run in [steps], as left by a killed Server. */
+    private suspend fun <T> restarted(w: Workflow, steps: Map<String, StepRun>, session: Boolean = true, block: suspend (TestServer, KinuvoClient, SessionId?) -> T): T {
+        val withSession = session
         val home = Files.createTempDirectory("workflows-recovery").toFile()
-        val w = workflow(turn("first"), WorkflowStep.Approval(StepId("approve"), "Wait"), edges = listOf(edge("first", "approve")))
         try {
-            TestServer.start(home = Path(home.path), scenario = {
-                agent("work")
-                FileStore(AgentFiles(Path(home.path))).saveWorkflows(WorkflowData(listOf(w), listOf(WorkflowRun(WorkflowRunId("interrupted"), w.id, WorkflowRunStatus.Running, 1,
-                    steps = mapOf(StepId("first") to StepRun(StepStatus.Done, output = "retained"), StepId("approve") to StepRun(StepStatus.WaitingApproval)), workflow = w))))
-            }).use { server ->
-                val recovered = client(server).call(Api.WorkflowRuns, w.id).single()
-                assertEquals(WorkflowRunStatus.Cancelled, recovered.status)
-                assertEquals("retained", recovered.steps[StepId("first")]?.output)
-                assertEquals(StepStatus.Cancelled, recovered.steps[StepId("approve")]?.status)
-                assertNotNull(recovered.endedAt)
-            }
+            var sid: SessionId? = null
+            return TestServer.start(home = Path(home.path), plugins = listOf(restartTools), script = { on("first") { reply("again") } }, scenario = {
+                val a = agent("work")
+                if (withSession) sid = session(a).id
+                val seeded = w.steps.associate { it.id to StepRun() }.plus(steps.mapKeys { StepId(it.key) }.mapValues { (_, s) -> if (s.sessionId != null) s.copy(sessionId = sid) else s })
+                FileStore(AgentFiles(Path(home.path))).saveWorkflows(WorkflowData(listOf(w), listOf(WorkflowRun(WorkflowRunId("interrupted"), w.id, WorkflowRunStatus.Running, 1, steps = seeded, workflow = w))))
+            }).use { server -> block(server, client(server), sid) }
         } finally { home.deleteRecursively() }
+    }
+
+    private val interrupted = "Interrupted by a Server restart"
+    private val placeholder = SessionId("placeholder")
+
+    @Test fun runWaitingOnAnApprovalStepSurvivesARestart() = runBlocking<Unit> {
+        val w = workflow(turn("first"), WorkflowStep.Approval(StepId("approve"), "Wait"), edges = listOf(edge("first", "approve")))
+        restarted(w, mapOf("first" to StepRun(StepStatus.Done, output = "retained"),
+            "approve" to StepRun(StepStatus.WaitingApproval, placeholder, interactionId = InteractionId("old")))) { server, c, sid ->
+            val waiting = await(c, w.id) { it.steps[StepId("approve")]?.status == StepStatus.WaitingApproval && it.steps[StepId("approve")]?.interactionId != InteractionId("old") }
+            assertEquals(WorkflowRunStatus.Running, waiting.status)
+            val s = waiting.steps.getValue(StepId("approve"))
+            assertEquals(sid, s.sessionId)
+            withTimeout(5000) { while (server.harness.log.pending(sid!!).isEmpty()) yield() }
+            assertEquals(listOf(s.interactionId), server.harness.log.pending(sid!!).map { it.id })
+            assertTrue(c.call(Api.Respond, RespondParams(sid, s.interactionId!!, InteractionAnswer.Approval(ApprovalDecision.AllowOnce))))
+            val done = await(c, w.id) { it.status != WorkflowRunStatus.Running }
+            assertEquals(WorkflowRunStatus.Done, done.status)
+            assertEquals("retained", done.steps[StepId("first")]?.output)
+            assertTrue(server.prompts.inputs.none { it.text == "first" })
+            assertEquals(1, server.harness.store.sessions(agent).size)
+            assertTrue(server.harness.log.pending(sid).isEmpty())
+        }
+    }
+
+    @Test fun toolWaitingForItsApprovalSurvivesARestartAndRunsOnce() = runBlocking<Unit> {
+        deployed.set(0)
+        val w = workflow(tool("a", "deploy"), tool("b", "deploy"), edges = listOf(edge("a", "b")))
+        restarted(w, mapOf("a" to StepRun(StepStatus.WaitingApproval, placeholder, interactionId = InteractionId("old")))) { server, c, sid ->
+            suspend fun approve(step: String): StepRun {
+                val s = await(c, w.id) { it.steps[StepId(step)]?.status == StepStatus.WaitingApproval && it.steps[StepId(step)]?.interactionId != InteractionId("old") }.steps.getValue(StepId(step))
+                withTimeout(5000) { while (server.harness.log.pending(s.sessionId!!).isEmpty()) yield() }
+                assertEquals(listOf(s.interactionId), server.harness.log.pending(s.sessionId!!).map { it.id })
+                assertTrue(c.call(Api.Respond, RespondParams(s.sessionId!!, s.interactionId!!, InteractionAnswer.Approval(ApprovalDecision.AllowOnce))))
+                return s
+            }
+            assertEquals(sid, approve("a").sessionId)
+            await(c, w.id) { it.steps[StepId("a")]?.status == StepStatus.Done }
+            assertEquals(1, deployed.get())
+            approve("b")
+            val done = await(c, w.id) { it.status != WorkflowRunStatus.Running }
+            assertEquals(WorkflowRunStatus.Done, done.status)
+            assertEquals("deployed1", done.steps[StepId("a")]?.output)
+            assertEquals(2, deployed.get())
+        }
+    }
+
+    @Test fun interruptedRunningStepsFailTheRunWhileModelStepsAreAskedAgain() = runBlocking<Unit> {
+        for (kind in listOf(turn("a"), tool("a", "deploy"))) {
+            val w = workflow(kind, turn("b"), edges = listOf(edge("a", "b")))
+            restarted(w, mapOf("a" to StepRun(StepStatus.Running, placeholder))) { server, c, sid ->
+                val failed = await(c, w.id) { it.status != WorkflowRunStatus.Running }
+                assertEquals(WorkflowRunStatus.Failed, failed.status)
+                assertEquals(StepStatus.Failed, failed.steps[StepId("a")]?.status)
+                assertEquals(interrupted, failed.steps[StepId("a")]?.error)
+                assertEquals(sid, failed.steps[StepId("a")]?.sessionId)
+                assertEquals(StepStatus.Skipped, failed.steps[StepId("b")]?.status)
+                assertNotNull(failed.endedAt)
+                assertTrue(server.prompts.inputs.isEmpty())
+            }
+        }
+        val m = workflow(WorkflowStep.Model(StepId("m"), "first"))
+        restarted(m, mapOf("m" to StepRun(StepStatus.Running)), session = false) { _, c, _ ->
+            val done = await(c, m.id) { it.status != WorkflowRunStatus.Running }
+            assertEquals(WorkflowRunStatus.Done, done.status)
+            assertEquals("again", done.steps[StepId("m")]?.output)
+        }
+    }
+
+    @Test fun resumedRunCanBeCancelledAndBlocksOverlappingRuns() = runBlocking<Unit> {
+        val w = workflow(WorkflowStep.Approval(StepId("approve"), "Wait"))
+        restarted(w, mapOf("approve" to StepRun(StepStatus.WaitingApproval, placeholder, interactionId = InteractionId("old")))) { server, c, sid ->
+            val waiting = await(c, w.id) { it.steps[StepId("approve")]?.interactionId.let { id -> id != null && id != InteractionId("old") } }
+            withTimeout(5000) { while (server.harness.log.pending(sid!!).isEmpty()) yield() }
+            assertEquals("conflict", assertFailsWith<KinuvoException> { c.call(Api.RunWorkflow, w.id) }.code)
+            val cancelled = c.call(Api.CancelWorkflow, waiting.id)
+            assertEquals(WorkflowRunStatus.Cancelled, cancelled.status)
+            assertEquals(StepStatus.Cancelled, cancelled.steps[StepId("approve")]?.status)
+            assertTrue(server.harness.log.pending(sid!!).isEmpty())
+        }
     }
 
     @Test fun cyclesUnknownEdgesAndInvalidReferencesAreTypedErrors() = runBlocking<Unit> {

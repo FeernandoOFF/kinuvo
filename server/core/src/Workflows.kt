@@ -26,7 +26,7 @@ sealed class WorkflowError(override val code: String, override val message: Stri
     data class Invalid(val reason: String) : WorkflowError(WireErrorCode.InvalidParams, reason)
 }
 
-/** Durable graph snapshots and results; interrupted execution is never replayed. */
+/** Durable graph snapshots and results; runs resume after a restart, but interrupted Tool and Agent work is never replayed. */
 @OptIn(ExperimentalCoroutinesApi::class, DelicateCoroutinesApi::class)
 class Workflows internal constructor(
     private val harness: AgentRuntime, private val runs: Runs, private val scope: CoroutineScope,
@@ -38,13 +38,28 @@ class Workflows internal constructor(
     private var data = WorkflowData()
     private val jobs = mutableMapOf<WorkflowRunId, Job>()
 
+    /** Unfinished runs keep their state except interrupted Tool and Agent steps, which may have had side effects and fail instead of replaying. */
     suspend fun recover() = lock.withLock {
         data = harness.store.workflows()
-        data = data.copy(runs = data.runs.map { r -> if (r.status != WorkflowRunStatus.Running) r else r.copy(
-            status = WorkflowRunStatus.Cancelled, endedAt = clock(), steps = r.steps.mapValues { (_, s) ->
-                if (s.status in terminal) s else s.copy(status = StepStatus.Cancelled, error = "Server restarted", interactionId = null)
-            }) })
+        val before = data.runs.filter { it.status == WorkflowRunStatus.Running }.map { it.id }.toSet()
+        data = data.copy(runs = data.runs.map { r -> if (r.status != WorkflowRunStatus.Running) r else {
+            val steps = r.steps.mapValues { (id, s) -> when {
+                s.status in terminal -> s
+                s.status == StepStatus.WaitingApproval -> s.copy(status = StepStatus.Pending, interactionId = null)
+                s.status != StepStatus.Running -> s
+                r.workflow.steps.find { it.id == id } is WorkflowStep.Model -> s.copy(status = StepStatus.Pending)
+                else -> s.copy(status = StepStatus.Failed, error = "Interrupted by a Server restart")
+            } }
+            if (steps.values.none { it.status == StepStatus.Failed }) r.copy(steps = steps)
+            else r.copy(status = WorkflowRunStatus.Failed, endedAt = clock(), steps = steps.mapValues { (_, s) -> if (s.status in terminal) s else s.copy(status = StepStatus.Skipped) })
+        } })
         persist()
+        data.runs.filter { it.id in before }.forEach(runChanged)
+    }
+
+    /** Executes recovered Running runs again from where they stopped; called once the Server's listeners are in place. */
+    suspend fun resume() = lock.withLock {
+        for (r in data.runs.filter { it.status == WorkflowRunStatus.Running && it.id !in jobs }) jobs[r.id] = scope.launch(start = CoroutineStart.ATOMIC) { execute(r) }
     }
 
     suspend fun list() = lock.withLock { data.workflows }
@@ -134,7 +149,7 @@ class Workflows internal constructor(
                 val ordered = order(initial.workflow)
                 for (step in ordered) {
                     val predecessors = initial.workflow.edges.filter { it.to == step.id }.map { tasks.getValue(it.from) }
-                    tasks[step.id] = async { predecessors.awaitAll(); step(initial, step) }
+                    tasks[step.id] = if (initial.steps[step.id]?.status == StepStatus.Done) async {} else async { predecessors.awaitAll(); step(initial, step) }
                 }
                 tasks.values.awaitAll()
             }
@@ -153,7 +168,7 @@ class Workflows internal constructor(
     }
 
     private suspend fun step(run: WorkflowRun, step: WorkflowStep) {
-        var session: SessionId? = null
+        var session = run.steps[step.id]?.sessionId
         try {
             when (step) {
                 is WorkflowStep.AgentTurn -> {
@@ -177,7 +192,7 @@ class Workflows internal constructor(
                 }
                 is WorkflowStep.Approval -> {
                     val agent = harness.store.agents().first { a -> (run.workflow.agentId ?: run.workflow.steps.filterIsInstance<WorkflowStep.AgentTurn>().firstOrNull()?.agentId)?.let { it == a.id } ?: true }
-                    session = harness.newSession(agent).id
+                    session = session ?: harness.newSession(agent).id
                     val pending = harness.approvals.register()
                     try {
                         val interaction = PendingInteraction.Approval(pending.id, ToolCallId(Uuid.random().toString()), "workflow_approval", "{}",
@@ -193,7 +208,7 @@ class Workflows internal constructor(
                 }
                 is WorkflowStep.Tool -> {
                     val agent = runsAs(run)
-                    update(run.id, step.id, StepRun(StepStatus.Running))
+                    update(run.id, step.id, StepRun(StepStatus.Running, session))
                     val args = WorkflowReferences.render(step.args, outputs(run.id))
                     val gate = harness.composer.compose(agent, sessionId = null, requireModel = false).gate
                     var pending: InteractionId? = null
