@@ -1,5 +1,6 @@
 package kinuvo.app
 
+import kinuvo.app.diagnostics.DiagnosticsViewModel
 import kinuvo.protocol.workflow.WorkflowId
 import kinuvo.app.workflow.WorkflowViewModel
 import kinuvo.app.workflow.WorkflowsViewModel
@@ -26,6 +27,7 @@ import org.koin.dsl.module
 /** Repositories and ViewModels shared by every client; hosts add their platform's bindings, e.g. [Preferences] and [Device]. */
 val appModule = module {
     single { getOrNull<MobileTestMode>()?.servers ?: Servers(get(), getOrNull(), get()) }
+    viewModel { DiagnosticsViewModel(getOrNull(), get(), getOrNull()) }
     single { Notifications(getAll()) }
     single { NotificationActions(get(), get()) }
     single { LiveCalls() }

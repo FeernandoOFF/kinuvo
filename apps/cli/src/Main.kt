@@ -1,5 +1,6 @@
 package kinuvo.cli
 
+import kinuvo.server.jvm.diagnostics.DiagnosticLogging
 import arrow.core.Either
 import io.github.oshai.kotlinlogging.KotlinLogging
 import com.github.ajalt.clikt.command.CoreSuspendingCliktCommand
@@ -31,6 +32,7 @@ private val log by lazy { KotlinLogging.logger("kinuvo.cli") }
 /** `kinuvo [serve] [--host 0.0.0.0] [--port 8787]`, `kinuvo login`, or a management command (see `--help`). */
 fun main(args: Array<String>): Unit = runBlocking {
     System.setProperty("kotlin-logging.logStartupMessage", "false")
+    DiagnosticLogging.install("cli")
     Kinuvo(LocalAccess, listOf(Serve(), Login(), ServiceCommands()), default = { serve("127.0.0.1", JvmServerHost.DEFAULT_PORT) }).main(args)
 }
 

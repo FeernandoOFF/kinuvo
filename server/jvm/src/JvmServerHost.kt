@@ -25,7 +25,7 @@ class JvmServerHost(val harness: JvmAgentRuntime, val auth: DeviceAuth = DeviceA
     private val executionStorage = ExecutionStorage(harness.files.home)
     private val activity = ProcessActivity("Serving a live voice call")
     private val links = remoteLinks(harness.files.home)
-    val runtime: ServerRuntime = ServerRuntime(harness, auth, serverRoutes(), name,
+    val runtime: ServerRuntime = ServerRuntime(harness, auth, serverRoutes(JvmDiagnostics(File(harness.files.home.toString()))), name,
         remoteLinks = links, remoteHarness = { RemoteExecutionFactory(links::link, harness.serverId, it) }, security = security, prepareAttachment = ::prepareAttachment, keepAwake = activity::hold,
         executionRegistry = executionStorage.registry, executionFactory = McpExecutionFactory(AcpExecutionFactory(persistAttachment = ::persistExecutionAttachment), harness, mcpAccess, { mcpListener.url }), executionStorage = executionStorage)
     private suspend fun persistExecutionAttachment(state: ExecutionState, data: AttachmentData) = runtime.persistExecutionAttachment(state, data)

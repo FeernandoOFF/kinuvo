@@ -1,5 +1,7 @@
 package kinuvo.ui.e2e
 
+import kinuvo.app.diagnostics.LocalDiagnostics
+import kinuvo.app.diagnostics.DiagnosticFilePicker
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.semantics.SemanticsProperties
@@ -60,6 +62,7 @@ internal fun appTest(
     scenario: suspend Scenario.(Agent) -> Unit = {},
     /** A desktop window with a pointer, instead of a phone. */
     desktop: Boolean = false,
+    localDiagnostics: LocalDiagnostics? = null,
     block: suspend AppTest.() -> Unit,
 ) = (if (desktop) ::runDesktopTest else ::runPhoneTest) {
     val server = withContext(Dispatchers.Default) {
@@ -70,7 +73,7 @@ internal fun appTest(
         })
     }
     try {
-        runApp({ server.connect() }, AppTest(this, server, flow), block, if (desktop) InteractionMode.Pointer else InteractionMode.Touch)
+        runApp({ server.connect() }, AppTest(this, server, flow), block, if (desktop) InteractionMode.Pointer else InteractionMode.Touch, localDiagnostics)
     } finally {
         withContext(Dispatchers.Default + NonCancellable) { server.stop() }
     }
@@ -80,7 +83,7 @@ internal fun appTest(
 internal const val REPLY = "Hello from the scripted model"
 
 @OptIn(ExperimentalTestApi::class)
-private suspend fun <T : AppDriver> ComposeUiTest.runApp(connect: suspend (String) -> FrameConnection, app: T, block: suspend T.() -> Unit, mode: InteractionMode = InteractionMode.Touch) {
+private suspend fun <T : AppDriver> ComposeUiTest.runApp(connect: suspend (String) -> FrameConnection, app: T, block: suspend T.() -> Unit, mode: InteractionMode = InteractionMode.Touch, localDiagnostics: LocalDiagnostics? = null) {
     val values = mutableMapOf<String, String>()
     val tokens = mutableMapOf<String, String>()
     val preferences = object : Preferences {
@@ -94,6 +97,10 @@ private suspend fun <T : AppDriver> ComposeUiTest.runApp(connect: suspend (Strin
         override fun delete(server: String) { tokens.remove(server) }
     }
     val koin = kinuvoApplication(module {
+        if (localDiagnostics != null) {
+            single<LocalDiagnostics> { localDiagnostics }
+            single<DiagnosticFilePicker> { DiagnosticFilePicker { "/test/diagnostics.zip" } }
+        }
         single<Preferences> { preferences }
         single<DeviceCredentials> { credentials }
         single { Device("Test phone", "UTC", SERVER_URL) }

@@ -1,5 +1,6 @@
 package kinuvo.desktop
 
+import kinuvo.server.jvm.diagnostics.DiagnosticLogging
 import io.github.oshai.kotlinlogging.KotlinLogging
 import kinuvo.server.jvm.LocalServer
 import kinuvo.server.jvm.LoginServiceSettings
@@ -77,6 +78,7 @@ internal fun serveFromLogin(): Int {
     System.setProperty("logback.configurationFile", "logback-service.xml")
     System.setProperty("kinuvo.log.file", File(logs, "server.log").path)
     PrintStream(FileOutputStream(File(logs, "service-output.log"), true), true).let { System.setOut(it); System.setErr(it) }
+    DiagnosticLogging.install("server")
     val log = KotlinLogging.logger("kinuvo.desktop")
     return try {
         runBlocking {
