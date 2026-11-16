@@ -105,18 +105,18 @@ private fun MenuItem(icon: ImageVector, text: String) = Row(verticalAlignment = 
 }
 
 /**
- * The desktop toolbar: the shell's [controls], then the Session's title and what it's doing; on the right, the Agent (opening
- * its settings) and the Session's actions grouped in one control.
+ * The desktop toolbar: the shell's [controls], then the Session's title and what it's doing; the Agent centered above the
+ * chat, like a conversation's contact (opening its settings); on the right, the Session's actions grouped in one control.
  */
 @Composable
 internal fun TopBar(state: ChatState, usage: Usage?, actions: ChatActions, compact: Boolean, controls: @Composable () -> Unit) {
     TitleBarRow {
-        controls()
         val selected = state.sessions.firstOrNull { it.id == state.selected } ?: state.info
-        Row(Modifier.weight(1f).padding(start = Spacing.space6), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.space8)) {
+        Row(Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.space8)) {
+            controls()
             Text(
                 selected?.title ?: if (state.agent != null) "New Session" else "…",
-                Modifier.weight(1f, fill = false),
+                Modifier.weight(1f, fill = false).padding(start = Spacing.space2),
                 color = if (selected == null) color(mutedColor) else Color.Unspecified,
                 fontWeight = FontWeight.Medium,
                 singleLine = true,
@@ -125,20 +125,22 @@ internal fun TopBar(state: ChatState, usage: Usage?, actions: ChatActions, compa
             selected?.let { SessionBadge(it, compact) }
             SessionActivity(state, compact)
         }
-        state.agent?.let { agent -> AgentChip(agent, compact, actions.onSettings) }
+        state.agent?.let { agent -> Box(Modifier.widthIn(min = if (compact) 48.dp else 160.dp), contentAlignment = Alignment.Center) { AgentChip(agent, compact, actions.onSettings) } }
         var statistics by remember(state.selected) { mutableStateOf(false) }
         val session = selected?.takeIf { state.selected != null }
-        if (session != null || state.items.isNotEmpty()) ToolbarGroup {
-            if (session != null) {
-                HeaderButton(Lucide.SquarePen, "New Session ${shortcut("N")}", actions.onNew)
-                HeaderButton(if (session.favorite) Lucide.StarOff else Lucide.Star, if (session.favorite) "Remove from favorites" else "Add to favorites", { actions.onFavorite(!session.favorite) })
+        Row(Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.space6, Alignment.End)) {
+            if (session != null || state.items.isNotEmpty()) ToolbarGroup {
+                if (session != null) {
+                    HeaderButton(Lucide.SquarePen, "New Session ${shortcut("N")}", actions.onNew)
+                    HeaderButton(if (session.favorite) Lucide.StarOff else Lucide.Star, if (session.favorite) "Remove from favorites" else "Add to favorites", { actions.onFavorite(!session.favorite) })
+                }
+                if (state.items.isNotEmpty()) SessionMenu(selected, actions, state, onStatistics = { statistics = true }, favorite = false) { open -> HeaderButton(Lucide.Ellipsis, "More", open) }
             }
-            if (state.items.isNotEmpty()) SessionMenu(selected, actions, state, onStatistics = { statistics = true }, favorite = false) { open -> HeaderButton(Lucide.Ellipsis, "More", open) }
+            actions.onBrowser?.let { ToolbarGroup { HeaderButton(if (actions.browserOpen) Lucide.PanelRightClose else Lucide.Globe, if (actions.browserOpen) "Hide Browser" else "Browser", it) } }
         }
         Popover(statistics, { statistics = false }, "Statistics") {
             ChatStatisticsContent(usage, remember(state.items) { state.items.requestMetrics() }, Modifier.fillMaxWidth())
         }
-        actions.onBrowser?.let { ToolbarGroup { HeaderButton(if (actions.browserOpen) Lucide.PanelRightClose else Lucide.Globe, if (actions.browserOpen) "Hide Browser" else "Browser", it) } }
     }
 }
 
@@ -150,17 +152,20 @@ private fun SessionActivity(state: ChatState, compact: Boolean) = when {
     else -> Unit
 }
 
-/** The Agent this chat is with; opens its settings beside the chat. */
+/** The Agent this chat is with, as a conversation's contact: its avatar over its name; opens its settings beside the chat. */
 @Composable
 private fun AgentChip(agent: kinuvo.protocol.agent.AgentInfo, compact: Boolean, onClick: () -> Unit) {
     Hint("${agent.name}'s settings", TooltipSide.Bottom) {
-        Row(Modifier.titleBarControl().height(32.dp).clip(PillShape).border(1.dp, color(borderColor), PillShape).clickable(onClickLabel = "${agent.name}'s settings", onClick = onClick)
-            .semantics(mergeDescendants = true) { contentDescription = "${agent.name}'s settings" }
-            .padding(start = Spacing.space4, end = Spacing.space10),
-            verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.space6)) {
-            AgentAvatar(agent, 22.dp)
-            if (!compact) Text(agent.name, style = TextStyles.secondary, singleLine = true, overflow = TextOverflow.Ellipsis, modifier = Modifier.widthIn(max = 160.dp))
-            Icon(Lucide.PanelRight, Modifier.size(14.dp), tint = color(mutedColor))
+        Column(Modifier.titleBarControl().clip(RoundedCornerShape(Radius.menu)).clickable(onClickLabel = "${agent.name}'s settings", onClick = onClick)
+            .semantics(mergeDescendants = true) { contentDescription = "${agent.name}'s settings" }.padding(horizontal = Spacing.space6),
+            horizontalAlignment = Alignment.CenterHorizontally) {
+            AgentAvatar(agent, 28.dp)
+            if (!compact) Row(Modifier.offset(y = (-3).dp).clip(PillShape).background(color(subtleColor)).border(1.dp, color(borderColor), PillShape)
+                .padding(start = Spacing.space8, end = Spacing.space6, top = 1.dp, bottom = 1.dp),
+                verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text(agent.name, style = TextStyles.caption, fontWeight = FontWeight.SemiBold, singleLine = true, overflow = TextOverflow.Ellipsis, modifier = Modifier.widthIn(max = 140.dp))
+                Icon(Lucide.ChevronRight, Modifier.size(10.dp), tint = color(mutedColor))
+            }
         }
     }
 }
