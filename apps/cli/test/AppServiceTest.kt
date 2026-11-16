@@ -4,6 +4,7 @@ import kinuvo.server.jvm.LoginServiceSettings
 import kinuvo.testing.harness.TemporaryDirectories
 import com.github.ajalt.clikt.core.CliktError
 import java.io.File
+import kotlinx.serialization.json.Json
 import kotlin.test.AfterTest
 import kotlin.test.Test
 import kotlin.test.assertContains
@@ -23,6 +24,14 @@ class AppServiceTest {
     private val calls = mutableListOf<List<String>>()
     private var status = "notRegistered"
     private val spec = ServiceSpec("", "", "0.0.0.0", 8788, "${home.path}/.kinuvo/logs/server.log", mapOf("KINUVO_PUBLIC_URL" to "https://kinuvo.example.com"))
+
+    @Test
+    fun tailcatPersistsForBothServiceModes() {
+        val enabled = spec.copy(tailcat = true)
+        assertContains(enabled.command, "--tailcat")
+        val settings = Json.decodeFromString<LoginServiceSettings>(service().render(enabled))
+        assertTrue(settings.options.tailcat)
+    }
 
     private fun app(agent: Boolean = true) = File(home, "Applications/Kinuvo.app").also { app ->
         File(app, AppService.EXECUTABLE).apply { parentFile.mkdirs(); writeText("#!/bin/sh"); setExecutable(true) }

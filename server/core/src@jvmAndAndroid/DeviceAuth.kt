@@ -33,6 +33,7 @@ class DeviceAuth(private val file: File, private val now: () -> Instant = { Cloc
     var onNewCode: ((String) -> Unit)? = null
     var port = 0
     var addresses: () -> List<String> = { emptyList() }
+    @Volatile var tailcatAddress: String? = null
     var publicUrl: String? = null
     var learnedUrl: () -> String? = { null }
     @Volatile override var pairable = true
@@ -80,7 +81,7 @@ class DeviceAuth(private val file: File, private val now: () -> Instant = { Cloc
     override fun pairing(refresh: Boolean, management: Boolean): PairingCode? {
         if (!pairable) return null
         if (refresh || pairingCode.isEmpty() || now() >= codeExpires || codeManagement != management) refreshCode(management)
-        return PairingCode(pairingCode, codeExpires.toString(), port, addresses(), publicUrl ?: learnedUrl(), codeManagement)
+        return PairingCode(pairingCode, codeExpires.toString(), port, addresses(), publicUrl ?: learnedUrl(), codeManagement, tailcatAddress)
     }
 
     @Synchronized

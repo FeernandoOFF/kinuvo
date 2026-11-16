@@ -19,6 +19,8 @@ import kinuvo.server.jvm.kinuvoHome
 import kinuvo.server.jvm.JvmAgentRuntime
 import kinuvo.server.jvm.JvmServerHost
 import kinuvo.server.jvm.ServeOptions
+import kinuvo.server.jvm.Tailcat
+import java.io.File
 import kinuvo.server.jvm.serve
 import kinuvo.server.jvm.LocalServer
 import kinuvo.protocol.device.Links
@@ -31,7 +33,7 @@ private val log by lazy { KotlinLogging.logger("kinuvo.cli") }
 /** `kinuvo [serve] [--host 0.0.0.0] [--port 8787]`, `kinuvo login`, or a management command (see `--help`). */
 fun main(args: Array<String>): Unit = runBlocking {
     System.setProperty("kotlin-logging.logStartupMessage", "false")
-    Kinuvo(LocalAccess, listOf(Serve(), Login(), ServiceCommands()), default = { serve("127.0.0.1", JvmServerHost.DEFAULT_PORT) }).main(args)
+    Kinuvo(LocalAccess, listOf(Serve(), Login(), ServiceCommands(), TailcatReset()), default = { serve("127.0.0.1", JvmServerHost.DEFAULT_PORT) }).main(args)
 }
 
 private class Serve : CoreSuspendingCliktCommand("serve") {
@@ -42,11 +44,12 @@ private class Serve : CoreSuspendingCliktCommand("serve") {
     private val behindProxy by option("--behind-proxy", help = "Sit behind a reverse proxy in another container: allow a non-loopback bind with an HTTPS origin (or KINUVO_BEHIND_PROXY=1)").flag()
     private val computer by option("--computer", help = "Expose this desktop as a Computer through cua-driver").flag()
     private val tailscale by option("--tailscale", help = "Provide private HTTPS through Tailscale Serve (requires Tailscale with HTTPS enabled)").flag()
+    private val tailcat by option("--tailcat", help = "Allow paired Devices to connect through a secret Tailcat address").flag()
     private val tailscalePort by option("--tailscale-port", help = "Tailscale HTTPS port").int().default(443)
 
     override fun help(context: Context) = "Run the Server (the default command)."
 
-    override suspend fun run() = serve(host, port, publicUrl, trustedProxy, computer, tailscale, tailscalePort, behindProxy)
+    override suspend fun run() = serve(host, port, publicUrl, trustedProxy, computer, tailscale, tailscalePort, behindProxy, tailcat)
 }
 
 private class Login : CoreSuspendingCliktCommand("login") {
@@ -63,9 +66,9 @@ private class Login : CoreSuspendingCliktCommand("login") {
     }
 }
 
-private suspend fun serve(host: String, port: Int, publicUrl: String? = null, trustedProxy: String? = null, computer: Boolean = false, tailscale: Boolean = false, tailscalePort: Int = 443, behindProxy: Boolean = false) {
+private suspend fun serve(host: String, port: Int, publicUrl: String? = null, trustedProxy: String? = null, computer: Boolean = false, tailscale: Boolean = false, tailscalePort: Int = 443, behindProxy: Boolean = false, tailcat: Boolean = false) {
     serveErrors {
-        serve(ServeOptions(host, port, publicUrl, trustedProxy, tailscale, tailscalePort, behindProxy)) { server, bind, bound ->
+        serve(ServeOptions(host, port, publicUrl, trustedProxy, tailscale, tailscalePort, behindProxy, tailcat)) { server, bind, bound ->
             if (!computer) return@serve null
             CliComputer(server, bind, bound).also {
                 it.connect()
@@ -104,4 +107,12 @@ private object LocalAccess : ServerAccess {
     }
 
     private suspend fun <T> KinuvoClient.use(block: suspend (KinuvoClient) -> T): T = try { block(this) } finally { close() }
+}
+
+private class TailcatReset : CoreSuspendingCliktCommand("tailcat-reset") {
+    override fun help(context: Context) = "Discard this home's Tailcat address. Stop the Server first; the next start creates a new address."
+    override suspend fun run() {
+        serveErrors { Tailcat.load().reset(File(kinuvoHome().toString(), "tailcat")) }
+        echo("Tailcat address reset. Start the Server with --tailcat to create a new address.")
+    }
 }

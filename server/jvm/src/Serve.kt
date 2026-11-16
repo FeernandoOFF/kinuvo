@@ -2,6 +2,7 @@ package kinuvo.server.jvm
 
 import io.github.oshai.kotlinlogging.KotlinLogging
 import kinuvo.server.NetworkSecurity
+import java.io.File
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.withContext
@@ -22,6 +23,7 @@ data class ServeOptions(
     val tailscale: Boolean = false,
     val tailscalePort: Int = 443,
     val behindProxy: Boolean = false,
+    val tailcat: Boolean = false,
 )
 
 private fun env(name: String) = System.getenv(name)?.trim()?.takeIf { it.isNotEmpty() }
@@ -50,25 +52,33 @@ suspend fun serve(options: ServeOptions, extend: suspend (server: JvmServerHost,
     val network = NetworkSecurity(route?.url ?: publicUrl(options.publicUrl), trusted, behindProxy, if (behindProxy) coolifyOrigin(env("COOLIFY_URL")) else null)
     val server = JvmServerHost(JvmAgentRuntime(), network = network)
     var extension: AutoCloseable? = null
+    var tailcat: TailcatExposure? = null
     var ready = false
-    val shutdown = Thread { try { server.stop() } finally { extension?.close() } }
+    val shutdown = Thread { try { tailcat?.close() } finally { try { server.stop() } finally { extension?.close() } } }
     try {
         val bound = server.start(bind, options.port)
+        if (options.tailcat) {
+            tailcat = TailcatExposure(server.auth, Tailcat.load())
+            tailcat.start(File(server.harness.files.home.toString(), "tailcat"), server.startTailcatListener())
+        }
         route?.enable()
         extension = extend(server, bind, bound)
         server.advertise()
         log.info { "Server listening at $bind:$bound${network.publicUrl?.let { "; HTTPS address $it" }.orEmpty()}" }
         if (route != null) log.info { "Tailscale HTTPS: ${route.url} (private to your tailnet; the Serve route persists until disabled)" }
+        server.auth.tailcatAddress?.let { address -> log.info { "Tailcat address (secret): $address" } }
         log.info { "Pairing is closed. Run `kinuvo pair --manage` for a management Device or `kinuvo pair` for ordinary access." }
         Runtime.getRuntime().addShutdownHook(shutdown)
         ready = true
         awaitCancellation()
     } finally {
         runCatching { Runtime.getRuntime().removeShutdownHook(shutdown) }
-        try { server.stop() } finally {
-            try { extension?.close() } finally {
-                if (!ready) withContext(NonCancellable) {
-                    runCatching { route?.rollback() }.onFailure { log.warn(it) { "Could not remove the new Tailscale route; check `tailscale serve status`." } }
+        try { tailcat?.close() } finally {
+            try { server.stop() } finally {
+                try { extension?.close() } finally {
+                    if (!ready) withContext(NonCancellable) {
+                        runCatching { route?.rollback() }.onFailure { log.warn(it) { "Could not remove the new Tailscale route; check `tailscale serve status`." } }
+                    }
                 }
             }
         }

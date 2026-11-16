@@ -30,6 +30,15 @@ class JvmServerHost(val harness: JvmAgentRuntime, val auth: DeviceAuth = DeviceA
         executionRegistry = executionStorage.registry, executionFactory = McpExecutionFactory(AcpExecutionFactory(persistAttachment = ::persistExecutionAttachment), harness, mcpAccess, { mcpListener.url }), executionStorage = executionStorage)
     private suspend fun persistExecutionAttachment(state: ExecutionState, data: AttachmentData) = runtime.persistExecutionAttachment(state, data)
     private val listener = NetworkListener(runtime, auth, network)
+    private var tailcatListener: NetworkListener? = null
+
+    suspend fun startTailcatListener(): Int {
+        check(tailcatListener == null)
+        val listener = NetworkListener(runtime, auth, NetworkSecurity(trustedProxies = emptySet()), remoteOnly = true)
+        tailcatListener = listener
+        return listener.start("127.0.0.1", emptyList())
+    }
+
     private var started = false
     private var advertised: LocalServer? = null
 
@@ -62,6 +71,8 @@ class JvmServerHost(val harness: JvmAgentRuntime, val auth: DeviceAuth = DeviceA
     }
     fun stop() = runBlocking {
         advertised?.let { if (LocalServer.read(harness.files.home) == it) LocalServer.delete(harness.files.home) }
+        tailcatListener?.stop()
+        tailcatListener = null
         mcpListener.stop()
         listener.stop()
         runtime.close()
