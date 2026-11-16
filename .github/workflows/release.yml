@@ -136,6 +136,16 @@ jobs:
           distribution: temurin
           java-version: '21'
       - uses: ./.github/actions/restore-kotlin-cache
+      - uses: actions/setup-go@v6
+        if: env.KEYSTORE != ''
+        with:
+          go-version-file: native/tailcat/go.mod
+          cache-dependency-path: native/tailcat/go.sum
+      - name: Build Android Tailcat libraries
+        if: env.KEYSTORE != ''
+        run: |
+          sdkmanager 'ndk;28.2.13676358'
+          scripts/build-tailcat.sh android
       - name: Build a universal APK signed with the release key
         if: env.KEYSTORE != ''
         env:

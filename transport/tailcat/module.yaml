@@ -1,4 +1,9 @@
-product: jvm/lib
+product:
+  type: kmp/lib
+  platforms: [jvm, android]
+
+aliases:
+  - jvmAndAndroid: [jvm, android]
 
 dependencies:
   - org.jetbrains.kotlinx:kotlinx-serialization-json:1.11.0
