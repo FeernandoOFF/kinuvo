@@ -14,7 +14,7 @@ Status: Accepted
 Target layout:
 
 - `protocol`: wire and domain values (typed IDs, session entries, events, tool identity, neutral tool descriptors, `WireError`).
-- `transport/tailcat`: neutral JVM native transport binding, with no Server or client dependencies; both `client/sdk` and `server/jvm` may use it.
+- `transport/tailcat`: neutral JVM/Android native transport binding, with no Server or client dependencies; `client/sdk`, `server/jvm` and `server/embedded` may use it.
 - `client/`: `sdk` (transport), `app` (repositories, ViewModels, the `EmbeddedServer` interface), `ui` (rendering only, no Server dependencies).
 - `harness/`: `api` (execution contracts), `builtin` (the native harness), and the adapters `acp` and `remote`.
 - `server/`: `plugin-api` (including verified model downloads), `core`, `rpc`, and the hosts `jvm` and `embedded`.
