@@ -52,7 +52,8 @@ import kinuvo.ui.design.*
 
 private val ComposerShape = RoundedCornerShape(Radius.composer)
 private const val ArgumentLines = 8
-private val CardShape = RoundedCornerShape(Radius.card)
+private val TrayShape = RoundedCornerShape(topStart = Radius.card, topEnd = Radius.card)
+private val TrayTuck = 14.dp
 private val WideBreakpoint = 600.dp
 private val BodyMaxHeight = 380.dp
 private val FocusRing = 4.dp
@@ -142,8 +143,8 @@ private fun MorphCard(request: PendingRequest?, composer: @Composable () -> Unit
 
 @Composable
 private fun Tray(request: PendingRequest?, notice: (@Composable () -> Unit)?, composer: @Composable () -> Unit, body: @Composable (PendingRequest) -> Unit) {
-    Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(Spacing.space8)) {
-        if (request != null) notice?.invoke()
+    Column(Modifier.fillMaxWidth()) {
+        if (request != null) notice?.let { Box(Modifier.padding(bottom = Spacing.space6)) { it() } }
         AnimatedVisibility(
             request != null,
             enter = expandVertically(Motion.resizeSpring(), expandFrom = Alignment.Bottom) + fadeIn(),
@@ -152,17 +153,24 @@ private fun Tray(request: PendingRequest?, notice: (@Composable () -> Unit)?, co
             var shown by remember { mutableStateOf(request) }
             request?.let { shown = it }
             shown?.let { current ->
-                // Its own card above the input, edged in the request's tone, so it never reads as part of the chat field.
+                // A tab rising out of the input, edged in the request's tone; its bottom tucks under the input.
                 Column(
-                    Modifier.fillMaxWidth().clip(CardShape).background(color(panelColor)).border(1.dp, current.tone().copy(alpha = 0.45f), CardShape)
-                        .padding(horizontal = Spacing.space18, vertical = Spacing.space16),
+                    Modifier.fillMaxWidth().padding(horizontal = Spacing.space12).clip(TrayShape).background(color(panelColor))
+                        .border(1.dp, current.tone().copy(alpha = 0.45f), TrayShape)
+                        .padding(start = Spacing.space18, end = Spacing.space18, top = Spacing.space16, bottom = Spacing.space16 + TrayTuck),
                     verticalArrangement = Arrangement.spacedBy(Spacing.space14),
                 ) {
                     body(current)
                 }
             }
         }
-        composer()
+        // Lifts over the tray's bottom edge so the two read as one object.
+        val lift by animateDpAsState(if (request != null) TrayTuck else 0.dp)
+        Box(Modifier.layout { measurable, constraints ->
+            val placeable = measurable.measure(constraints)
+            val up = lift.roundToPx()
+            layout(placeable.width, placeable.height - up) { placeable.place(0, -up) }
+        }) { composer() }
     }
 }
 
