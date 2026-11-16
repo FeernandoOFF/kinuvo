@@ -750,7 +750,7 @@ internal fun ModelStep(s: OnboardingState, onProvider: (String) -> Unit, onRefre
         }
     }
     var adding by remember { mutableStateOf(false) }
-    AdvancedGroup("More options", summary = group?.chatModels?.firstOrNull { it.id == s.model }?.let { "Uses ${it.name}" } ?: "Pick a model, or add your own") {
+    AdvancedGroup("More options", summary = "Change the model, or add your own") {
         if (picked && listed) PickerRow("Model", (group.chatModels.map { it.id } + s.model).filter(String::isNotBlank).distinct(), s.model,
             { id -> group.chatModels.firstOrNull { it.id == id }?.name ?: id }, { value -> onEdit { it.copy(model = value) } }, Lucide.Cpu)
         ActionRow("Refresh models and sign-in", Lucide.RefreshCw, onRefresh, enabled = !s.busy)
