@@ -13,6 +13,8 @@ import kinuvo.protocol.workflow.*
 import kinuvo.testing.server.TestServer
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.first
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.setMain
 import java.util.concurrent.Executors
@@ -45,23 +47,23 @@ class WorkflowStateTest {
         }
     }
 
-    @Test fun draftEditsDiscardAndStepIds() = withServer { owner, _ ->
+    @Test fun pageChangesReplaceOnlyTheGraphAndDiscardReloadsThePage() = withServer { owner, _ ->
         val stores = ViewModelStore()
         try {
             val vm = WorkflowViewModel(owner.workflows, seed.id).also { stores.put("w", it) }
             vm.state.first { it.draft != null }
             assertFalse(vm.state.value.dirty)
-            val agents = listOf(AgentInfo(agent, "First", "exec"))
-            val first = vm.state.value.draft!!.steps.first()
-            val added = vm.add(StepKind.Agent, agents, first)
-            val approval = vm.add(StepKind.Approval, agents, null)
-            assertEquals(StepId("step-2"), added)
-            assertEquals(StepId("approval-1"), approval)
+            vm.edit(vm.state.value.draft!!.copy(name = "Renamed", agentId = AgentId("second")))
+            val tool = WorkflowStep.Tool(StepId("t"), "echo", buildJsonObject { put("a", "{{steps.step-1.output}}") }, Position(3f, 4f))
+            val edited = seed.copy(name = "Stale", agentId = null, steps = seed.steps + tool, edges = listOf(WorkflowEdge(StepId("step-1"), tool.id)))
+            vm.graphChanged(edited)
+            val draft = vm.state.value.draft!!
+            assertEquals(edited.steps, draft.steps)
+            assertEquals(edited.edges, draft.edges)
+            assertEquals("Renamed", draft.name)
+            assertEquals(AgentId("second"), draft.agentId)
             assertTrue(vm.state.value.dirty)
-            assertEquals(listOf(WorkflowEdge(first.id, added)), vm.state.value.draft!!.edges)
-            vm.remove(added)
-            assertEquals(listOf(first.id, approval), vm.state.value.draft!!.steps.map { it.id })
-            assertTrue(vm.state.value.draft!!.edges.isEmpty())
+            assertEquals(0, vm.state.value.generation)
             vm.discard()
             assertFalse(vm.state.value.dirty)
             assertEquals(vm.state.value.workflow, vm.state.value.draft)

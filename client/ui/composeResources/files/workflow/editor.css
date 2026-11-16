@@ -1,0 +1,51 @@
+:root{--bg:#fff;--panel:#f6f6f6;--subtle:#ececec;--text:#111;--muted:#666;--border:#d4d4d4;--accent:#2563eb;--on-accent:#fff;--success:#16a34a;--warning:#d97706;--danger:#dc2626;
+  --font:-apple-system,BlinkMacSystemFont,system-ui,"Segoe UI",Roboto,sans-serif;--mono:ui-monospace,SFMono-Regular,Menlo,monospace}
+html,body{height:100%;margin:0;overflow:hidden;background:var(--bg);color:var(--text);font-family:var(--font);font-size:13px}
+#df{position:absolute;inset:0;background-color:var(--bg);background-image:radial-gradient(var(--border) 1px,transparent 1px);background-size:20px 20px}
+#bar{position:absolute;top:8px;left:8px;z-index:10;display:flex;gap:6px;align-items:flex-start}
+#bar button,#menu button{font:inherit;color:var(--text);background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:6px 10px;cursor:pointer}
+#add{position:relative}
+#menu{position:absolute;top:36px;left:0;display:flex;flex-direction:column;gap:4px;background:var(--bg);border:1px solid var(--border);border-radius:10px;padding:4px;min-width:130px}
+#menu[hidden]{display:none}
+#menu button{border:0;text-align:left;background:transparent}
+#menu button:hover,#bar button:hover{background:var(--subtle)}
+.drawflow .drawflow-node{width:290px;min-height:0;padding:0;background:var(--panel);color:var(--text);border:1px solid var(--border);border-radius:12px;box-shadow:0 1px 3px rgba(0,0,0,.12);font-family:var(--font)}
+.drawflow .drawflow-node.selected{border-color:var(--accent);box-shadow:0 0 0 2px var(--accent)}
+.drawflow .drawflow-node:hover{cursor:default}
+.drawflow .drawflow-node .input,.drawflow .drawflow-node .output{width:16px;height:16px;border:2px solid var(--accent);background:var(--bg);top:0;margin:0}
+.drawflow .drawflow-node .input{left:-9px}.drawflow .drawflow-node .output{right:-9px}
+.drawflow .drawflow-node .input:hover,.drawflow .drawflow-node .output:hover{background:var(--accent)}
+.drawflow .connection .main-path{stroke:var(--muted);stroke-width:3px}
+.drawflow .connection .main-path.selected{stroke:var(--accent)}
+.drawflow-delete{background:var(--danger)!important;border:2px solid var(--bg)!important;color:#fff!important}
+.parent-node .drawflow-delete{display:none!important}
+.card{padding:8px 10px 10px;display:flex;flex-direction:column;gap:6px;cursor:default}
+.head{display:flex;align-items:center;gap:6px;cursor:move}
+.kind{font-weight:600;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.badge{font-size:11px;border-radius:999px;padding:1px 8px;background:var(--subtle);color:var(--muted)}
+.badge:empty{display:none}
+.badge[data-st=Running]{background:var(--accent);color:var(--on-accent)}
+.badge[data-st=WaitingApproval]{background:var(--warning);color:#fff}
+.badge[data-st=Done]{background:var(--success);color:#fff}
+.badge[data-st=Failed]{background:var(--danger);color:#fff}
+.card.st-Failed{outline:2px solid var(--danger);outline-offset:-2px;border-radius:12px}
+.card.st-WaitingApproval{outline:2px solid var(--warning);outline-offset:-2px;border-radius:12px}
+.del{font:inherit;line-height:1;width:24px;height:24px;border:0;border-radius:6px;background:transparent;color:var(--muted);cursor:pointer}
+.del:hover{background:var(--subtle);color:var(--danger)}
+.only .del{display:none}
+label{display:flex;flex-direction:column;gap:2px;color:var(--muted);font-size:11px}
+.row{display:flex;gap:6px;align-items:center}
+.row label{flex:1;min-width:0}
+input,select,textarea{box-sizing:border-box;width:100%;font:inherit;font-size:13px;color:var(--text);background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:5px 7px}
+input:focus,select:focus,textarea:focus{outline:2px solid var(--accent);outline-offset:-1px}
+textarea{resize:vertical;min-height:56px;font-family:inherit}
+textarea.mono,input.id{font-family:var(--mono);font-size:12px}
+input.id{width:110px}
+.bad{border-color:var(--danger)!important}
+.err{color:var(--danger);font-size:11px}
+.err:empty{display:none}
+.run:empty{display:none}
+.ex{font:inherit;font-size:12px;text-align:left;background:transparent;border:0;color:var(--accent);padding:2px 0;cursor:pointer}
+.ex.error{color:var(--danger)}
+pre.out{margin:0;max-height:200px;overflow:auto;white-space:pre-wrap;word-break:break-word;font-family:var(--mono);font-size:11px;background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:6px;user-select:text;-webkit-user-select:text}
+@media (max-width:480px){.drawflow .drawflow-node{width:250px}}

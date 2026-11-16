@@ -192,7 +192,7 @@ private fun htmlTheme(): HtmlTheme {
     }
 }
 
-private fun Color.css(): String {
+internal fun Color.css(): String {
     fun hex(v: Float) = (v * 255).roundToInt().coerceIn(0, 255).toString(16).padStart(2, '0')
     return "#" + hex(red) + hex(green) + hex(blue) + if (alpha < 1f) hex(alpha) else ""
 }
