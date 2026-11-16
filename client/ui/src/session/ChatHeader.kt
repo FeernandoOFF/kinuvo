@@ -125,16 +125,18 @@ internal fun TopBar(state: ChatState, usage: Usage?, actions: ChatActions, compa
             selected?.let { SessionBadge(it, compact) }
             SessionActivity(state, compact)
         }
-        state.agent?.let { agent -> Box(Modifier.widthIn(min = if (compact) 48.dp else 160.dp), contentAlignment = Alignment.Center) { AgentChip(agent, compact, actions.onSettings) } }
+        state.agent?.let { agent -> Box(if (compact) Modifier else Modifier.widthIn(min = 160.dp), contentAlignment = Alignment.Center) { AgentChip(agent, compact, actions.onSettings) } }
         var statistics by remember(state.selected) { mutableStateOf(false) }
         val session = selected?.takeIf { state.selected != null }
-        Row(Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.space6, Alignment.End)) {
+        // Narrow, the title takes the room and the Agent sits beside the actions; wide, the two sides balance so the Agent centers.
+        Row(if (compact) Modifier else Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.space6, Alignment.End)) {
             if (session != null || state.items.isNotEmpty()) ToolbarGroup {
-                if (session != null) {
+                // Narrow, only More stays out; Favorite moves into it.
+                if (session != null && !compact) {
                     HeaderButton(Lucide.SquarePen, "New Session ${shortcut("N")}", actions.onNew)
                     HeaderButton(if (session.favorite) Lucide.StarOff else Lucide.Star, if (session.favorite) "Remove from favorites" else "Add to favorites", { actions.onFavorite(!session.favorite) })
                 }
-                if (state.items.isNotEmpty()) SessionMenu(selected, actions, state, onStatistics = { statistics = true }, favorite = false) { open -> HeaderButton(Lucide.Ellipsis, "More", open) }
+                if (state.items.isNotEmpty()) SessionMenu(selected, actions, state, onStatistics = { statistics = true }, favorite = compact) { open -> HeaderButton(Lucide.Ellipsis, "More", open) }
             }
             actions.onBrowser?.let { ToolbarGroup { HeaderButton(if (actions.browserOpen) Lucide.PanelRightClose else Lucide.Globe, if (actions.browserOpen) "Hide Browser" else "Browser", it) } }
         }
