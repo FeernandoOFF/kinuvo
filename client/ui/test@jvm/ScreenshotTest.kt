@@ -318,6 +318,16 @@ class ScreenshotTest {
                     ), SettingsActions())
                 }
             }
+            render("connection-settings-tailcat-$suffix", 1000, 1200) {
+                KinuvoTheme(dark = dark) {
+                    SettingsContent(settingsAt(Route.Settings(AgentId("main"), SettingsSection.Connection)).copy(
+                        capabilities = ServerCapabilities("home", setOf(ServerFeature.Pairing)),
+                        server = Server.Embedded, servers = listOf(Server.Embedded), sharing = true,
+                        sharingOptions = mapOf(SharingOption.Lan to SharingState.On, SharingOption.Tailcat to SharingState.On),
+                        pairing = pairing.copy(tailcatLink = "kinuvo://pair?tailcat=tc${"A".repeat(138)}&code=${pairing.code}"), devices = DevicesState(paired),
+                    ), SettingsActions())
+                }
+            }
         }
     }
 
