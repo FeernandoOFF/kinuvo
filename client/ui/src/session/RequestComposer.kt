@@ -264,21 +264,18 @@ private fun ApprovalBody(event: PendingInteraction.Approval, input: RequestInput
         }
         val json = prettyJson(event.args)
         // Without a command or preview to show, the arguments are what's being approved; otherwise they and the tool's ID are details.
+        // Without a command or preview, the arguments are what's being approved, so they show; Details adds the tool's ID and the rest.
         val shownByDefault = command == null && event.preview == null
         if (shownByDefault) CodeBlock(json, language = "Arguments", maxLines = if (input.arguments) Int.MAX_VALUE else ArgumentLines)
-        if (input.arguments && !shownByDefault) {
+        if (input.arguments) {
             identity?.let { Text("${it.instance.pluginId} › ${it.instance.instanceId} › ${it.localId}", style = TextStyles.caption, color = color(mutedColor), singleLine = true, overflow = TextOverflow.Ellipsis) }
-            CodeBlock(json, language = "Arguments")
+            if (!shownByDefault) CodeBlock(json, language = "Arguments")
         }
         if (input.noting) Column(verticalArrangement = Arrangement.spacedBy(Spacing.space6)) {
             Text("Note for the Agent, sent with Deny", style = TextStyles.caption, color = color(mutedColor))
             Input(input.note, "What to do instead", capitalize = true)
         }
-        val toggle = when {
-            !shownByDefault -> "Details"
-            json.lines().size > ArgumentLines -> if (input.arguments) "Show less" else "Show all"
-            else -> null
-        }
+        val toggle = if (identity != null || !shownByDefault || json.lines().size > ArgumentLines) "Details" else null
         val quiet: @Composable () -> Unit = {
             if (!input.noting) QuietAction(Lucide.Pencil, "Add note") { input.noting = true }
             toggle?.let { QuietAction(if (input.arguments) Lucide.ChevronUp else Lucide.ChevronDown, it) { input.arguments = !input.arguments } }
