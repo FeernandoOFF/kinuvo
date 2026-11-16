@@ -79,7 +79,8 @@ private fun TasksForm(setup: TasksSetup, p: Pane) {
             provider = provider,
             // Built-in has one list; lists that didn't load keep their saved assignments.
             lists = when {
-                builtIn -> emptyMap()
+                // Hidden settings stay as they were: built-in's own list keeps any Agent it had.
+                builtIn -> if (provider == s.provider) s.lists else emptyMap()
                 lists == null && provider == s.provider -> s.lists
                 else -> uses.mapNotNull { (name, use) ->
                     when (use) {
@@ -89,7 +90,8 @@ private fun TasksForm(setup: TasksSetup, p: Pane) {
                     }
                 }.toMap()
             },
-            defaultList = defaultList.takeIf { !builtIn },
+            // Only a list still on the Board can take new tasks; otherwise the first one does.
+            defaultList = if (builtIn) s.defaultList.takeIf { provider == s.provider } else defaultList?.takeIf { d -> lists == null || shown.any { it.name == d } },
             startBeforeDays = startBefore.value().toInt(),
             pollMinutes = poll.value().toInt(),
             options = form.settings().options,

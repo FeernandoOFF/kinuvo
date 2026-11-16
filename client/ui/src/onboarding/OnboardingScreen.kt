@@ -233,8 +233,8 @@ private fun ConnectSetup(app: AppViewModel, agentId: AgentId, section: kinuvo.ap
 
 private val ConnectInfo = mapOf(
     kinuvo.app.navigation.SettingsSection.Secrets to Triple(Lucide.KeyRound, "Password manager", "Use passwords and API keys without pasting them into settings."),
-    kinuvo.app.navigation.SettingsSection.Knowledge to Triple(Lucide.Library, "Notes", "What I learn about your people and projects. Or use your Obsidian vault or Anytype."),
-    kinuvo.app.navigation.SettingsSection.Tasks to Triple(Lucide.ListChecks, "Tasks", "Your to-dos, so I can see and work on them. Or use the to-do app you already have."),
+    kinuvo.app.navigation.SettingsSection.Knowledge to Triple(Lucide.Library, "Notes", "People, projects and places you want me to know."),
+    kinuvo.app.navigation.SettingsSection.Tasks to Triple(Lucide.ListChecks, "Tasks", "To-dos you keep here or in your own app."),
     kinuvo.app.navigation.SettingsSection.Notifications to Triple(Lucide.Bell, "Notifications", "So I can reach you when something needs you."),
     kinuvo.app.navigation.SettingsSection.Search to Triple(Lucide.Search, "Web search", "Search the web, not just open pages."),
     kinuvo.app.navigation.SettingsSection.Workspace to Triple(Lucide.Terminal, "Shell and files", "This machine, a container or an SSH host where I can run commands."),
@@ -764,7 +764,7 @@ private const val APPLE = "apple"
 
 private fun providerStatus(info: ProviderInfo?): String? = when {
     info?.account?.signedIn == true -> "Signed in" + info.account?.label?.let { " as $it" }.orEmpty()
-    info?.account != null -> "Sign in to continue"
+    info?.account != null -> "Use your existing plan · sign in to continue"
     info?.apiKey?.configured == true -> "API key saved"
     info?.apiKey != null -> "Needs an API key"
     info?.downloads != null -> "Private · runs on this Server, downloads a model"
