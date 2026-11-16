@@ -19,7 +19,8 @@ import kinuvo.server.embedded.browserPlugins
 import kinuvo.server.embedded.embeddedPlugins
 import kinuvo.server.NetworkSecurity
 import kinuvo.server.embedded.EmbeddedSharing
-import kinuvo.transport.tailcat.Tailcat
+import kinuvo.client.TailcatForwarder
+import kinuvo.tailcat.Tailcat
 import kinuvo.server.NetworkListener
 import kinuvo.server.devices.SharedPeers
 import kotlinx.coroutines.*
@@ -44,12 +45,10 @@ internal class AndroidEmbeddedServer(private val context: Context) : EmbeddedSer
     private val home = Path(context.filesDir.path, "Kinuvo")
     private val auth = DeviceAuth(File(home.toString(), "server-devices.json"))
 
-    private val tailcat by lazy {
-        try { Tailcat.load() } catch (_: LinkageError) { null } catch (_: Exception) { null }
-    }
+    private val tailcat get() = Tailcat.takeIf { it.supported }
     private var tailcatListener: NetworkListener? = null
     private val sharingHost = EmbeddedSharing(
-        File(home.toString(), "tailcat"), { tailcat },
+        Path(home.toString(), "tailcat"), { tailcat },
         { prefs.getBoolean(if (it) TAILCAT else SHARED, false) },
         { tailcat, enabled -> prefs.edit().putBoolean(if (tailcat) TAILCAT else SHARED, enabled).apply() },
         { enabled -> listenLocked(requireNotNull(server), enabled) },
@@ -154,4 +153,5 @@ class ServerService : Service() {
 /** Binds the on-device Server for the shared Koin graph. */
 val androidEmbeddedServerModule = module {
     single<EmbeddedServer> { AndroidEmbeddedServer(androidContext()) }
+    single<TailcatForwarder> { Tailcat }
 }

@@ -3,6 +3,7 @@ product: jvm/app
 dependencies:
   - ../../client/ui
   - ../../server/jvm
+  - ../../native/tailcat
   - ../../plugins/cua
   - $compose.desktop.currentOs
   - com.jetbrains:jbr-api:1.5.0

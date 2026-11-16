@@ -8,7 +8,7 @@ static JavaVM *vm;
 static jclass network_class;
 static jmethodID interfaces_method;
 
-JNIEXPORT void JNICALL Java_kinuvo_transport_tailcat_TailcatJni_initialize(JNIEnv *env, jobject self) {
+JNIEXPORT void JNICALL Java_kinuvo_tailcat_TailcatJni_initialize(JNIEnv *env, jobject self) {
     (*env)->GetJavaVM(env, &vm);
     jclass cls = (*env)->GetObjectClass(env, self);
     network_class = (*env)->NewGlobalRef(env, cls);
@@ -44,11 +44,11 @@ extern int kinuvo_tailcat_abi_version(void);
 extern char *kinuvo_tailcat_call(char *, char *);
 extern void kinuvo_tailcat_free(char *);
 
-JNIEXPORT jint JNICALL Java_kinuvo_transport_tailcat_TailcatJni_abiVersion(JNIEnv *env, jobject self) {
+JNIEXPORT jint JNICALL Java_kinuvo_tailcat_TailcatJni_abiVersion(JNIEnv *env, jobject self) {
     return kinuvo_tailcat_abi_version();
 }
 
-JNIEXPORT jstring JNICALL Java_kinuvo_transport_tailcat_TailcatJni_call(JNIEnv *env, jobject self, jstring method, jstring params) {
+JNIEXPORT jstring JNICALL Java_kinuvo_tailcat_TailcatJni_call(JNIEnv *env, jobject self, jstring method, jstring params) {
     const char *m = (*env)->GetStringUTFChars(env, method, NULL);
     if (m == NULL) return NULL;
     const char *p = (*env)->GetStringUTFChars(env, params, NULL);

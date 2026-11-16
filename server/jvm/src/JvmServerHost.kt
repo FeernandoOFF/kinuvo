@@ -7,7 +7,8 @@ import kinuvo.gateways.mcp.McpExecutionFactory
 import kotlinx.coroutines.*
 import kinuvo.server.execution.ExecutionStorage
 import kinuvo.server.execution.remoteLinks
-import kinuvo.transport.tailcat.Tailcat
+import kinuvo.server.plugin.TailcatServing
+import kotlinx.io.files.Path
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import java.io.File
@@ -22,7 +23,7 @@ import kinuvo.server.NetworkListener
 import kinuvo.server.NetworkSecurity
 import kinuvo.server.ServerRuntime
 
-class JvmServerHost(val harness: JvmAgentRuntime, val auth: DeviceAuth = DeviceAuth(File(harness.files.home.toString(), "server-devices.json")), private val name: String = machineName(), val network: NetworkSecurity = NetworkSecurity(), security: ConnectionSecurity = ConnectionSecurity()) {
+class JvmServerHost(val harness: JvmAgentRuntime, val auth: DeviceAuth = DeviceAuth(File(harness.files.home.toString(), "server-devices.json")), private val name: String = machineName(), val network: NetworkSecurity = NetworkSecurity(), security: ConnectionSecurity = ConnectionSecurity(), private val tailcat: TailcatServing? = null) {
     private val mcpAccess = McpAccess()
     private val mcpListener = McpListener(mcpAccess)
     private val executionStorage = ExecutionStorage(harness.files.home)
@@ -46,8 +47,8 @@ class JvmServerHost(val harness: JvmAgentRuntime, val auth: DeviceAuth = DeviceA
         withContext(Dispatchers.IO + NonCancellable) {
             if (enabled && tailcatExposure == null) {
                 val port = tailcatPort ?: startTailcatListener().also { tailcatPort = it }
-                val exposure = TailcatExposure(auth, Tailcat.load())
-                try { exposure.start(File(harness.files.home.toString(), "tailcat"), port); tailcatExposure = exposure }
+                val exposure = TailcatExposure(auth, tailcatApi())
+                try { exposure.start(tailcatState(), port); tailcatExposure = exposure }
                 catch (e: Throwable) { exposure.close(); throw e }
             } else if (!enabled) {
                 try { tailcatExposure?.close() } finally { tailcatExposure = null }
@@ -58,9 +59,13 @@ class JvmServerHost(val harness: JvmAgentRuntime, val auth: DeviceAuth = DeviceA
     suspend fun resetTailcat() = tailcatLock.withLock {
         val enabled = tailcatEnabled
         setTailcat(false)
-        withContext(Dispatchers.IO) { Tailcat.load().reset(File(harness.files.home.toString(), "tailcat")) }
+        withContext(Dispatchers.IO) { tailcatApi().reset(tailcatState()) }
         if (enabled) setTailcat(true)
     }
+
+    private fun tailcatApi() = checkNotNull(tailcat) { "Tailcat is not available in this build" }
+
+    fun tailcatState() = Path(harness.files.home.toString(), "tailcat")
 
     suspend fun startTailcatListener(): Int {
         check(tailcatListener == null)

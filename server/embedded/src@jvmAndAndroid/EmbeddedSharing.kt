@@ -1,14 +1,15 @@
 package kinuvo.server.embedded
 
-import kinuvo.transport.tailcat.Tailcat
+import kinuvo.server.plugin.TailcatServing
+import kinuvo.server.plugin.TailcatTunnel
 import kotlinx.coroutines.*
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
-import java.io.File
+import kotlinx.io.files.Path
 
 class EmbeddedSharing(
-    private val stateDirectory: File,
-    private val native: () -> Tailcat?,
+    private val stateDirectory: Path,
+    private val native: () -> TailcatServing?,
     private val saved: (Boolean) -> Boolean,
     private val save: (Boolean, Boolean) -> Unit,
     private val lan: suspend (Boolean) -> Unit,
@@ -20,7 +21,7 @@ class EmbeddedSharing(
     @Volatile var state = State.Off
         private set
     private val lock = Mutex()
-    private var tunnel: Tailcat.Tunnel? = null
+    private var tunnel: TailcatTunnel? = null
     val enabled get() = tunnel != null
 
     suspend fun restore() = lock.withLock {

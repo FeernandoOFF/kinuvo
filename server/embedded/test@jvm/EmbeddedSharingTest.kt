@@ -1,8 +1,9 @@
 package kinuvo.server.embedded
 
-import kinuvo.transport.tailcat.Tailcat
+import kinuvo.server.plugin.TailcatServing
+import kinuvo.server.plugin.TailcatTunnel
 import kotlinx.coroutines.runBlocking
-import java.io.File
+import kotlinx.io.files.Path
 import kotlin.test.*
 
 class EmbeddedSharingTest {
@@ -16,21 +17,19 @@ class EmbeddedSharingTest {
         var fail = false
         var closed = 0
         val events = mutableListOf<String>()
-        private val api = object : Tailcat {
-            override fun serve(state: File, port: Int): Tailcat.Tunnel {
+        private val api = object : TailcatServing {
+            override fun serve(state: Path, port: Int): TailcatTunnel {
                 events += "serve"
                 if (fail) error("failed")
                 assertEquals(1234, port)
-                return object : Tailcat.Tunnel {
+                return object : TailcatTunnel {
                     override val address = "secret"
-                    override val port: Int? = null
                     override fun close() { events += "close"; closed++ }
                 }
             }
-            override fun forward(address: String): Tailcat.Tunnel = error("unused")
-            override fun reset(state: File) { events += "reset" }
+            override fun reset(state: Path) { events += "reset" }
         }
-        fun controller() = EmbeddedSharing(File("unused"), { api.takeIf { available } },
+        fun controller() = EmbeddedSharing(Path("unused"), { api.takeIf { available } },
             { if (it) tailcatSaved else lanSaved },
             { tailcat, value -> if (tailcat) tailcatSaved = value else lanSaved = value },
             { lanActive = it }, { events += "listen"; 1234 }, { events += "stop" },

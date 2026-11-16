@@ -12,9 +12,9 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.Transient
 import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.json.Json
-import kinuvo.client.platformTailcatForwarder
 import kinuvo.client.TailcatForwarder
 import kinuvo.client.SharedTailcatForwarder
+import kinuvo.client.UnsupportedTailcatForwarder
 import kinuvo.client.tailcatConnection
 import kotlin.uuid.Uuid
 import kotlinx.serialization.KSerializer
@@ -101,7 +101,7 @@ class Servers(
     private val embedded: EmbeddedServer? = null,
     private val credentials: DeviceCredentials,
     private val transport: (suspend (url: String) -> FrameConnection)? = null,
-    private val tailcat: TailcatForwarder = platformTailcatForwarder(),
+    private val tailcat: TailcatForwarder = UnsupportedTailcatForwarder,
 ) {
     private val forwards = SharedTailcatForwarder(tailcat)
     private val remotes = ListSerializer(Server.Remote.serializer())

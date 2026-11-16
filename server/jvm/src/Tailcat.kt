@@ -1,19 +1,20 @@
 package kinuvo.server.jvm
 
-import java.io.File
 import kinuvo.server.DeviceAuth
-import kinuvo.transport.tailcat.Tailcat
+import kinuvo.server.plugin.TailcatServing
+import kinuvo.server.plugin.TailcatTunnel
+import kotlinx.io.files.Path
 
 internal class TailcatExposure(
     private val auth: DeviceAuth,
-    private val native: Tailcat,
+    private val native: TailcatServing,
 ) : AutoCloseable {
-    private var tunnel: Tailcat.Tunnel? = null
-    @Synchronized fun start(state: File, port: Int) {
+    private var tunnel: TailcatTunnel? = null
+    @Synchronized fun start(state: Path, port: Int) {
         check(tunnel == null)
         val started = native.serve(state, port)
         tunnel = started
-        auth.tailcatAddress = requireNotNull(started.address)
+        auth.tailcatAddress = started.address
     }
     @Synchronized override fun close() {
         auth.tailcatAddress = null

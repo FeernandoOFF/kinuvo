@@ -1,9 +1,8 @@
 package kinuvo.server.jvm
 
-import kinuvo.transport.tailcat.Tailcat
+import kinuvo.server.plugin.TailcatServing
 import io.github.oshai.kotlinlogging.KotlinLogging
 import kinuvo.server.NetworkSecurity
-import java.io.File
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.withContext
@@ -41,7 +40,7 @@ internal fun coolifyOrigin(value: String?): String? = value?.split(',')?.firstNo
 internal fun publicUrl(option: String?, env: (String) -> String? = ::env): String? = option?.trim()?.takeIf { it.isNotEmpty() } ?: env("KINUVO_PUBLIC_URL")
 
 /** Runs the Server until cancelled; [extend] adds to it once it listens and is closed when it stops. */
-suspend fun serve(options: ServeOptions, extend: suspend (server: JvmServerHost, host: String, port: Int) -> AutoCloseable? = { _, _, _ -> null }) {
+suspend fun serve(options: ServeOptions, tailcat: TailcatServing? = null, extend: suspend (server: JvmServerHost, host: String, port: Int) -> AutoCloseable? = { _, _, _ -> null }) {
     require(!options.tailscale || options.publicUrl == null) { "Use --tailscale or --public-url, not both" }
     val route = if (options.tailscale) {
         Tailscale.requireLoopback(options.host)
@@ -51,17 +50,16 @@ suspend fun serve(options: ServeOptions, extend: suspend (server: JvmServerHost,
     val behindProxy = options.behindProxy || env("KINUVO_BEHIND_PROXY")?.lowercase() in listOf("1", "true")
     val trusted = (options.trustedProxy?.trim()?.takeIf { it.isNotEmpty() } ?: env("KINUVO_TRUSTED_PROXIES"))?.split(',')?.map(String::trim)?.toSet()
     val network = NetworkSecurity(route?.url ?: publicUrl(options.publicUrl), trusted, behindProxy, if (behindProxy) coolifyOrigin(env("COOLIFY_URL")) else null)
-    val server = JvmServerHost(JvmAgentRuntime(), network = network)
+    val server = JvmServerHost(JvmAgentRuntime(), network = network, tailcat = tailcat)
     var extension: AutoCloseable? = null
-    var tailcat: TailcatExposure? = null
+    var exposure: TailcatExposure? = null
     var ready = false
-    val shutdown = Thread { try { tailcat?.close() } finally { try { server.stop() } finally { extension?.close() } } }
+    val shutdown = Thread { try { exposure?.close() } finally { try { server.stop() } finally { extension?.close() } } }
     try {
         val bound = server.start(bind, options.port)
         if (options.tailcat) {
             try {
-                tailcat = TailcatExposure(server.auth, Tailcat.load())
-                tailcat.start(File(server.harness.files.home.toString(), "tailcat"), server.startTailcatListener())
+                exposure = TailcatExposure(server.auth, checkNotNull(tailcat) { "Tailcat is not available in this build" }).also { it.start(server.tailcatState(), server.startTailcatListener()) }
             } catch (e: IllegalStateException) { throw ServeException(e.message ?: "Could not start Tailcat") }
         }
         route?.enable()
@@ -76,7 +74,7 @@ suspend fun serve(options: ServeOptions, extend: suspend (server: JvmServerHost,
         awaitCancellation()
     } finally {
         runCatching { Runtime.getRuntime().removeShutdownHook(shutdown) }
-        try { tailcat?.close() } finally {
+        try { exposure?.close() } finally {
             try { server.stop() } finally {
                 try { extension?.close() } finally {
                     if (!ready) withContext(NonCancellable) {

@@ -25,6 +25,11 @@ interface TailcatForwarder {
     suspend fun open(address: String): TailcatForward
 }
 
+object UnsupportedTailcatForwarder : TailcatForwarder {
+    override val supported = false
+    override suspend fun open(address: String): TailcatForward = error("Tailcat connections are not supported on this platform yet")
+}
+
 class SharedTailcatForwarder(private val native: TailcatForwarder) : TailcatForwarder {
     override val supported get() = native.supported
     private val lock = Mutex()
@@ -61,10 +66,8 @@ class SharedTailcatForwarder(private val native: TailcatForwarder) : TailcatForw
     }
 }
 
-expect fun platformTailcatForwarder(): TailcatForwarder
-
 /** Each connection attempt owns its forward, including failed handshakes. */
-suspend fun tailcatConnection(address: String, forwarder: TailcatForwarder = platformTailcatForwarder(),
+suspend fun tailcatConnection(address: String, forwarder: TailcatForwarder,
     connect: (suspend (String) -> FrameConnection)? = null,
 ): FrameConnection {
     check(forwarder.supported) { "Tailcat connections are not supported on this platform yet" }

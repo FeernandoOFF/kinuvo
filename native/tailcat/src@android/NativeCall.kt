@@ -1,4 +1,4 @@
-package kinuvo.transport.tailcat
+package kinuvo.tailcat
 
 import java.net.NetworkInterface
 import kotlinx.serialization.json.*
