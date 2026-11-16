@@ -418,6 +418,26 @@ class ChatChromeTest {
         }
     }
 
+    @Test fun aFinishedReplyCanBeReadAloudAndStopped() = javax.swing.SwingUtilities.invokeAndWait {
+        var read: Pair<String, String>? = null
+        var stopped = false
+        val reading = mutableStateOf<String?>(null)
+        ImageComposeScene(900, 700, Density(1f), coroutineContext = Dispatchers.Main, content = {
+            KinuvoTheme(dark = false) {
+                ChatContent(ChatState(loaded = true, readingAloud = reading.value, items = listOf(ChatItem.User("u", "Hi"), ChatItem.Assistant("m", "**Hello** there"))),
+                    ConnectionState.Connected("Test"), null, ChatActions(onReadAloud = { id, text -> read = id to text }, onStopReading = { stopped = true }), wide = true)
+            }
+        }).use { scene ->
+            repeat(5) { scene.render(it * 200_000_000L) }
+            scene.click("Read aloud")
+            assertEquals("m" to "**Hello** there", read)
+            reading.value = "m"
+            repeat(3) { scene.render((5 + it) * 200_000_000L) }
+            scene.click("Stop reading")
+            assertTrue(stopped)
+        }
+    }
+
     private fun ImageComposeScene.nodes(): List<SemanticsNode> {
         fun flatten(node: SemanticsNode): List<SemanticsNode> = listOf(node) + node.children.flatMap(::flatten)
         return semanticsOwners.flatMap { flatten(it.unmergedRootSemanticsNode) }
