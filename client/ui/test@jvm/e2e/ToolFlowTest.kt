@@ -68,7 +68,7 @@ class ToolFlowTest {
     }) {
         sendFirstMessage()
         scrollTo("Allow shell\\?")
-        tap("Add a note for the Agent")
+        tap("Add note")
         tap("What to do instead")
         type("Do not run this command")
         screenshot("deny-note")

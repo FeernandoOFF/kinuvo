@@ -373,9 +373,10 @@ fun CallApprovalSheet(agentName: String, event: PendingInteraction.Approval, onD
         if (shell) "$agentName wants to run a command" else "$agentName wants to use ${event.identity?.localId ?: event.toolCallName}",
         command ?: event.reason ?: event.trustHint, mono = command != null,
         buttons = listOfNotNull(
-            if (event.trustable) SheetChoice("Always allow", filled = true) { onDecision(ApprovalDecision.AlwaysAllow) } else null,
             SheetChoice("Allow once", filled = true) { onDecision(ApprovalDecision.AllowOnce) },
-            SheetChoice("Decline", filled = false) { onDecision(ApprovalDecision.Deny()) },
+            // Permanent trust never looks like the one-off answer.
+            if (event.trustable) SheetChoice("Always allow", filled = false) { onDecision(ApprovalDecision.AlwaysAllow) } else null,
+            SheetChoice("Deny", filled = false) { onDecision(ApprovalDecision.Deny()) },
         ),
         onEnd, modifier,
     ) {
