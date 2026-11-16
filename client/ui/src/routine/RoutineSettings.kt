@@ -21,6 +21,8 @@ import com.composables.ui.theme.*
 import kinuvo.protocol.routine.*
 import kinuvo.protocol.session.*
 import kinuvo.ui.design.*
+import kinuvo.ui.workflow.LocalWorkflows
+import kinuvo.ui.workflow.summary
 import kotlinx.datetime.LocalDateTime
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
@@ -33,20 +35,22 @@ internal fun RoutineList(p: Pane) {
     val routines = ui.state.routines
     val error = ui.state.routinesError
     val restricted = !ui.management
-    val workflows = kinuvo.ui.workflow.LocalWorkflows.current
+    val workflows = LocalWorkflows.current
     val agent = ui.agent?.name ?: "the Agent"
     val newRoutine = { p.go(ui.route.copy(item = null, editing = true)) }
     ItemList(
         p, if (workflows != null) "Routines & Workflows" else "Routines",
         if (workflows != null) "Routines run one prompt on a schedule. Workflows chain several steps, Agents and Approvals." else "Prompts $agent runs on a schedule, each in its own Session.",
-        "New routine", routines == null && error == null && !restricted, canAdd = false,
+        // Each table loads on its own, so Workflows show while Routines are still on their way.
+        "New routine", workflows == null && routines == null && error == null && !restricted, canAdd = false,
     ) {
         Column(verticalArrangement = Arrangement.spacedBy(Spacing.space6)) {
             TableHeader(if (workflows != null) "Routines · $agent" else "Routines", "New routine", newRoutine.takeIf { !restricted && error == null })
             when {
                 restricted -> ManagementAccessRequired()
                 error != null -> LoadFailure(error, onAction = p.actions.onReloadRoutines)
-                routines.isNullOrEmpty() -> RowGroup {
+                routines == null -> Box(Modifier.fillMaxWidth().padding(Spacing.space12), contentAlignment = Alignment.Center) { Spinner() }
+                routines.isEmpty() -> RowGroup {
                     GroupRow("No routines yet", subtitle = "Prompts $agent runs on a schedule. Add one, or ask in chat, e.g. “every weekday at 9, summarize my inbox”.", icon = Lucide.AlarmClock, tint = color(mutedColor))
                 }
                 else -> RowGroup { routines.forEach { r ->
@@ -55,7 +59,7 @@ internal fun RoutineList(p: Pane) {
             }
         }
         if (workflows != null) Column(verticalArrangement = Arrangement.spacedBy(Spacing.space6)) {
-            TableHeader("Workflows", "New workflow", workflows.onNew)
+            TableHeader("All Workflows", "New workflow", workflows.onNew.takeIf { !restricted })
             val list = workflows.workflows
             when {
                 list == null -> Box(Modifier.fillMaxWidth().padding(Spacing.space12), contentAlignment = Alignment.Center) { Spinner() }
@@ -63,7 +67,7 @@ internal fun RoutineList(p: Pane) {
                     GroupRow("No workflows yet", subtitle = "Chain Agent turns and Approvals into steps the Server runs for you, on demand or on a schedule.", icon = Lucide.Workflow, tint = color(mutedColor))
                 }
                 else -> RowGroup { list.sortedByDescending { it.createdAt }.forEach { w ->
-                    ItemRow(false, Lucide.Workflow, w.name, kinuvo.ui.workflow.summary(w), { workflows.onOpen(w.id) }, muted = !w.enabled) { if (!w.enabled) Pill("Off") }
+                    ItemRow(false, Lucide.Workflow, w.name, summary(w), { workflows.onOpen(w.id) }, muted = !w.enabled) { if (!w.enabled) Pill("Off") }
                 } }
             }
         }
@@ -137,7 +141,8 @@ private fun RoutineDetail(r: Routine, p: Pane) {
             if (r.prompt.isBlank()) Text("Empty. Edit it here, or ask the agent to add items to its Heartbeat checklist.", color = color(mutedColor), style = TextStyles.secondary)
             else Markdown(r.prompt, Modifier.fillMaxWidth())
         }
-        RowGroup("Recent runs") {
+        // A Routine that ran but whose Sessions are gone says nothing rather than "No runs yet".
+        if (ui.state.runs.isNotEmpty() || r.lastRunAt == null || r.sessionId != null) RowGroup("Recent runs") {
             if (ui.state.runs.isEmpty()) GroupRow(if (r.sessionId != null) "Runs continue the attached Session." else "No runs yet.", tint = color(mutedColor))
             ui.state.runs.forEach { session ->
                 GroupRow(session.id.value.toRunLabel(), { actions.onOpenSession(session.id.value) }, icon = Lucide.MessageSquare) {

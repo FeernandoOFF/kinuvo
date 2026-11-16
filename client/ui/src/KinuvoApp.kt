@@ -5,6 +5,8 @@ import kinuvo.app.workflow.WorkflowsViewModel
 import kinuvo.app.team.NewTeamViewModel
 import kinuvo.ui.workflow.WorkflowScreen
 import kinuvo.ui.workflow.WorkflowsScreen
+import kinuvo.ui.workflow.WorkflowsSection
+import kinuvo.ui.workflow.LocalWorkflows
 import kinuvo.app.team.TeamRepository
 import kinuvo.app.team.TeamViewModel
 import kinuvo.ui.team.TeamEditor
@@ -352,11 +354,11 @@ fun KinuvoApp(app: AppViewModel = koinViewModel(), initialRoute: Route? = null, 
                             val workflows = if (route.home && route.section == SettingsSection.Routines) {
                                 val list = koinViewModel<WorkflowsViewModel>(key = "workflows/${app.serverLifetime}")
                                 val listed by list.state.collectAsState()
-                                kinuvo.ui.workflow.WorkflowsSection(listed.workflows, onOpen = { history.open(Route.Workflows(it)) },
+                                WorkflowsSection(listed.workflows, onOpen = { history.open(Route.Workflows(it)) },
                                     onNew = { list.create(route.agentId) { history.open(Route.Workflows(it)) } })
                             } else null
                             key(route, homeEdits.revision) {
-                                CompositionLocalProvider(LocalSettingsEdits provides homeEdits, kinuvo.ui.workflow.LocalWorkflows provides workflows) {
+                                CompositionLocalProvider(LocalSettingsEdits provides homeEdits, LocalWorkflows provides workflows) {
                                     SettingsScreen(app, settings, onNavigate = openSettings, onBack = back,
                                         onOpenSession = { next -> homeEdits.leave { history.open(next) } })
                                 }

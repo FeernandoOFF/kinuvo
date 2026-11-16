@@ -286,7 +286,11 @@ private fun SettingsSections(ui: SettingsUi, selected: SettingsSection?, go: (Ro
         "Models & voice" to shown(listOf(SettingsSection.Providers, SettingsSection.Images, SettingsSection.LocalVoice)),
         "Connections" to shown(listOf(SettingsSection.Tasks, SettingsSection.Knowledge, SettingsSection.Search, SettingsSection.Notifications)),
         "Advanced" to shown(listOf(SettingsSection.Secrets, SettingsSection.Harnesses)),
-    ).filter { it.second.isNotEmpty() }
+    ).let { grouped ->
+        // A section added without a group still shows, at the end.
+        val rest = shown(SettingsSection.entries) - grouped.flatMap { it.second }.toSet()
+        grouped + ("More" to rest)
+    }.filter { it.second.isNotEmpty() }
     val open = { section: SettingsSection -> go(ui.route.copy(section = section, item = null, editing = false)) }
     val openAgent = { agent: AgentInfo -> go(Route.Settings(agent.id, SettingsSection.Overview)) }
     val agentSelected = { agent: AgentInfo -> selected == SettingsSection.Overview && ui.route.agentId == agent.id }

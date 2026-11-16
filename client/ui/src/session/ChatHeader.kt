@@ -35,6 +35,7 @@ import com.composables.ui.theme.*
 import com.composeunstyled.theme.Theme
 import kinuvo.client.ConnectionState
 import kinuvo.protocol.execution.ExecutionPhase
+import kinuvo.protocol.agent.AgentInfo
 import kinuvo.protocol.session.SessionInfo
 import kinuvo.protocol.session.SessionStatus
 import kinuvo.protocol.usage.Usage
@@ -156,7 +157,7 @@ private fun SessionActivity(state: ChatState, compact: Boolean) = when {
 
 /** The Agent this chat is with, as a conversation's contact: its avatar over its name; opens its settings beside the chat. */
 @Composable
-private fun AgentChip(agent: kinuvo.protocol.agent.AgentInfo, compact: Boolean, onClick: () -> Unit) {
+private fun AgentChip(agent: AgentInfo, compact: Boolean, onClick: () -> Unit) {
     Hint("${agent.name}'s settings", TooltipSide.Bottom) {
         Column(Modifier.titleBarControl().clip(RoundedCornerShape(Radius.menu)).clickable(onClickLabel = "${agent.name}'s settings", onClick = onClick)
             .semantics(mergeDescendants = true) { contentDescription = "${agent.name}'s settings" }.padding(horizontal = Spacing.space6),
