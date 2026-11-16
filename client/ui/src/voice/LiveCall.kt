@@ -386,10 +386,11 @@ fun CallApprovalSheet(agentName: String, event: PendingInteraction.Approval, onD
     }
 }
 
-/** An external Agent's harness asking permission during a call, with the harness's own options; declining ones last. */
+/** An external Agent's harness asking permission during a call, with the harness's own options: allowing once first, declining ones last. */
 @Composable
 fun CallExternalApprovalSheet(agentName: String, prompt: PendingInteraction.HarnessApproval, onOption: (String) -> Unit, onEnd: () -> Unit, modifier: Modifier = Modifier) {
-    val choices = prompt.options.sortedBy { approvalOptionStyle(it.kind) == ApprovalOptionStyle.Destructive }
+    // The one-off answer leads, standing trust follows, refusals go last, whatever order the harness sent.
+    val choices = prompt.options.sortedBy { approvalOptionStyle(it.kind).ordinal }
         .map { o -> SheetChoice(o.label, filled = approvalOptionStyle(o.kind) == ApprovalOptionStyle.Primary) { onOption(o.id) } }
     CallRequestSheet(prompt.id, if (prompt.site != null) Lucide.ExternalLink else Lucide.ShieldAlert, color(warningColor), "$agentName wants to: ${prompt.title}",
         prompt.origin, mono = false, buttons = choices, onEnd = onEnd, modifier = modifier,

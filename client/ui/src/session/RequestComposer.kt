@@ -205,7 +205,7 @@ private fun PendingRequest.detail(): String? = when (this) {
     else -> null
 }
 
-private fun PendingInteraction.Approval.isShell() = identity?.instance?.pluginId == "kinuvo.exec" && identity?.localId == "shell"
+private fun PendingInteraction.Approval.isShell() = identity?.let { it.instance.pluginId == "kinuvo.exec" && it.localId == "shell" } ?: (toolCallName == "shell")
 
 @Composable
 private fun RequestHeader(request: PendingRequest, count: Int, from: String? = null, onClose: (() -> Unit)?) {
