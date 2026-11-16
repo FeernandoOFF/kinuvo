@@ -11,7 +11,7 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlin.uuid.Uuid
 
-data class WorkflowListState(val workflows: List<Workflow> = emptyList())
+data class WorkflowListState(val workflows: List<Workflow> = emptyList(), val loading: Boolean = true, val error: String? = null)
 
 /** The Workflows list, and creating a Workflow with one Agent turn. */
 class WorkflowsViewModel(private val repo: WorkflowRepository) : ViewModel() {
@@ -21,8 +21,10 @@ class WorkflowsViewModel(private val repo: WorkflowRepository) : ViewModel() {
     init {
         repo.connection.bind(viewModelScope)
         repo.load()
-        viewModelScope.launch { repo.state.collect { data -> state.update { it.copy(workflows = data.workflows) } } }
+        viewModelScope.launch { repo.state.collect { data -> state.update { it.copy(workflows = data.workflows, loading = data.loading, error = data.error) } } }
     }
+
+    fun reload() = repo.load()
 
     fun create(agent: AgentId, onCreated: (WorkflowId) -> Unit) {
         viewModelScope.launch {

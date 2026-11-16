@@ -62,6 +62,7 @@ internal fun RoutineList(p: Pane) {
             TableHeader("All Workflows", "New workflow", workflows.onNew.takeIf { !restricted })
             val list = workflows.workflows
             when {
+                workflows.error != null -> LoadFailure(workflows.error, onAction = workflows.onReload)
                 list == null -> Box(Modifier.fillMaxWidth().padding(Spacing.space12), contentAlignment = Alignment.Center) { Spinner() }
                 list.isEmpty() -> RowGroup {
                     GroupRow("No workflows yet", subtitle = "Chain Agent turns and Approvals into steps the Server runs for you, on demand or on a schedule.", icon = Lucide.Workflow, tint = color(mutedColor))
@@ -282,8 +283,14 @@ private fun RoutineApprovals.hint() = when (this) {
 }
 
 /** `20261001-090000-abcd` → `2026-10-01 09:00`. */
-private fun String.toRunLabel(): String =
-    if (length >= 15 && this[8] == '-') "${substring(0, 4)}-${substring(4, 6)}-${substring(6, 8)} ${substring(9, 11)}:${substring(11, 13)}" else this
+/** A run's Session ID (yyyyMMdd-HHmm…) as a date people read, e.g. "Sun 20 Sep, 09:00". */
+private fun String.toRunLabel(): String {
+    if (length < 15 || this[8] != '-') return this
+    val date = runCatching { kotlinx.datetime.LocalDate(substring(0, 4).toInt(), substring(4, 6).toInt(), substring(6, 8).toInt()) }.getOrNull() ?: return this
+    val day = date.dayOfWeek.name.take(3).lowercase().replaceFirstChar(Char::uppercase)
+    val month = date.month.name.take(3).lowercase().replaceFirstChar(Char::uppercase)
+    return "$day ${date.day} $month, ${substring(9, 11)}:${substring(11, 13)}"
+}
 
 /** E.g. "every 30 min", "every day at 09:00", "09:30 on MON-FRI". */
 fun Trigger.describe(): String = when (this) {

@@ -28,7 +28,7 @@ internal fun DeviceToolKind.icon() = when (this) {
 
 @Composable
 internal fun DeviceToolsSettingsPane(p: Pane) {
-    DetailPane(p.back, "This Device's tools", info = "Allow Agents on this Server to read selected data from this Device. Results are saved in the Session and sent to the model. OS permissions are also required.") {
+    DetailPane(p.back, "Tools on this device", info = "Allow Agents on this Server to read selected data from this Device. Results are saved in the Session and sent to the model. OS permissions are also required.") {
         DeviceToolsGroup(empty = "Contacts are available on Android and iOS. Workouts and sleep are available on iOS.")
     }
 }

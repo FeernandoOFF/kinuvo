@@ -55,7 +55,7 @@ private val NodeWidth = 208.dp
 private val NodeHeight = 68.dp
 
 /** This Server's Workflows for a page that lists them beside something else, e.g. Routines: [onOpen] opens one's graph. */
-class WorkflowsSection(val workflows: List<Workflow>?, val onOpen: (WorkflowId) -> Unit, val onNew: (() -> Unit)?)
+class WorkflowsSection(val workflows: List<Workflow>?, val onOpen: (WorkflowId) -> Unit, val onNew: (() -> Unit)?, val error: String? = null, val onReload: () -> Unit = {})
 
 val LocalWorkflows = compositionLocalOf<WorkflowsSection?> { null }
 
