@@ -255,6 +255,8 @@ private fun StepNode(step: WorkflowStep, result: StepRun?, agents: List<AgentInf
         when (step) {
             is WorkflowStep.AgentTurn -> AgentAvatar(agents.firstOrNull { it.id == step.agentId }, 24.dp)
             is WorkflowStep.Approval -> Icon(Lucide.ShieldCheck, Modifier.size(20.dp), tint = color(warningColor))
+            is WorkflowStep.Tool -> Icon(Lucide.Wrench, Modifier.size(20.dp))
+            is WorkflowStep.Model -> Icon(Lucide.Sparkles, Modifier.size(20.dp))
         }
         Column(Modifier.weight(1f)) {
             Text(title(step, agents), style = TextStyles.secondary, fontWeight = FontWeight.Medium, singleLine = true, overflow = TextOverflow.Ellipsis)
@@ -312,7 +314,7 @@ private fun StepSettings(workflow: Workflow, step: WorkflowStep, agents: List<Ag
     fun replace(new: WorkflowStep) = onChange(current.copy(steps = current.steps.map { if (it.id == step.id) new else it }))
     val latest = { current.steps.first { it.id == step.id } }
     Row(verticalAlignment = Alignment.CenterVertically) {
-        Text(if (step is WorkflowStep.Approval) "Approval" else "Agent turn", Modifier.weight(1f), style = TextStyles.title, fontWeight = FontWeight.Bold)
+        Text(kind(step), Modifier.weight(1f), style = TextStyles.title, fontWeight = FontWeight.Bold)
         Pill(step.id.value)
     }
     when (step) {
@@ -343,6 +345,7 @@ private fun StepSettings(workflow: Workflow, step: WorkflowStep, agents: List<Ag
                 Input(text, "Publish the draft?", capitalize = true, lineLimits = TextFieldLineLimits.MultiLine(minHeightInLines = 2, maxHeightInLines = 6))
             }
         }
+        is WorkflowStep.Tool, is WorkflowStep.Model -> Text(detail(step), style = TextStyles.caption, color = color(mutedColor))
     }
     val after = workflow.edges.filter { it.to == step.id }.map { it.from }.toSet()
     val blocked = descendants(workflow, step.id) + step.id
@@ -405,6 +408,15 @@ private fun synced(initial: String, onChange: (String) -> Unit): TextFieldState 
 private fun title(step: WorkflowStep, agents: List<AgentInfo>) = when (step) {
     is WorkflowStep.AgentTurn -> agents.firstOrNull { it.id == step.agentId }?.name ?: step.agentId.value
     is WorkflowStep.Approval -> "Approval"
+    is WorkflowStep.Tool -> "Tool"
+    is WorkflowStep.Model -> "Model"
+}
+
+private fun kind(step: WorkflowStep) = when (step) {
+    is WorkflowStep.AgentTurn -> "Agent turn"
+    is WorkflowStep.Approval -> "Approval"
+    is WorkflowStep.Tool -> "Tool call"
+    is WorkflowStep.Model -> "Model request"
 }
 
 private val outputRef = Regex("""\{\{\s*steps\.([a-zA-Z0-9_-]+)\.output\s*}}""")
@@ -412,6 +424,8 @@ private val outputRef = Regex("""\{\{\s*steps\.([a-zA-Z0-9_-]+)\.output\s*}}""")
 private fun detail(step: WorkflowStep) = when (step) {
     is WorkflowStep.AgentTurn -> step.prompt.replace(outputRef) { "‹${it.groupValues[1]}›" }
     is WorkflowStep.Approval -> step.text
+    is WorkflowStep.Tool -> step.tool
+    is WorkflowStep.Model -> step.prompt.replace(outputRef) { "‹${it.groupValues[1]}›" }
 }.lineSequence().firstOrNull().orEmpty()
 
 internal fun summary(workflow: Workflow): String {

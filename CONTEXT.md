@@ -230,7 +230,7 @@ A prompt an Agent runs on its own on a schedule (once, every so often, or a cron
 _Avoid_: Cron job, scheduled task, automation
 
 **Workflow**:
-A graph of steps the Server runs durably, such as Agent turns and Approvals, started by a trigger such as a schedule. A Routine is a scheduled Workflow.
+A graph of steps the Server runs durably, such as Agent turns, Approvals, single tool calls and single model requests (the last two need no Session), started by a trigger such as a schedule. A Routine is a scheduled Workflow.
 _Avoid_: Pipeline, automation, flow
 
 **Heartbeat**:

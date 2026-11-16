@@ -20,6 +20,7 @@ import kinuvo.harness.NativeReflection
 import kinuvo.harness.NativeRun
 import kinuvo.harness.PromptStyle
 import kinuvo.harness.ResultLimits
+import kinuvo.harness.SessionStorage
 import kinuvo.harness.inferTier
 import kinuvo.server.tools.GenerateImageTool
 import kinuvo.server.tools.ShowUiTool
@@ -83,6 +84,12 @@ import kinuvo.protocol.session.SessionId
 import kotlin.io.encoding.Base64
 import kotlinx.coroutines.CancellationException
 import kinuvo.server.providers.ModelProvider
+
+private class ScratchStorage : SessionStorage {
+    private val entries = mutableListOf<SessionEntry>()
+    override suspend fun entries(agentId: AgentId, sessionId: SessionId) = entries.toList()
+    override suspend fun append(agentId: AgentId, sessionId: SessionId, entry: SessionEntry) { entries += entry }
+}
 
 /** Composes what a run needs from the Agent, its Session and the Server's tools, models and instructions: the built-in harness's host. */
 class RunComposer internal constructor(
@@ -303,6 +310,15 @@ class RunComposer internal constructor(
             routine = routine,
             profile = e.profile,
         )
+    }
+
+    /** One model request of [agent], or of [model] instead, with [system] as its only context, no tools and a throwaway transcript; nothing of the Agent's own context is sent. */
+    suspend fun completion(agent: Agent, system: String?, model: ProviderModelRef?): NativeRun {
+        val e = effective(agent, null, model?.let { SessionSettings(model = it.model, provider = it.provider) })
+        (if (unmanagedModels) CapabilityState() else e.provider?.availability(e.agent.config.model)
+            ?: CapabilityState.unsupported("No model provider '${e.agent.config.provider}'; this model provider is not installed")).requireReady()
+        val none = ToolService(emptyList())
+        return NativeRun(e.agent, ScratchStorage(), selection(e), none, none, context = secrets.redact(system.orEmpty()), contextTokens = e.info?.context, profile = e.profile)
     }
 
     /** Routines run Relaxed, so only High-risk calls wait or are denied, unless the Agent never asks. */

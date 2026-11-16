@@ -4,6 +4,7 @@ import kinuvo.protocol.agent.AgentId
 import arrow.core.raise.Raise
 import arrow.core.raise.context.raise
 import kinuvo.harness.ExecutionInput
+import kinuvo.harness.ToolTurn
 import kinuvo.protocol.WireErrorCode
 import kinuvo.protocol.approval.*
 import kinuvo.protocol.routine.Routine
@@ -57,6 +58,8 @@ class Workflows internal constructor(
         validate(workflow)
         val agents = harness.store.agents().map { it.id }
         if (workflow.steps.filterIsInstance<WorkflowStep.AgentTurn>().any { it.agentId !in agents }) raise(WorkflowError.Invalid("Unknown Agent"))
+        if (workflow.steps.any { it is WorkflowStep.Tool || it is WorkflowStep.Model } && workflow.agentId == null) raise(WorkflowError.Invalid("Tool and Model steps need the Agent the Workflow runs as"))
+        if (workflow.agentId != null && workflow.agentId !in agents) raise(WorkflowError.Invalid("Unknown Agent"))
         return lock.withLock {
             val old = data.workflows.find { it.id == workflow.id }
             if (create && old != null) raise(WorkflowError.Conflict("Workflow already exists"))
@@ -119,7 +122,7 @@ class Workflows internal constructor(
 
     private fun next(w: Workflow, after: Long): Long? = w.trigger?.let { trigger ->
         if (trigger is Trigger.Once) trigger.at.takeIf { it > after } else Schedule.next(
-            Routine(w.id.value, w.steps.filterIsInstance<WorkflowStep.AgentTurn>().firstOrNull()?.agentId
+            Routine(w.id.value, w.agentId ?: w.steps.filterIsInstance<WorkflowStep.AgentTurn>().firstOrNull()?.agentId
                 ?: AgentId("default"), w.name, "", trigger, w.timeZone, createdAt = w.createdAt), after)
     }
 
@@ -173,7 +176,7 @@ class Workflows internal constructor(
                     update(run.id, step.id, StepRun(StepStatus.Done, session, output))
                 }
                 is WorkflowStep.Approval -> {
-                    val agent = harness.store.agents().first { a -> run.workflow.steps.filterIsInstance<WorkflowStep.AgentTurn>().firstOrNull()?.agentId?.let { it == a.id } ?: true }
+                    val agent = harness.store.agents().first { a -> (run.workflow.agentId ?: run.workflow.steps.filterIsInstance<WorkflowStep.AgentTurn>().firstOrNull()?.agentId)?.let { it == a.id } ?: true }
                     session = harness.newSession(agent).id
                     val pending = harness.approvals.register()
                     try {
@@ -188,6 +191,46 @@ class Workflows internal constructor(
                         withContext(NonCancellable) { harness.log.publish(agent.id, session, AgentEvent.InteractionResolved(pending.id)) }
                     }
                 }
+                is WorkflowStep.Tool -> {
+                    val agent = runsAs(run)
+                    update(run.id, step.id, StepRun(StepStatus.Running))
+                    val args = WorkflowReferences.render(step.args, outputs(run.id))
+                    val gate = harness.composer.compose(agent, sessionId = null, requireModel = false).gate
+                    var pending: InteractionId? = null
+                    val turn = ToolTurn(emit = { event ->
+                        when (event) {
+                            is AgentEvent.InteractionRequested -> {
+                                val id = session ?: harness.newSession(agent).id.also { session = it }
+                                val interaction = event.interaction
+                                harness.log.publish(agent.id, id, if (interaction is PendingInteraction.Approval) event.copy(interaction = interaction.copy(trustable = false)) else event)
+                                pending = event.interaction.id
+                                update(run.id, step.id, StepRun(StepStatus.WaitingApproval, id, interactionId = event.interaction.id))
+                            }
+                            is AgentEvent.InteractionResolved -> session?.let { id ->
+                                pending = null
+                                harness.log.publish(agent.id, id, event)
+                                update(run.id, step.id, StepRun(StepStatus.Running, id))
+                            }
+                            else -> Unit
+                        }
+                    })
+                    val result = try { gate.invoke(SessionEntry.ToolCall(ToolCallId(Uuid.random().toString()), step.tool, args.toString()), turn) }
+                    finally { pending?.let { id -> withContext(NonCancellable) { session?.let { harness.log.publish(agent.id, it, AgentEvent.InteractionResolved(id, false)) } } } }
+                    if (result.isError) error(result.output)
+                    update(run.id, step.id, StepRun(StepStatus.Done, session, result.output))
+                }
+                is WorkflowStep.Model -> {
+                    val agent = runsAs(run)
+                    update(run.id, step.id, StepRun(StepStatus.Running))
+                    val refs = outputs(run.id)
+                    val request = harness.composer.completion(agent, step.system?.let { WorkflowReferences.render(it, refs) }, step.model)
+                    val scratch = SessionId(Uuid.random().toString())
+                    var failure: String? = null
+                    harness.native.runner(request).run(scratch, WorkflowReferences.render(step.prompt, refs)).collect { if (it is AgentEvent.RunError) failure = it.message }
+                    failure?.let { error(it) }
+                    val output = request.store.entries(request.agent.id, scratch).filterIsInstance<SessionEntry.AssistantMessage>().lastOrNull()?.text.orEmpty()
+                    update(run.id, step.id, StepRun(StepStatus.Done, output = output))
+                }
             }
         } catch (e: CancellationException) {
             withContext(NonCancellable) { session?.let { runs.stop(it); runs.join(it) }; update(run.id, step.id, StepRun(StepStatus.Cancelled, session)) }
@@ -195,10 +238,14 @@ class Workflows internal constructor(
         } catch (e: Exception) { update(run.id, step.id, StepRun(StepStatus.Failed, session, error = e.message)); throw e }
     }
 
-    private suspend fun render(id: WorkflowRunId, prompt: String): String = lock.withLock {
-        val run = data.runs.first { it.id == id }
-        outputRef.replace(prompt) { match -> run.steps.getValue(StepId(match.groupValues[1])).output.orEmpty() }
+    private suspend fun outputs(id: WorkflowRunId): (StepId) -> String? {
+        val values = lock.withLock { data.runs.first { it.id == id }.steps.mapValues { it.value.output } }
+        return { values[it] }
     }
+
+    private suspend fun render(id: WorkflowRunId, text: String) = WorkflowReferences.render(text, outputs(id))
+
+    private suspend fun runsAs(run: WorkflowRun) = harness.store.agents().first { it.id == run.workflow.agentId }
 
     private suspend fun update(id: WorkflowRunId, step: StepId, value: StepRun) = lock.withLock {
         val r = data.runs.first { it.id == id }.let { it.copy(steps = it.steps + (step to value)) }
@@ -218,11 +265,11 @@ class Workflows internal constructor(
         check(order(w).size == ids.size, "Workflow contains a cycle")
         try { TimeZone.of(w.timeZone); w.trigger?.let(Schedule::validate) }
         catch (e: IllegalArgumentException) { raise(WorkflowError.Invalid(e.message ?: "Invalid schedule")) }
-        for (step in w.steps.filterIsInstance<WorkflowStep.AgentTurn>()) {
+        for (step in w.steps) {
             val ancestors = mutableSetOf<StepId>()
             fun visit(id: StepId) { w.edges.filter { it.to == id }.forEach { if (ancestors.add(it.from)) visit(it.from) } }
             visit(step.id)
-            check(outputRef.findAll(step.prompt).all { StepId(it.groupValues[1]) in ancestors }, "Output references must name predecessor steps")
+            check(WorkflowReferences.strings(step).all { text -> WorkflowReferences.ids(text).all { it in ancestors } }, "Output references must name predecessor steps")
         }
     }
 
@@ -238,6 +285,5 @@ class Workflows internal constructor(
     }
     private companion object {
         val terminal = setOf(StepStatus.Done, StepStatus.Failed, StepStatus.Skipped, StepStatus.Cancelled)
-        val outputRef = Regex("\\{\\{steps\\.([a-zA-Z0-9_-]+)\\.output}}")
     }
 }

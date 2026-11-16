@@ -2,10 +2,12 @@ package kinuvo.protocol.workflow
 
 import kinuvo.protocol.agent.AgentId
 import kinuvo.protocol.approval.InteractionId
+import kinuvo.protocol.model.ProviderModelRef
 import kinuvo.protocol.routine.Trigger
 import kinuvo.protocol.session.SessionId
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.JsonObject
 import kotlin.jvm.JvmInline
 
 @Serializable @JvmInline value class WorkflowId(val value: String) { override fun toString() = value }
@@ -25,12 +27,19 @@ sealed interface WorkflowStep {
 
     @Serializable @SerialName("approval")
     data class Approval(override val id: StepId, val text: String, override val position: Position? = null) : WorkflowStep
+
+    @Serializable @SerialName("tool")
+    data class Tool(override val id: StepId, val tool: String, val args: JsonObject = JsonObject(emptyMap()), override val position: Position? = null) : WorkflowStep
+
+    @Serializable @SerialName("model")
+    data class Model(override val id: StepId, val prompt: String, val system: String? = null, val model: ProviderModelRef? = null, override val position: Position? = null) : WorkflowStep
 }
 
 @Serializable data class WorkflowEdge(val from: StepId, val to: StepId)
 @Serializable data class Workflow(
     val id: WorkflowId, val name: String, val steps: List<WorkflowStep>, val edges: List<WorkflowEdge> = emptyList(),
     val trigger: Trigger? = null, val timeZone: String = "UTC", val enabled: Boolean = true, val createdAt: Long = 0,
+    val agentId: AgentId? = null,
 )
 @Serializable enum class WorkflowRunStatus { Running, Done, Failed, Cancelled }
 @Serializable enum class StepStatus { Pending, Running, WaitingApproval, Done, Failed, Skipped, Cancelled }

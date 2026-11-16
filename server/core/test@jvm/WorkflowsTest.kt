@@ -12,7 +12,10 @@ import kinuvo.protocol.workflow.*
 import kinuvo.server.store.AgentFiles
 import kinuvo.server.store.FileStore
 import kinuvo.server.store.WorkflowData
+import kinuvo.testing.server.FakeTool
+import kinuvo.testing.server.FakeTools
 import kinuvo.testing.server.TestServer
+import kotlinx.serialization.json.*
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.setMain
@@ -27,7 +30,15 @@ class WorkflowsTest {
     private fun turn(id: String, prompt: String = id) = WorkflowStep.AgentTurn(StepId(id), agent, prompt)
     private fun edge(from: String, to: String) = WorkflowEdge(StepId(from), StepId(to))
     private fun workflow(vararg steps: WorkflowStep, edges: List<WorkflowEdge> = emptyList()) =
-        Workflow(WorkflowId("test"), "Test", steps.toList(), edges)
+        Workflow(WorkflowId("test"), "Test", steps.toList(), edges, agentId = agent)
+    private fun tool(id: String, name: String, args: JsonObject = JsonObject(emptyMap())) = WorkflowStep.Tool(StepId(id), name, args)
+    private val fakes = FakeTools(
+        FakeTool("make") { """{"count":2,"items":[{"name":"a"},{"name":"b"}],"who":"Bob"}""" },
+        FakeTool("echo") { it.toString() },
+        FakeTool("boom") { error("kaput") },
+        FakeTool("deploy", Risk.High, reason = "Pushes to production") { "deployed" },
+    )
+    private suspend fun finished(c: KinuvoClient) = await(c, WorkflowId("test")) { it.status != WorkflowRunStatus.Running }
     private suspend fun client(server: TestServer) = server.client(token = server.auth.sessionToken()).also { it.connect() }
     private suspend fun await(client: KinuvoClient, id: WorkflowId, predicate: suspend (WorkflowRun) -> Boolean): WorkflowRun = withTimeout(10_000) {
         while (true) {
@@ -133,6 +144,129 @@ class WorkflowsTest {
                 val error = assertFailsWith<KinuvoException> { c.call(Api.CreateWorkflow, w) }
                 assertEquals("invalid_params", error.code)
             }
+        }
+    }
+
+    @Test fun toolStepRunsWithoutASession() = runBlocking<Unit> {
+        TestServer.start(plugins = listOf(fakes), scenario = { agent("work") }).use { server ->
+            val c = client(server)
+            c.call(Api.RunWorkflow, c.call(Api.CreateWorkflow, workflow(tool("a", "echo", buildJsonObject { put("x", 1) }))).id)
+            val done = finished(c)
+            assertEquals(WorkflowRunStatus.Done, done.status)
+            assertEquals("""{"x":1}""", done.steps[StepId("a")]?.output)
+            assertNull(done.steps[StepId("a")]?.sessionId)
+            assertTrue(server.harness.store.sessions(agent).isEmpty())
+        }
+    }
+
+    @Test fun failingToolFailsStepAndRun() = runBlocking<Unit> {
+        TestServer.start(plugins = listOf(fakes), scenario = { agent("work") }).use { server ->
+            val c = client(server)
+            c.call(Api.RunWorkflow, c.call(Api.CreateWorkflow, workflow(tool("a", "boom"), tool("b", "echo"), edges = listOf(edge("a", "b")))).id)
+            val failed = finished(c)
+            assertEquals(WorkflowRunStatus.Failed, failed.status)
+            assertEquals(StepStatus.Failed, failed.steps[StepId("a")]?.status)
+            assertTrue(failed.steps[StepId("a")]?.error.orEmpty().contains("kaput"))
+            assertEquals(StepStatus.Skipped, failed.steps[StepId("b")]?.status)
+            c.call(Api.UpdateWorkflow, workflow(tool("a", "missing_tool")))
+            c.call(Api.RunWorkflow, WorkflowId("test"))
+            assertEquals(WorkflowRunStatus.Failed, await(c, WorkflowId("test")) { it.id != failed.id && it.status != WorkflowRunStatus.Running }.status)
+        }
+    }
+
+    @Test fun typedArgumentsAndPathReferencesFeedLaterSteps() = runBlocking<Unit> {
+        TestServer.start(plugins = listOf(fakes), scenario = { agent("work") }).use { server ->
+            val c = client(server)
+            val args = buildJsonObject {
+                put("count", "{{steps.a.output.count}}")
+                put("name", "{{steps.a.output.items.1.name}}")
+                put("text", "has {{steps.a.output.count}} items for {{steps.a.output.who}}")
+                put("all", "{{steps.a.output}}")
+                put("nested", buildJsonArray { add("{{steps.a.output.items.0}}") })
+            }
+            c.call(Api.RunWorkflow, c.call(Api.CreateWorkflow, workflow(tool("a", "make"), tool("b", "echo", args), edges = listOf(edge("a", "b")))).id)
+            val done = finished(c)
+            assertEquals(WorkflowRunStatus.Done, done.status)
+            val out = Json.parseToJsonElement(done.steps.getValue(StepId("b")).output!!).jsonObject
+            assertEquals(JsonPrimitive(2), out["count"])
+            assertEquals(JsonPrimitive("b"), out["name"])
+            assertEquals(JsonPrimitive("has 2 items for Bob"), out["text"])
+            assertEquals(2, out.getValue("all").jsonObject["count"]?.jsonPrimitive?.int)
+            assertEquals("a", out.getValue("nested").jsonArray.single().jsonObject["name"]?.jsonPrimitive?.content)
+        }
+    }
+
+    @Test fun badPathFailsNamingTheReference() = runBlocking<Unit> {
+        TestServer.start(plugins = listOf(fakes), scenario = { agent("work") }).use { server ->
+            val c = client(server)
+            c.call(Api.RunWorkflow, c.call(Api.CreateWorkflow, workflow(tool("a", "make"),
+                tool("b", "echo", buildJsonObject { put("x", "{{steps.a.output.items.9.name}}") }), edges = listOf(edge("a", "b")))).id)
+            val failed = finished(c)
+            assertEquals(WorkflowRunStatus.Failed, failed.status)
+            assertTrue(failed.steps[StepId("b")]?.error.orEmpty().contains("{{steps.a.output.items.9.name}}"))
+        }
+    }
+
+    @Test fun modelStepRepliesWithoutASession() = runBlocking<Unit> {
+        TestServer.start(plugins = listOf(fakes), script = { on("hello Bob") { reply("greeted") } }, scenario = { agent("work") }).use { server ->
+            val c = client(server)
+            c.call(Api.RunWorkflow, c.call(Api.CreateWorkflow, workflow(tool("a", "make"),
+                WorkflowStep.Model(StepId("m"), "hello {{steps.a.output.who}}", system = "Be brief for {{steps.a.output.count}}"), edges = listOf(edge("a", "m")))).id)
+            val done = finished(c)
+            assertEquals(WorkflowRunStatus.Done, done.status)
+            assertEquals("greeted", done.steps[StepId("m")]?.output)
+            assertNull(done.steps[StepId("m")]?.sessionId)
+            assertTrue(server.harness.store.sessions(agent).isEmpty())
+            assertTrue("Be brief for 2" in server.script.prompts.last().toString())
+        }
+    }
+
+    @Test fun toolNeedingApprovalWaitsInALazySessionThenContinuesOrFails() = runBlocking<Unit> {
+        TestServer.start(plugins = listOf(fakes), scenario = { agent("work") }).use { server ->
+            val c = client(server)
+            val w = c.call(Api.CreateWorkflow, workflow(tool("a", "deploy")))
+            suspend fun answer(decision: ApprovalDecision): WorkflowRun {
+                val started = c.call(Api.RunWorkflow, w.id)
+                val waiting = await(c, w.id) { it.id == started.id && it.steps[StepId("a")]?.status == StepStatus.WaitingApproval }
+                val s = waiting.steps.getValue(StepId("a"))
+                withTimeout(5000) { while (server.harness.log.pending(s.sessionId!!).isEmpty()) yield() }
+                assertTrue(server.harness.store.sessions(agent).isNotEmpty())
+                assertTrue(c.call(Api.Respond, RespondParams(s.sessionId!!, s.interactionId!!, InteractionAnswer.Approval(decision))))
+                return await(c, w.id) { it.id == started.id && it.status != WorkflowRunStatus.Running }
+            }
+            val approved = answer(ApprovalDecision.AllowOnce)
+            assertEquals(WorkflowRunStatus.Done, approved.status)
+            assertEquals("deployed", approved.steps[StepId("a")]?.output)
+            assertNotNull(approved.steps[StepId("a")]?.sessionId)
+            assertTrue(server.harness.log.pending(approved.steps.getValue(StepId("a")).sessionId!!).isEmpty())
+            assertEquals(WorkflowRunStatus.Failed, answer(ApprovalDecision.Deny()).status)
+        }
+    }
+
+    @Test fun cancellingAToolWaitingForApprovalResolvesIt() = runBlocking<Unit> {
+        TestServer.start(plugins = listOf(fakes), scenario = { agent("work") }).use { server ->
+            val c = client(server)
+            val w = c.call(Api.CreateWorkflow, workflow(tool("a", "deploy")))
+            c.call(Api.RunWorkflow, w.id)
+            val waiting = await(c, w.id) { it.steps[StepId("a")]?.status == StepStatus.WaitingApproval }
+            val session = waiting.steps.getValue(StepId("a")).sessionId!!
+            withTimeout(5000) { while (server.harness.log.pending(session).isEmpty()) yield() }
+            val cancelled = c.call(Api.CancelWorkflow, waiting.id)
+            assertEquals(StepStatus.Cancelled, cancelled.steps[StepId("a")]?.status)
+            assertTrue(server.harness.log.pending(session).isEmpty())
+        }
+    }
+
+    @Test fun saveRejectsMissingRunsAsAgentAndNonAncestorReferences() = runBlocking<Unit> {
+        TestServer.start(plugins = listOf(fakes), scenario = { agent("work") }).use { server ->
+            val c = client(server)
+            val withoutAgent = listOf(workflow(tool("a", "echo")).copy(agentId = null),
+                workflow(WorkflowStep.Model(StepId("m"), "hi")).copy(agentId = null),
+                workflow(tool("a", "echo")).copy(agentId = AgentId("nobody")),
+                workflow(tool("a", "echo"), tool("b", "echo", buildJsonObject { put("x", "{{steps.a.output}}") })),
+                workflow(tool("a", "echo", buildJsonObject { put("x", buildJsonArray { add("{{steps.a.output.k}}") }) })),
+                workflow(WorkflowStep.Model(StepId("m"), "hi", system = "{{steps.m.output}}")))
+            for (w in withoutAgent) assertEquals("invalid_params", assertFailsWith<KinuvoException> { c.call(Api.CreateWorkflow, w) }.code)
         }
     }
 

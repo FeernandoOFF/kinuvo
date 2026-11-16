@@ -32,6 +32,8 @@ fun Workflow.move(id: StepId, to: Position) = copy(steps = steps.map {
     if (it.id != id) it else when (it) {
         is WorkflowStep.AgentTurn -> it.copy(position = to)
         is WorkflowStep.Approval -> it.copy(position = to)
+        is WorkflowStep.Tool -> it.copy(position = to)
+        is WorkflowStep.Model -> it.copy(position = to)
     }
 })
 
