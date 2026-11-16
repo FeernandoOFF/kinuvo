@@ -46,7 +46,7 @@ class FakeAppleSystem(var access: String = "fullAccess") : AppleSystem {
             reminder(old.text("id")!!, old.text("list")!!, p.text("title") ?: old.text("title")!!, p.text("notes") ?: old.text("notes")!!, due, p["done"]?.jsonPrimitive?.boolean ?: old.bool("done"))
                 .also { reminders[reminders.indexOf(old)] = it }
         }
-        "calendar.list" -> JsonArray(listOf(buildJsonObject { put("id", "home"); put("title", "Home") }, buildJsonObject { put("id", "holidays"); put("title", "Holidays"); put("writable", false) }))
+        "calendar.list" -> JsonArray(listOf(buildJsonObject { put("id", "home"); put("title", "Home"); put("source", "me@gmail.com") }, buildJsonObject { put("id", "holidays"); put("title", "Holidays"); put("writable", false) }))
         "calendar.events" -> JsonArray(events.filter { e -> p.text("query")?.let { it.lowercase() in e.text("title")!!.lowercase() } != false })
         "calendar.create" -> event("e${events.size + 1}", p.text("title")!!, p.text("start")!!, p.text("end") ?: p.text("start")!!, allDay = p.bool("all_day")).also { events += it }
         "calendar.update" -> {
