@@ -55,6 +55,7 @@ import androidx.compose.foundation.text.input.TextFieldState
 import androidx.compose.foundation.text.input.rememberTextFieldState
 import androidx.compose.foundation.text.input.setTextAndPlaceCursorAtEnd
 import kinuvo.client.ConnectionState
+import kinuvo.protocol.session.SendDelivery
 import kinuvo.protocol.approval.InteractionAnswer
 import kinuvo.protocol.approval.PendingInteraction
 import kinuvo.protocol.approval.ApprovalDecision
@@ -459,6 +460,8 @@ fun ChatContent(
                             running = state.running,
                             onSend = { follow.value = true; actions.onDiscardDictation(); actions.onSend(it) },
                             onStop = actions.onStop,
+                            onQueue = { text: String -> follow.value = true; actions.onDiscardDictation(); actions.onQueue(text) }.takeIf { state.canQueue },
+                            onSteer = { text: String -> follow.value = true; actions.onDiscardDictation(); actions.onSteer(text) }.takeIf { state.canSteer },
                             canStop = state.canStop,
                             stopWhileSending = state.external && state.canStop,
                             placeholder = "Chat with ${state.agent?.name ?: "Kinuvo"}",

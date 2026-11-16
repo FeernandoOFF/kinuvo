@@ -29,6 +29,9 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.key.*
 import androidx.compose.ui.layout.layout
+import androidx.compose.foundation.clickable
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.TextRange
@@ -83,6 +86,10 @@ fun Composer(
     /** Drawn under [containerColor], e.g. a blur of what scrolls behind. */
     backdrop: Modifier = Modifier,
     notice: (@Composable () -> Unit)? = null,
+    /** While [running], sends the message as the next turn; Enter does this. Null when the Session can't queue. */
+    onQueue: ((String) -> Unit)? = null,
+    /** While [running], hands the message to the running turn; ⌘/Ctrl+Enter does this. Null when it can't steer. */
+    onSteer: ((String) -> Unit)? = null,
 ) {
     var focused by remember { mutableStateOf(false) }
     val empty by remember(state) { derivedStateOf { state.text.isBlank() } }
@@ -136,9 +143,17 @@ fun Composer(
     LaunchedEffect(Unit) { if (!hasTouchKeyboard) focus.requestFocus() }
 
     fun submit() {
-        if (running || blocked != null || (empty && !hasAttachments)) return
-        onSend(state.text.toString().trim())
+        if (blocked != null || (empty && !hasAttachments)) return
+        val send = if (running) onQueue ?: return else onSend
+        send(state.text.toString().trim())
         state.clearText()
+    }
+
+    fun steer(): Boolean {
+        val send = onSteer?.takeIf { running && !empty && blocked == null } ?: return false
+        send(state.text.toString().trim())
+        state.clearText()
+        return true
     }
 
     val shape = RoundedCornerShape(Radius.composer)
@@ -183,7 +198,7 @@ fun Composer(
                                 .heightIn(min = 36.dp)
                                 .focusRequester(focus)
                                 .onFocusChanged { focused = it.isFocused }
-                                .onPreviewKeyEvent { it.type == KeyEventType.KeyDown && (onCompletionKey(it) || onKey(it, state, ::submit)) },
+                                .onPreviewKeyEvent { it.type == KeyEventType.KeyDown && (onCompletionKey(it) || onKey(it, state, ::submit, ::steer)) },
                         )
                     }
                     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.space8)) {
@@ -196,6 +211,8 @@ fun Composer(
                             IconButton(onClick = onStop, enabled = canStop, modifier = Modifier.size(40.dp), style = ButtonStyle.Secondary, shape = CircleShape) {
                                 Icon(Lucide.Square, Modifier.size(18.dp), contentDescription = "Stop")
                             }
+                            // Typing during a run offers to queue it (Enter) or steer the run with it.
+                            if (!empty && onQueue != null) QueueButton(::submit, onSteer?.let { { steer(); Unit } }, blocked == null)
                         } else if (empty && !hasAttachments) {
                             IconButton(onClick = { onVoice?.invoke() }, enabled = onVoice != null, modifier = accent, style = ButtonStyle.Ghost, shape = CircleShape, contentColor = color(onAccentColor)) {
                                 VoiceBars(Modifier.semantics { contentDescription = if (onVoice != null) "Voice chat" else "Voice chat (coming soon)" })
@@ -215,6 +232,46 @@ fun Composer(
             }
         }
         hint?.takeIf { blocked == null }?.let { Text(it, Modifier.fillMaxWidth(), style = TextStyles.overline, color = color(mutedColor), textAlign = TextAlign.Center) }
+    }
+}
+
+/** Sends during a run: the pill queues the message as the next turn; its menu can steer the running turn instead. */
+@Composable
+private fun QueueButton(onQueue: () -> Unit, onSteer: (() -> Unit)?, enabled: Boolean) {
+    var open by remember { mutableStateOf(false) }
+    val pill = Modifier.height(40.dp).clip(CircleShape).background(color(accentColor))
+    Row(pill, verticalAlignment = Alignment.CenterVertically) {
+        Hint("Queue as the next message (Enter)", TooltipSide.Top) {
+            Row(Modifier.fillMaxHeight().clickable(enabled = enabled, role = Role.Button, onClick = onQueue).padding(start = Spacing.space14, end = if (onSteer == null) Spacing.space14 else Spacing.space8),
+                verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.space6)) {
+                Icon(Lucide.ListPlus, Modifier.size(16.dp), tint = color(onAccentColor))
+                Text("Queue", style = TextStyles.label, fontWeight = FontWeight.SemiBold, color = color(onAccentColor), singleLine = true)
+            }
+        }
+        if (onSteer != null) DropdownMenu(expanded = open, onExpandedChange = { open = it }, panel = {
+            DropdownMenuPanel {
+                DropdownMenuItem(onClick = { open = false; onQueue() }) {
+                    Column {
+                        Text("Queue")
+                        Text("Runs after this turn · Enter", style = TextStyles.caption, color = color(mutedColor))
+                    }
+                }
+                DropdownMenuItem(onClick = { open = false; onSteer() }) {
+                    Column {
+                        Text("Steer now")
+                        Text("Joins the turn in progress · ${shortcut("Enter")}", style = TextStyles.caption, color = color(mutedColor))
+                    }
+                }
+            }
+        }) {
+            Row(Modifier.height(40.dp)) {
+                Box(Modifier.fillMaxHeight().width(1.dp).background(color(onAccentColor).copy(alpha = 0.3f)))
+                Box(Modifier.fillMaxHeight().clickable(enabled = enabled, role = Role.Button) { open = true }.padding(horizontal = Spacing.space8)
+                    .semantics { contentDescription = "More ways to send" }, contentAlignment = Alignment.Center) {
+                    Icon(Lucide.ChevronDown, Modifier.size(16.dp), tint = color(onAccentColor))
+                }
+            }
+        }
     }
 }
 
@@ -249,7 +306,8 @@ private fun Modifier.above(gap: Dp) = layout { measurable, constraints ->
     layout(placeable.width, 0) { placeable.place(0, -placeable.height - gap.roundToPx()) }
 }
 
-private fun onKey(event: KeyEvent, state: TextFieldState, submit: () -> Unit): Boolean {
+private fun onKey(event: KeyEvent, state: TextFieldState, submit: () -> Unit, steer: () -> Boolean): Boolean {
+    if (event.key == Key.Enter && event.isShortcutPressed && steer()) return true
     if (event.key == Key.Enter && !event.isShiftPressed) {
         submit()
         return true

@@ -418,6 +418,39 @@ class ChatChromeTest {
         }
     }
 
+    @Test fun typingDuringARunQueuesOrSteersAndQueuedMessagesCanBeCancelled() = javax.swing.SwingUtilities.invokeAndWait {
+        val queued = mutableListOf<String>()
+        val steered = mutableListOf<String>()
+        val cancelled = mutableListOf<String>()
+        val unsent = mutableStateOf<String?>("Also check the tests")
+        ImageComposeScene(900, 760, Density(1f), coroutineContext = Dispatchers.Main, content = {
+            CompositionLocalProvider(LocalInteractionMode provides InteractionMode.Pointer) {
+                KinuvoTheme(dark = false) {
+                    ChatContent(ChatState(loaded = true, running = true, canQueue = true, canSteer = true, unsent = unsent.value,
+                        queued = listOf(kinuvo.protocol.session.QueuedMessage("q1", "Then deploy to staging")),
+                        items = listOf(ChatItem.User("u", "Refactor the exec backend"))),
+                        ConnectionState.Connected("Test"), null,
+                        ChatActions(onQueue = { queued += it }, onSteer = { steered += it }, onCancelQueued = { cancelled += it }), wide = true)
+                }
+            }
+        }).use { scene ->
+            repeat(5) { scene.render(it * 200_000_000L) }
+            assertNotNull(scene.node("Stop"), "Stop stays while typing during a run")
+            assertNotNull(scene.node("Queued · sends after this turn"))
+            scene.screenshot("chat-queue-steer", 1_000_000_000L)
+            scene.click("Queue")
+            assertEquals(listOf("Also check the tests"), queued)
+            unsent.value = "Use the new API instead"
+            repeat(3) { scene.render((6 + it) * 200_000_000L) }
+            scene.click("More ways to send")
+            repeat(3) { scene.render((9 + it) * 200_000_000L) }
+            scene.click("Steer now")
+            assertEquals(listOf("Use the new API instead"), steered)
+            scene.click("Cancel")
+            assertEquals(listOf("q1"), cancelled)
+        }
+    }
+
     private fun ImageComposeScene.nodes(): List<SemanticsNode> {
         fun flatten(node: SemanticsNode): List<SemanticsNode> = listOf(node) + node.children.flatMap(::flatten)
         return semanticsOwners.flatMap { flatten(it.unmergedRootSemanticsNode) }
