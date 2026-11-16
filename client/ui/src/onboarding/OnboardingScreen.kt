@@ -128,8 +128,8 @@ internal fun OnboardingScreen(app: AppViewModel, onboarding: OnboardingViewModel
     val ready = a.connection as? Connection.Ready
     val config = org.koin.compose.koinInject<ConfigRepository>()
     val attached by config.connected.collectAsState()
-    LaunchedEffect(ready?.client, attached, a.agents.firstOrNull()?.id) {
-        onboarding.load(a.agents.firstOrNull().takeIf { ready != null && attached }, keepLook = true)
+    LaunchedEffect(ready?.client, attached, a.agentsLoaded, a.agents.firstOrNull()?.id) {
+        if (ready != null && attached && a.agentsLoaded) onboarding.load(a.agents.firstOrNull(), keepLook = true)
     }
     val url = rememberTextFieldState(a.pendingPair?.server ?: org.koin.compose.koinInject<Device>().serverUrl)
     val code = rememberTextFieldState(a.pendingPair?.code.orEmpty())
@@ -150,11 +150,12 @@ internal fun OnboardingScreen(app: AppViewModel, onboarding: OnboardingViewModel
     // Connecting to a Server only carries on once its Agent has loaded; one already connected carries on right away.
     val connect = { server: Server ->
         scanError = null
+        onboarding.edit { it.copy(error = null) }
         if (ready?.server == server && s.details != null) onboarding.edit { it.copy(step = 2) }
-        else { advancing = true; if (ready?.server == server) onboarding.load(a.agents.firstOrNull(), keepLook = true) else app.use(server) }
+        else { advancing = true; app.use(server) }
     }
     val pair = { link: String, pairing: String ->
-        scanError = null; advancing = true; app.pair(link, pairing, alias.value())
+        scanError = null; onboarding.edit { it.copy(error = null) }; advancing = true; app.pair(link, pairing, alias.value())
     }
     val scan = kinuvo.ui.connection.rememberQrScanner { text ->
         val link = Links.parsePair(text)
@@ -198,7 +199,7 @@ internal fun OnboardingScreen(app: AppViewModel, onboarding: OnboardingViewModel
                     onServer = { server -> if (server.token != null) connect(server) else { url.setTextAndPlaceCursorAtEnd(server.url); alias.setTextAndPlaceCursorAtEnd(server.name.orEmpty()); manual = true } },
                     url = url, code = code, name = alias, manual = manual, onManual = { manual = it },
                     busy = advancing || (a.connection as? Connection.Connecting)?.server != null,
-                    error = scanError ?: (a.connection as? Connection.Unpaired)?.error,
+                    error = scanError ?: s.error ?: (a.connection as? Connection.Unpaired)?.error,
                 ), featured, pokes, poke, tint, insets)
             }, model = { ModelStep(s, onboarding::selectProvider, { onboarding.refresh() }, onboarding::edit, { onboarding.download() }, { onboarding.cancelDownload() }, { id, model -> onboarding.refresh(id, model) }) },
             connect = {
