@@ -17,7 +17,7 @@ import kotlinx.coroutines.launch
 data class BoardData(val lists: List<TaskListInfo> = emptyList(), val tasks: List<TaskInfo>? = null, val error: String? = null)
 
 /** The connected Server's Board, kept current from its events; a Task that starts waiting on the user becomes a [Notice]. */
-class BoardRepository(private val notifications: Notifications, internal val connection: ConnectedServer) {
+class BoardRepository(private val notifications: Notifications, internal val connection: ConnectedServer) : ServerBound {
     val state: StateFlow<BoardData>
         field = MutableStateFlow(BoardData())
 
@@ -25,7 +25,7 @@ class BoardRepository(private val notifications: Notifications, internal val con
     private val client get() = connection.client
     private var attached: Job? = null
 
-    internal fun attach(client: KinuvoClient) {
+    override fun attach(client: KinuvoClient) {
         attached?.cancel()
         attached = scope.launch {
             launch {
@@ -39,7 +39,7 @@ class BoardRepository(private val notifications: Notifications, internal val con
         }
     }
 
-    internal fun detach() { clear() }
+    override fun detach() { clear() }
 
     internal fun restore(board: BoardData) { state.value = board }
 

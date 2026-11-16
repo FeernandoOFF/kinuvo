@@ -66,7 +66,7 @@ class ConnectedServerTest {
         for (caps in listOf(legacy, legacy.copy(attachments = mapOf("text/plain" to CapabilityState(), "image/png" to CapabilityState())))) {
             connect(owner, Script("A", caps))
             val store = store()
-            val vm = SessionViewModel(requireNotNull(owner.client), owner.sessions, Route.Chat(AgentId("agent"), null))
+            val vm = SessionViewModel(owner.sessions, Route.Chat(AgentId("agent"), null))
             store.put("session", vm)
             vm.state.first { it.capabilities == caps }
             vm.addAttachments(listOf(UploadAttachmentParams("note.txt", "aGk=")))
@@ -244,7 +244,7 @@ class ConnectedServerTest {
         connect(owner, a)
         a.hold(Api.Models.name, error = true)
         val store = store()
-        val vm = SessionViewModel(requireNotNull(owner.client), owner.sessions, Route.Chat(AgentId("agent"), null))
+        val vm = SessionViewModel(owner.sessions, Route.Chat(AgentId("agent"), null))
         store.put("session", vm)
         a.blocked.receive()
         connect(owner, Script("B"))

@@ -32,10 +32,10 @@ fun interface NotificationPermission {
 }
 
 /** Tells each Server this Device connects to where to push its Notifications. */
-class PushRegistration(private val connection: ConnectedServer, private val channel: PushChannel?) {
+class PushRegistration(private val connection: ConnectedServer, private val channel: PushChannel?) : ServerBound {
     private var attached: Job? = null
 
-    internal fun attach(client: KinuvoClient) {
+    override fun attach(client: KinuvoClient) {
         detach()
         val channel = channel ?: return
         attached = connection.scope.launch {
@@ -50,5 +50,5 @@ class PushRegistration(private val connection: ConnectedServer, private val chan
         }
     }
 
-    internal fun detach() { attached?.cancel() }
+    override fun detach() { attached?.cancel() }
 }

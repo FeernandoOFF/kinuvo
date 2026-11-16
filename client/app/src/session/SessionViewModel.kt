@@ -263,7 +263,8 @@ data class SessionState(
 
 /** One Session screen: a view of the Session in the [SessionRepository], plus sending, stopping, Approvals and answers. */
 @OptIn(ExperimentalCoroutinesApi::class)
-class SessionViewModel(private val client: KinuvoClient, private val repo: SessionRepository, route: Route.Chat, private val consent: AiConsent? = null) : ViewModel() {
+class SessionViewModel(private val repo: SessionRepository, route: Route.Chat, private val consent: AiConsent? = null) : ViewModel() {
+    private val client: KinuvoClient = requireNotNull(repo.connection.client) { "Not connected" }
     val state: StateFlow<SessionState>
         field = MutableStateFlow(SessionState(route))
     val connection: StateFlow<ConnectionState> = client.state

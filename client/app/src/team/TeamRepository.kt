@@ -1,5 +1,6 @@
 package kinuvo.app.team
 
+import kinuvo.app.connection.ServerBound
 import kinuvo.app.connection.ConnectedServer
 import kinuvo.app.connection.catching
 import kinuvo.client.ConnectionState
@@ -14,14 +15,14 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
-class TeamRepository(internal val connection: ConnectedServer) {
+class TeamRepository(internal val connection: ConnectedServer) : ServerBound {
     val state: StateFlow<Map<TeamId, TeamSnapshot>>
         field = MutableStateFlow(emptyMap())
     val error: StateFlow<String?>
         field = MutableStateFlow(null)
     private var attached: Job? = null
 
-    internal fun attach(client: KinuvoClient) {
+    override fun attach(client: KinuvoClient) {
         attached?.cancel()
         attached = connection.scope.launch {
             launch { client.events(Api.TeamChanged).collect { change ->
@@ -32,7 +33,7 @@ class TeamRepository(internal val connection: ConnectedServer) {
         }
     }
 
-    internal fun detach() { attached?.cancel(); state.value = emptyMap(); error.value = null }
+    override fun detach() { attached?.cancel(); state.value = emptyMap(); error.value = null }
 
     suspend fun refresh() {
         catching { connection.call { it.call(Api.Teams, Unit) } }

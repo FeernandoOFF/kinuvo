@@ -1,11 +1,8 @@
 package kinuvo.ui
 
-import kinuvo.app.workflow.WorkflowRepository
 import kinuvo.app.workflow.WorkflowViewModel
-import kinuvo.protocol.workflow.StepId
-import kinuvo.protocol.workflow.Workflow
-import kinuvo.protocol.workflow.WorkflowId
-import kinuvo.protocol.workflow.WorkflowStep
+import kinuvo.app.workflow.WorkflowsViewModel
+import kinuvo.app.team.NewTeamViewModel
 import kinuvo.ui.workflow.WorkflowScreen
 import kinuvo.ui.workflow.WorkflowsScreen
 import kinuvo.app.team.TeamRepository
@@ -75,8 +72,6 @@ import androidx.navigation3.scene.Scene
 import androidx.compose.animation.expandHorizontally
 import androidx.compose.animation.shrinkHorizontally
 import kotlinx.coroutines.CompletableDeferred
-import kotlinx.coroutines.launch
-import kotlin.uuid.Uuid
 import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.ExitTransition
 import androidx.compose.runtime.*
@@ -335,10 +330,9 @@ fun KinuvoApp(app: AppViewModel = koinViewModel(), initialRoute: Route? = null, 
                             mapOf(AgentKey to route.agentId?.value.orEmpty()) +
                                 if (route.compose && route.sessionId == null) NavDisplay.transitionSpec { NoTransition } else emptyMap()
                         }) { route ->
-                            val client = (connection as? Connection.Ready)?.client
-                            if (client == null) Loading(connection)
+                            if (connection !is Connection.Ready) Loading(connection)
                             else {
-                                val session = koinViewModel<SessionViewModel>(key = "session/${app.serverLifetime}") { parametersOf(client, route) }
+                                val session = koinViewModel<SessionViewModel>(key = "session/${app.serverLifetime}") { parametersOf(route) }
                                 val resolved by session.state.collectAsState()
                                 LaunchedEffect(resolved.route) {
                                     val active = backStack.lastOrNull() as? Route.Chat
@@ -372,18 +366,14 @@ fun KinuvoApp(app: AppViewModel = koinViewModel(), initialRoute: Route? = null, 
                             val id = route.id
                             if (connection !is Connection.Ready) Loading(connection)
                             else if (id == null) {
-                                val scope = rememberCoroutineScope()
-                                var error by remember { mutableStateOf<String?>(null) }
+                                val creating = koinViewModel<NewTeamViewModel>(key = "new-team/${app.serverLifetime}")
+                                val created by creating.state.collectAsState()
                                 Column(Modifier.fillMaxSize().background(color(backgroundColor)), horizontalAlignment = Alignment.CenterHorizontally) {
                                     PageHeader(Lucide.Users, "New Team", actions = listOfNotNull(back.takeIf { history.canGoBack }?.let { PageAction(Lucide.ArrowLeft, "Back", it) }))
                                     TeamEditor(appState.agents, null, Modifier.widthIn(max = 560.dp).padding(Spacing.space16)) { spec ->
-                                        scope.launch {
-                                            runCatching { teamRepository.create(spec) }
-                                                .onSuccess { backStack.remove(route); history.open(Route.Team(it.team.id)) }
-                                                .onFailure { error = it.message }
-                                        }
+                                        creating.create(spec) { backStack.remove(route); history.open(Route.Team(it)) }
                                     }
-                                    error?.let { Text(it, Modifier.padding(horizontal = Spacing.space16), color = color(destructiveColor)) }
+                                    created.error?.let { Text(it, Modifier.padding(horizontal = Spacing.space16), color = color(destructiveColor)) }
                                 }
                             } else TeamScreen(koinViewModel<TeamViewModel>(key = "team/${app.serverLifetime}/$id") { parametersOf(id) }, appState.agents,
                                 onOpenSession = { agentId, session -> history.open(Route.Chat(agentId, session)) }, onBack = back.takeIf { compact && history.canGoBack })
@@ -393,10 +383,9 @@ fun KinuvoApp(app: AppViewModel = koinViewModel(), initialRoute: Route? = null, 
                                 onSettings = { serverSettings(SettingsSection.Tasks) }, onOpenTask = { history.open(Route.Task(it)) })
                         }
                         entry<Route.Artifacts> { route ->
-                            val client = (connection as? Connection.Ready)?.client
-                            if (client == null) Loading(connection)
+                            if (connection !is Connection.Ready) Loading(connection)
                             else {
-                                val artifacts = koinViewModel<ArtifactsViewModel>(key = "artifacts/${app.serverLifetime}/${route.artifact}") { parametersOf(client, route) }
+                                val artifacts = koinViewModel<ArtifactsViewModel>(key = "artifacts/${app.serverLifetime}/${route.artifact}") { parametersOf(route) }
                                 ArtifactsScreen(app, artifacts, ArtifactsActions(
                                     onBack = back.takeIf { history.canGoBack },
                                     onOpen = { history.open(Route.Artifacts(it)) },
@@ -415,24 +404,21 @@ fun KinuvoApp(app: AppViewModel = koinViewModel(), initialRoute: Route? = null, 
                             }
                         }
                         entry<Route.Workflows> { route ->
-                            val workflows = koinInject<WorkflowRepository>()
-                            val scope = rememberCoroutineScope()
                             val id = route.id
                             if (id == null) {
-                                val listed by workflows.state.collectAsState()
-                                LaunchedEffect(app.serverLifetime) { workflows.load() }
+                                val list = koinViewModel<WorkflowsViewModel>(key = "workflows/${app.serverLifetime}")
+                                val listed by list.state.collectAsState()
                                 WorkflowsScreen(listed.workflows, appState.agents, onOpen = { history.open(Route.Workflows(it)) }, onBack = back.takeIf { history.canGoBack }, onNew = {
                                     val agent = appState.agents.firstOrNull() ?: return@WorkflowsScreen
-                                    scope.launch {
-                                        runCatching {
-                                            workflows.save(Workflow(WorkflowId(Uuid.random().toString()), "New Workflow", listOf(WorkflowStep.AgentTurn(StepId("step-1"), agent.id, ""))), create = true)
-                                        }.onSuccess { history.open(Route.Workflows(it.id)) }
-                                    }
+                                    list.create(agent.id) { history.open(Route.Workflows(it)) }
                                 })
-                            } else WorkflowScreen(koinViewModel<WorkflowViewModel>(key = "workflow/${app.serverLifetime}/$id") { parametersOf(id) }, appState.agents,
-                                onOpenSession = { agent, session -> history.open(Route.Chat(agent, session)) },
-                                onDelete = { scope.launch { runCatching { workflows.delete(id) }.onSuccess { if (history.canGoBack) back() else history.reset(Route.Workflows()) } } },
-                                onBack = back.takeIf { history.canGoBack })
+                            } else {
+                                val workflow = koinViewModel<WorkflowViewModel>(key = "workflow/${app.serverLifetime}/$id") { parametersOf(id) }
+                                WorkflowScreen(workflow, appState.agents,
+                                    onOpenSession = { agent, session -> history.open(Route.Chat(agent, session)) },
+                                    onDelete = { workflow.delete { if (history.canGoBack) back() else history.reset(Route.Workflows()) } },
+                                    onBack = back.takeIf { history.canGoBack })
+                            }
                         }
                         entry<Route.Browser> { route ->
                             val client = (connection as? Connection.Ready)?.client
@@ -454,7 +440,7 @@ fun KinuvoApp(app: AppViewModel = koinViewModel(), initialRoute: Route? = null, 
                                 }
                                 Row(Modifier.fillMaxSize()) {
                                     if (showChat) {
-                                        val session = koinViewModel<SessionViewModel>(key = "live-chat/${app.serverLifetime}/${route.agentId}/${route.sessionId}") { parametersOf(client, chat) }
+                                        val session = koinViewModel<SessionViewModel>(key = "live-chat/${app.serverLifetime}/${route.agentId}/${route.sessionId}") { parametersOf(chat) }
                                         Box(Modifier.width(360.dp).fillMaxHeight()) {
                                             ChatScreen(app, session, false, shell, onOpen = history::open, onSettings = inspect, onNavigate = history::open,
                                                 dock = BrowserDock(true, {

@@ -32,7 +32,7 @@ class ExternalPromptsTest {
     private val urlApproval = PendingInteraction.HarnessApproval(InteractionId("open"), "Open a page", "Reconnect Slack", listOf(ExternalApprovalOption("accept", "Allow", "allow_once")))
 
     @Test fun reopenedSessionAndMultipleRequestsUseOnlySessionUpdates() = withServer(LiveState(executionPhase = ExecutionPhase.Running, pending = listOf(urlApproval))) { owner, script ->
-        val vm = SessionViewModel(requireNotNull(owner.client), owner.sessions, Route.Chat(AgentId("wren"), SessionId("s1")))
+        val vm = SessionViewModel(owner.sessions, Route.Chat(AgentId("wren"), SessionId("s1")))
         ViewModelStore().run {
             put("chat", vm)
             try {
@@ -54,7 +54,7 @@ class ExternalPromptsTest {
     }
 
     @Test fun resumeAndCloseWaitForSessionUpdates() = withServer(LiveState(executionPhase = ExecutionPhase.Lost)) { owner, script ->
-        val vm = SessionViewModel(requireNotNull(owner.client), owner.sessions, Route.Chat(AgentId("wren"), SessionId("s1")))
+        val vm = SessionViewModel(owner.sessions, Route.Chat(AgentId("wren"), SessionId("s1")))
         ViewModelStore().run {
             put("chat", vm)
             try {
@@ -73,7 +73,7 @@ class ExternalPromptsTest {
     }
 
     @Test fun sendingToLostSessionResumesOnceBeforeSendingOnlyTheNewMessage() = withServer(LiveState(executionPhase = ExecutionPhase.Lost)) { owner, script ->
-        val vm = SessionViewModel(requireNotNull(owner.client), owner.sessions, Route.Chat(AgentId("wren"), SessionId("s1")))
+        val vm = SessionViewModel(owner.sessions, Route.Chat(AgentId("wren"), SessionId("s1")))
         ViewModelStore().run {
             put("chat", vm)
             try {
@@ -92,7 +92,7 @@ class ExternalPromptsTest {
     }
 
     @Test fun failedImplicitResumeRetainsDraftAndDoesNotSendUntilRetrySucceeds() = withServer(LiveState(executionPhase = ExecutionPhase.Lost)) { owner, script ->
-        val vm = SessionViewModel(requireNotNull(owner.client), owner.sessions, Route.Chat(AgentId("wren"), SessionId("s1")))
+        val vm = SessionViewModel(owner.sessions, Route.Chat(AgentId("wren"), SessionId("s1")))
         ViewModelStore().run {
             put("chat", vm)
             try {
@@ -115,7 +115,7 @@ class ExternalPromptsTest {
     }
 
     @Test fun attachmentOnlyRetryKeepsSubmissionIdentityAndVoiceMetadata() = withServer(LiveState()) { owner, script ->
-        val vm = SessionViewModel(requireNotNull(owner.client), owner.sessions, Route.Chat(AgentId("wren"), SessionId("s1")))
+        val vm = SessionViewModel(owner.sessions, Route.Chat(AgentId("wren"), SessionId("s1")))
         ViewModelStore().run {
             put("chat", vm)
             try {

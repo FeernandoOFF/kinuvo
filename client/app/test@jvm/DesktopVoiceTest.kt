@@ -39,7 +39,7 @@ class DesktopVoiceTest {
         val client = KinuvoClient("ws://unused", "test")
         owner.open(client, "test")
         val engine = Engine()
-        val session = SessionViewModel(client, owner.sessions, Route.Chat(agentId = AgentId("one")))
+        val session = SessionViewModel(owner.sessions, Route.Chat(agentId = AgentId("one")))
         val voice = SpeechVoiceChat(engine, session, backgroundScope)
         try {
             voice.start()
@@ -71,7 +71,7 @@ class DesktopVoiceTest {
         val client = KinuvoClient("ws://unused", "test")
         owner.open(client, "test")
         val engine = Engine()
-        val session = SessionViewModel(client, owner.sessions, Route.Chat(agentId = AgentId("one")))
+        val session = SessionViewModel(owner.sessions, Route.Chat(agentId = AgentId("one")))
         val voice = SpeechVoiceChat(engine, session, backgroundScope)
         try {
             voice.start()

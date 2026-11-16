@@ -2,6 +2,8 @@ package kinuvo.app
 
 import kinuvo.protocol.workflow.WorkflowId
 import kinuvo.app.workflow.WorkflowViewModel
+import kinuvo.app.workflow.WorkflowsViewModel
+import kinuvo.app.team.NewTeamViewModel
 import kinuvo.app.agent.*
 import kinuvo.app.team.TeamViewModel
 import kinuvo.protocol.team.TeamId
@@ -18,7 +20,6 @@ import kinuvo.app.screen.LiveViewModel
 import kinuvo.app.session.*
 import kinuvo.app.surface.UiCatalogs
 import kinuvo.app.voice.ServerVoiceViewModel
-import kinuvo.client.KinuvoClient
 import org.koin.core.module.dsl.viewModel
 import org.koin.dsl.module
 
@@ -36,8 +37,10 @@ val appModule = module {
     single { get<ConnectedServer>().routines }
     single { get<ConnectedServer>().workflows }
     viewModel { (id: WorkflowId) -> WorkflowViewModel(get(), id) }
+    viewModel { WorkflowsViewModel(get()) }
     single { get<ConnectedServer>().teams }
     viewModel { (id: TeamId) -> TeamViewModel(get(), id) }
+    viewModel { NewTeamViewModel(get()) }
     single { get<ConnectedServer>().config }
     single { get<ConnectedServer>().harnesses }
     single { get<ConnectedServer>().board }
@@ -47,7 +50,7 @@ val appModule = module {
     viewModel { ServerVoiceViewModel(get()) }
     viewModel { OnboardingViewModel(get(), getOrNull() ?: NotificationPermission.None) }
     viewModel { AppViewModel(get(), get(), get(), get(), getOrNull() ?: ClientCache.None, getOrNull() ?: NotificationPermission.None, getOrNull<UiCatalogs>()?.all.orEmpty()) }
-    viewModel { (client: KinuvoClient, route: Route.Chat) -> SessionViewModel(client, get(), route, get()) }
+    viewModel { (route: Route.Chat) -> SessionViewModel(get(), route, get()) }
     viewModel { (engine: SpeechEngine, session: SessionViewModel) -> VoiceViewModel(engine, session, get(), get()) }
     viewModel { (transcriber: Transcriber) -> DictationViewModel(if (transcriber is SpeechEngine) ServerSpeech(transcriber, get()) else transcriber) }
     viewModel { (route: Route.Settings) -> SettingsViewModel(get(), get(), get(), route) }
@@ -55,6 +58,6 @@ val appModule = module {
     viewModel { AgentInspectorViewModel(get()) }
     viewModel { (app: AppViewModel) -> HomeViewModel(app.state, get()) }
     viewModel { (route: Route.Knowledge) -> KnowledgeViewModel(get(), route) }
-    viewModel { (client: KinuvoClient, route: Route.Artifacts) -> ArtifactsViewModel(client, route, get()) }
+    viewModel { (route: Route.Artifacts) -> ArtifactsViewModel(route, get()) }
     viewModel { (route: Route) -> LiveViewModel(get<ConnectedServer>(), route) }
 }

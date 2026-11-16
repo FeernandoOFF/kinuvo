@@ -12,13 +12,13 @@ import kotlinx.coroutines.flow.StateFlow
 
 data class DevicesState(val devices: List<PairedDeviceInfo>? = null, val error: String? = null)
 
-class DevicesRepository(internal val connection: ConnectedServer) {
+class DevicesRepository(internal val connection: ConnectedServer) : ServerBound {
     val state: StateFlow<DevicesState>
         field = MutableStateFlow(DevicesState())
 
     private var attached: Job? = null
 
-    internal fun attach(client: KinuvoClient) {
+    override fun attach(client: KinuvoClient) {
         detach()
         attached = connection.scope.launch {
             suspend fun load() {
@@ -33,7 +33,7 @@ class DevicesRepository(internal val connection: ConnectedServer) {
         }
     }
 
-    internal fun detach() {
+    override fun detach() {
         attached?.cancel()
         state.value = DevicesState()
     }

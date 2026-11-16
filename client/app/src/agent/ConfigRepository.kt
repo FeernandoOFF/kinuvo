@@ -25,7 +25,7 @@ import kotlinx.coroutines.launch
 data class AgentConfig(val details: AgentDetails? = null, val skills: List<SkillInfo>? = null, val mcp: List<McpServerInfo>? = null)
 
 /** The connected Server's [AgentConfig]s, reloaded after every change made here. */
-class ConfigRepository(internal val connection: ConnectedServer) {
+class ConfigRepository(internal val connection: ConnectedServer) : ServerBound {
     /** By Agent ID. */
     val state: StateFlow<Map<AgentId, AgentConfig>>
         field = MutableStateFlow(emptyMap())
@@ -43,7 +43,7 @@ class ConfigRepository(internal val connection: ConnectedServer) {
     private var attached: Job? = null
     private val revisions = mutableMapOf<AgentId, Long>()
 
-    internal fun attach(client: KinuvoClient) {
+    override fun attach(client: KinuvoClient) {
         clear()
         attached = scope.launch {
             launch { client.events(Api.ProvidersChanged).collect { providers.value = offered(it) } }
@@ -57,7 +57,7 @@ class ConfigRepository(internal val connection: ConnectedServer) {
         }
     }
 
-    internal fun detach() { clear() }
+    override fun detach() { clear() }
 
     /** Also reloads [agentId] after every reconnect, even if this first load fails. */
     fun load(agentId: AgentId) = scope.launch {

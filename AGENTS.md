@@ -55,7 +55,7 @@ Kotlin Toolchain (not Gradle): `./kotlin build`, `./kotlin test -m <module> -p j
 ## Shared client logic
 
 - Put feature behavior, validation, Repositories, ViewModels and immutable state in `client/app`. Compose and SwiftUI call the same shared ViewModels; move reusable behavior out of screens before adding another UI. Keep `client/app` free of Compose, UIKit and SwiftUI dependencies.
-- Co-locate logic by feature in `client/app/src/<feature>` and mirror those feature names in `client/ui` and native UI folders. Views own rendering, input bindings and navigation; transport stays in `client/sdk` and wire types in `protocol`.
+- Co-locate logic by feature in `client/app/src/<feature>` and mirror those feature names in `client/ui` and native UI folders. Views own rendering, input bindings and navigation; transport stays in `client/sdk` and wire types in `protocol`. Screens never pass `KinuvoClient` to ViewModels; they pass routes and ids, and ViewModels reach the Server through `ConnectedServer`.
 - Reuse `ConnectedServer` for connection work and caches. Native destinations own ViewModel lifetimes and cancel observations on disposal; selected Compose screens share the same app and Server lifetime and hand navigation back to their native host.
 - Before adding a SwiftUI feature, observing Kotlin state or hosting a Compose screen, read [the iOS integration guide](apps/ios/README.md#swiftui-integration-proof). Follow its observation and disposal pattern. Test shared behavior in `client/app`, Compose rendering in `client/ui`, and native navigation/lifecycle in the iOS integration.
 

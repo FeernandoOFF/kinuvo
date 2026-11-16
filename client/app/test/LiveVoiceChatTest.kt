@@ -489,7 +489,7 @@ class LiveVoiceChatTest {
             val owned = LiveVoiceChat(server, engine) { AgentId("agent") to SessionId("session") }
             owned.start()
             runCurrent()
-            val unrelated = VoiceViewModel(engine, SessionViewModel(client, server.sessions, Route.Chat(AgentId("agent"), SessionId("other"))))
+            val unrelated = VoiceViewModel(engine, SessionViewModel(server.sessions, Route.Chat(AgentId("agent"), SessionId("other"))))
             unrelated.chat.start()
             ViewModelStore().apply { put("voice", unrelated); clear() }
             val dictation = DictationViewModel(engine)

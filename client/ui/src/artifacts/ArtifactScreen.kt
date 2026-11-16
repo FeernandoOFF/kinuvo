@@ -36,27 +36,15 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.lifecycle.ViewModel
-import androidx.lifecycle.viewModelScope
 import com.composables.icons.lucide.*
 import com.composables.ui.components.*
 import com.composables.ui.theme.*
-import kinuvo.client.ConnectionState
-import kinuvo.client.KinuvoClient
 import kinuvo.protocol.agent.AgentInfo
-import kinuvo.protocol.Api
 import kinuvo.protocol.artifact.ArtifactData
-import kinuvo.protocol.artifact.ArtifactInfo
-import kinuvo.protocol.artifact.ArtifactRef
 import kinuvo.protocol.agent.AgentId
 import kinuvo.protocol.session.SessionId
 import kinuvo.ui.design.*
-import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.update
-import kotlinx.coroutines.launch
 import kotlin.time.Clock
 
 class ArtifactsActions(

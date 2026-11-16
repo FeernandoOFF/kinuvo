@@ -73,12 +73,12 @@ class NativeApp {
 
     fun sessionHost(agentId: String?, sessionId: String?, onOpen: (String?, String?) -> Unit, onResolved: (Route.Chat) -> Unit,
                     onSettings: (Route.Settings) -> Unit, onNavigate: (Route) -> Unit, onMenu: () -> Unit): NativeScreenHost = NativeScreenHost { life ->
-        val client = requireNotNull((viewModel.state.value.connection as? Connection.Ready)?.client)
+        check(viewModel.state.value.connection is Connection.Ready)
         val session = remember {
             val agent = agentId?.let(::AgentId)
             val chat = sessionId?.let(::SessionId)
             val route = agent?.let(viewModel::lastView)?.takeIf { it.sessionId == chat } ?: Route.Chat(agent, chat)
-            life.own(SessionViewModel(client, koin.get(), route, koin.get()))
+            life.own(SessionViewModel(koin.get(), route, koin.get()))
         }
         val state by session.state.collectAsState()
         LaunchedEffect(state.route) { onResolved(state.route) }

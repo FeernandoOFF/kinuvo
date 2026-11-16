@@ -13,7 +13,7 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 /** The latest changes Agents made to the connected Server's Knowledge, newest first; null until first loaded. */
-class KnowledgeRepository(internal val connection: ConnectedServer) {
+class KnowledgeRepository(internal val connection: ConnectedServer) : ServerBound {
     val changes: StateFlow<List<KnowledgeChange>?>
         field = MutableStateFlow(null)
 
@@ -21,7 +21,7 @@ class KnowledgeRepository(internal val connection: ConnectedServer) {
     private val client get() = connection.client
     private var attached: Job? = null
 
-    internal fun attach(client: KinuvoClient) {
+    override fun attach(client: KinuvoClient) {
         clear()
         attached = scope.launch {
             launch { client.events(Api.KnowledgeChanged).collect(::put) }
@@ -29,7 +29,7 @@ class KnowledgeRepository(internal val connection: ConnectedServer) {
         }
     }
 
-    internal fun detach() { clear() }
+    override fun detach() { clear() }
 
     fun load() = scope.launch {
         val loaded = catching { client?.call(Api.KnowledgeChanges, KnowledgeChangesParams(LIMIT)) }.getOrNull() ?: return@launch

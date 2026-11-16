@@ -31,18 +31,21 @@ class ConnectedServer(notifications: Notifications, private val deviceAccess: De
         private set
     internal val client get() = lifetime?.client
     internal val scope get() = CoroutineScope((lifetime?.job ?: Job().also { it.cancel() }) + Dispatchers.Main.immediate + (lifetime ?: EmptyCoroutineContext))
+    /** Attached and detached in this order; every repository the Server owns is added by [owned]. */
+    internal val bound = mutableListOf<ServerBound>()
+    private fun <T : ServerBound> owned(value: T): T = value.also { bound += it }
     val surfaceImages = SurfaceImages(this)
     val mcpApps = McpApps(this)
-    val sessions = SessionRepository(notifications, this)
-    val workflows = WorkflowRepository(this)
-    val teams = TeamRepository(this)
-    val routines = RoutineRepository(notifications, this)
-    val config = ConfigRepository(this)
-    val harnesses = HarnessRepository(this)
-    val board = BoardRepository(notifications, this)
-    val knowledge = KnowledgeRepository(this)
-    val devices = DevicesRepository(this)
-    private val push = PushRegistration(this, push)
+    val sessions = owned(SessionRepository(notifications, this))
+    val teams = owned(TeamRepository(this))
+    val routines = owned(RoutineRepository(notifications, this))
+    val workflows = owned(WorkflowRepository(this))
+    val config = owned(ConfigRepository(this))
+    val harnesses = owned(HarnessRepository(this))
+    val board = owned(BoardRepository(notifications, this))
+    val knowledge = owned(KnowledgeRepository(this))
+    val devices = owned(DevicesRepository(this))
+    private val push = owned(PushRegistration(this, push))
 
     internal fun offers(provider: String) = !local || onDevice.supports(provider)
     private var local = false
@@ -57,16 +60,7 @@ class ConnectedServer(notifications: Notifications, private val deviceAccess: De
 
     fun activate() {
         val client = requireNotNull(client)
-        sessions.attach(client)
-        teams.attach(client)
-        routines.attach(client)
-        workflows.attach(client)
-        config.attach(client)
-        harnesses.attach(client)
-        board.attach(client)
-        knowledge.attach(client)
-        devices.attach(client)
-        push.attach(client)
+        bound.forEach { it.attach(client) }
     }
 
     /** Fills the Repositories from [snapshot] after [open], before the Server is reached. */
@@ -85,16 +79,7 @@ class ConnectedServer(notifications: Notifications, private val deviceAccess: De
         previous?.client?.close()
         surfaceImages.clear()
         mcpApps.clear()
-        sessions.detach()
-        teams.detach()
-        routines.detach()
-        workflows.detach()
-        config.detach()
-        harnesses.detach()
-        board.detach()
-        knowledge.detach()
-        devices.detach()
-        push.detach()
+        bound.forEach { it.detach() }
         deviceAccess.detach()
     }
 
