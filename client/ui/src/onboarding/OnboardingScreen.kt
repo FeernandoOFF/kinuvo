@@ -254,10 +254,10 @@ internal fun ConnectList(s: OnboardingState, available: (kinuvo.app.navigation.S
     @Composable fun Row(section: kinuvo.app.navigation.SettingsSection) {
         val (icon, title, description) = ConnectInfo.getValue(section)
         GroupRow(title, { onSetUp(section) }, description, icon) {
-            when (s.connected[section]) {
-                true -> Pill(if (section in BuiltInSections) "Connected" else "On", tone = Tone.Success, icon = Lucide.CircleCheck)
-                false -> if (section in BuiltInSections) Pill("Built-in", tone = Tone.Success, icon = Lucide.CircleCheck)
-                null -> {}
+            // Notes and Tasks work either way: built in until you pick your own app.
+            when {
+                s.connected[section] == true -> Pill(if (section in BuiltInSections) "Your app" else "On", tone = Tone.Success, icon = Lucide.CircleCheck)
+                section in BuiltInSections -> Pill("Built-in", tone = Tone.Success, icon = Lucide.CircleCheck)
             }
         }
     }
@@ -738,7 +738,7 @@ internal fun ModelStep(s: OnboardingState, onProvider: (String) -> Unit, onRefre
         }
     }
     var adding by remember { mutableStateOf(false) }
-    AdvancedGroup("More options", summary = listOfNotNull(group?.chatModels?.firstOrNull { it.id == s.model }?.let { "Model: ${it.name}" }, "Custom endpoint").joinToString(" · ")) {
+    AdvancedGroup("More options", summary = group?.chatModels?.firstOrNull { it.id == s.model }?.let { "Uses ${it.name}" } ?: "Pick a model, or add your own") {
         if (picked && listed) PickerRow("Model", (group.chatModels.map { it.id } + s.model).filter(String::isNotBlank).distinct(), s.model,
             { id -> group.chatModels.firstOrNull { it.id == id }?.name ?: id }, { value -> onEdit { it.copy(model = value) } }, Lucide.Cpu)
         ActionRow("Refresh models and sign-in", Lucide.RefreshCw, onRefresh, enabled = !s.busy)
@@ -756,6 +756,7 @@ private fun providerStatus(info: ProviderInfo?): String? = when {
     info?.apiKey?.configured == true -> "API key saved"
     info?.apiKey != null -> "Needs an API key"
     info?.downloads != null -> "Private · runs on this Server, downloads a model"
+    info?.id == APPLE -> "Free and private · built into this Mac"
     else -> null
 }
 

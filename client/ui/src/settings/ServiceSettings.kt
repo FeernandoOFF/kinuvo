@@ -72,11 +72,15 @@ private fun pushedTo(devices: List<PairedDeviceInfo>?) = devices?.filter { it.pu
 /** The picked provider's settings in [form], once its schema is supported; [change] updates the form. */
 @Composable
 internal fun ProviderSettingsFields(title: String, form: ProviderSettingsForm, p: Pane, change: ((ProviderSettingsForm) -> ProviderSettingsForm) -> Unit) {
-    if (form.editable && form.fields.isNotEmpty()) RowGroup(title) {
-        key(form.provider) {
-            form.fields.forEach { field ->
-                key(field.key) { ProviderField(field, form, p, change) }
-            }
+    if (!form.editable || form.fields.isEmpty()) return
+    // Optional fields with a working default, e.g. a self-hosted URL, wait under Advanced unless already changed.
+    val (optional, essential) = remember(form.provider, form.fields.map { it.key }) {
+        form.fields.partition { !it.required && !it.sensitive && it.defaultValue != null && form.value(it.key).isEmpty() }
+    }
+    key(form.provider) {
+        if (essential.isNotEmpty()) RowGroup(title) { essential.forEach { field -> key(field.key) { ProviderField(field, form, p, change) } } }
+        if (optional.isNotEmpty()) AdvancedGroup("Advanced connection", summary = optional.joinToString(" · ") { it.label }) {
+            optional.forEach { field -> key(field.key) { ProviderField(field, form, p, change) } }
         }
     }
 }

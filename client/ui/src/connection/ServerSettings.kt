@@ -72,7 +72,8 @@ private fun TasksForm(setup: TasksSetup, p: Pane) {
     val shown = lists.orEmpty().filter { uses[it.name] != ListUse.Hidden }
     // No list picked would mean every list, so an external app needs at least one.
     val nonePicked = !builtIn && !lists.isNullOrEmpty() && shown.isEmpty()
-    val ready = form.editable && (lists != null || form.fields.isNotEmpty()) && !nonePicked && startBefore.value().toIntOrNull() != null && poll.value().toIntOrNull() != null
+    // An external app saves only lists picked from what loaded, since none picked would mean every list.
+    val ready = form.editable && (builtIn || lists != null || provider == s.provider) && !nonePicked && startBefore.value().toIntOrNull() != null && poll.value().toIntOrNull() != null
     val save = {
         p.actions.onSaveTasks(SaveTasksParams(TasksSettings(
             provider = provider,
@@ -122,7 +123,7 @@ private fun TasksForm(setup: TasksSetup, p: Pane) {
                 else -> lists.forEach { list ->
                     val use = uses[list.name] ?: ListUse.Hidden
                     SwitchRow(list.name, use != ListUse.Hidden, { on -> uses = uses + (list.name to if (on) ListUse.Unassigned else ListUse.Hidden) }, icon = Lucide.List)
-                    if (use != ListUse.Hidden) PickerRow("Agent", agentOptions, use, ::useLabel, { uses = uses + (list.name to it) }, Lucide.CornerDownRight)
+                    if (use != ListUse.Hidden) PickerRow("Worked on by", agentOptions, use, ::useLabel, { uses = uses + (list.name to it) }, Lucide.CornerDownRight)
                 }
             }
             if (nonePicked) GroupRow("Turn on at least one list", tint = color(warningColor))
@@ -144,7 +145,7 @@ private fun taskAppLabel(id: String, setup: TasksSetup) =
 
 private fun useLabel(use: ListUse) = when (use) {
     ListUse.Hidden -> "Off"
-    ListUse.Unassigned -> "No Agent"
+    ListUse.Unassigned -> "Nobody yet"
     is ListUse.Agent -> use.agent.name
 }
 
