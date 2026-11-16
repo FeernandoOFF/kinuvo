@@ -161,7 +161,7 @@ internal fun KnowledgeSettingsPane(p: Pane) {
         var reflection by remember { mutableStateOf(setup.settings.reflection) }
         var provider by remember { mutableStateOf(setup.settings.provider) }
         var notes by remember { mutableStateOf(NotesApp.of(setup.settings)) }
-        val url = rememberTextFieldState(setup.settings.options["url"] ?: "http://127.0.0.1:31009")
+        val url = rememberTextFieldState(setup.settings.options["url"] ?: ANYTYPE_URL)
         val apiKey = rememberTextFieldState(setup.settings.options["apiKey"].orEmpty())
         val space = rememberTextFieldState(setup.settings.options["space"].orEmpty())
         // Conventions are per provider; switching keeps what was typed for the other one.
@@ -187,13 +187,15 @@ internal fun KnowledgeSettingsPane(p: Pane) {
                 NotesApp.Anytype -> anytype
             }, Modifier.padding(horizontal = Spacing.space6), color = color(mutedColor), style = TextStyles.secondary)
             if (notes == NotesApp.Anytype) RowGroup("Anytype") {
-                FieldRow("API URL") { Input(url, "http://127.0.0.1:31009") }
                 FieldRow("API key") {
                     SecretField(p, { apiKey.setTextAndPlaceCursorAtEnd(it) }) { trailing ->
                         Input(apiKey, "API key", secret = !isReference(apiKey.value()), trailing = trailing)
                     }
                 }
                 FieldRow("Space ID") { Input(space, "Space ID") }
+            }
+            if (notes == NotesApp.Anytype) AdvancedGroup("Advanced connection", summary = "API URL", initiallyOpen = setup.settings.options["url"].let { it != null && it != ANYTYPE_URL }) {
+                FieldRow("API URL") { Input(url, ANYTYPE_URL) }
             }
             if (notes == NotesApp.Folder) RowGroup("Folder") {
                 FieldRow("Folder", "On the Server. To use Obsidian, point it at a folder in your vault, e.g. ~/Vault/Kinuvo.") { Input(path, "~/Vault/Kinuvo") }
@@ -232,11 +234,14 @@ internal fun KnowledgeSettingsPane(p: Pane) {
                     }
                 }
             }
-            TestGroup(if (p.ui.state.testing) "Testing…" else "Test", !p.ui.state.testing, { p.actions.onTestKnowledge(current()) },
+            // Built-in notes have nothing to test.
+            if (notes != NotesApp.BuiltIn) TestGroup(if (p.ui.state.testing) "Testing…" else "Test", !p.ui.state.testing, { p.actions.onTestKnowledge(current()) },
                 p.ui.state.knowledgeTest?.let { t -> t.error?.let { "Couldn't read it: $it" } to t.summary.let { "Works: $it" } })
         }
     }
 }
+
+private const val ANYTYPE_URL = "http://127.0.0.1:31009"
 
 /** Where Knowledge is kept: Kinuvo's own notes, or the user's notes app. */
 private enum class NotesApp(val label: String) {
