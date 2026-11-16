@@ -2,6 +2,7 @@ package kinuvo.server
 
 import kinuvo.harness.Agent
 import kinuvo.harness.AgentConfig
+import kinuvo.server.store.FileStore
 import kinuvo.server.store.Store
 import kinuvo.protocol.session.AgentEvent
 import kinuvo.protocol.session.SessionChange
@@ -21,6 +22,10 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
 import kotlin.test.Test
+import kinuvo.protocol.session.SessionStatus
+import kinuvo.server.plugin.appendText
+import kinuvo.server.store.CorruptSession
+import kotlinx.io.files.Path
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 
@@ -106,5 +111,54 @@ class SessionLogTest {
             assertEquals((before + first + latest).map { it.withWrittenAt(null) }, log.entries(agent.id, session).map { it.withWrittenAt(null) })
             assertEquals(latest.settings, log.session(agent.id, session).settings)
         }
+    }
+
+    @Test
+    fun publishesNeverReadTranscriptsAgainAndKeepPerSessionOrder() = runBlocking {
+        val home = TestHome()
+        val log = SessionLog(home.store)
+        val agent = home.agent.id
+        val a = log.createSession(agent, "").id
+        val b = log.createSession(agent, "").id
+        val seen = mutableMapOf(a to mutableListOf<AgentEvent>(), b to mutableListOf<AgentEvent>())
+        for (id in listOf(a, b)) log.subscribe(agent, id, null, 100, object : SessionLog.Subscriber {
+            override fun offer(update: SessionUpdate): Boolean { (update.change as? SessionChange.Event)?.let { seen.getValue(id) += it.event }; return true }
+        })
+        log.publish(agent, a, AgentEvent.RunStarted(RunId("a")))
+        val reads = home.store.transcriptReads
+        repeat(20) {
+            log.publish(agent, a, AgentEvent.TextMessageContent("m", "a$it"))
+            log.publish(agent, b, AgentEvent.TextMessageContent("m", "b$it"))
+        }
+        log.publish(agent, a, AgentEvent.RunFinished(RunId("a")))
+        assertEquals(reads, home.store.transcriptReads)
+        val deltas = { id: SessionId -> seen.getValue(id).filterIsInstance<AgentEvent.TextMessageContent>().map { it.delta } }
+        assertEquals(List(20) { "a$it" }, deltas(a))
+        assertEquals(List(20) { "b$it" }, deltas(b))
+        assertEquals(SessionStatus.Idle, log.status(a))
+    }
+
+    @Test
+    fun publishToAnotherAgentsSessionFailsAndCorruptionStillSurfaces() = runBlocking {
+        val home = TestHome()
+        val log = SessionLog(home.store)
+        val other = home.store.createAgent("other")
+        val id = log.createSession(home.agent.id, "").id
+        assertFailsWith<IllegalArgumentException> { log.publish(other.id, id, AgentEvent.RunStarted(RunId("x"))) }
+        log.publish(home.agent.id, id, AgentEvent.RunStarted(RunId("x")))
+        Path(home.files.sessions(home.agent.id), "$id.jsonl").appendText("{\"type\":")
+        assertFailsWith<CorruptSession> { log.publish(home.agent.id, id, AgentEvent.RunFinished(RunId("x"))) }
+        Unit
+    }
+
+    @Test
+    fun pageDoesNotReadEveryTranscriptAgain() = runBlocking {
+        val home = TestHome()
+        val log = SessionLog(home.store)
+        repeat(30) { log.createSession(home.agent.id, "s$it") }
+        log.page(home.agent.id, null, 20)
+        val reads = home.store.transcriptReads
+        assertEquals(20, log.page(home.agent.id, null, 20).sessions.size)
+        assertEquals(reads, home.store.transcriptReads)
     }
 }

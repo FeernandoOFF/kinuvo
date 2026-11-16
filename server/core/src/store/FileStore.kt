@@ -11,6 +11,7 @@ import kinuvo.server.plugin.exists
 import kinuvo.server.plugin.isDirectory
 import kinuvo.server.plugin.isFile
 import kinuvo.server.plugin.isInside
+import kinuvo.server.plugin.modifiedNanos
 import kinuvo.server.plugin.readTextOrNull
 import kinuvo.server.plugin.writeAtomically
 import kinuvo.harness.Agent
@@ -50,6 +51,18 @@ class FileStore(
     /** Session writes go one at a time, so a truncate can't drop an append and JSONL lines don't interleave. */
     private val lock = Mutex()
     private val json = Json { ignoreUnknownKeys = true }
+
+    /** What [session] and [entryCount] derive from a transcript, as it was when the file had [size] bytes and [modified]. */
+    private class Summary(val size: Long, val modified: Long, val digest: Digest, val endsWithNewline: Boolean)
+
+    /**
+     * Summaries by transcript path, never the entries. Valid while the file's size and modification time still match, so a
+     * file edited, restored or appended to outside this Store (owners, the `kinuvo` CLI) is re-read on its next access; a
+     * same-size edit inside the filesystem's timestamp resolution is the one change it can miss. Every write path here
+     * refreshes or drops its entry; corrupt files are never cached, so they keep failing on every read.
+     */
+    private val summaries = HashMap<String, Summary>()
+    private val summariesLock = Mutex()
     private val teamsFile get() = Path(files.home, "teams.json")
     private fun readTeams(): List<Team> = teamsFile.readTextOrNull()?.let { json.decodeFromString(it) } ?: emptyList()
     override suspend fun teams() = lock.withLock { readTeams() }
@@ -110,30 +123,68 @@ class FileStore(
             } }.sortedWith(SessionOrder)
 
     override suspend fun session(agentId: AgentId, sessionId: SessionId): SessionInfo {
-        var routine: RoutineRef? = null
-        var settings = SessionSettings()
-        val entries = entries(agentId, sessionId)
-        var title: String? = null
-        var task: String? = null
-        var answered = false
-        var details = SessionEntry.Details()
-        for (e in entries) when (e) {
-            is SessionEntry.Outcome -> answered = answered || e.report
-            is SessionEntry.Started -> routine = e.routine
-            is SessionEntry.Settings -> settings = e.settings
-            is SessionEntry.Details -> details = e
+        val d = (summary(agentId, sessionId)?.digest ?: Digest())
+        return SessionInfo(sessionId, agentId, d.details.title ?: d.routine?.name ?: d.title ?: NEW_TITLE, routine = d.routine, settings = d.settings,
+            answered = d.answered, task = d.task, favorite = d.details.favorite, createdAt = createdAt(sessionId), parent = d.details.parent, hidden = d.details.hidden, teamId = d.details.teamId)
+    }
+
+    override suspend fun entryCount(agentId: AgentId, sessionId: SessionId): Int = summary(agentId, sessionId)?.digest?.count ?: 0
+
+    /** The session facts [session] reports, kept up to date one entry at a time. */
+    private data class Digest(
+        val routine: RoutineRef? = null,
+        val settings: SessionSettings = SessionSettings(),
+        val title: String? = null,
+        val task: String? = null,
+        val answered: Boolean = false,
+        val details: SessionEntry.Details = SessionEntry.Details(),
+        val count: Int = 0,
+    ) {
+        operator fun plus(e: SessionEntry): Digest = when (e) {
+            is SessionEntry.Outcome -> copy(answered = answered || e.report)
+            is SessionEntry.Started -> copy(routine = e.routine)
+            is SessionEntry.Settings -> copy(settings = e.settings)
+            is SessionEntry.Details -> copy(details = e)
             is SessionEntry.UserMessage -> {
-                answered = answered || e.routine == null
-                if (title == null) {
+                val next = copy(answered = answered || e.routine == null)
+                if (title != null) next else {
                     val run = parseTaskPrompt(e.text)
-                    task = run?.first
-                    title = (run?.second ?: e.text.ifBlank { e.attachments.firstOrNull()?.name.orEmpty() }).take(60)
+                    next.copy(task = run?.first, title = (run?.second ?: e.text.ifBlank { e.attachments.firstOrNull()?.name.orEmpty() }).take(60))
                 }
             }
-            else -> Unit
+            else -> this
+        }.let { it.copy(count = count + 1) }
+    }
+
+    private fun digestOf(entries: List<SessionEntry>) = entries.fold(Digest()) { digest, entry -> digest + entry }
+
+    /** The cached [Summary] of the Session's file when it still matches, else read and validated again; null when there is no file. */
+    private suspend fun summary(agentId: AgentId, sessionId: SessionId): Summary? {
+        val file = file(agentId, sessionId)
+        val key = file.toString()
+        val size = SystemFileSystem.metadataOrNull(file)?.takeIf { it.isRegularFile }?.size
+        val modified = file.modifiedNanos()
+        if (size == null || modified == null) {
+            summariesLock.withLock { summaries -= key }
+            return null
         }
-        return SessionInfo(sessionId, agentId, details.title ?: routine?.name ?: title ?: NEW_TITLE, routine = routine, settings = settings,
-            answered = answered, task = task, favorite = details.favorite, createdAt = createdAt(sessionId), parent = details.parent, hidden = details.hidden, teamId = details.teamId)
+        summariesLock.withLock { summaries[key] }?.takeIf { it.size == size && it.modified == modified }?.let { return it }
+        val text = file.readTextOrNull()
+        if (text == null) {
+            summariesLock.withLock { summaries -= key }
+            return null
+        }
+        return Summary(size, modified, digestOf(decode(text, sessionId)), text.isEmpty() || text.endsWith("\n"))
+            .also { fresh -> summariesLock.withLock { summaries[key] = fresh } }
+    }
+
+    private suspend fun remember(file: Path, digest: Digest) {
+        val key = file.toString()
+        val size = SystemFileSystem.metadataOrNull(file)?.takeIf { it.isRegularFile }?.size
+        val modified = file.modifiedNanos()
+        summariesLock.withLock {
+            if (size == null || modified == null) summaries -= key else summaries[key] = Summary(size, modified, digest, true)
+        }
     }
 
     override suspend fun createSession(agentId: AgentId, instructions: String, routine: RoutineRef?): SessionInfo {
@@ -142,30 +193,36 @@ class FileStore(
         val id = lock.withLock {
             sessionDirectory(agentId).createDirectories()
             val id = generateSequence { prefix + random.nextInt(0x1000, 0xffff).toString(16) }.first { !taken(SessionId(it)) }
-            writeAtomically(file(agentId, SessionId(id)), encode(listOf(SessionEntry.Started(instructions, routine, writtenAt = clock()))))
+            val started = SessionEntry.Started(instructions, routine, writtenAt = clock())
+            writeAtomically(file(agentId, SessionId(id)), encode(listOf(started)))
+            remember(file(agentId, SessionId(id)), Digest() + started)
             id
         }
         return SessionInfo(SessionId(id), agentId, routine?.name ?: NEW_TITLE, routine = routine, createdAt = createdAt(SessionId(id)))
     }
 
     override suspend fun append(agentId: AgentId, sessionId: SessionId, entry: SessionEntry) = lock.withLock {
-        entries(agentId, sessionId) // Refuse to append after a corrupt or torn record.
-        write(agentId, sessionId, entry.withWrittenAt(entry.writtenAt ?: clock()))
+        val current = summary(agentId, sessionId) // Refuse to append after a corrupt or torn record.
+        val stamped = entry.withWrittenAt(entry.writtenAt ?: clock())
+        write(agentId, sessionId, stamped, current?.endsWithNewline ?: true)
+        remember(file(agentId, sessionId), (current?.digest ?: Digest()) + stamped)
     }
 
     override suspend fun appendAll(agentId: AgentId, sessionId: SessionId, entries: List<SessionEntry>): List<SessionEntry> = lock.withLock {
         val saved = this.entries(agentId, sessionId)
         val added = missingEntries(saved, entries).map { it.withWrittenAt(it.writtenAt ?: clock()) }
-        if (added.isNotEmpty()) writeAtomically(file(agentId, sessionId), encode(saved + added))
+        if (added.isNotEmpty()) {
+            writeAtomically(file(agentId, sessionId), encode(saved + added))
+            remember(file(agentId, sessionId), digestOf(saved + added))
+        }
         added
     }
 
     private fun encode(entries: List<SessionEntry>) = entries.joinToString("") { json.encodeToString(SessionEntry.serializer(), it) + "\n" }
 
-    private fun write(agentId: AgentId, sessionId: SessionId, entry: SessionEntry) {
+    private fun write(agentId: AgentId, sessionId: SessionId, entry: SessionEntry, endsWithNewline: Boolean) {
         val file = file(agentId, sessionId)
-        val text = file.readTextOrNull().orEmpty()
-        val separator = if (text.isNotEmpty() && !text.endsWith("\n")) "\n" else ""
+        val separator = if (endsWithNewline) "" else "\n"
         file.appendText(separator + json.encodeToString(SessionEntry.serializer(), entry) + "\n")
     }
 
@@ -173,14 +230,19 @@ class FileStore(
         readEntries(file(agentId, sessionId), sessionId)
 
     override suspend fun deleteSession(agentId: AgentId, sessionId: SessionId) = lock.withLock {
-        SystemFileSystem.delete(file(agentId, sessionId), mustExist = false)
+        val file = file(agentId, sessionId)
+        SystemFileSystem.delete(file, mustExist = false)
+        summariesLock.withLock { summaries -= file.toString() }
     }
 
     override suspend fun truncate(agentId: AgentId, sessionId: SessionId, size: Int) = lock.withLock {
         val file = file(agentId, sessionId)
         require(size >= 0)
         val saved = readEntries(file, sessionId)
-        if (saved.size > size) writeAtomically(file, encode(saved.take(size)))
+        if (saved.size > size) {
+            writeAtomically(file, encode(saved.take(size)))
+            remember(file, digestOf(saved.take(size)))
+        }
     }
 
     private fun load(id: String): Agent {
@@ -196,8 +258,15 @@ class FileStore(
         files.config(AgentId(id)), files.doc(AgentId(id), AgentDoc.Identity), files.doc(AgentId(id), AgentDoc.Soul), files.skills(AgentId(id)), files.mcp(AgentId(id)), files.env(AgentId(id)),
     )
 
-    private fun readEntries(file: Path, sessionId: SessionId): List<SessionEntry> {
-        val text = file.readTextOrNull() ?: return emptyList()
+    private fun readEntries(file: Path, sessionId: SessionId): List<SessionEntry> =
+        file.readTextOrNull()?.let { decode(it, sessionId) } ?: emptyList()
+
+    /** Transcripts decoded so far, for tests that check nothing is re-read. */
+    internal var transcriptReads = 0
+        private set
+
+    private fun decode(text: String, sessionId: SessionId): List<SessionEntry> {
+        transcriptReads++
         val lines = text.lines()
         return lines.mapIndexedNotNull { index, line ->
             if (line.isBlank()) null else try {

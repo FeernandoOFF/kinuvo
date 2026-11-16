@@ -87,6 +87,10 @@ class InMemoryStore(private val clock: () -> Long = { Clock.System.now().toEpoch
         validate(agentId, sessionId)
         sessions[sessionId].orEmpty().toList()
     }
+    override suspend fun entryCount(agentId: AgentId, sessionId: SessionId) = lock.withLock {
+        validate(agentId, sessionId)
+        sessions[sessionId]?.size ?: 0
+    }
     override suspend fun deleteSession(agentId: AgentId, sessionId: SessionId) = lock.withLock {
         validate(agentId, sessionId)
         sessions.remove(sessionId)
