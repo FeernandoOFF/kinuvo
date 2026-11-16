@@ -67,13 +67,15 @@ fun SettingsScreen(
     val show = { r: Route.Settings -> edits?.saved(); onNavigate(r, false) }
     SettingsContent(
         SettingsUi(state, appState.agents, now, appState.capabilities, (appState.connection as? Connection.Ready)?.server, appState.pairing, appState.pairingBase, appState.pairingError, appState.devices, (appState.connection as? Connection.Ready)?.client?.lastConnect?.management == true, appState.servers, appState.sharing,
-            (appState.connection as? Connection.Ready)?.let { serverLabel(it) } ?: "this Server"),
+            (appState.connection as? Connection.Ready)?.let { serverLabel(it) } ?: "this Server", sharingOptions = appState.sharingOptions),
         SettingsActions(
             onBack = onBack,
             onRenameServer = app::rename,
             onForgetServer = { app.forget(it) },
             onPickServer = settings::pickServer,
             onShare = app::share,
+            onShareTailcat = app::shareTailcat,
+            onResetTailcat = app::resetTailcat,
             onRefreshPairing = app::refreshPairing,
             onPairingBase = app::selectPairingBase,
             onRevokeDevice = app::revokeDevice,
@@ -154,6 +156,7 @@ data class SettingsUi(val state: SettingsState, val agents: List<AgentInfo> = em
     val sharing: Boolean? = null,
     /** The selected Server's machine, as labels name it: its name, or "this device" when embedded here. */
     val serverName: String = "this Server",
+    val sharingOptions: Map<SharingOption, SharingState> = emptyMap(),
 ) {
     fun available(section: SettingsSection) = capabilities.allows(section) && (section != SettingsSection.Harnesses || state.harnesses.catalog != null)
     val route get() = state.route
@@ -167,6 +170,8 @@ class SettingsActions(
     val onForgetServer: (Server.Remote) -> Unit = {},
     val onPickServer: (String) -> Unit = {},
     val onShare: (Boolean) -> Unit = {},
+    val onShareTailcat: (Boolean) -> Unit = {},
+    val onResetTailcat: () -> Unit = {},
     val onRefreshPairing: (Boolean) -> Unit = {},
     val onPairingBase: (String) -> Unit = {},
     val onRevokeDevice: (PairedDeviceInfo) -> Unit = {},

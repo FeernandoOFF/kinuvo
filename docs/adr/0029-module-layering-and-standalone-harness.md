@@ -14,6 +14,7 @@ Status: Accepted
 Target layout:
 
 - `protocol`: wire and domain values (typed IDs, session entries, events, tool identity, neutral tool descriptors, `WireError`).
+- `transport/tailcat`: neutral JVM native transport binding, with no Server or client dependencies; both `client/sdk` and `server/jvm` may use it.
 - `client/`: `sdk` (transport), `app` (repositories, ViewModels, the `EmbeddedServer` interface), `ui` (rendering only, no Server dependencies).
 - `harness/`: `api` (execution contracts), `builtin` (the native harness), and the adapters `acp` and `remote`.
 - `server/`: `plugin-api` (including verified model downloads), `core`, `rpc`, and the hosts `jvm` and `embedded`.
@@ -29,7 +30,7 @@ Target layout:
 
 **MCP gateway.** `gateways/kinuvo-mcp` may depend on `server/core`, `harness/api` and `protocol` to expose the existing tool service. Its JVM host installs it; harness adapters receive only a neutral descriptor. The directory avoids Amper's duplicate module name with `plugins/mcp`. Its integration tests may depend on `harness/acp` and `testing/*` for external-process tests against a real Server.
 
-**Enforcement.** `ModuleEdgesTest` in `testing/server-testing` parses `module.yaml` dependency edges against explicit per-layer rules, including the adapter and host edges, and checks that `harness/api` and `harness/builtin` reach only `harness/*` and `protocol`, and that `client/*` reaches only `client/*` and `protocol`. Test dependencies may also reach `testing/*`, and Server-side modules may use `client/*` in tests. Edges outside the rules need a commented entry in the test's exception list, which is empty today.
+**Enforcement.** `ModuleEdgesTest` in `testing/server-testing` parses `module.yaml` dependency edges against explicit per-layer rules, including the adapter and host edges, and checks that `harness/api` and `harness/builtin` reach only `harness/*` and `protocol`, and that `client/*` reaches only `client/*`, `protocol` and the neutral `transport/tailcat` binding. Test dependencies may also reach `testing/*`, and Server-side modules may use `client/*` in tests. Edges outside the rules need a commented entry in the test's exception list, which is empty today.
 
 Where today's `harness/core` code goes (the plugin-facing contract goes to plugin-api, its stateful implementation to core):
 

@@ -2,6 +2,7 @@
 product: jvm/lib
 
 dependencies:
+  - ../../transport/tailcat: exported
   - ../../harness/builtin: exported
   - ../core: exported
   - ../rpc

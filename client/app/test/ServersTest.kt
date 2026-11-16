@@ -9,6 +9,9 @@ import kotlin.test.assertTrue
 import kotlin.test.assertFalse
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
+import kinuvo.client.TailcatForward
+import kinuvo.client.TailcatForwarder
+import kinuvo.protocol.device.Links
 import kinuvo.protocol.device.PairingCode
 import kinuvo.protocol.agent.AgentId
 import kinuvo.protocol.session.SessionId
@@ -35,6 +38,42 @@ private object FakeEmbedded : EmbeddedServer {
 }
 
 class ServersTest {
+    private val forwarder = object : TailcatForwarder {
+        override val supported = true
+        override suspend fun open(address: String): TailcatForward = error("Not used")
+    }
+
+    @Test fun tailcatResetKeepsIdentityAndSecretsOutOfPreferences() {
+        val prefs = MemoryPreferences()
+        val servers = Servers(prefs, credentials = prefs.credentials, tailcat = forwarder)
+        val address = "tc" + "a".repeat(140)
+        val first = servers.remember(servers.tailcatServer(address), "first", "home", "Kitchen") as Server.Remote
+        servers.select(first)
+        val updated = servers.remember(servers.tailcatServer("tc" + "b".repeat(140)), "second", "home", "New name") as Server.Remote
+        assertEquals(first.key, updated.key)
+        assertEquals("Kitchen", updated.name)
+        assertEquals(updated, servers.current)
+        assertEquals(listOf(updated), servers.all)
+        assertFalse(prefs["servers"]!!.contains(address))
+        assertFalse(prefs["servers"]!!.contains(updated.tailcatAddress!!))
+        assertFalse(prefs["servers"]!!.contains("second"))
+        assertFalse(updated.toString().contains(updated.tailcatAddress))
+        assertEquals(updated.tailcatAddress, (servers.unpair(updated)).tailcatAddress)
+        val unpaired = servers.all.single() as Server.Remote
+        assertNull(unpaired.token)
+        assertEquals(updated.tailcatAddress, unpaired.tailcatAddress)
+        servers.forget(unpaired)
+        assertNull(prefs.credentials.read("${updated.key}.address"))
+        assertNull(servers.current)
+    }
+
+    @Test fun tailcatPairingIsAnAdditionalChoice() {
+        val address = "tc" + "a".repeat(140)
+        val info = pairingInfo("tailcat:opaque", PairingCode("123456", "2026-10-10T04:00:00Z", 8787, tailcatAddress = address))
+        assertEquals(Links.tailcatPair(address, "123456"), info.tailcatLink)
+        assertEquals(emptyList(), info.bases)
+    }
+
     @Test
     fun remembersPairedServersAndUpdatesTokens() {
         val prefs = MemoryPreferences()

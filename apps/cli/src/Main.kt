@@ -17,9 +17,10 @@ import kinuvo.server.store.AgentFiles
 import kinuvo.server.jvm.jvmProviders
 import kinuvo.server.jvm.kinuvoHome
 import kinuvo.server.jvm.JvmAgentRuntime
+import kinuvo.server.jvm.ServeException
 import kinuvo.server.jvm.JvmServerHost
 import kinuvo.server.jvm.ServeOptions
-import kinuvo.server.jvm.Tailcat
+import kinuvo.transport.tailcat.Tailcat
 import java.io.File
 import kinuvo.server.jvm.serve
 import kinuvo.server.jvm.LocalServer
@@ -112,7 +113,10 @@ private object LocalAccess : ServerAccess {
 private class TailcatReset : CoreSuspendingCliktCommand("tailcat-reset") {
     override fun help(context: Context) = "Discard this home's Tailcat address. Stop the Server first; the next start creates a new address."
     override suspend fun run() {
-        serveErrors { Tailcat.load().reset(File(kinuvoHome().toString(), "tailcat")) }
+        serveErrors {
+            try { Tailcat.load().reset(File(kinuvoHome().toString(), "tailcat")) }
+            catch (e: IllegalStateException) { throw ServeException(e.message ?: "Could not reset Tailcat") }
+        }
         echo("Tailcat address reset. Start the Server with --tailcat to create a new address.")
     }
 }

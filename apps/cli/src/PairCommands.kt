@@ -24,6 +24,11 @@ internal class PairCommand : ServerCommand("pair", "Show a pairing code and QR c
         val minutes = (Instant.parse(pairing.expiresAt) - Clock.System.now()).inWholeMinutes.coerceAtLeast(0) + 1
         echo(if (pairing.management) "Access: management" else "Access: ordinary Device")
         echo("Pairing code: ${pairing.code} (valid for ~$minutes min, one Device)")
+        pairing.tailcatAddress?.let { address ->
+            val link = Links.tailcatPair(address, pairing.code)
+            echo("Tailcat link (secret): $link")
+            echo(qr(link))
+        }
         val proxied = host == null && pairing.publicUrl == null && System.getenv("KINUVO_BEHIND_PROXY")?.lowercase() in listOf("1", "true")
         if (proxied) {
             echo("Open the Server's web address (the domain set in your hosting UI) and paste the code into the pairing form.")

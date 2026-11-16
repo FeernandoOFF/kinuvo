@@ -59,9 +59,12 @@ class CliTest {
             assertFailsWith<CliktError> { kinuvo("-a", "work", "skills", "remove", "nope") }
             kinuvo("agents", "delete", "work", "--yes")
             assertEquals(listOf("default"), server.harness.store.agents().map { it.id.value })
+            server.auth.tailcatAddress = "tc" + "a".repeat(140)
             val pair = kinuvo("pair", "--host", "192.168.1.12", "--refresh")
             assertContains(pair, "kinuvo://pair?server=http%3A%2F%2F192.168.1.12%3A$port&code=")
             assertContains(pair, "/#pair=")
+            assertContains(pair, "kinuvo://pair?tailcat=${server.auth.tailcatAddress}&code=")
+            server.auth.tailcatAddress = null
             val phone = KinuvoClient("ws://127.0.0.1:$port/ws", "phone", pairingCode = server.auth.currentPairingCode())
             try {
                 phone.connect()

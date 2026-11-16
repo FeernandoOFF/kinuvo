@@ -18,6 +18,9 @@ import kinuvo.server.jvm.LocalServer
 import kinuvo.server.jvm.LoginServiceSettings
 import kinuvo.server.jvm.kinuvoHome
 import kinuvo.app.computer.ComputerDriver
+import kinuvo.app.connection.SharingOption
+import java.util.prefs.Preferences
+import java.security.MessageDigest
 import kinuvo.app.connection.EmbeddedServer
 import kinuvo.plugins.cua.DesktopComputer
 import kinuvo.protocol.computer.ComputerRequest
@@ -38,6 +41,22 @@ import kotlin.system.exitProcess
 
 /** Runs the Kinuvo server (the harness) inside the app; phones on the LAN can pair with it. */
 private object HarnessEmbeddedServer : EmbeddedServer {
+    private fun preferenceKey() = MessageDigest.getInstance("SHA-256").digest(kinuvoHome().toString().toByteArray()).joinToString("") { "%02x".format(it) }
+    private val prefs = Preferences.userRoot().node("kinuvo/tailcat")
+    private val tailcatSharing = TailcatSharing(
+        saved = { prefs.getBoolean(preferenceKey(), false) },
+        save = { prefs.putBoolean(preferenceKey(), it) },
+        active = { server?.tailcatEnabled == true },
+        toggle = {
+            check(running() == null) { "Sharing is managed by the process that owns this Server" }
+            (server ?: started()).shareTailcat(it)
+        },
+        resetAddress = {
+            check(running() == null) { "Sharing is managed by the process that owns this Server" }
+            (server ?: started()).resetTailcat()
+        },
+    )
+    override val sharingOptions get() = mapOf(SharingOption.Tailcat to tailcatSharing.takeIf { server != null && running() == null })
     private val mutex = Mutex()
     private var server: JvmServerHost? = null
     private var port = 0
@@ -50,6 +69,7 @@ private object HarnessEmbeddedServer : EmbeddedServer {
             s.advertise()
             Runtime.getRuntime().addShutdownHook(Thread { s.stop() })
             server = s
+            tailcatSharing.restore()
         }
     }
 
