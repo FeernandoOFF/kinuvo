@@ -39,3 +39,12 @@ include local JNI directories, so the script builds once under
 `apps/android/jniLibs/` and `apps/android-play/jniLibs/`. Never commit these outputs. The shared Kotlin interface and
 JSON/handle ownership live in src@jvmAndAndroid; src@android uses JNI and src@jvm
 uses FFM. Native calls must run on an IO dispatcher.
+
+Android supplies a live Java NetworkInterface snapshot through JNI to netmon;
+Go netlink enumeration is denied to app UIDs, and upstream disables its fallback
+in cgo builds. This applies to both roles and needs no additional permission.
+Native diagnostics use the KinuvoTailcat logcat tag at DEBUG level on Android;
+on desktop set KINUVO_TAILCAT_DEBUG=1 for stderr. Diagnostics redact addresses
+and credential-bearing messages. Startup errors return fixed, non-secret reasons.
+The Android build script invalidates the toolchain packaging cache after staging
+native libraries because Kotlin Toolchain 0.13 does not track jniLibs changes.

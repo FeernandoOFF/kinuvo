@@ -127,7 +127,7 @@ func serve(r request) (_ *tunnel, addr string, err error) {
 	} else if !os.IsNotExist(e) {
 		return nil, "", errors.New("cannot read saved key")
 	}
-	s := &tailcat.Server{Key: key.Private, PresharedKey: key.Public.PresharedKey, Logf: func(string, ...any) {}}
+	s := &tailcat.Server{Key: key.Private, PresharedKey: key.Public.PresharedKey, Logf: debugLog}
 	if len(key.Public.Region) == 1 {
 		s.Region = key.Public.Region[0]
 	}
@@ -136,7 +136,8 @@ func serve(r request) (_ *tunnel, addr string, err error) {
 	defer done()
 	t.listener, err = s.Listen(start, "tcp", fmt.Sprintf(":%d", virtualPort))
 	if err != nil {
-		return nil, "", errors.New("Tailcat startup failed")
+		debugLog("serve failed: %v", err)
+		return nil, "", startupError(err)
 	}
 	addr = string(s.TailcatAddr())
 	key.Public, err = tailcat.ParseAddr(tailcat.Addr(addr))
@@ -158,7 +159,7 @@ func forward(r request) (*tunnel, int, error) {
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	client := tailcat.NewClient(tailcat.Addr(r.Address))
-	client.Logf = func(string, ...any) {}
+	client.Logf = debugLog
 	ln, err := net.Listen("tcp4", "127.0.0.1:0")
 	if err != nil {
 		cancel()
@@ -176,7 +177,14 @@ func (t *tunnel) track(c net.Conn) bool {
 	t.mu.Lock()
 	if t.closed || len(t.conns) >= 128 {
 		t.mu.Unlock()
-		go func() { defer func() { recover() }(); c.Close() }()
+		go func() {
+			defer func() {
+				if v := recover(); v != nil {
+					debugLog("native panic: %v", v)
+				}
+			}()
+			c.Close()
+		}()
 		return false
 	}
 	t.conns[c] = true
@@ -184,7 +192,11 @@ func (t *tunnel) track(c net.Conn) bool {
 	return true
 }
 func (t *tunnel) accept(dial func() (net.Conn, error)) {
-	defer func() { recover() }()
+	defer func() {
+		if v := recover(); v != nil {
+			debugLog("native panic: %v", v)
+		}
+	}()
 	for {
 		a, err := t.listener.Accept()
 		if err != nil {
@@ -194,10 +206,15 @@ func (t *tunnel) accept(dial func() (net.Conn, error)) {
 			continue
 		}
 		go func() {
-			defer func() { recover() }()
+			defer func() {
+				if v := recover(); v != nil {
+					debugLog("native panic: %v", v)
+				}
+			}()
 			defer func() { a.Close(); t.mu.Lock(); delete(t.conns, a); t.mu.Unlock() }()
 			b, err := dial()
 			if err != nil {
+				debugLog("dial failed: %v", err)
 				return
 			}
 			if !t.track(b) {
@@ -248,7 +265,14 @@ func (t *tunnel) stop() error {
 			t.listener.Close()
 		}
 		for _, c := range conns {
-			go func() { defer func() { recover() }(); c.Close() }()
+			go func() {
+				defer func() {
+					if v := recover(); v != nil {
+						debugLog("native panic: %v", v)
+					}
+				}()
+				c.Close()
+			}()
 		}
 		if t.closeNative != nil {
 			if err := t.closeNative(); err != nil {

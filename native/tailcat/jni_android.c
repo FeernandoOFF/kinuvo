@@ -2,6 +2,43 @@
 
 #include <jni.h>
 #include <stdlib.h>
+#include <string.h>
+
+static JavaVM *vm;
+static jclass network_class;
+static jmethodID interfaces_method;
+
+JNIEXPORT void JNICALL Java_kinuvo_transport_tailcat_TailcatJni_initialize(JNIEnv *env, jobject self) {
+    (*env)->GetJavaVM(env, &vm);
+    jclass cls = (*env)->GetObjectClass(env, self);
+    network_class = (*env)->NewGlobalRef(env, cls);
+    interfaces_method = (*env)->GetStaticMethodID(env, cls, "networkInterfaces", "()Ljava/lang/String;");
+    (*env)->DeleteLocalRef(env, cls);
+}
+
+char *kinuvo_tailcat_interfaces(void) {
+    if (vm == NULL || network_class == NULL || interfaces_method == NULL) return NULL;
+    JNIEnv *env;
+    int attached = 0;
+    if ((*vm)->GetEnv(vm, (void **)&env, JNI_VERSION_1_6) != JNI_OK) {
+        if ((*vm)->AttachCurrentThread(vm, &env, NULL) != JNI_OK) return NULL;
+        attached = 1;
+    }
+    char *result = NULL;
+    jstring value = (*env)->CallStaticObjectMethod(env, network_class, interfaces_method);
+    if ((*env)->ExceptionCheck(env)) {
+        (*env)->ExceptionClear(env);
+    } else if (value != NULL) {
+        const char *text = (*env)->GetStringUTFChars(env, value, NULL);
+        if (text != NULL) {
+            result = strdup(text);
+            (*env)->ReleaseStringUTFChars(env, value, text);
+        }
+        (*env)->DeleteLocalRef(env, value);
+    }
+    if (attached) (*vm)->DetachCurrentThread(vm);
+    return result;
+}
 
 extern int kinuvo_tailcat_abi_version(void);
 extern char *kinuvo_tailcat_call(char *, char *);

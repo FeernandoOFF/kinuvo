@@ -94,7 +94,9 @@ class TailcatConnectionTest {
                 override suspend fun close() { closed = true }
             }
         }
-        assertFailsWith<IllegalStateException> { tailcatConnection("secret", forwarder) { error("failed") } }
+        val error = assertFailsWith<IllegalStateException> { tailcatConnection("secret", forwarder) { error("failed") } }
+        assertEquals("Could not reach the Server through Tailcat", error.message)
+        assertEquals("failed", error.cause?.message)
         assertTrue(closed)
     }
 }
