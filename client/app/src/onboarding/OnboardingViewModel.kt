@@ -163,8 +163,11 @@ class OnboardingViewModel(private val config: ConfigRepository, private val noti
     /** Loads [agent]'s settings; with [identity], its name and, unless [keepLook] keeps the one picked on the welcome, its look. */
     fun load(agent: AgentInfo?, identity: Boolean = true, keepLook: Boolean = false) {
         loading?.cancel()
-        edit { it.copy(details = null, catalog = ModelsCatalog(), providers = emptyList(), deviceCode = null) }
-        if (agent == null) return
+        edit { it.copy(details = null, catalog = ModelsCatalog(), providers = emptyList(), deviceCode = null, busy = false, error = null) }
+        if (agent == null) {
+            edit { it.copy(error = "This Server returned no Agents. Check its Agents folder and access permissions, then try again.") }
+            return
+        }
         loading = attempt {
             val details = config.details(agent.id)
             val catalog = config.models()

@@ -65,17 +65,26 @@ expect fun createPrivateFile(file: Path)
 fun isInside(root: Path, target: Path): Boolean {
     val real = realPath(target) ?: return false
     val base = realPath(root) ?: return false
-    return real == base || real.startsWith("$base/")
+    var current: Path? = real
+    while (current != null) {
+        if (current == base) return true
+        current = current.parent
+    }
+    return false
 }
 
-private fun realPath(path: Path): String? {
+private fun realPath(path: Path): Path? {
     var existing = path
-    var rest = ""
+    val rest = mutableListOf<String>()
     while (!existing.exists()) {
-        rest = "/${existing.name}$rest"
+        // Missing traversal components cannot be resolved safely through symlinks.
+        if (existing.name == "..") return null
+        rest += existing.name
         existing = existing.parent ?: return null
     }
-    return SystemFileSystem.resolve(existing).toString().trimEnd('/') + rest
+    var resolved = SystemFileSystem.resolve(existing)
+    for (name in rest.asReversed()) if (name != ".") resolved = Path(resolved, name)
+    return resolved
 }
 
 /** The process environment; empty where there is none. */

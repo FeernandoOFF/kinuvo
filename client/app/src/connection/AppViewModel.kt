@@ -78,6 +78,7 @@ data class AppState(
     /** Whether the embedded Server is reachable from other Devices; null when it can't be. */
     val sharing: Boolean? = null,
     val online: Boolean = false,
+    val agentsLoaded: Boolean = false,
     val syncedAt: Long? = null,
 )
 
@@ -485,7 +486,7 @@ class AppViewModel(
     }
 
     private fun AppState.cleared() = copy(agents = emptyList(), sessions = RepositoryState(), routines = emptyMap(), devices = DevicesState(), usage = null,
-        pairing = null, pairingBase = null, pairingError = null, capabilities = null, online = false, syncedAt = null)
+        pairing = null, pairingBase = null, pairingError = null, capabilities = null, online = false, agentsLoaded = false, syncedAt = null)
 
     private suspend fun refreshAgents() {
         if (connected == null) return
@@ -494,7 +495,7 @@ class AppViewModel(
 
     /** Loads every Agent's first page of Sessions too, so the rail can mark the ones with news. */
     private fun setAgents(agents: List<AgentInfo>) {
-        state.update { it.copy(agents = agents) }
+        state.update { it.copy(agents = agents, agentsLoaded = true) }
         agents.filter { it.id !in state.value.sessions.lists }.forEach { repo.loadSessions(it.id) }
         // Home lists every Agent's next and latest runs.
         agents.filter { it.id !in state.value.routines }.forEach { routines.load(it.id) }
