@@ -129,10 +129,10 @@ private fun TasksForm(setup: TasksSetup, p: Pane) {
                 }
             }
             if (nonePicked) GroupRow("Turn on at least one list", tint = color(warningColor))
-            if (form.fields.isNotEmpty() && form.editable) ActionRow(if (p.ui.state.testing) "Loading…" else "Load lists with these settings", Lucide.RefreshCw,
+            if (form.fields.isNotEmpty() && form.editable && (lists == null || form != initialForm)) ActionRow(if (p.ui.state.testing) "Loading…" else "Load lists with these settings", Lucide.RefreshCw,
                 { p.actions.onLoadLists(TaskProviderRef(provider, form.settings().options, form.secretUpdates())) }, enabled = !p.ui.state.testing)
         }
-        AdvancedGroup(summary = "When Agents start and how often Kinuvo checks") {
+        AdvancedGroup(summary = if (builtIn) "When Agents start on a task" else "When Agents start and how often Kinuvo checks") {
             if (!builtIn && shown.size > 1) PickerRow("New tasks go to", listOf<String?>(null) + shown.map { it.name }, defaultList?.takeIf { d -> shown.any { it.name == d } }, { it ?: "The first list" }, { defaultList = it })
             GroupRow("Start before due", chevron = false) { Input(startBefore, "3", Modifier.width(64.dp)); Text("days", color = color(mutedColor)) }
             if (!builtIn) GroupRow("Check for tasks every", chevron = false) { Input(poll, "5", Modifier.width(64.dp)); Text("min", color = color(mutedColor)) }

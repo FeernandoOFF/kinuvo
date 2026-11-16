@@ -571,7 +571,7 @@ private fun StepForm(
     }, modifier = modifier) { step ->
         val scroll = rememberScrollState()
         // Fades out above the button while there's more below, so a cut-off row reads as "scroll for more".
-        Column(Modifier.fillMaxSize().fadeBottom(scroll.canScrollForward).verticalScroll(scroll).padding(bottom = Spacing.space32), verticalArrangement = Arrangement.spacedBy(Spacing.space14)) {
+        Column(Modifier.fillMaxSize().fadeBottom(scroll.canScrollForward).verticalScroll(scroll).padding(bottom = Spacing.space64), verticalArrangement = Arrangement.spacedBy(Spacing.space14)) {
             val display = displayStyle(if (wide) 40.sp else 30.sp)
             if (step == 4) NameHeadline(s, display, onEdit) else Text(Headlines[step - 1], style = display)
             Text(Subtitles[step - 1], color = color(mutedColor))
@@ -768,7 +768,7 @@ private fun providerStatus(info: ProviderInfo?): String? = when {
     info?.apiKey?.configured == true -> "API key saved"
     info?.apiKey != null -> "Needs an API key"
     info?.downloads != null -> "Private · runs on this Server, downloads a model"
-    info?.id == APPLE -> "Free and private · built into this Mac"
+    info?.id == APPLE -> "Free · runs privately on your Server"
     else -> null
 }
 

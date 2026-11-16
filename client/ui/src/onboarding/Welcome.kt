@@ -159,7 +159,7 @@ private fun Panel(options: WelcomeOptions, featured: Int, wide: Boolean) {
 @Composable
 private fun ColumnScope.Choices(options: WelcomeOptions, featured: Int, wide: Boolean) {
     Text("Your agents, on your own Server.", style = displayStyle(if (wide) 48.sp else 34.sp))
-    Text(if (options.onLocal != null) "Agents are AI assistants that live on a Server you own. Set one up on this computer, or connect to yours." else "Agents are AI assistants that live on a Server you own. Connect to Kinuvo on your computer.",
+    Text(if (options.onLocal != null) "Agents are AI assistants that live on a Server you own. Set one up on this device, or connect to yours." else "Agents are AI assistants that live on a Server you own. Connect to the one on your computer.",
         color = color(mutedColor), fontSize = if (wide) 18.sp else 16.sp)
     Spacer(Modifier.height(Spacing.space8))
     options.error?.let { Text(it, color = color(destructiveColor), style = TextStyles.label) }
