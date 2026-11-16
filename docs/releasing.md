@@ -68,6 +68,10 @@ Windows desktop apps remain unsigned. Choose **More info → Run anyway** in Sma
 
 ## Target native libraries
 
+Tailcat packaging needs a C toolchain and Go 1.27.1+; Go automatically downloads
+the required toolchain for tailcat v0.7.0. Build locally with
+`scripts/build-tailcat.sh arm64` or `x64`.
+
 Desktop and bundled-runtime CLI packages filter nested jars to the target OS and
 architecture, including LiteRT-LM, zstd and WebRTC. The universal `kinuvo.jar`
 retains all platforms. Nested jars remain uncompressed for the executable jar
