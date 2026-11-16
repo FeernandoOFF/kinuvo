@@ -8,6 +8,7 @@ import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.runtime.snapshots.SnapshotStateList
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.paneTitle
@@ -119,7 +120,10 @@ internal val LocalModalNavigation = staticCompositionLocalOf<ModalNavigation?> {
 /** A Settings page's title with [back] and [trailing] controls; in a sheet, centered like the platform's sheets, and on other touch screens beside the chat's floating Back. */
 @Composable
 internal fun SettingsPageHeader(title: String, back: (() -> Unit)? = null, subtitle: String? = null,
-    info: String? = null, trailing: @Composable RowScope.() -> Unit = {}) {
+    info: String? = null,
+    /** On desktop, keeps the title and [trailing] over a centered column this wide, so on big screens they line up with it. */
+    contentWidth: Dp? = null,
+    trailing: @Composable RowScope.() -> Unit = {}) {
     val navigation = LocalModalNavigation.current
     val up = if (navigation != null) navigation.back else back
     if (LocalInSheet.current) Box(Modifier.fillMaxWidth().then(LocalSheetDrag.current).heightIn(min = 52.dp).padding(horizontal = Spacing.space16, vertical = Spacing.space4)) {
@@ -144,16 +148,18 @@ internal fun SettingsPageHeader(title: String, back: (() -> Unit)? = null, subti
         }
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.space4), content = trailing)
     } else {
-        TitleBarRow(leading = up != null) {
-            if (up != null) HeaderButton(Lucide.ArrowLeft, "Back", up)
-            Column(Modifier.weight(1f).padding(start = Spacing.space6)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(title, Modifier.weight(1f, fill = false), fontWeight = FontWeight.Normal, singleLine = true, overflow = TextOverflow.Ellipsis)
-                    info?.let { InfoButton(it) }
+        Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.TopCenter) {
+            TitleBarRow(contentWidth?.let { Modifier.widthIn(max = it) } ?: Modifier, leading = up != null) {
+                if (up != null) HeaderButton(Lucide.ArrowLeft, "Back", up)
+                Column(Modifier.weight(1f).padding(start = Spacing.space6)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(title, Modifier.weight(1f, fill = false), fontWeight = FontWeight.Normal, singleLine = true, overflow = TextOverflow.Ellipsis)
+                        info?.let { InfoButton(it) }
+                    }
+                    subtitle?.let { Text(it, style = TextStyles.caption, color = color(mutedColor), singleLine = true) }
                 }
-                subtitle?.let { Text(it, style = TextStyles.caption, color = color(mutedColor), singleLine = true) }
+                trailing()
             }
-            trailing()
         }
         HorizontalSeparator()
     }

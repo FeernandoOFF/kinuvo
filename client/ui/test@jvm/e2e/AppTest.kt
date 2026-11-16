@@ -58,8 +58,10 @@ internal fun appTest(
     harnesses: List<FakeHarness> = emptyList(),
     script: ModelScript.() -> Unit = {},
     scenario: suspend Scenario.(Agent) -> Unit = {},
+    /** A desktop window with a pointer, instead of a phone. */
+    desktop: Boolean = false,
     block: suspend AppTest.() -> Unit,
-) = runPhoneTest {
+) = (if (desktop) ::runDesktopTest else ::runPhoneTest) {
     val server = withContext(Dispatchers.Default) {
         TestServer.start(plugins = plugins, harnesses = harnesses, script = { reply(REPLY); script() }, scenario = {
             val agent = agent("e2e", "E2E Agent")
@@ -68,7 +70,7 @@ internal fun appTest(
         })
     }
     try {
-        runApp({ server.connect() }, AppTest(this, server, flow), block)
+        runApp({ server.connect() }, AppTest(this, server, flow), block, if (desktop) InteractionMode.Pointer else InteractionMode.Touch)
     } finally {
         withContext(Dispatchers.Default + NonCancellable) { server.stop() }
     }
@@ -78,7 +80,7 @@ internal fun appTest(
 internal const val REPLY = "Hello from the scripted model"
 
 @OptIn(ExperimentalTestApi::class)
-private suspend fun <T : AppDriver> ComposeUiTest.runApp(connect: suspend (String) -> FrameConnection, app: T, block: suspend T.() -> Unit) {
+private suspend fun <T : AppDriver> ComposeUiTest.runApp(connect: suspend (String) -> FrameConnection, app: T, block: suspend T.() -> Unit, mode: InteractionMode = InteractionMode.Touch) {
     val values = mutableMapOf<String, String>()
     val tokens = mutableMapOf<String, String>()
     val preferences = object : Preferences {
@@ -103,7 +105,7 @@ private suspend fun <T : AppDriver> ComposeUiTest.runApp(connect: suspend (Strin
             CompositionLocalProvider(
                 LocalViewModelStoreOwner provides app.viewModels,
                 LocalLifecycleOwner provides app,
-                LocalForcedInteractionMode provides InteractionMode.Touch,
+                LocalForcedInteractionMode provides mode,
                 LocalBackdropBlur provides false,
             ) {
                 KoinIsolatedContext(koin) { KinuvoApp() }

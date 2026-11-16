@@ -61,20 +61,22 @@ fun PageHeader(icon: ImageVector, title: String, subtitle: String? = null, scope
     } else {
         TitleBarRow {
             chrome?.let { if (it.wide) HeaderButton(Lucide.PanelLeft, "Toggle sidebar ${shortcut(".")}", it.onToggleShell) else HeaderButton(Lucide.Menu, "Home and agents", it.onToggleShell) }
-            Text(title, Modifier.padding(start = Spacing.space6), fontWeight = FontWeight.Normal, singleLine = true)
-            subtitle?.let { Text(it, Modifier.weight(1f, fill = false).padding(start = Spacing.space8), color = color(mutedColor), style = TextStyles.secondary, singleLine = true, overflow = TextOverflow.Ellipsis) }
-            scope?.let { s ->
-                AgentMenu(s, Modifier.padding(start = Spacing.space6)) { open ->
-                    Button(onClick = open, style = ButtonStyle.Ghost, buttonSize = ButtonSize.Small, contentPadding = PaddingValues(horizontal = Spacing.space6), modifier = Modifier.titleBarControl()) {
-                        ScopeAvatar(s, 18.dp)
-                        Spacer(Modifier.width(Spacing.space6))
-                        Text(s.label, singleLine = true)
-                        Spacer(Modifier.width(Spacing.space4))
-                        Icon(Lucide.ChevronDown, Modifier.size(14.dp), tint = color(mutedColor))
+            // The title side takes the room, so the actions always sit at the end, subtitle or not.
+            Row(Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) {
+                Text(title, Modifier.padding(start = Spacing.space6), fontWeight = FontWeight.Normal, singleLine = true)
+                subtitle?.let { Text(it, Modifier.weight(1f, fill = false).padding(start = Spacing.space8), color = color(mutedColor), style = TextStyles.secondary, singleLine = true, overflow = TextOverflow.Ellipsis) }
+                scope?.let { s ->
+                    AgentMenu(s, Modifier.padding(start = Spacing.space6)) { open ->
+                        Button(onClick = open, style = ButtonStyle.Ghost, buttonSize = ButtonSize.Small, contentPadding = PaddingValues(horizontal = Spacing.space6), modifier = Modifier.titleBarControl()) {
+                            ScopeAvatar(s, 18.dp)
+                            Spacer(Modifier.width(Spacing.space6))
+                            Text(s.label, singleLine = true)
+                            Spacer(Modifier.width(Spacing.space4))
+                            Icon(Lucide.ChevronDown, Modifier.size(14.dp), tint = color(mutedColor))
+                        }
                     }
                 }
             }
-            Spacer(Modifier.weight(1f))
             actions.forEach { HeaderButton(it.icon, it.label, it.onClick) }
         }
         HorizontalSeparator()

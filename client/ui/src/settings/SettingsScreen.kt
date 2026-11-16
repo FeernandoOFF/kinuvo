@@ -422,7 +422,7 @@ private fun SectionPane(
         }
     }
     if (split) Row(Modifier.fillMaxSize()) {
-        Box(Modifier.width(360.dp).fillMaxHeight()) { list(Pane(ui, actions, go, rootBack)) }
+        Box(Modifier.width(ListColumnWidth).fillMaxHeight()) { list(Pane(ui, actions, go, rootBack)) }
         VerticalSeparator()
         Box(Modifier.weight(1f)) {
             // Beside the list, only editing an existing item has somewhere to go back to.

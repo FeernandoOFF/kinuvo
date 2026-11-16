@@ -123,6 +123,17 @@ internal fun ConnectionSettingsPane(p: Pane) {
         val connected = p.ui.server
         val remotes = p.ui.servers.filterIsInstance<Server.Remote>()
         val shown = remotes.firstOrNull { it.key == p.ui.state.server } ?: connected as? Server.Remote
+        // Adding a device leads, in its own group, so it never sinks below a long device list.
+        if (p.ui.management && p.ui.capabilities.supports(ServerFeature.Pairing)) RowGroup("Add a device") {
+            val info = p.ui.pairing
+            if (info != null) GroupBox { PairingPanel(info, p.ui.pairingBase, p.actions.onPairingBase, { p.actions.onRefreshPairing(true) }, p.ui.pairingError) }
+            else {
+                p.ui.pairingError?.let { GroupBox { Pill(it, tone = Tone.Danger, icon = Lucide.CircleX) } }
+                ActionRow("Pair a device", Lucide.Plus, { p.actions.onRefreshPairing(false) }, subtitle = "A phone, computer or browser, with a one-time code")
+            }
+            ConfirmRow("Pair a management device", Lucide.ShieldPlus, "Pair a management device?", p.actions.onManagementPairing, "Get code", destructive = false,
+                detail = "It will be able to change Server configuration, pair other devices and answer Approvals.")
+        }
         if (p.ui.servers.size > 1) RowGroup("Servers on this device") {
             p.ui.servers.forEach { server ->
                 GroupRow(server.label, { if (server is Server.Remote) p.actions.onPickServer(server.key) }, subtitle = (server as? Server.Remote)?.address,
@@ -156,18 +167,7 @@ internal fun ConnectionSettingsPane(p: Pane) {
             }
         }
         if (p.ui.capabilities.supports(ServerFeature.Pairing)) {
-            PairedDevices(p.ui.devices, p.actions.onRevokeDevice, p.ui.management, "Devices using ${connected?.label ?: "this Server"}") {
-                if (p.ui.management) {
-                    val info = p.ui.pairing
-                    if (info != null) GroupBox { PairingPanel(info, p.ui.pairingBase, p.actions.onPairingBase, { p.actions.onRefreshPairing(true) }, p.ui.pairingError) }
-                    else {
-                        p.ui.pairingError?.let { GroupBox { Pill(it, tone = Tone.Danger, icon = Lucide.CircleX) } }
-                        ActionRow("Pair a device", Lucide.Plus, { p.actions.onRefreshPairing(false) }, subtitle = "A phone, computer or browser, with a one-time code")
-                    }
-                    ConfirmRow("Pair a management device", Lucide.ShieldPlus, "Pair a management device?", p.actions.onManagementPairing, "Get code", destructive = false,
-                        detail = "It will be able to change Server configuration, pair other devices and answer Approvals.")
-                }
-            }
+            PairedDevices(p.ui.devices, p.actions.onRevokeDevice, p.ui.management, "Devices using ${connected?.label ?: "this Server"}")
             Text("Revoking takes effect right away; the device needs a new code to connect again.", Modifier.padding(horizontal = Spacing.space6), style = TextStyles.caption, color = color(mutedColor))
         }
         RowGroup("Data on this device") {
@@ -181,8 +181,7 @@ internal fun ConnectionSettingsPane(p: Pane) {
 
 /** One row per paired Device: what it is, when it was last seen, and Revoke. */
 @Composable
-internal fun PairedDevices(state: DevicesState, onRevoke: (PairedDeviceInfo) -> Unit, management: Boolean = true, title: String = "Paired devices",
-    actions: @Composable ColumnScope.() -> Unit = {}) {
+internal fun PairedDevices(state: DevicesState, onRevoke: (PairedDeviceInfo) -> Unit, management: Boolean = true, title: String = "Paired devices") {
     val devices = state.devices
     RowGroup(title) {
         state.error?.let { GroupBox { Pill(it, tone = Tone.Danger, icon = Lucide.CircleX) } }
@@ -203,6 +202,5 @@ internal fun PairedDevices(state: DevicesState, onRevoke: (PairedDeviceInfo) -> 
                     "Revoke", true, { asking = false }) { asking = false; onRevoke(device) }
             } }
         }
-        actions()
     }
 }

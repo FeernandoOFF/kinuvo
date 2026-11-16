@@ -55,7 +55,20 @@ private val NodeWidth = 208.dp
 private val NodeHeight = 68.dp
 
 /** This Server's Workflows for a page that lists them beside something else, e.g. Routines: [onOpen] opens one's graph. */
-class WorkflowsSection(val workflows: List<Workflow>?, val onOpen: (WorkflowId) -> Unit, val onNew: (() -> Unit)?, val error: String? = null, val onReload: () -> Unit = {})
+class WorkflowsSection(
+    val workflows: List<Workflow>?, val onOpen: (WorkflowId) -> Unit,
+    /** Creates a Workflow, then hands its ID to the callback to open it. */
+    val onNew: ((onCreated: (WorkflowId) -> Unit) -> Unit)?, val error: String? = null, val onReload: () -> Unit = {},
+    /** The [id] Workflow's graph beside the list, like an open Routine; [onClose] goes back to the list, e.g. once it's deleted. */
+    val detail: (@Composable (id: WorkflowId, onBack: (() -> Unit)?, onClose: () -> Unit) -> Unit)? = null,
+)
+
+/** The Routines page's item for the [id] Workflow, so it opens beside the list like a Routine. */
+fun workflowItem(id: WorkflowId) = "$WorkflowItemPrefix${id.value}"
+
+fun workflowOf(item: String?) = item?.takeIf { it.startsWith(WorkflowItemPrefix) }?.let { WorkflowId(it.removePrefix(WorkflowItemPrefix)) }
+
+private const val WorkflowItemPrefix = "workflow:"
 
 val LocalWorkflows = compositionLocalOf<WorkflowsSection?> { null }
 

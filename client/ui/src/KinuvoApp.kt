@@ -356,8 +356,15 @@ fun KinuvoApp(app: AppViewModel = koinViewModel(), initialRoute: Route? = null, 
                                 val listed by list.state.collectAsState()
                                 // Leaving a routine being edited asks first, as other navigation from here does.
                                 WorkflowsSection(listed.workflows.takeUnless { it.isEmpty() && listed.loading }, onOpen = { id -> homeEdits.leave { history.open(Route.Workflows(id)) } },
-                                    onNew = { homeEdits.leave { list.create(route.agentId) { history.open(Route.Workflows(it)) } } },
-                                    error = listed.error.takeIf { listed.workflows.isEmpty() }, onReload = list::reload)
+                                    onNew = { opened -> homeEdits.leave { list.create(route.agentId, opened) } },
+                                    error = listed.error.takeIf { listed.workflows.isEmpty() }, onReload = list::reload,
+                                    // Beside the list on wide windows; phones keep the graph on its own screen.
+                                    detail = if (history.compact) null else { id, back, close ->
+                                        val workflow = koinViewModel<WorkflowViewModel>(key = "workflow/${app.serverLifetime}/$id") { parametersOf(id) }
+                                        WorkflowScreen(workflow, appState.agents,
+                                            onOpenSession = { agent, session -> homeEdits.leave { history.open(Route.Chat(agent, session)) } },
+                                            onDelete = { workflow.delete(close) }, onBack = back)
+                                    })
                             } else null
                             key(route, homeEdits.revision) {
                                 CompositionLocalProvider(LocalSettingsEdits provides homeEdits, LocalWorkflows provides workflows) {

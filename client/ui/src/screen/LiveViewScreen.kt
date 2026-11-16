@@ -518,7 +518,7 @@ fun ComputersScreen(model: LiveViewModel, list: Boolean, onOpen: (ScreenRef) -> 
     val actions = LiveActions(model::select, model::takeover, model::open, model::command, model::input, model::drawn, model::decodeFailed, model::retry, model::showOverview, model::close, model::resize, model::presentation)
     BoxWithConstraints(Modifier.fillMaxSize().background(color(backgroundColor))) {
         if (maxWidth >= 900.dp) Row(Modifier.fillMaxSize()) {
-            Box(Modifier.width(340.dp).fillMaxHeight().background(color(sidebarColor))) { ComputerList(state, actions.retry, actions.select, selected = state.selected, server = server) }
+            Box(Modifier.width(ListColumnWidth).fillMaxHeight().background(color(backgroundColor))) { ComputerList(state, actions.retry, actions.select, selected = state.selected, server = server) }
             VerticalSeparator()
             Box(Modifier.weight(1f)) {
                 DisposableEffect(model) { model.visible(true); onDispose { model.visible(false) } }

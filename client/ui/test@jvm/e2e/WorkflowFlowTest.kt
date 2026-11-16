@@ -63,6 +63,18 @@ class WorkflowFlowTest {
         tap("Step step-2")
         eventually("Published")
     }
+
+    @Test fun desktopOpensAWorkflowBesideTheList() = appTest("workflow-desktop", desktop = true) {
+        pair()
+        tap("Home")
+        tap("Routines & Workflows")
+        await("No [Ww]orkflows yet")
+        tap("New workflow")
+        // The new graph opens in the page's detail, with the tables still beside it.
+        await("Step step-1")
+        await("All Workflows")
+        screenshot("beside-list")
+    }
 }
 
 /** Scrolls to [text] until the run shows it, since step results land below the graph on narrow windows. */

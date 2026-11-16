@@ -46,3 +46,6 @@ object Radius {
     val heroBottom = 40.dp
     val touchButton = 100.dp
 }
+
+/** The list beside a detail on Home's pages (Routines, Tools, Knowledge, Artifacts, Computers): one width and the page's own background, so they read alike. */
+val ListColumnWidth = 360.dp

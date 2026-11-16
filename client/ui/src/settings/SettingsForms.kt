@@ -57,10 +57,10 @@ internal fun ItemRow(selected: Boolean, icon: ImageVector, title: String, subtit
 @Composable
 internal fun DetailPane(back: (() -> Unit)?, title: String, error: String? = null, info: String? = null, subtitle: String? = null, trailing: @Composable RowScope.() -> Unit = {}, content: @Composable ColumnScope.() -> Unit) {
     Column(Modifier.fillMaxSize()) {
-        SettingsPageHeader(title, back, subtitle = subtitle, info = info, trailing = trailing)
+        SettingsPageHeader(title, back, subtitle = subtitle, info = info, contentWidth = DetailWidth, trailing = trailing)
         Box(Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()), contentAlignment = Alignment.TopCenter) {
             Column(
-                Modifier.widthIn(max = 680.dp).fillMaxWidth().padding(horizontal = Spacing.space16, vertical = Spacing.space12),
+                Modifier.widthIn(max = DetailWidth).fillMaxWidth().padding(horizontal = Spacing.space16, vertical = Spacing.space12),
                 verticalArrangement = Arrangement.spacedBy(Spacing.space16),
             ) {
                 error?.let { ErrorMessage(it) }
@@ -69,6 +69,8 @@ internal fun DetailPane(back: (() -> Unit)?, title: String, error: String? = nul
         }
     }
 }
+
+private val DetailWidth = 680.dp
 
 @Composable
 internal fun DetailGroup(title: String, content: @Composable ColumnScope.() -> Unit) = RowGroup(title) { GroupBox(content) }

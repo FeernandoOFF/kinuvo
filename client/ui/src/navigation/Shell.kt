@@ -544,6 +544,8 @@ private fun ServerPicker(
         panel = {
             DropdownMenuPanel {
                 Column(Modifier.widthIn(min = 260.dp, max = 340.dp).heightIn(max = 680.dp).verticalScroll(rememberScrollState())) {
+                    // Adding leads, so it never scrolls away below a long list.
+                    DropdownMenuItem(onClick = { open = false; actions.onAddServer() }) { MenuLabel(Lucide.Plus, "Connect to another server") }
                     DropdownMenuLabel { Text("Servers", style = TextStyles.caption) }
                     menu.servers.forEach { server ->
                         val active = server == menu.active
@@ -565,7 +567,6 @@ private fun ServerPicker(
                             }
                         }
                     }
-                    DropdownMenuItem(onClick = { open = false; actions.onAddServer() }) { MenuLabel(Lucide.Plus, "Connect to another server") }
                 }
             }
         },

@@ -23,6 +23,9 @@ import kinuvo.protocol.session.*
 import kinuvo.ui.design.*
 import kinuvo.ui.workflow.LocalWorkflows
 import kinuvo.ui.workflow.summary
+import kinuvo.protocol.workflow.WorkflowId
+import kinuvo.ui.workflow.workflowItem
+import kinuvo.ui.workflow.workflowOf
 import kotlinx.datetime.LocalDateTime
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
@@ -59,7 +62,9 @@ internal fun RoutineList(p: Pane) {
             }
         }
         if (workflows != null) Column(verticalArrangement = Arrangement.spacedBy(Spacing.space6)) {
-            TableHeader("All Workflows", "New workflow", workflows.onNew.takeIf { !restricted })
+            // Opens beside the list, like a Routine, where the page has room for a detail; otherwise on its own screen.
+            val open = { id: WorkflowId -> if (workflows.detail != null) p.go(ui.route.copy(item = workflowItem(id), editing = false)) else workflows.onOpen(id) }
+            TableHeader("All Workflows", "New workflow", workflows.onNew?.takeIf { !restricted }?.let { create -> { create(open) } })
             val list = workflows.workflows
             when {
                 workflows.error != null -> LoadFailure(workflows.error, onAction = workflows.onReload)
@@ -68,7 +73,7 @@ internal fun RoutineList(p: Pane) {
                     GroupRow("No workflows yet", subtitle = "Chain Agent turns and Approvals into steps the Server runs for you, on demand or on a schedule.", icon = Lucide.Workflow, tint = color(mutedColor))
                 }
                 else -> RowGroup { list.sortedByDescending { it.createdAt }.forEach { w ->
-                    ItemRow(false, Lucide.Workflow, w.name, summary(w), { workflows.onOpen(w.id) }, muted = !w.enabled) { if (!w.enabled) Pill("Off") }
+                    ItemRow(workflowOf(ui.route.item) == w.id, Lucide.Workflow, w.name, summary(w), { open(w.id) }, muted = !w.enabled) { if (!w.enabled) Pill("Off") }
                 } }
             }
         }
@@ -93,6 +98,12 @@ private fun TableHeader(title: String, addLabel: String, onAdd: (() -> Unit)?) {
 @Composable
 internal fun RoutinePane(p: Pane) {
     val route = p.ui.route
+    val workflow = workflowOf(route.item)
+    val workflows = LocalWorkflows.current
+    // Beside the list, the page header already owns the sidebar toggle.
+    if (workflow != null && workflows?.detail != null) return CompositionLocalProvider(LocalHomeChrome provides null) {
+        workflows.detail(workflow, p.back) { p.go(route.copy(item = null, editing = false)) }
+    }
     val routine = p.ui.state.routine
     when {
         !p.ui.management -> DetailPane(p.back, "Routines") { ManagementAccessRequired() }
