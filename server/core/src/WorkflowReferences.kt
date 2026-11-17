@@ -27,8 +27,8 @@ internal object WorkflowReferences {
         is WorkflowStep.AgentTurn -> listOf(step.prompt)
         is WorkflowStep.Model -> listOfNotNull(step.prompt, step.system)
         is WorkflowStep.Tool -> strings(step.args)
-        is WorkflowStep.Approval -> emptyList()
-        is WorkflowStep.Review -> listOf(step.value)
+        is WorkflowStep.Approval -> listOf(step.text)
+        is WorkflowStep.Review -> listOf(step.text, step.value)
         is WorkflowStep.Condition -> listOf(step.left, step.right)
     }
 

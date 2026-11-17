@@ -240,14 +240,15 @@ class Workflows internal constructor(
                 is WorkflowStep.Approval -> {
                     val agent = sessionAgent(run)
                     session = attention(run, agent, session)
+                    val text = render(run.id, step.text)
                     val pending = harness.approvals.register()
                     try {
                         val interaction = PendingInteraction.Approval(pending.id, ToolCallId(Uuid.random().toString()), "workflow_approval", "{}",
-                            reason = step.text, trustable = false, preview = ChangePreview("Continue Workflow", body = step.text))
+                            reason = text, trustable = false, preview = ChangePreview("Continue Workflow", body = text))
                         harness.log.publish(agent.id, session, AgentEvent.InteractionRequested(interaction))
                         update(run.id, step.id, StepRun(StepStatus.WaitingApproval, session, interactionId = pending.id))
                         val allowed = pending.await() !is ApprovalDecision.Deny
-                        note(agent, session, "Approval${step.text.quoted()}: ${if (allowed) "allowed" else "denied"}")
+                        note(agent, session, "${if (allowed) "Allowed" else "Denied"}${text.quoted()}")
                         if (!allowed) error("Workflow Approval rejected")
                         update(run.id, step.id, StepRun(StepStatus.Done, session))
                     } finally {
@@ -259,14 +260,15 @@ class Workflows internal constructor(
                     val agent = sessionAgent(run)
                     session = attention(run, agent, session)
                     val form = ReviewForm.of(render(run.id, step.value))
+                    val text = render(run.id, step.text)
                     val pending = harness.questions.register()
                     try {
-                        val interaction = PendingInteraction.Questions(pending.id, ToolCallId(Uuid.random().toString()), step.text.ifBlank { null }, form.questions)
+                        val interaction = PendingInteraction.Questions(pending.id, ToolCallId(Uuid.random().toString()), text.ifBlank { null }, form.questions)
                         harness.log.publish(agent.id, session, AgentEvent.InteractionRequested(interaction))
                         update(run.id, step.id, StepRun(StepStatus.WaitingApproval, session, interactionId = pending.id))
                         val answers = pending.await()
                         val output = answers?.let { runCatching { form.output(it) } }
-                        note(agent, session, "Review${step.text.quoted()}: ${if (output == null) "declined" else output.exceptionOrNull()?.message ?: "submitted"}")
+                        note(agent, session, "Review ${if (output == null) "declined" else if (output.isFailure) "failed" else "submitted"}${text.quoted()}")
                         update(run.id, step.id, StepRun(StepStatus.Done, session, (output ?: error("Review declined")).getOrThrow()))
                     } finally {
                         pending.close()
@@ -357,7 +359,7 @@ class Workflows internal constructor(
     private suspend fun note(agent: Agent, session: SessionId, text: String) = note(agent.id, session, text)
     private suspend fun note(agent: AgentId, session: SessionId, text: String) =
         harness.log.append(agent, session, SessionEntry.Notice("workflow-${Uuid.random()}", WORKFLOW_NOTE, text))
-    private fun String.quoted() = if (isBlank()) "" else " “${trim().take(80)}”"
+    private fun String.quoted() = if (isBlank()) "" else ": “${trim().take(80)}”"
 
     private suspend fun outputs(id: WorkflowRunId): WorkflowValues {
         val run = lock.withLock { data.runs.first { it.id == id } }

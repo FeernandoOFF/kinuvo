@@ -192,7 +192,8 @@ private fun PendingRequest.icon(): ImageVector = when (this) {
 }
 
 private fun PendingRequest.title(): String = when (this) {
-    is PendingRequest.Approval -> if (event.isShell()) "Run this command?" else "Allow ${event.identity?.localId ?: event.toolCallName}?"
+    is PendingRequest.Approval -> if (event.isShell()) "Run this command?" else if (event.toolCallName == WORKFLOW_APPROVAL) "Continue the Workflow?"
+        else "Allow ${event.identity?.localId ?: event.toolCallName}?"
     is PendingRequest.Questions -> asked.title ?: "Questions for you"
     is PendingRequest.Takeover -> "Your turn"
     is PendingRequest.External -> ""
@@ -215,7 +216,7 @@ private fun RequestHeader(request: PendingRequest, count: Int, from: String? = n
         Column(Modifier.weight(1f)) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.space8)) {
                 Text(request.title(), Modifier.weight(1f, fill = false), fontWeight = FontWeight.Normal, singleLine = true, overflow = TextOverflow.Ellipsis)
-                if (request is PendingRequest.Approval) Pill("${request.event.risk.name} risk", tone = when (request.event.risk) { Risk.Low -> Tone.Neutral; Risk.Medium -> Tone.Warning; Risk.High -> Tone.Danger })
+                if (request is PendingRequest.Approval && request.event.toolCallName != WORKFLOW_APPROVAL) Pill("${request.event.risk.name} risk", tone = when (request.event.risk) { Risk.Low -> Tone.Neutral; Risk.Medium -> Tone.Warning; Risk.High -> Tone.Danger })
                 if (count > 1) Text("1 of $count", style = TextStyles.caption, color = color(mutedColor), singleLine = true)
             }
             from?.let { Text(it, style = TextStyles.caption, color = color(mutedColor), singleLine = true, overflow = TextOverflow.Ellipsis) }

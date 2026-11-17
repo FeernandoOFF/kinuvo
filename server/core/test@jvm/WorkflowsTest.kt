@@ -624,7 +624,7 @@ class WorkflowsTest {
             assertEquals("Test", server.harness.store.session(agent, one.sessionId!!).title)
             suspend fun notes() = server.harness.store.entries(agent, one.sessionId!!).filterIsInstance<SessionEntry.Notice>().also { n -> assertTrue(n.all { it.code == "workflow" }) }.map { it.message }
             withTimeout(5000) { while (notes().last() != "Run done") delay(20) }
-            assertEquals(listOf("Run started", "Approval “First?”: allowed", "Approval “Second?”: allowed", "Review “Check it”: submitted", "Run done"), notes())
+            assertEquals(listOf("Run started", "Allowed: “First?”", "Allowed: “Second?”", "Review submitted: “Check it”", "Run done"), notes())
             assertTrue(server.harness.store.entries(agent, one.sessionId!!).none { it is SessionEntry.ToolCall })
             // The next run continues in the same Session.
             val second = c.run(w.id)
@@ -633,8 +633,24 @@ class WorkflowsTest {
             assertTrue(c.call(Api.Respond, RespondParams(again.sessionId!!, again.interactionId!!, InteractionAnswer.Approval(ApprovalDecision.Deny()))))
             assertEquals(WorkflowRunStatus.Failed, await(c, w.id) { it.id == second.id && it.status != WorkflowRunStatus.Running }.status)
             withTimeout(5000) { while (notes().last() != "Run failed") delay(20) }
-            assertEquals(listOf("Run started", "Approval “First?”: denied", "Run failed"), notes().takeLast(3))
+            assertEquals(listOf("Run started", "Denied: “First?”", "Run failed"), notes().takeLast(3))
             assertEquals(listOf(one.sessionId), server.harness.store.sessions(agent).map { it.id })
+        }
+    }
+
+    @Test fun approvalAndReviewQuestionsAreFilledFromEarlierSteps() = runBlocking<Unit> {
+        TestServer.start(plugins = listOf(fakes), scenario = { agent("work") }).use { server ->
+            val c = client(server)
+            val w = c.call(Api.CreateWorkflow, workflow(tool("a", "make"), WorkflowStep.Approval(StepId("ok"), "Reply to {{steps.a.output.who}}?"),
+                WorkflowStep.Review(StepId("r"), "Note for {{input.team}}", "x"), edges = listOf(edge("a", "ok"), edge("ok", "r"))))
+            c.run(w.id, buildJsonObject { put("team", "Support") })
+            val ok = await(c, w.id) { it.steps[StepId("ok")]?.status == StepStatus.WaitingApproval }.steps.getValue(StepId("ok"))
+            withTimeout(5000) { while (server.harness.log.pending(ok.sessionId!!).isEmpty()) yield() }
+            assertEquals("Reply to Bob?", (server.harness.log.pending(ok.sessionId!!).single() as PendingInteraction.Approval).reason)
+            assertTrue(c.call(Api.Respond, RespondParams(ok.sessionId!!, ok.interactionId!!, InteractionAnswer.Approval(ApprovalDecision.AllowOnce))))
+            val (_, asked) = waitingReview(server, c)
+            assertEquals("Note for Support", asked.title)
+            assertEquals("invalid_params", assertFailsWith<KinuvoException> { c.call(Api.UpdateWorkflow, w.copy(steps = listOf(WorkflowStep.Approval(StepId("ok"), "{{steps.zz.output}}")), edges = emptyList())) }.code)
         }
     }
 
