@@ -77,23 +77,6 @@ class WorkflowFlowTest {
         requests(Api.UpdateWorkflow, 1)
     }
 
-    @Test fun aNewWorkflowStartsFromAnExample() = appTest("workflow-template", desktop = true) {
-        pair()
-        tap("Home")
-        tap("Routines & Workflows")
-        tap("New workflow")
-        await("Start from an example")
-        screenshot("examples")
-        tap("Triage with a condition")
-        await("Unsaved changes")
-        gone("Start from an example")
-        tap("Save")
-        gone("Unsaved changes")
-        scrollTo("Run with these")
-        screenshot("inputs")
-        requests(Api.UpdateWorkflow, 1)
-    }
-
     @Test fun aRunTakesItsInputsAndShowsItsResult() = appTest("workflow-input", script = {
         on("Write about dogs") { reply("Dogs are loyal") }
         on("Write about cats") { reply("Cats nap") }

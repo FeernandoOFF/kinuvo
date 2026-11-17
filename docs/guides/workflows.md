@@ -1,6 +1,6 @@
 ---
 title: "Workflows"
-description: "Chain fetches, small model requests, reviews and Agent turns into a graph the Server runs, and try the bundled examples."
+description: "Chain fetches, small model requests, reviews and Agent turns into a graph the Server runs."
 ---
 
 A **Workflow** is a graph of steps the Server runs. A step starts when the steps before it are done, and steps with nothing between them run side by side. Each step can use what an earlier one produced by writing `{{steps.tool-1.output}}`, or a part of it with `{{steps.tool-1.output.title}}` when that output is JSON. A Workflow runs as one Agent, set by its `agentId`.
@@ -19,11 +19,11 @@ The point is cost and control. A large model works a task out once in a chat. Th
 
 Tool arguments that are exactly one reference keep their type, so `"input": "{{steps.review-1.output.refund}}"` passes a number. The `run_code` tool takes an `input` of any JSON value, available to its code as the variable `input`. A `run_code` step that calls no other tools returns its value as JSON text, or as plain text if it returns a string. `web_fetch` returns `HTTP 200` and a blank line before the page, and cuts long pages at 20,000 characters.
 
-You can build Workflows in the app's editor or ask an Agent: “Turn the steps we just tested into a Workflow, with a Review before sending anything.” The Agent shows an Approval before saving or running it. The examples below are plain JSON files.
+You can build Workflows in the app's editor or ask an Agent: “Turn the steps we just tested into a Workflow, with a Review before sending anything.” The Agent shows an Approval before saving or running it.
 
 ## In the app
 
-Open **Routines & Workflows** and add a Workflow. While it is still empty, the app offers a few examples to start from; picking one fills the graph, which you can change before saving.
+Open **Routines & Workflows** and add a Workflow.
 
 - **Add step** adds a step after the selected one. Drag from a step's right dot onto another step to connect them. A Condition has two dots: the upper one is followed when it is true, the lower one when it is false.
 - Tap or click a connection, or the left dot it ends at, then **Remove connection** to delete it. On a computer, Delete also removes the selected connection.
@@ -43,22 +43,8 @@ Declare inputs with a name, description and default. A default such as `3`, `tru
 
 A Condition compares its left and right values. Choose Equals, NotEquals, Contains, NotContains, Empty, NotEmpty, GreaterThan or LessThan. Empty includes blank text, null, [], {}, and false. Numeric comparisons need numbers. Label its outgoing edges true or false; unlabelled edges always continue. A merge waits for both branches to settle and runs when at least one reaches it.
 
-## Examples
-
-All of them run as the Agent `default`.
-
-| File | What it shows |
-| --- | --- |
-| [triage-by-urgency.json](../examples/workflows/triage-by-urgency.json) | An email input, a small model, and a Condition: urgent mail goes through a Review to a reply draft; other mail becomes a note. |
-| [show-a-table.json](../examples/workflows/show-a-table.json) | A script produces rows and an HTML Surface displays them in a Session. |
-| [front-page-digest.json](../examples/workflows/front-page-digest.json) | Every kind in one chain: fetch the Hacker News front page, cut it down to titles, links and points with a script, have a model write a digest, edit it in a Review, then hand it to an Agent turn. The fetch and the reduction cost no tokens. |
-| [extract-review-fill.json](../examples/workflows/extract-review-fill.json) | No Session exists until the Review. A script supplies sample emails, a model pulls fields out of one as JSON, you correct them as a typed form, and a script fills a reply template from your answers. |
-| [two-sources-one-answer.json](../examples/workflows/two-sources-one-answer.json) | Two fetches run in parallel, a model merges them, an Approval gates the next step, and an Agent turn delivers the briefing. |
-
-The fetch examples use public pages, which needs the `web_fetch` tool on the Agent. If a web reader such as Firecrawl is set up, `web_fetch` returns Markdown instead of JSON, and the digest example's script will fail; the first step then needs to be changed.
-
 ## Run and retry
 
-To use an example, ask an Agent with the Workflows tool to save it: paste the file or its path. **Run** starts a run; a Review or Approval waits in the Workflow's Session in the app. **Retry** runs a failed or cancelled run again with its original graph and inputs. Done steps keep their outputs and Sessions; unfinished steps run again. Check for partial effects before retrying a step that sends or changes data. Only one run can be active at a time.
+**Run** starts a run; a Review or Approval waits in the Workflow's Session in the app. **Retry** runs a failed or cancelled run again with its original graph and inputs. Done steps keep their outputs and Sessions; unfinished steps run again. Check for partial effects before retrying a step that sends or changes data. Only one run can be active at a time.
 
-See [ADR 0036](../adr/0036-workflows.md), [ADR 0040](../adr/0040-workflow-tool-and-model-steps.md) and [ADR 0042](../adr/0042-workflow-runs-resume-after-restart.md).
+See [ADR 0036](../adr/0036-workflows.md).

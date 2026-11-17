@@ -110,14 +110,10 @@ fun WorkflowScreen(model: WorkflowViewModel, agents: List<AgentInfo>, onOpenSess
             WaitingBar(step, onOpen = state.sessionOf(step.id, state.activeRun)?.let { (agent, session) -> { onOpenSession(agent, session) } }) { allow -> model.approve(step.id, allow) }
         } }
         val edit = model::edit
-        // A short pane keeps its settings on top; a tall one leads with the examples.
-        val settings = @Composable { modifier: Modifier, examplesFirst: Boolean ->
+        val settings = @Composable { modifier: Modifier ->
             Column(modifier.verticalScroll(rememberScrollState()).padding(Spacing.space16), verticalArrangement = Arrangement.spacedBy(Spacing.space12)) {
-                val examples = @Composable { if (workflow.blank && state.runs.isEmpty()) agents.firstOrNull()?.let { agent -> Templates { model.use(it, agent.id) } } }
-                if (examplesFirst) examples()
                 key(generation) {
                     WorkflowSettings(workflow, agents, edit)
-                    if (!examplesFirst) examples()
                     RunPanel(state, saved, running, onInput = model::input, onRun = model::run, onRetry = model::retry)
                 }
                 RunHistory(state.runs, state.run?.id, model::view)
@@ -125,7 +121,7 @@ fun WorkflowScreen(model: WorkflowViewModel, agents: List<AgentInfo>, onOpenSess
         }
         BoxWithConstraints(Modifier.weight(1f).fillMaxWidth()) {
             if (maxWidth < 720.dp) Column(Modifier.fillMaxSize()) {
-                // The graph gets the whole screen until the settings are asked for; a new Workflow opens with them, for its name and the examples.
+                // The graph gets the whole screen until the settings are asked for; a new Workflow opens with them, for its name.
                 var open by rememberSaveable(workflow.id.value) { mutableStateOf(workflow.blank) }
                 WorkflowEditor(model, agents, onOpenSession, Modifier.fillMaxWidth().weight(1f))
                 HorizontalSeparator()
@@ -134,11 +130,11 @@ fun WorkflowScreen(model: WorkflowViewModel, agents: List<AgentInfo>, onOpenSess
                     Text("Settings and runs", Modifier.weight(1f), style = TextStyles.secondary, color = color(mutedColor))
                     Icon(if (open) Lucide.ChevronDown else Lucide.ChevronUp, Modifier.size(16.dp), tint = color(mutedColor), contentDescription = if (open) "Hide settings" else "Show settings")
                 }
-                if (open) settings(Modifier.fillMaxWidth().weight(1f), false)
+                if (open) settings(Modifier.fillMaxWidth().weight(1f))
             } else Row(Modifier.fillMaxSize()) {
                 WorkflowEditor(model, agents, onOpenSession, Modifier.weight(1f).fillMaxHeight())
                 VerticalSeparator()
-                settings(Modifier.width(340.dp).fillMaxHeight(), true)
+                settings(Modifier.width(340.dp).fillMaxHeight())
             }
         }
     }
@@ -216,22 +212,6 @@ private fun InputsEditor(inputs: List<WorkflowInput>, onChange: (List<WorkflowIn
 
 private val InputName = Regex("[a-zA-Z0-9_-]+")
 private fun freeName(inputs: List<WorkflowInput>) = generateSequence(1) { it + 1 }.map { "input-$it" }.first { name -> inputs.none { it.name == name } }
-
-/** Example graphs offered while a new Workflow is still empty. */
-@Composable
-private fun Templates(onUse: (WorkflowTemplate) -> Unit) {
-    Text("Start from an example", style = TextStyles.title, fontWeight = FontWeight.Bold)
-    Column(verticalArrangement = Arrangement.spacedBy(1.dp)) {
-        WorkflowTemplates.all.forEach { template ->
-            ListRow(false, { onUse(template) }, leading = { Icon(Lucide.Sparkles, Modifier.size(16.dp)) }) {
-                Column(Modifier.weight(1f)) {
-                    Text(template.name)
-                    Text(template.summary, style = TextStyles.caption, color = color(mutedColor))
-                }
-            }
-        }
-    }
-}
 
 /** Starts a run with a value for each input, and shows how the selected run ended. */
 @Composable

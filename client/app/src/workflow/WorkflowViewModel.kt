@@ -108,13 +108,6 @@ class WorkflowViewModel(private val repo: WorkflowRepository, private val workfl
     fun input(name: String, value: String) = state.update { it.copy(inputValues = it.inputValues + (name to value)) }
     fun run() = attempt { repo.run(workflowId, runInput(state.value.workflow?.inputs.orEmpty(), state.value.inputValues)) }
     fun retry() = attempt { state.value.takeIf { it.canRetry }?.run?.let { state.update { s -> s.copy(viewing = null) }; repo.retry(it.id) } }
-    /** Swaps the draft's graph for [template]'s, keeping a name the user already chose. */
-    fun use(template: WorkflowTemplate, agent: AgentId) = state.update { s ->
-        val draft = s.draft ?: return@update s
-        val made = template.build(draft.id, draft.agentId ?: agent)
-        s.copy(draft = draft.copy(name = draft.name.takeUnless { it == NEW_WORKFLOW } ?: made.name, description = made.description, steps = made.steps,
-            edges = made.edges, inputs = made.inputs, agentId = made.agentId), generation = s.generation + 1, inputValues = emptyMap())
-    }
     fun cancel() = attempt { state.value.activeRun?.let { repo.cancel(it.id) } }
     fun approve(stepId: StepId, allow: Boolean = true) = attempt {
         val step = requireNotNull(state.value.activeRun?.steps?.get(stepId))
