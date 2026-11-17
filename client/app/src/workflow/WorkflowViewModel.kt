@@ -26,7 +26,8 @@ data class WorkflowState(val workflow: Workflow? = null, val draft: Workflow? = 
     /** What the user typed for the next run's inputs, by name; an input not in here runs with its default. */
     val inputValues: Map<String, String> = emptyMap(),
     val loading: Boolean = false, val saving: Boolean = false, val error: String? = null) {
-    val dirty get() = draft != workflow
+    /** Where the steps sit is saved as they are moved, so only other edits count as unsaved. */
+    val dirty get() = draft?.unplaced() != workflow?.unplaced()
     val run get() = runs.firstOrNull { it.id == viewing } ?: activeRun ?: latestRun
     val steps: Map<StepId, StepRun> get() = run?.steps.orEmpty()
     /** A run that stopped early can start again from the step that stopped it, once nothing else is running. */
@@ -57,8 +58,10 @@ class WorkflowViewModel(private val repo: WorkflowRepository, private val workfl
             val saved = data.workflows.find { it.id == workflowId }
             state.update {
                 val changed = saved != it.workflow
-                val reload = changed && it.draft != null && saved != null && (saved.steps != it.draft.steps || saved.edges != it.draft.edges)
-                it.copy(workflow = saved, draft = if (changed) saved else it.draft, generation = if (reload) it.generation + 1 else it.generation,
+                // A step that only moved, here or on another Device, leaves the draft and the page as they are.
+                val moved = changed && saved != null && it.draft != null && saved.unplaced() == it.workflow?.unplaced()
+                val reload = changed && !moved && it.draft != null && saved != null && (saved.steps != it.draft.steps || saved.edges != it.draft.edges)
+                it.copy(workflow = saved, draft = if (changed && !moved) saved else it.draft, generation = if (reload) it.generation + 1 else it.generation,
                     latestRun = history.firstOrNull(), activeRun = active, runs = history, loading = data.loading, error = data.error ?: it.error)
             }
         } }
@@ -79,7 +82,19 @@ class WorkflowViewModel(private val repo: WorkflowRepository, private val workfl
     fun discard() = state.update { it.copy(draft = it.workflow, generation = it.generation + 1, inputValues = emptyMap()) }
     fun view(run: WorkflowRunId?) = state.update { it.copy(viewing = run) }
     /** The editor page owns the graph; everything else in the draft stays as the native fields left it. */
-    fun graphChanged(edited: Workflow) = state.update { s -> s.draft?.let { s.copy(draft = it.copy(steps = edited.steps, edges = edited.edges)) } ?: s }
+    fun graphChanged(edited: Workflow) {
+        val before = state.value
+        state.update { s -> s.draft?.let { s.copy(draft = it.copy(steps = edited.steps, edges = edited.edges)) } ?: s }
+        // Moving steps saves their places straight away, on the saved Workflow so that unsaved edits stay a draft.
+        val draft = before.draft ?: return
+        val saved = before.workflow ?: return
+        if (edited.edges != draft.edges || edited.steps == draft.steps || edited.steps.map { it.placed(null) } != draft.steps.map { it.placed(null) }) return
+        val places = edited.steps.associate { it.id to it.position }
+        val placed = saved.copy(steps = saved.steps.map { it.placed(places[it.id] ?: it.position) })
+        if (placed != saved) viewModelScope.launch {
+            catching { repo.connection.run { repo.save(placed) } }.onFailure { error -> state.update { it.copy(error = error.message) } }
+        }
+    }
     fun save() {
         val draft = state.value.draft ?: return
         attempt {
@@ -120,3 +135,15 @@ val Workflow.blank get() = edges.isEmpty() && (steps.singleOrNull() as? Workflow
 
 /** A run's input: each declared input's typed text, else its default. */
 fun runInput(inputs: List<WorkflowInput>, values: Map<String, String>) = JsonObject(inputs.associate { it.name to inputValue(values[it.name] ?: it.default) })
+
+fun WorkflowStep.placed(at: Position?): WorkflowStep = when (this) {
+    is WorkflowStep.AgentTurn -> copy(position = at)
+    is WorkflowStep.Approval -> copy(position = at)
+    is WorkflowStep.Review -> copy(position = at)
+    is WorkflowStep.Tool -> copy(position = at)
+    is WorkflowStep.Model -> copy(position = at)
+    is WorkflowStep.Condition -> copy(position = at)
+}
+
+/** The Workflow without its editor layout. */
+fun Workflow.unplaced() = copy(steps = steps.map { it.placed(null) })

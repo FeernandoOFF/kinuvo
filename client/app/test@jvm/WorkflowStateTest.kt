@@ -71,6 +71,30 @@ class WorkflowStateTest {
         } finally { stores.clear() }
     }
 
+    @Test fun movingAStepSavesItsPlaceWithoutMakingTheDraftDirty() = withServer { owner, _ ->
+        val stores = ViewModelStore()
+        try {
+            val vm = WorkflowViewModel(owner.workflows, seed.id).also { stores.put("w", it) }
+            vm.state.first { it.draft != null }
+            vm.edit(vm.state.value.draft!!.copy(name = "Renamed"))
+            val moved = seed.copy(steps = seed.steps.map { it.placed(Position(30f, 40f)) })
+            vm.graphChanged(moved)
+            vm.state.first { it.workflow?.steps == moved.steps }
+            val state = vm.state.value
+            assertEquals("Flow", state.workflow!!.name)
+            assertEquals("Renamed", state.draft!!.name)
+            assertEquals(moved.steps, state.draft!!.steps)
+            assertEquals(0, state.generation)
+            assertTrue(state.dirty)
+            vm.discard()
+            assertFalse(vm.state.value.dirty)
+            vm.graphChanged(seed.copy(steps = seed.steps.map { it.placed(Position(1f, 2f)) }))
+            assertFalse(vm.state.value.dirty)
+            vm.state.first { it.workflow?.steps?.single()?.position == Position(1f, 2f) }
+            assertFalse(vm.state.value.dirty)
+        } finally { stores.clear() }
+    }
+
     @Test fun savedDraftBecomesTheWorkflow() = withServer { owner, _ ->
         val stores = ViewModelStore()
         try {

@@ -1,6 +1,7 @@
 package kinuvo.ui.workflow
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -10,6 +11,7 @@ import androidx.compose.foundation.text.input.TextFieldState
 import androidx.compose.foundation.text.input.rememberTextFieldState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
@@ -123,9 +125,16 @@ fun WorkflowScreen(model: WorkflowViewModel, agents: List<AgentInfo>, onOpenSess
         }
         BoxWithConstraints(Modifier.weight(1f).fillMaxWidth()) {
             if (maxWidth < 720.dp) Column(Modifier.fillMaxSize()) {
-                WorkflowEditor(model, agents, onOpenSession, Modifier.fillMaxWidth().weight(3f))
+                // The graph gets the whole screen until the settings are asked for; a new Workflow opens with them, for its name and the examples.
+                var open by rememberSaveable(workflow.id.value) { mutableStateOf(workflow.blank) }
+                WorkflowEditor(model, agents, onOpenSession, Modifier.fillMaxWidth().weight(1f))
                 HorizontalSeparator()
-                settings(Modifier.fillMaxWidth().weight(2f), false)
+                Row(Modifier.fillMaxWidth().clickable { open = !open }.padding(horizontal = Spacing.space16, vertical = Spacing.space10),
+                    verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.space8)) {
+                    Text("Settings and runs", Modifier.weight(1f), style = TextStyles.secondary, color = color(mutedColor))
+                    Icon(if (open) Lucide.ChevronDown else Lucide.ChevronUp, Modifier.size(16.dp), tint = color(mutedColor), contentDescription = if (open) "Hide settings" else "Show settings")
+                }
+                if (open) settings(Modifier.fillMaxWidth().weight(1f), false)
             } else Row(Modifier.fillMaxSize()) {
                 WorkflowEditor(model, agents, onOpenSession, Modifier.weight(1f).fillMaxHeight())
                 VerticalSeparator()
