@@ -5,6 +5,7 @@ import com.github.ajalt.clikt.core.requireObject
 import com.github.ajalt.clikt.parameters.arguments.argument
 import com.github.ajalt.clikt.parameters.options.flag
 import com.github.ajalt.clikt.parameters.options.option
+import com.github.ajalt.clikt.parameters.options.validate
 import com.google.zxing.BarcodeFormat
 import com.google.zxing.EncodeHintType
 import com.google.zxing.qrcode.QRCodeWriter
@@ -16,7 +17,9 @@ import kotlin.time.Instant
 internal class PairCommand : ServerCommand("pair", "Show a pairing code and QR code for another Device; scan it with the phone's camera.") {
     private val management by option("--manage", help = "Grant management access, including configuration, pairing and Approvals").flag()
     private val refresh by option("--refresh", help = "Make a new code, invalidating the current one").flag()
-    private val host by option("--host", help = "Address to put in the QR code (default: every address)")
+    private val host by option("--host", help = "Address to put in the QR code (default: every address)").validate {
+        require("://" !in it || it.startsWith("https://")) { "Use a host or IP address, or an https:// URL" }
+    }
 
     override suspend fun run() {
         val pairing = session.call(running = true) { client.call(Api.Pairing, PairingParams(refresh, management)) }
@@ -27,6 +30,7 @@ internal class PairCommand : ServerCommand("pair", "Show a pairing code and QR c
         pairing.tailcatInvite?.let { invite ->
             val link = Links.tailcatPair(invite)
             echo("Tailcat link (secret, any network, one Device): $link")
+            echo("Scan this one from any network:")
             echo(qr(link))
         }
         val proxied = host == null && pairing.publicUrl == null && System.getenv("KINUVO_BEHIND_PROXY")?.lowercase() in listOf("1", "true")
@@ -39,7 +43,7 @@ internal class PairCommand : ServerCommand("pair", "Show a pairing code and QR c
         bases.forEach { base ->
             echo("App link:     ${Links.pair(base, pairing.code)}")
             echo("Web link:     ${Links.webPair(base, pairing.code)}")
-            echo(qr(Links.pair(base, pairing.code)))
+            if (!base.startsWith("http://127.") && !base.startsWith("http://[::1]")) echo(qr(Links.pair(base, pairing.code)))
         }
     }
 }
