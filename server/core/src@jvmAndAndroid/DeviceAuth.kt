@@ -26,7 +26,7 @@ private data class DevicesFile(val devices: List<PairedDevice> = emptyList())
 
 class DeviceAuth(private val file: File, private val now: () -> Instant = { Clock.System.now() }) : PeerRegistry {
     private val random = SecureRandom()
-    private val json = Json { prettyPrint = true }
+    private val json = Json { prettyPrint = true; ignoreUnknownKeys = true }
     private val sessionTokens = mutableSetOf<String>()
     /** The app's own connections to the Server it embeds, which share their Device tools like paired Devices. */
     private val sessionDevices = mutableMapOf<String, ToolDevice>()
