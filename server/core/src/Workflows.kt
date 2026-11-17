@@ -17,7 +17,6 @@ import kotlinx.coroutines.*
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.datetime.TimeZone
-import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlin.time.Clock
@@ -118,9 +117,7 @@ class Workflows internal constructor(
     }
 
     /** Each declared input's default under what the run was given; a default that reads as a JSON number, boolean, object or array is that value. */
-    private fun input(workflow: Workflow, given: JsonObject) = JsonObject(workflow.inputs.associate { i ->
-        i.name to (WorkflowReferences.json(i.default.trim())?.takeUnless { it is JsonNull || (it is JsonPrimitive && it.isString) } ?: JsonPrimitive(i.default))
-    } + given)
+    private fun input(workflow: Workflow, given: JsonObject) = JsonObject(workflow.inputs.associate { it.name to inputValue(it.default) } + given)
 
     private suspend fun start(workflow: Workflow, given: JsonObject = JsonObject(emptyMap()), retryOf: WorkflowRun? = null): WorkflowRun {
         val r = WorkflowRun(WorkflowRunId(Uuid.random().toString()), workflow.id, WorkflowRunStatus.Running, clock(),

@@ -7,7 +7,13 @@ import kinuvo.protocol.routine.Trigger
 import kinuvo.protocol.session.SessionId
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.booleanOrNull
+import kotlinx.serialization.json.doubleOrNull
 import kotlin.jvm.JvmInline
 
 @Serializable @JvmInline value class WorkflowId(val value: String) { override fun toString() = value }
@@ -52,6 +58,15 @@ sealed interface WorkflowStep {
     val trigger: Trigger? = null, val timeZone: String = "UTC", val enabled: Boolean = true, val createdAt: Long = 0,
     val agentId: AgentId? = null, val description: String = "", val inputs: List<WorkflowInput> = emptyList(),
 )
+/** An input typed as text: a JSON number, boolean, object or array is that value, anything else the text itself. */
+fun inputValue(text: String): JsonElement {
+    val parsed = try { Json.parseToJsonElement(text.trim()) } catch (_: IllegalArgumentException) { null }
+    return when {
+        parsed is JsonObject || parsed is JsonArray -> parsed
+        parsed is JsonPrimitive && !parsed.isString && (parsed.booleanOrNull != null || parsed.doubleOrNull != null) -> parsed
+        else -> JsonPrimitive(text)
+    }
+}
 @Serializable data class RunWorkflowParams(val id: WorkflowId, val input: JsonObject = JsonObject(emptyMap()))
 @Serializable enum class WorkflowRunStatus { Running, Done, Failed, Cancelled }
 @Serializable enum class StepStatus { Pending, Running, WaitingApproval, Done, Failed, Skipped, Cancelled }

@@ -39,6 +39,7 @@ class WorkflowsTest {
         FakeTool("echo") { it.toString() },
         FakeTool("boom") { error("kaput") },
         FakeTool("deploy", Risk.High, reason = "Pushes to production") { "deployed" },
+        FakeTool("word") { "hello" },
         FakeTool("fenced") { "```json\n{\"urgent\":true,\"n\":3}\n```" },
         FakeTool("tick") { (++ticks).toString() },
         FakeTool("flaky") { if (++flakes == 1) error("first try") else "second try" },
@@ -514,6 +515,9 @@ class WorkflowsTest {
             c.run(c.call(Api.CreateWorkflow, workflow(tool("a", "fenced"), tool("b", "echo", buildJsonObject { put("n", "{{steps.a.output.n}}"); put("all", "{{steps.a.output}}") }),
                 edges = listOf(edge("a", "b")))).id)
             assertEquals("""{"n":3,"all":{"urgent":true,"n":3}}""", finished(c).steps[StepId("b")]?.output)
+            c.call(Api.UpdateWorkflow, workflow(tool("a", "word"), tool("b", "echo", buildJsonObject { put("all", "{{steps.a.output}}") }), edges = listOf(edge("a", "b"))))
+            val second = c.run(WorkflowId("test"))
+            assertEquals("""{"all":"hello"}""", await(c, WorkflowId("test")) { it.id == second.id && it.status != WorkflowRunStatus.Running }.steps[StepId("b")]?.output)
         }
     }
 

@@ -12,9 +12,7 @@ import kinuvo.protocol.workflow.*
 import kotlinx.serialization.SerializationException
 import kotlinx.coroutines.delay
 import kotlinx.serialization.json.Json
-import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
-import kotlinx.serialization.json.JsonPrimitive
 
 internal class WorkflowCommands : Group(
     "workflows", "Manage Workflows, graphs of steps the Server runs.",
@@ -68,7 +66,7 @@ private class RunWorkflowCommand : ServerCommand("run", "Start a run; it continu
         val given = try { json?.let { Json.parseToJsonElement(it) as? JsonObject ?: throw CliktError("--input must be a JSON object") } } catch (e: SerializationException) { throw CliktError("--input is not JSON: ${e.message}") }
         val input = JsonObject(given.orEmpty() + values.associate { pair ->
             val (name, value) = pair.split('=', limit = 2).takeIf { it.size == 2 } ?: throw CliktError("Give inputs as NAME=VALUE")
-            name to (runCatching { Json.parseToJsonElement(value) }.getOrNull()?.takeUnless { it is JsonNull || (it is JsonPrimitive && it.isString) } ?: JsonPrimitive(value))
+            name to inputValue(value)
         })
         val ended = session.call {
             val started = client.call(Api.RunWorkflow, RunWorkflowParams(WorkflowId(id), input))

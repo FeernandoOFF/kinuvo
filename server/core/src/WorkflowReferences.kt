@@ -9,6 +9,8 @@ import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.booleanOrNull
+import kotlinx.serialization.json.doubleOrNull
 
 /** What a run's references read: each earlier step's output, null when it has none, and the run's input. */
 internal class WorkflowValues(val outputs: (StepId) -> String?, val input: JsonObject = JsonObject(emptyMap()))
@@ -41,7 +43,9 @@ internal object WorkflowReferences {
 
     /** [text] as JSON, also when a model wrapped it in one Markdown code fence; null when it is neither. */
     fun json(text: String): JsonElement? {
+        // The parser reads a bare word as a literal, which is text here, not JSON.
         fun parse(s: String) = try { Json.parseToJsonElement(s) } catch (_: IllegalArgumentException) { null }
+            ?.takeUnless { it is JsonPrimitive && it !is JsonNull && !it.isString && it.booleanOrNull == null && it.doubleOrNull == null }
         return parse(text) ?: fence.matchEntire(text.trim())?.let { parse(it.groupValues[1]) }
     }
 
