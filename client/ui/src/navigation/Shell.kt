@@ -415,7 +415,7 @@ private fun AgentColumn(state: ShellState, actions: ShellActions, chrome: ShellC
                 shown.forEach { group ->
                     val key = group.session.routine?.id
                     val open = key != null && (key in chrome.expanded || group.earlier.any { it.id == selected })
-                    item(key = group.session.id) {
+                    item(key = group.session.id.value) {
                         SessionRow(group.session, group.session.id == selected, group.session.id in state.finished) { actions.onSelect(group.session.id.value) }
                     }
                     if (key != null && group.earlier.isNotEmpty()) {
@@ -425,7 +425,7 @@ private fun AgentColumn(state: ShellState, actions: ShellActions, chrome: ShellC
                                 Text("${group.earlier.size} earlier", Modifier.weight(1f), color = color(mutedColor), style = TextStyles.secondary, singleLine = true)
                             }
                         }
-                        if (open) items(group.earlier, key = { it.id }) { run ->
+                        if (open) items(group.earlier, key = { it.id.value }) { run ->
                             Box(Modifier.padding(start = Spacing.space16)) { SessionRow(run, run.id == selected, run.id in state.finished) { actions.onSelect(run.id.value) } }
                         }
                     }
