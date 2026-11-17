@@ -5,7 +5,7 @@ description: "Durable step graphs with Agent turns and user Approvals, independe
 
 Status: Accepted
 
-Workflows are Server-owned DAGs with multiple roots. Each step starts as soon as all its predecessors are Done; independent branches run in parallel. IDs are unique, edges must exist, cycles are rejected, and prompt references (`{{steps.<id>.output}}`) must name ancestors. Optional positions persist the editor layout. Each run snapshots its graph so edits cannot alter work already underway.
+Workflows are Server-owned DAGs with multiple roots. Each step starts as soon as all its predecessors have settled without failure and at least one incoming edge is live (roots always run); independent branches run in parallel. Steps with no live incoming edges are Skipped; skipping propagates without failing the run. IDs are unique, edges must exist, cycles are rejected, and prompt references (`{{steps.<id>.output}}`) must name ancestors. Optional positions persist the editor layout. Each run snapshots its graph so edits cannot alter work already underway.
 
 Agent turns start ordinary Sessions through the existing run executor, retaining its tool policy and pending interactions. `New` creates a Session each run; `Continue` reuses that step's Session from the latest finished run. A Workflow has at most one active run. Explicit Approval steps create a Session and publish the same pending interaction as tools, answered through `session.respond`; no separate Approval endpoint or policy exists. They cannot create Trust rules. Denial fails the step and run. Cancellation stops running Sessions; a failed step cancels sibling work and skips remaining steps.
 

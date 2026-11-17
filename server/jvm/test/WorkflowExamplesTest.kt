@@ -1,6 +1,7 @@
 package kinuvo.plugins.executor
 
 import kinuvo.client.KinuvoClient
+import kinuvo.protocol.session.SessionEntry
 import kinuvo.protocol.Api
 import kinuvo.protocol.ProtocolJson
 import kinuvo.protocol.approval.ApprovalDecision
@@ -9,6 +10,7 @@ import kinuvo.protocol.approval.PendingInteraction
 import kinuvo.protocol.approval.QuestionKind
 import kinuvo.protocol.approval.RespondParams
 import kinuvo.protocol.tool.ToolNames
+import kinuvo.protocol.workflow.RunWorkflowParams
 import kinuvo.protocol.workflow.StepId
 import kinuvo.protocol.workflow.StepRun
 import kinuvo.protocol.workflow.StepStatus
@@ -72,6 +74,37 @@ class WorkflowExamplesTest {
         assertTrue(c.call(Api.Respond, RespondParams(step.sessionId!!, step.interactionId!!, answer)))
 
     private fun WorkflowRun.output(step: String) = steps.getValue(StepId(step)).output.orEmpty()
+
+    @Test fun tableSurfaceRetainsItsDataInASession() = runBlocking<Unit> {
+        server {}.use { server ->
+            val c = client(server)
+            val w = c.call(Api.CreateWorkflow, load("show-a-table"))
+            c.call(Api.RunWorkflow, RunWorkflowParams(w.id))
+            val done = await(c, w.id) { it.status != WorkflowRunStatus.Running }
+            assertEquals(WorkflowRunStatus.Done, done.status, done.steps.toString())
+            val session = done.steps.getValue(StepId("table")).sessionId!!
+            val call = server.harness.store.entries(w.agentId!!, session).filterIsInstance<SessionEntry.ToolCall>().single()
+            assertContains(call.args, "Apples")
+            assertEquals("Shown to the user.", done.output)
+        }
+    }
+
+    @Test fun urgencyBranchesRunWithTheRealScriptTool() = runBlocking<Unit> {
+        for (urgent in listOf(true, false)) server { on("Extract issue") { reply("{\"issue\":\"Damaged parcel\",\"urgent\":$urgent}") } }.use { server ->
+            val c = client(server)
+            val w = c.call(Api.CreateWorkflow, load("triage-by-urgency"))
+            c.call(Api.RunWorkflow, RunWorkflowParams(w.id))
+            if (urgent) {
+                val (step, asked) = waiting(server, c, w.id, "review")
+                asked as PendingInteraction.Questions
+                respond(c, step, InteractionAnswer.Questions(asked.questions.associate { it.id to it.default }))
+            }
+            val done = await(c, w.id) { it.status != WorkflowRunStatus.Running }
+            assertEquals(WorkflowRunStatus.Done, done.status, done.steps.toString())
+            assertEquals(StepStatus.Skipped, done.steps.getValue(StepId(if (urgent) "note" else "draft")).status)
+            assertContains(done.output.orEmpty(), if (urgent) "Draft reply" else "Filed note")
+        }
+    }
 
     @Test fun everyExampleDecodesAndPassesSaveValidation() = runBlocking<Unit> {
         val files = directory.listFiles { f -> f.extension == "json" }.orEmpty().sortedBy { it.name }

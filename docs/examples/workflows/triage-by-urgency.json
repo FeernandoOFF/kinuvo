@@ -1,0 +1,71 @@
+{
+  "id": "triage-by-urgency",
+  "name": "Triage by urgency",
+  "agentId": "default",
+  "inputs": [
+    {
+      "name": "email",
+      "description": "Email to triage",
+      "default": "My order arrived damaged. Please help today."
+    }
+  ],
+  "steps": [
+    {
+      "type": "model",
+      "id": "extract",
+      "prompt": "Extract issue (text) and urgent (boolean) as JSON from this email: {{input.email}}",
+      "system": "Return one JSON object."
+    },
+    {
+      "type": "condition",
+      "id": "urgent",
+      "left": "{{steps.extract.output.urgent}}",
+      "op": "Equals",
+      "right": "true"
+    },
+    {
+      "type": "review",
+      "id": "review",
+      "text": "Check the urgent reply data",
+      "value": "{{steps.extract.output}}"
+    },
+    {
+      "type": "tool",
+      "id": "draft",
+      "tool": "run_code",
+      "args": {
+        "input": "{{steps.review.output}}",
+        "code": "return 'Draft reply: We are looking into this urgently. ' + input.issue"
+      }
+    },
+    {
+      "type": "tool",
+      "id": "note",
+      "tool": "run_code",
+      "args": {
+        "input": "{{steps.extract.output}}",
+        "code": "return 'Filed note: ' + input.issue"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "from": "extract",
+      "to": "urgent"
+    },
+    {
+      "from": "urgent",
+      "to": "review",
+      "branch": true
+    },
+    {
+      "from": "review",
+      "to": "draft"
+    },
+    {
+      "from": "urgent",
+      "to": "note",
+      "branch": false
+    }
+  ]
+}
