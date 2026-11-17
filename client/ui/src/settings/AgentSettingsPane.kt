@@ -228,7 +228,7 @@ internal fun NewAgentForm(p: Pane) {
 }
 
 internal val REASONING = listOf("minimal", "low", "medium", "high", "xhigh")
-internal val TOOLS = listOf("memory" to "Memory (what it remembers across Sessions)", "web_fetch" to "Web (search and read pages)", "skills" to "Skills (instructions it can load)", "schedule" to "Routines (prompts on a schedule)", "knowledge" to "Knowledge (people, projects and places)", "tasks" to "Tasks (the Board)", "ask_user" to "Ask you (short forms)", "artifact" to "Artifacts (pages and charts)", "device_tools" to "Device tools (Contacts, workouts, sleep)", "run_code" to "Scripts (combine several actions)", "computer" to "Computer use (see and control a screen)", "browser" to "Browser (browses websites for you)", "reminders" to "Reminders (Apple Reminders)", "calendar" to "Calendar (Apple Calendar events)")
+internal val TOOLS = listOf("memory" to "Memory (what it remembers across Sessions)", "web_fetch" to "Web (search and read pages)", "skills" to "Skills (instructions it can load)", "schedule" to "Routines (prompts on a schedule)", "workflows" to "Workflows (multi-step automations)", "knowledge" to "Knowledge (people, projects and places)", "tasks" to "Tasks (the Board)", "ask_user" to "Ask you (short forms)", "artifact" to "Artifacts (pages and charts)", "device_tools" to "Device tools (Contacts, workouts, sleep)", "run_code" to "Scripts (combine several actions)", "computer" to "Computer use (see and control a screen)", "browser" to "Browser (browses websites for you)", "reminders" to "Reminders (Apple Reminders)", "calendar" to "Calendar (Apple Calendar events)")
 internal val APPROVALS = mapOf(
     "strict" to "Every tool call",
     "default" to "Anything that changes things",
