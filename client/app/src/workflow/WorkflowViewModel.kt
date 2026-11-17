@@ -14,6 +14,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.serialization.json.JsonObject
 
 /**
  * [workflow] is the saved graph; [draft] is the graph being edited, and [generation] changes when the editor page must reload it,
@@ -22,15 +23,21 @@ import kotlinx.coroutines.launch
 data class WorkflowState(val workflow: Workflow? = null, val draft: Workflow? = null, val generation: Int = 0, val latestRun: WorkflowRun? = null,
     val activeRun: WorkflowRun? = null, val runs: List<WorkflowRun> = emptyList(), val viewing: WorkflowRunId? = null,
     val models: ModelsCatalog = ModelsCatalog(), val tools: List<String> = emptyList(),
+    /** What the user typed for the next run's inputs, by name; an input not in here runs with its default. */
+    val inputValues: Map<String, String> = emptyMap(),
     val loading: Boolean = false, val saving: Boolean = false, val error: String? = null) {
     val dirty get() = draft != workflow
     val run get() = runs.firstOrNull { it.id == viewing } ?: activeRun ?: latestRun
     val steps: Map<StepId, StepRun> get() = run?.steps.orEmpty()
+    /** A run that stopped early can start again from the step that stopped it, once nothing else is running. */
+    val canRetry get() = activeRun == null && run?.status.let { it == WorkflowRunStatus.Failed || it == WorkflowRunStatus.Cancelled }
+    /** The steps the active run waits on the user for, in graph order. */
+    val waiting: List<WorkflowStep> get() = activeRun?.let { r -> r.workflow.steps.filter { r.steps[it.id]?.status == StepStatus.WaitingApproval } }.orEmpty()
 
-    /** The Agent and Session of [step] in the shown run. An Agent turn belongs to its own Agent, any other step to the Workflow's Agent, else the first Agent turn's, as on the Server. */
-    fun sessionOf(step: StepId): Pair<AgentId, SessionId>? {
-        val session = steps[step]?.sessionId ?: return null
-        val graph = run?.workflow ?: draft ?: return null
+    /** The Agent and Session of [step] in [of], the shown run unless given. An Agent turn belongs to its own Agent, any other step to the Workflow's Agent, else the first Agent turn's, as on the Server. */
+    fun sessionOf(step: StepId, of: WorkflowRun? = run): Pair<AgentId, SessionId>? {
+        val session = of?.steps?.get(step)?.sessionId ?: return null
+        val graph = of.workflow
         val turns = graph.steps.filterIsInstance<WorkflowStep.AgentTurn>()
         val agent = turns.firstOrNull { it.id == step }?.agentId ?: graph.agentId ?: turns.firstOrNull()?.agentId ?: return null
         return agent to session
@@ -69,7 +76,7 @@ class WorkflowViewModel(private val repo: WorkflowRepository, private val workfl
 
     fun refresh() = repo.load(workflowId)
     fun edit(draft: Workflow) = state.update { it.copy(draft = draft) }
-    fun discard() = state.update { it.copy(draft = it.workflow, generation = it.generation + 1) }
+    fun discard() = state.update { it.copy(draft = it.workflow, generation = it.generation + 1, inputValues = emptyMap()) }
     fun view(run: WorkflowRunId?) = state.update { it.copy(viewing = run) }
     /** The editor page owns the graph; everything else in the draft stays as the native fields left it. */
     fun graphChanged(edited: Workflow) = state.update { s -> s.draft?.let { s.copy(draft = it.copy(steps = edited.steps, edges = edited.edges)) } ?: s }
@@ -83,7 +90,16 @@ class WorkflowViewModel(private val repo: WorkflowRepository, private val workfl
     fun delete(onDeleted: () -> Unit) {
         viewModelScope.launch { catching { repo.connection.run { repo.delete(workflowId) } }.onSuccess { onDeleted() } }
     }
-    fun run() = attempt { repo.run(workflowId) }
+    fun input(name: String, value: String) = state.update { it.copy(inputValues = it.inputValues + (name to value)) }
+    fun run() = attempt { repo.run(workflowId, runInput(state.value.workflow?.inputs.orEmpty(), state.value.inputValues)) }
+    fun retry() = attempt { state.value.takeIf { it.canRetry }?.run?.let { state.update { s -> s.copy(viewing = null) }; repo.retry(it.id) } }
+    /** Swaps the draft's graph for [template]'s, keeping a name the user already chose. */
+    fun use(template: WorkflowTemplate, agent: AgentId) = state.update { s ->
+        val draft = s.draft ?: return@update s
+        val made = template.build(draft.id, draft.agentId ?: agent)
+        s.copy(draft = draft.copy(name = draft.name.takeUnless { it == NEW_WORKFLOW } ?: made.name, description = made.description, steps = made.steps,
+            edges = made.edges, inputs = made.inputs, agentId = made.agentId), generation = s.generation + 1, inputValues = emptyMap())
+    }
     fun cancel() = attempt { state.value.activeRun?.let { repo.cancel(it.id) } }
     fun approve(stepId: StepId, allow: Boolean = true) = attempt {
         val step = requireNotNull(state.value.activeRun?.steps?.get(stepId))
@@ -96,3 +112,11 @@ class WorkflowViewModel(private val repo: WorkflowRepository, private val workfl
         state.update { it.copy(saving = false) }
     }
 }
+
+const val NEW_WORKFLOW = "New Workflow"
+
+/** A Workflow nobody has built on yet: the one Agent turn a new one starts with, still without a prompt. */
+val Workflow.blank get() = edges.isEmpty() && (steps.singleOrNull() as? WorkflowStep.AgentTurn)?.prompt?.isBlank() == true
+
+/** A run's input: each declared input's typed text, else its default. */
+fun runInput(inputs: List<WorkflowInput>, values: Map<String, String>) = JsonObject(inputs.associate { it.name to inputValue(values[it.name] ?: it.default) })

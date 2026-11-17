@@ -75,6 +75,56 @@ class WorkflowFlowTest {
         requests(Api.UpdateWorkflow, 1)
     }
 
+    @Test fun aNewWorkflowStartsFromAnExample() = appTest("workflow-template", desktop = true) {
+        pair()
+        tap("Home")
+        tap("Routines & Workflows")
+        tap("New workflow")
+        await("Start from an example")
+        screenshot("examples")
+        tap("Triage with a condition")
+        await("Unsaved changes")
+        gone("Start from an example")
+        tap("Save")
+        gone("Unsaved changes")
+        scrollTo("Run with these")
+        screenshot("inputs")
+        requests(Api.UpdateWorkflow, 1)
+    }
+
+    @Test fun aRunTakesItsInputsAndShowsItsResult() = appTest("workflow-input", script = {
+        on("Write about dogs") { reply("Dogs are loyal") }
+        on("Write about cats") { reply("Cats nap") }
+    }) {
+        seed(Workflow(WorkflowId("essay"), "Essay", listOf(WorkflowStep.AgentTurn(StepId("agent-1"), agent, "Write about {{input.topic}}")),
+            agentId = agent, createdAt = 1, inputs = listOf(WorkflowInput("topic", "What to write about", "cats"))))
+        pair()
+        openHome()
+        tap("Routines & Workflows")
+        tap("Essay")
+        await("Runs as")
+        scrollTo("Run with these")
+        tapAbove("cats", "Run with these")
+        clear()
+        type("dogs")
+        tap("Run with these")
+        eventually("Dogs are loyal")
+        screenshot("result")
+    }
+
+    @Test fun aReviewWaitingOnTheUserIsOfferedFromTheScreen() = appTest("workflow-review") {
+        seed(Workflow(WorkflowId("check"), "Check flow", listOf(WorkflowStep.Review(StepId("review-1"), "Check the fields", "{\"name\":\"Dana\"}")), agentId = agent, createdAt = 1))
+        pair()
+        openHome()
+        tap("Routines & Workflows")
+        tap("Check flow")
+        tap("Run now")
+        await("Review: Check the fields", timeout = 30_000)
+        screenshot("waiting")
+        tap("Review")
+        await("Dana", timeout = 30_000)
+    }
+
     @Test fun desktopOpensAWorkflowBesideTheList() = appTest("workflow-desktop", desktop = true) {
         pair()
         tap("Home")

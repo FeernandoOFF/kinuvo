@@ -40,7 +40,8 @@ internal fun WorkflowEditor(model: WorkflowViewModel, agents: List<AgentInfo>, o
     if (!visualEditing) return Box(modifier, contentAlignment = Alignment.Center) { Text("Edit Workflows in the desktop or mobile app.", color = color(mutedColor)) }
     val state by model.state.collectAsState()
     val theme = editorTheme()
-    val catalog = remember(agents, state.models, state.tools) { EditorCatalog.of(agents, state.models, state.tools) }
+    val inputs = state.draft?.inputs.orEmpty().map { it.name }
+    val catalog = remember(agents, state.models, state.tools, inputs) { EditorCatalog.of(agents, state.models, state.tools, inputs) }
     val document by produceState<String?>(null) { value = workflowEditorDocument() }
     var ready by remember { mutableStateOf(false) }
     val open by rememberUpdatedState(onOpenSession)

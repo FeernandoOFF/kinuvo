@@ -13,14 +13,15 @@ import kotlinx.serialization.Serializable
 @Serializable data class EditorAgent(val id: AgentId, val name: String)
 @Serializable data class EditorModel(val provider: String, val model: String, val name: String, val providerName: String)
 
-/** What the editor page offers in its pickers; [tools] are the names the Workflow's Agent can call, empty when unknown. */
+/** What the editor page offers in its pickers; [tools] are the names the Workflow's Agent can call, empty when unknown, and [inputs] the Workflow's input names. */
 @Serializable
-data class EditorCatalog(val agents: List<EditorAgent> = emptyList(), val models: List<EditorModel> = emptyList(), val tools: List<String> = emptyList()) {
+data class EditorCatalog(val agents: List<EditorAgent> = emptyList(), val models: List<EditorModel> = emptyList(), val tools: List<String> = emptyList(),
+    val inputs: List<String> = emptyList()) {
     companion object {
-        fun of(agents: List<AgentInfo>, models: ModelsCatalog, tools: List<String>) = EditorCatalog(
+        fun of(agents: List<AgentInfo>, models: ModelsCatalog, tools: List<String>, inputs: List<String> = emptyList()) = EditorCatalog(
             agents.map { EditorAgent(it.id, it.name) },
             models.providers.flatMap { p -> p.models.map { EditorModel(p.id, it.id, it.name, p.name) } },
-            tools,
+            tools, inputs,
         )
     }
 }

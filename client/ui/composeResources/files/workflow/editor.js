@@ -1,12 +1,15 @@
 (() => {
   'use strict';
   const GAP_X = 340, GAP_Y = 300, MARGIN = 40;
-  const KINDS = { agent_turn: 'Agent turn', model: 'Model', tool: 'Tool', approval: 'Approval', review: 'Review' };
-  const PREFIX = { agent_turn: 'agent', model: 'model', tool: 'tool', approval: 'approval', review: 'review' };
+  const KINDS = { agent_turn: 'Agent turn', model: 'Model', tool: 'Tool', approval: 'Approval', review: 'Review', condition: 'Condition' };
+  const PREFIX = { agent_turn: 'agent', model: 'model', tool: 'tool', approval: 'approval', review: 'review', condition: 'condition' };
+  const OPS = { Equals: 'equals', NotEquals: 'does not equal', Contains: 'contains', NotContains: 'does not contain', Empty: 'is empty', NotEmpty: 'is not empty', GreaterThan: 'is greater than', LessThan: 'is less than' };
+  const unary = (op) => op === 'Empty' || op === 'NotEmpty';
   const STATUS = { Pending: 'Pending', Running: 'Running', WaitingApproval: 'Waiting', Done: 'Done', Failed: 'Failed', Skipped: 'Skipped', Cancelled: 'Cancelled' };
   const THEME_VARS = { background: '--bg', panel: '--panel', subtle: '--subtle', text: '--text', muted: '--muted', border: '--border', accent: '--accent', onAccent: '--on-accent', success: '--success', warning: '--warning', danger: '--danger' };
 
-  let wf = null, catalog = { agents: [], models: [], tools: [] }, run = null;
+  const EMPTY = { agents: [], models: [], tools: [], inputs: [] };
+  let wf = null, catalog = EMPTY, run = null;
   let editor = null, dfOf = {}, stepOf = {}, placed = {}, muted = false, selected = null, timer = null, sent = '';
   const expanded = new Set();
   const $ = (id) => document.getElementById(id);
@@ -58,7 +61,7 @@
   const modelValue = (m) => (m ? JSON.stringify([m.provider, m.model]) : '');
   const modelOptions = (current) => options([{ value: '', label: "Agent's model" }].concat(catalog.models.map((m) => ({ value: modelValue(m), label: m.providerName + ' / ' + m.name }))), modelValue(current));
 
-  const refs = (f) => `<select class="ref" data-ref="${f}" aria-label="Insert the output of an earlier step"></select>`;
+  const refs = (f) => `<select class="ref" data-ref="${f}" aria-label="Insert an input or the output of an earlier step"></select>`;
   const area = (f, label, value, placeholder, opts) => `<div class="fld"><div class="lbl"><span>${label}</span>${opts && opts.refs ? refs(f) : ''}</div>` +
     `<textarea${opts && opts.mono ? ' class="mono" spellcheck="false"' : ''} data-f="${f}" placeholder="${esc(placeholder)}">${esc(value)}</textarea></div>`;
 
@@ -76,6 +79,10 @@
         <label>Tool<input data-f="tool" list="tools" autocomplete="off" autocapitalize="off" spellcheck="false" value="${esc(s.tool)}" placeholder="tool name"></label>
         ${area('args', 'Arguments (JSON)', JSON.stringify(s.args || {}, null, 2), '', { refs: true, mono: true })}
         <div class="err" data-err="args"></div>`;
+      case 'condition': return `
+        ${area('left', 'If', s.left, 'A value, usually from an earlier step', { refs: true })}
+        <label>Is<select data-f="op">${options(Object.keys(OPS).map((k) => ({ value: k, label: OPS[k] })), s.op || 'Equals')}</select></label>
+        <div data-right${unary(s.op) ? ' hidden' : ''}>${area('right', 'Value', s.right, 'true', { refs: true })}</div>`;
       case 'review': return `
         ${area('text', 'Question', s.text, 'Is this draft ready?')}
         ${area('value', 'Value to review', s.value, 'A JSON object becomes one field per key', { refs: true, mono: true })}`;
@@ -85,11 +92,11 @@
 
   const cardHtml = (s) => `<div class="card" data-step="${esc(s.id)}">
     <div class="head"><span class="kind">${KINDS[s.type] || esc(s.type)}</span><code class="chip" title="Step id">${esc(s.id)}</code><span class="badge"></span><button class="del" type="button" data-del aria-label="Delete step">&#10005;</button></div>
-    ${fields(s)}<div class="run"></div></div>`;
+    ${fields(s)}<div class="run"></div>${s.type === 'condition' ? '<div class="ports"><span>true &rarr;</span><span>false &rarr;</span></div>' : ''}</div>`;
 
   function addCard(s, at) {
     muted = true;
-    const id = editor.addNode(s.type, 1, 1, at.x, at.y, 'k-' + s.type, { step: s.id }, cardHtml(s));
+    const id = editor.addNode(s.type, 1, s.type === 'condition' ? 2 : 1, at.x, at.y, 'k-' + s.type, { step: s.id }, cardHtml(s));
     muted = false;
     dfOf[s.id] = id; stepOf[id] = s.id; placed[s.id] = { x: at.x, y: at.y };
     const el = nodeEl(s.id);
@@ -107,20 +114,23 @@
     wf.steps.forEach((s) => {
       const card = cardEl(s.id);
       if (!card) return;
-      const list = ancestors(s.id);
-      const html = list.length ? '<option value="">Insert output of…</option>' + list.map((x) => `<option value="${esc(x)}">${esc(x)}</option>`).join('') : '<option value="">No earlier steps</option>';
+      const list = ancestors(s.id).map((x) => ({ value: 'steps.' + x + '.output', label: x }));
+      const inputs = (catalog.inputs || []).map((x) => ({ value: 'input.' + x, label: x }));
+      const group = (label, items) => (items.length ? `<optgroup label="${label}">` + items.map((x) => `<option value="${esc(x.value)}">${esc(x.label)}</option>`).join('') + '</optgroup>' : '');
+      const any = list.length + inputs.length;
+      const html = any ? '<option value="">Insert…</option>' + group('Output of', list) + group('Input', inputs) : '<option value="">Nothing to insert</option>';
       card.querySelectorAll('select.ref').forEach((sel) => {
         if (sel.dataset.h !== html) { sel.innerHTML = html; sel.dataset.h = html; }
-        sel.disabled = !list.length;
+        sel.disabled = !any;
       });
     });
   }
 
-  function insertRef(card, field, id) {
+  function insertRef(card, field, ref) {
     const el = card.querySelector(`[data-f="${field}"]`);
     if (!el) return;
     const at = el.dataset.touched ? [el.selectionStart, el.selectionEnd] : [el.value.length, el.value.length];
-    const text = '{{steps.' + id + '.output}}';
+    const text = '{{' + ref + '}}';
     const inString = (el.value.slice(0, at[0]).replace(/\\./g, '').match(/"/g) || []).length % 2 === 1;
     el.setRangeText(field === 'args' && !inString ? JSON.stringify(text) : text, at[0], at[1], 'end');
     el.dataset.touched = '1';
@@ -136,7 +146,7 @@
     const pos = layout();
     wf.steps.forEach((s) => addCard(s, pos[s.id]));
     muted = true;
-    wf.edges.forEach((e) => { if (dfOf[e.from] && dfOf[e.to]) editor.addConnection(dfOf[e.from], dfOf[e.to], 'output_1', 'input_1'); });
+    wf.edges.forEach((e) => { if (dfOf[e.from] && dfOf[e.to]) editor.addConnection(dfOf[e.from], dfOf[e.to], port(e), 'input_1'); });
     muted = false;
     document.body.classList.toggle('only', wf.steps.length < 2);
     fillTools();
@@ -221,12 +231,17 @@
     const id = freeId(kind);
     const agent = (anchor && anchor.agentId) || wf.agentId || (catalog.agents[0] && catalog.agents[0].id) || '';
     const s = { agent_turn: { type: 'agent_turn', id, agentId: agent, prompt: '', session: 'New' }, model: { type: 'model', id, prompt: '' },
-      tool: { type: 'tool', id, tool: '', args: {} }, approval: { type: 'approval', id, text: '' }, review: { type: 'review', id, text: '', value: '' } }[kind];
+      tool: { type: 'tool', id, tool: '', args: {} }, approval: { type: 'approval', id, text: '' }, review: { type: 'review', id, text: '', value: '' },
+      condition: { type: 'condition', id, left: anchor ? '{{steps.' + anchor.id + '.output}}' : '', op: 'Equals', right: 'true' } }[kind];
     s.position = { x, y };
     wf.steps.forEach((o) => { if (!o.position) o.position = { x: pos[o.id].x, y: pos[o.id].y }; });
     wf.steps.push(s);
     addCard(s, s.position);
-    if (anchor) { wf.edges.push({ from: anchor.id, to: id }); connect(anchor.id, id); }
+    if (anchor) {
+      const e = { from: anchor.id, to: id };
+      if (anchor.type === 'condition') e.branch = !wf.edges.some((x) => x.from === anchor.id && x.branch === true);
+      wf.edges.push(e); connect(e);
+    }
     document.body.classList.toggle('only', wf.steps.length < 2);
     fillTools(); fillRefs(); applyRun();
     selected = id;
@@ -234,9 +249,13 @@
     emit();
   }
 
-  function connect(from, to) {
+  /** A Condition's first output is its true branch and its second the false one. */
+  const port = (e) => (e.branch === false ? 'output_2' : 'output_1');
+  const isCondition = (id) => (step(id) || {}).type === 'condition';
+
+  function connect(e) {
     muted = true;
-    editor.addConnection(dfOf[from], dfOf[to], 'output_1', 'input_1');
+    editor.addConnection(dfOf[e.from], dfOf[e.to], port(e), 'input_1');
     muted = false;
   }
 
@@ -256,6 +275,7 @@
     } else if (f === 'system') { if (v) s.system = v; else delete s.system; }
     else if (f === 'model') { const m = v ? JSON.parse(v) : null; if (m) s.model = { provider: m[0], model: m[1] }; else delete s.model; }
     else s[f] = v;
+    if (f === 'op') card.querySelector('[data-right]').hidden = unary(v);
     e.target.tagName === 'SELECT' ? emit() : emitSoon();
   }
 
@@ -314,7 +334,9 @@
         muted = false;
         return;
       }
-      wf.edges.push({ from, to });
+      const edge = { from, to };
+      if (isCondition(from)) edge.branch = c.output_class !== 'output_2';
+      wf.edges.push(edge);
       fillRefs();
       emit();
     });
@@ -343,7 +365,7 @@
     if (e.source !== parent || !m || typeof m !== 'object') return;
     if (m.type === 'load') {
       wf = JSON.parse(JSON.stringify(m.workflow));
-      catalog = Object.assign({ agents: [], models: [], tools: [] }, m.catalog);
+      catalog = Object.assign({}, EMPTY, m.catalog);
       run = m.run || null;
       applyTheme(m.theme);
       if (!editor) start();
@@ -352,7 +374,7 @@
       sent = JSON.stringify(wf);
     } else if (!wf) { return; }
     else if (m.type === 'run') { run = m.run || null; applyRun(); }
-    else if (m.type === 'catalog') { catalog = Object.assign({ agents: [], models: [], tools: [] }, m.catalog); fillSelects(); }
+    else if (m.type === 'catalog') { catalog = Object.assign({}, EMPTY, m.catalog); fillSelects(); fillRefs(); }
     else if (m.type === 'theme') applyTheme(m.theme);
   });
 
