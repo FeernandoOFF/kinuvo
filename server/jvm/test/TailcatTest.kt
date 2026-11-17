@@ -1,6 +1,6 @@
 package kinuvo.server.jvm
 
-import kinuvo.server.plugin.TailcatServing
+import kinuvo.server.plugin.TailcatInvite
 import kinuvo.server.plugin.TailcatTunnel
 import kinuvo.protocol.device.PairingCode
 import kinuvo.server.DeviceAuth
@@ -12,7 +12,6 @@ import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
 import kotlinx.serialization.json.Json
 import java.io.File
-import kotlinx.io.files.Path
 import java.net.URI
 import java.net.http.HttpClient
 import java.net.http.HttpRequest
@@ -21,50 +20,97 @@ import java.nio.file.Files
 import kotlin.test.*
 
 class TailcatTest {
+    private class FakeTunnel : TailcatTunnel {
+        var invites = 0
+        var open = true
+        val closedInvites = mutableListOf<String>()
+        val revoked = mutableListOf<String>()
+        var phone: String? = null
+        var payloads = mutableListOf<String>()
+        override fun invite(code: String, payload: String, ttlSeconds: Int): TailcatInvite {
+            invites++
+            payloads += payload
+            assertTrue(ttlSeconds in 10..600)
+            val text = "kinuvo1:$code"
+            return object : TailcatInvite {
+                override val text = text
+                override val expiresAt = 0L
+                override val open get() = this@FakeTunnel.open
+                override fun close() { closedInvites += text }
+            }
+        }
+        override fun phoneOf(code: String) = phone
+        override fun revoke(phone: String) { revoked += phone }
+        override fun close() = Unit
+    }
+
+    private fun withAuth(block: (DeviceAuth) -> Unit) {
+        val dir = Files.createTempDirectory("tailcat-test").toFile()
+        try { block(DeviceAuth(File(dir, "devices.json"))) } finally { dir.deleteRecursively() }
+    }
+
     @Test
     fun optionsAndPairingRemainBackwardsCompatible() {
         assertFalse(Json.decodeFromString<ServeOptions>("{}").tailcat)
         val options = ServeOptions(tailcat = true)
         assertEquals(options, Json.decodeFromString<ServeOptions>(Json.encodeToString(options)))
         val old = """{"code":"code","expiresAt":"later","port":8787}"""
-        assertNull(Json.decodeFromString<PairingCode>(old).tailcatAddress)
+        assertNull(Json.decodeFromString<PairingCode>(old).tailcatInvite)
     }
 
     @Test
-    fun startPublishesAndCloseClearsAddressEvenAfterFailure() {
-        val dir = Files.createTempDirectory("tailcat-test").toFile()
-        try {
-            val auth = DeviceAuth(File(dir, "devices.json"))
-            var closed = 0
-            val native = object : TailcatServing {
-                override fun serve(state: Path, port: Int): TailcatTunnel {
-                    assertEquals(1234, port)
-                    return object : TailcatTunnel {
-                        override val address = "tc-test"
-                        override fun close() { closed++ }
-                    }
-                }
-                override fun reset(state: Path) = Unit
-            }
-            val exposure = TailcatExposure(auth, native)
-            assertFailsWith<IllegalStateException> {
-                try {
-                    exposure.start(Path(dir.path), 1234)
-                    assertEquals("tc-test", auth.pairing(false, false)!!.tailcatAddress)
-                    error("later startup step failed")
-                } finally { exposure.close() }
-            }
-            exposure.close()
-            assertNull(auth.tailcatAddress)
-            assertEquals(1, closed)
-            val failing = object : TailcatServing by native {
-                override fun serve(state: Path, port: Int): TailcatTunnel = throw ServeException("failed")
-            }
-            val failed = TailcatExposure(auth, failing)
-            assertFailsWith<ServeException> { failed.start(Path(dir.path), 1234) }
-            failed.close()
-            assertNull(auth.tailcatAddress)
-        } finally { dir.deleteRecursively() }
+    fun pairingOffersOneInviteWindowPerCodeWhileTheTunnelServes() = withAuth { auth ->
+        assertNull(auth.pairing(false, false)!!.tailcatInvite)
+        val tunnel = FakeTunnel()
+        auth.tailcat(tunnel)
+        assertTrue(auth.tailcatActive)
+        val first = auth.pairing(false, false)!!
+        assertEquals("kinuvo1:${first.code}", first.tailcatInvite)
+        assertEquals("""{"code":"${first.code}"}""", tunnel.payloads.single())
+        assertEquals(first.tailcatInvite, auth.pairing(false, false)!!.tailcatInvite)
+        assertEquals(1, tunnel.invites)
+        tunnel.open = false
+        auth.pairing(false, false)
+        assertEquals(2, tunnel.invites)
+        tunnel.open = true
+        val refreshed = auth.pairing(true, false)!!
+        assertNotEquals(first.code, refreshed.code)
+        assertEquals("kinuvo1:${refreshed.code}", refreshed.tailcatInvite)
+        assertEquals(3, tunnel.invites)
+        assertEquals(2, tunnel.closedInvites.size)
+        auth.tailcat(null)
+        assertFalse(auth.tailcatActive)
+        assertEquals(3, tunnel.closedInvites.size)
+        assertNull(auth.pairing(false, false)!!.tailcatInvite)
+    }
+
+    @Test
+    fun revokingADeviceRevokesItsTunnelPhone() = withAuth { auth ->
+        val tunnel = FakeTunnel()
+        auth.tailcat(tunnel)
+        tunnel.phone = "nodekey:phone"
+        auth.refreshCode()
+        val tunneled = auth.authenticate("Phone", null, auth.pairingCode)!!
+        tunnel.phone = null
+        auth.refreshCode()
+        auth.authenticate("Laptop", null, auth.pairingCode)!!
+        val devices = auth.devices()
+        assertEquals(listOf("nodekey:phone", null), devices.map { it.tailcatPhone })
+        assertTrue(auth.revoke(devices[1].id))
+        assertTrue(tunnel.revoked.isEmpty())
+        assertTrue(auth.revoke(devices[0].id))
+        assertEquals(listOf("nodekey:phone"), tunnel.revoked)
+        assertFalse(auth.valid(tunneled))
+        assertFalse(auth.revoke(devices[0].id))
+        assertEquals(1, tunnel.revoked.size)
+        tunnel.phone = "nodekey:later"
+        auth.refreshCode()
+        auth.authenticate("Later", null, auth.pairingCode)
+        auth.tailcat(null)
+        val offline = mutableListOf<String>()
+        auth.offlineTailcatRevoke = { offline += it }
+        auth.revoke(auth.devices().single().id)
+        assertEquals(listOf("nodekey:later"), offline)
     }
 
     @Test

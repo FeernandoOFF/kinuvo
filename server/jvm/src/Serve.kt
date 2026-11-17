@@ -52,14 +52,14 @@ suspend fun serve(options: ServeOptions, tailcat: TailcatServing? = null, extend
     val network = NetworkSecurity(route?.url ?: publicUrl(options.publicUrl), trusted, behindProxy, if (behindProxy) coolifyOrigin(env("COOLIFY_URL")) else null)
     val server = JvmServerHost(JvmAgentRuntime(), network = network, tailcat = tailcat)
     var extension: AutoCloseable? = null
-    var exposure: TailcatExposure? = null
     var ready = false
-    val shutdown = Thread { try { exposure?.close() } finally { try { server.stop() } finally { extension?.close() } } }
+    val shutdown = Thread { try { server.stop() } finally { extension?.close() } }
     try {
         val bound = server.start(bind, options.port)
         if (options.tailcat) {
             try {
-                exposure = TailcatExposure(server.auth, checkNotNull(tailcat) { "Tailcat is not available in this build" }).also { it.start(server.tailcatState(), server.startTailcatListener()) }
+                checkNotNull(tailcat) { "Tailcat is not available in this build" }
+                server.shareTailcat(true)
             } catch (e: IllegalStateException) { throw ServeException(e.message ?: "Could not start Tailcat") }
         }
         route?.enable()
@@ -67,19 +67,17 @@ suspend fun serve(options: ServeOptions, tailcat: TailcatServing? = null, extend
         server.advertise()
         log.info { "Server listening at $bind:$bound${network.publicUrl?.let { "; HTTPS address $it" }.orEmpty()}" }
         if (route != null) log.info { "Tailscale HTTPS: ${route.url} (private to your tailnet; the Serve route persists until disabled)" }
-        server.auth.tailcatAddress?.let { log.info { "Tailcat is active; run kinuvo pair to show its pairing link" } }
+        if (server.tailcatEnabled) log.info { "Tailcat is active; run kinuvo pair to show its pairing link" }
         log.info { "Pairing is closed. Run `kinuvo pair --manage` for a management Device or `kinuvo pair` for ordinary access." }
         Runtime.getRuntime().addShutdownHook(shutdown)
         ready = true
         awaitCancellation()
     } finally {
         runCatching { Runtime.getRuntime().removeShutdownHook(shutdown) }
-        try { exposure?.close() } finally {
-            try { server.stop() } finally {
-                try { extension?.close() } finally {
-                    if (!ready) withContext(NonCancellable) {
-                        runCatching { route?.rollback() }.onFailure { log.warn(it) { "Could not remove the new Tailscale route; check `tailscale serve status`." } }
-                    }
+        try { server.stop() } finally {
+            try { extension?.close() } finally {
+                if (!ready) withContext(NonCancellable) {
+                    runCatching { route?.rollback() }.onFailure { log.warn(it) { "Could not remove the new Tailscale route; check `tailscale serve status`." } }
                 }
             }
         }

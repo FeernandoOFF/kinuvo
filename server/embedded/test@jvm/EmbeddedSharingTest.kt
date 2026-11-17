@@ -12,28 +12,33 @@ class EmbeddedSharingTest {
         var tailcatSaved = false
         var lanActive = false
         var pairable = false
-        var address: String? = null
+        var published: TailcatTunnel? = null
+        val address get() = published?.let { "secret" }
         var available = true
         var fail = false
         var closed = 0
         val events = mutableListOf<String>()
         private val api = object : TailcatServing {
-            override fun serve(state: Path, port: Int): TailcatTunnel {
+            override fun serve(state: Path, port: Int, name: String): TailcatTunnel {
                 events += "serve"
                 if (fail) error("failed")
                 assertEquals(1234, port)
+                assertEquals("Test", name)
                 return object : TailcatTunnel {
-                    override val address = "secret"
+                    override fun invite(code: String, payload: String, ttlSeconds: Int) = error("unused")
+                    override fun phoneOf(code: String) = null
+                    override fun revoke(phone: String) = Unit
                     override fun close() { events += "close"; closed++ }
                 }
             }
             override fun reset(state: Path) { events += "reset" }
+            override fun revoke(state: Path, phone: String) = Unit
         }
-        fun controller() = EmbeddedSharing(Path("unused"), { api.takeIf { available } },
+        fun controller() = EmbeddedSharing(Path("unused"), "Test", { api.takeIf { available } },
             { if (it) tailcatSaved else lanSaved },
             { tailcat, value -> if (tailcat) tailcatSaved = value else lanSaved = value },
             { lanActive = it }, { events += "listen"; 1234 }, { events += "stop" },
-            { value, allowed -> address = value; pairable = allowed })
+            { value, allowed -> published = value; pairable = allowed })
     }
 
     @Test fun independentOptionsPersistenceAndServiceRestart() = runBlocking {

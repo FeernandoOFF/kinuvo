@@ -8,6 +8,7 @@ import kotlinx.coroutines.*
 import kinuvo.server.execution.ExecutionStorage
 import kinuvo.server.execution.remoteLinks
 import kinuvo.server.plugin.TailcatServing
+import kinuvo.server.plugin.TailcatTunnel
 import kotlinx.io.files.Path
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -37,21 +38,24 @@ class JvmServerHost(val harness: JvmAgentRuntime, val auth: DeviceAuth = DeviceA
     private var tailcatListener: NetworkListener? = null
 
     private val tailcatLock = Mutex()
-    private var tailcatExposure: TailcatExposure? = null
+    private var tailcatTunnel: TailcatTunnel? = null
     private var tailcatPort: Int? = null
-    val tailcatEnabled get() = auth.tailcatAddress != null
+    val tailcatEnabled get() = auth.tailcatActive
+
+    init { tailcat?.let { api -> auth.offlineTailcatRevoke = { api.revoke(tailcatState(), it) } } }
 
     suspend fun shareTailcat(enabled: Boolean) = tailcatLock.withLock { setTailcat(enabled) }
 
     private suspend fun setTailcat(enabled: Boolean) {
         withContext(Dispatchers.IO + NonCancellable) {
-            if (enabled && tailcatExposure == null) {
+            if (enabled && tailcatTunnel == null) {
                 val port = tailcatPort ?: startTailcatListener().also { tailcatPort = it }
-                val exposure = TailcatExposure(auth, tailcatApi())
-                try { exposure.start(tailcatState(), port); tailcatExposure = exposure }
-                catch (e: Throwable) { exposure.close(); throw e }
+                val tunnel = tailcatApi().serve(tailcatState(), port, name)
+                tailcatTunnel = tunnel
+                auth.tailcat(tunnel)
             } else if (!enabled) {
-                try { tailcatExposure?.close() } finally { tailcatExposure = null }
+                auth.tailcat(null)
+                try { tailcatTunnel?.close() } finally { tailcatTunnel = null }
             }
         }
     }
@@ -67,7 +71,7 @@ class JvmServerHost(val harness: JvmAgentRuntime, val auth: DeviceAuth = DeviceA
 
     fun tailcatState() = Path(harness.files.home.toString(), "tailcat")
 
-    suspend fun startTailcatListener(): Int {
+    private suspend fun startTailcatListener(): Int {
         check(tailcatListener == null)
         val listener = NetworkListener(runtime, auth, NetworkSecurity(trustedProxies = emptySet()), remoteOnly = true)
         val port = listener.start("127.0.0.1", emptyList())

@@ -9,13 +9,14 @@ import kotlinx.io.files.Path
 
 class EmbeddedSharing(
     private val stateDirectory: Path,
+    private val name: String,
     private val native: () -> TailcatServing?,
     private val saved: (Boolean) -> Boolean,
     private val save: (Boolean, Boolean) -> Unit,
     private val lan: suspend (Boolean) -> Unit,
     private val start: suspend () -> Int,
     private val stop: suspend () -> Unit,
-    private val publish: (String?, Boolean) -> Unit,
+    private val publish: (TailcatTunnel?, Boolean) -> Unit,
 ) {
     enum class State { Unavailable, Off, Starting, On, Error }
     @Volatile var state = State.Off
@@ -78,7 +79,7 @@ class EmbeddedSharing(
         state = State.Starting
         try {
             val port = start()
-            tunnel = api.serve(stateDirectory, port)
+            tunnel = api.serve(stateDirectory, port, name)
             state = State.On
             update()
         } catch (e: Throwable) {
@@ -90,10 +91,10 @@ class EmbeddedSharing(
     private suspend fun disable() {
         val active = tunnel
         tunnel = null
-        try { active?.close() } finally { stop(); state = State.Off; update() }
+        try { update(); active?.close() } finally { stop(); state = State.Off; update() }
     }
 
-    private fun update() = publish(tunnel?.address, saved(false) || saved(true) || enabled)
+    private fun update() = publish(tunnel, saved(false) || saved(true) || enabled)
 
     private suspend fun attempt(action: suspend () -> Unit) {
         try { action() }
