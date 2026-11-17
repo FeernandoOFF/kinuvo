@@ -32,7 +32,7 @@ class ModuleEdgesTest {
         Rule("plugins/*", listOf("server/plugin-api", "protocol"), serverTests),
         Rule("gateways/kinuvo-mcp", listOf("server/core", "harness/api", "protocol"), serverTests + "harness/acp"),
         Rule("gateways/*", listOf("client/sdk", "harness/api", "protocol"), serverTests),
-        Rule("native/tailcat", listOf("client/sdk", "server/plugin-api", "protocol"), serverTests + "server/core"),
+        Rule("libs/tailcat", listOf("client/sdk", "server/plugin-api", "protocol"), serverTests + "server/core"),
         Rule("server/jvm", hostTo, serverTests),
         Rule("server/embedded", hostTo, serverTests),
         Rule("apps/*", listOf("*")),

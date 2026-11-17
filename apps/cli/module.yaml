@@ -5,7 +5,7 @@ product: jvm/app
 dependencies:
   - ../../gateways/acp-agent
   - ../../server/jvm
-  - ../../native/tailcat
+  - ../../libs/tailcat
   - ../../plugins/cua
   - ../../client/sdk
   - com.github.ajalt.clikt:clikt-core:5.1.0

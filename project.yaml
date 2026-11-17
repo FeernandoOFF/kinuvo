@@ -16,7 +16,7 @@ modules:
   - harness/api
   - harness/builtin
   - harness/remote
-  - native/tailcat
+  - libs/tailcat
   - plugins/anytype
   - plugins/apple-frameworks
   - plugins/bitwarden

@@ -1,7 +1,7 @@
-# Native Tailcat binding (FFM on the JVM, JNI on Android): adapter for the Server and client Tailcat ports. Only app shells depend on it.
+# Native Tailcat binding over TailPocket (FFM on the JVM, JNI on Android, a Swift-installed entry point on iOS): adapter for the Server and client Tailcat ports. Only app shells depend on it.
 product:
   type: kmp/lib
-  platforms: [jvm, android]
+  platforms: [jvm, android, iosArm64, iosSimulatorArm64]
 
 aliases:
   - jvmAndAndroid: [jvm, android]
@@ -10,11 +10,14 @@ dependencies:
   - ../../client/sdk
   - ../../server/plugin-api
   - org.jetbrains.kotlinx:kotlinx-serialization-json:1.11.0
+  - co.touchlab:stately-concurrent-collections:2.1.0
 
 test-dependencies:
   - $kotlin.test
-  - ../../testing/server-testing
   - org.jetbrains.kotlinx:kotlinx-coroutines-test:1.11.0
+
+test-dependencies@jvm:
+  - ../../testing/server-testing
 
 settings:
   kotlin:
