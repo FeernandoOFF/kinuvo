@@ -255,6 +255,65 @@ func TestRevokedPhoneIsAnsweredAndNeverProxied(t *testing.T) {
 	}
 }
 
+func TestRevokingPhoneLetsItsOpenBridgeDeliverTheReply(t *testing.T) {
+	phone := key.NewNode().Public().String()
+	native, err := connecthost.New(connecthost.Config{
+		Allowed: []string{phone},
+		Save:    func(connecthost.State) error { return nil },
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer native.Close()
+	host := &hostTunnel{tunnel: newTunnel(func() {}), host: native, state: t.TempDir()}
+	listener := fakeListener{conns: make(chan net.Conn)}
+	defer close(listener.conns)
+	host.listener = listener
+	host.refuse = host.refuseRevoked
+	backend, bridge := net.Pipe()
+	defer backend.Close()
+	backend.SetDeadline(time.Now().Add(5 * time.Second))
+	go host.accept(func() (net.Conn, error) { return bridge, nil })
+
+	connect := func() net.Conn {
+		client, peer := net.Pipe()
+		client.SetDeadline(time.Now().Add(5 * time.Second))
+		listener.conns <- &connecthost.Conn{Conn: peer, Phone: phone}
+		return client
+	}
+	client := connect()
+	defer client.Close()
+	go io.WriteString(client, "revoke")
+	request := make([]byte, len("revoke"))
+	if _, err := io.ReadFull(backend, request); err != nil || string(request) != "revoke" {
+		t.Fatalf("request: %q %v", request, err)
+	}
+	if err := host.revoke(phone); err != nil {
+		t.Fatal(err)
+	}
+
+	go io.WriteString(backend, "ok")
+	reply := make([]byte, len("ok"))
+	if _, err := io.ReadFull(client, reply); err != nil || string(reply) != "ok" {
+		t.Fatalf("reply: %q %v", reply, err)
+	}
+
+	fresh := connect()
+	defer fresh.Close()
+	go io.WriteString(fresh, "GET /api HTTP/1.1\r\nHost: x\r\n\r\n")
+	resp, err := http.ReadResponse(bufio.NewReader(fresh), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusUnauthorized {
+		t.Fatalf("new connection was not refused: %d", resp.StatusCode)
+	}
+	if _, err := client.Read(reply); err != io.EOF {
+		t.Fatalf("expected the old bridge to close after the reply: %v", err)
+	}
+}
+
 func readServerFrame(r io.Reader) (byte, []byte, bool) {
 	var head [2]byte
 	if _, err := io.ReadFull(r, head[:]); err != nil {

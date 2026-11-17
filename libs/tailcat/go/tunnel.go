@@ -118,6 +118,10 @@ func (t *tunnel) accept(dial func() (net.Conn, error)) {
 			t.mu.Lock()
 			t.links[a] = b
 			t.mu.Unlock()
+			// Revocation can race the backend dial.
+			if t.refuse != nil && t.refuse(a) {
+				return
+			}
 			done := make(chan struct{})
 			go func() {
 				defer func() { recover(); close(done) }()
@@ -156,13 +160,10 @@ func (t *tunnel) peerAt(port int) string {
 func (t *tunnel) closePhone(phone string) {
 	t.mu.Lock()
 	var drop []net.Conn
-	for c := range t.conns {
-		if connecthost.PhoneOf(c) == phone {
-			drop = append(drop, c)
-			if b := t.links[c]; b != nil {
-				delete(t.links, c)
-				drop = append(drop, b)
-			}
+	for peer, backend := range t.links {
+		if connecthost.PhoneOf(peer) == phone {
+			delete(t.links, peer)
+			drop = append(drop, peer, backend)
 		}
 	}
 	t.mu.Unlock()

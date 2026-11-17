@@ -249,7 +249,15 @@ func (h *hostTunnel) revoke(phone string) error {
 	}
 	saved := slices.Clone(h.revoked)
 	h.rmu.Unlock()
-	h.closePhone(phone)
+	// Let the existing bridge deliver the revoke RPC response after this call returns.
+	defer time.AfterFunc(time.Second, func() {
+		defer func() {
+			if v := recover(); v != nil {
+				debugLog("native panic: %v", v)
+			}
+		}()
+		h.closePhone(phone)
+	})
 	if err := saveRevoked(h.state, saved); err != nil {
 		return errors.New("cannot save the revoked phone")
 	}
