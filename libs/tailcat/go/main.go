@@ -39,6 +39,7 @@ type response struct {
 	Invite    string `json:"invite,omitempty"`
 	ExpiresAt int64  `json:"expiresAt,omitempty"`
 	Phone     string `json:"phone,omitempty"`
+	Open      bool   `json:"open,omitempty"`
 	Link      string `json:"link,omitempty"`
 	Payload   string `json:"payload,omitempty"`
 	Name      string `json:"name,omitempty"`
@@ -95,7 +96,7 @@ func dispatch(method string, r request) response {
 			return response{Error: err.Error()}
 		}
 		return response{Handle: register(h)}
-	case "host_pair", "host_close_pair", "host_phone", "host_revoke":
+	case "host_pair", "host_pair_open", "host_close_pair", "host_phone", "host_revoke":
 		h := lookupHost(r.Handle)
 		if h == nil {
 			return response{Error: "Tailcat is not running"}
@@ -103,6 +104,8 @@ func dispatch(method string, r request) response {
 		switch method {
 		case "host_pair":
 			return h.pair(r)
+		case "host_pair_open":
+			return response{Open: h.pairingOpen(r.Pairing)}
 		case "host_close_pair":
 			h.closePairing(r.Pairing)
 		case "host_phone":

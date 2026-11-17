@@ -170,6 +170,13 @@ func (h *hostTunnel) pair(r request) response {
 	return response{Pairing: id, Invite: invite, ExpiresAt: p.Expires().Unix()}
 }
 
+func (h *hostTunnel) pairingOpen(id uint64) bool {
+	h.pmu.Lock()
+	defer h.pmu.Unlock()
+	_, ok := h.pairs[id]
+	return ok
+}
+
 func (h *hostTunnel) closePairing(id uint64) {
 	h.pmu.Lock()
 	p := h.pairs[id]
