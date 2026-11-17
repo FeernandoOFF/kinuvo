@@ -47,7 +47,7 @@ class ServerSecurityTest {
     @Test
     fun rotationDoesNotExposeAnInvalidCredentialToConcurrentValidation() = runBlocking {
         val home = temporaryDirectories.create("rotation-security")
-        val auth = DeviceAuth(home.resolve("devices.json").toFile())
+        val auth = DeviceAuth(Path(home.resolve("devices.json").toString()))
         val token = assertNotNull(auth.authenticate("owner", null, auth.currentPairingCode()))
         val invalidated = CompletableDeferred<String>()
         val release = java.util.concurrent.CountDownLatch(1)

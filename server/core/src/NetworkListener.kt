@@ -17,7 +17,6 @@ import kotlinx.io.readByteArray
 import io.ktor.server.cio.CIO
 import io.ktor.server.engine.EmbeddedServer
 import io.ktor.server.engine.embeddedServer
-import io.ktor.server.http.content.staticResources
 import io.ktor.http.ContentType
 import io.ktor.server.routing.routing
 import io.ktor.server.websocket.WebSockets
@@ -28,9 +27,6 @@ import io.ktor.websocket.readText
 import io.ktor.websocket.close
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.flow
-import java.net.InetAddress
-import java.net.InetSocketAddress
-import java.net.ServerSocket
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.intOrNull
@@ -47,7 +43,7 @@ class NetworkListener(private val runtime: ServerRuntime, private val auth: Devi
     suspend fun start(host: String, ports: List<Int>): Int {
         check(engine == null) { "Already listening" }
         if (network.publicUrl != null) {
-            require(network.behindProxy || InetAddress.getByName(host).isLoopbackAddress) { "Public hosting must listen on loopback behind a trusted HTTPS proxy" }
+            require(network.behindProxy || ipAddress(host).loopback) { "Public hosting must listen on loopback behind a trusted HTTPS proxy" }
             require(ports.size == 1 && ports.single() in 1..65535) { "Public hosting requires a single fixed port" }
         }
         if (!remoteOnly) {
@@ -55,19 +51,19 @@ class NetworkListener(private val runtime: ServerRuntime, private val auth: Devi
             auth.learnedUrl = { network.learnedOrigin }
         }
         val server = if (network.publicUrl != null) listen(host, ports.single())
-            else ports.filter { free(host, it) }.firstNotNullOfOrNull { port -> runCatching { listen(host, port) }.getOrNull() } ?: listen(host, 0)
+            else ports.filter { portFree(host, it) }.firstNotNullOfOrNull { port -> runCatching { listen(host, port) }.getOrNull() } ?: listen(host, 0)
         engine = server
         boundHost = host
         boundPort = server.engine.resolvedConnectors().first().port
         if (!remoteOnly) {
             auth.port = boundPort
-            val address = InetAddress.getByName(host)
+            val address = ipAddress(host)
             auth.addresses = {
                 when {
                     network.behindProxy -> emptyList()
-                    address.isAnyLocalAddress -> lanAddresses()
-                    address.isLoopbackAddress -> emptyList()
-                    else -> listOf(address.hostAddress)
+                    address.any -> lanAddresses()
+                    address.loopback -> emptyList()
+                    else -> listOf(address.text)
                 }
             }
         }
@@ -75,8 +71,6 @@ class NetworkListener(private val runtime: ServerRuntime, private val auth: Devi
     }
 
     fun stop() { engine?.stop(1_000, 2_000); engine = null }
-
-    private fun free(host: String, port: Int) = runCatching { ServerSocket().use { it.bind(InetSocketAddress(host, port)) } }.isSuccess
 
     private fun listen(host: String, port: Int): EmbeddedServer<*, *> {
         val server = embeddedServer(CIO, port = port, host = host) {
@@ -88,7 +82,7 @@ class NetworkListener(private val runtime: ServerRuntime, private val auth: Devi
                     val forwarded = call.request.header("X-Forwarded-Proto")
                     val hosts = (lanAddresses() + listOf("127.0.0.1", "localhost", "::1", host)).toSet()
                     if (remoteOnly || call.request.header("Origin") == null || !network.acceptsBrowser(call.request.header("Origin"), call.request.header("Host").orEmpty(), hosts, peer, forwarded, call.request.header("X-Forwarded-Host")) ||
-                        !(network.secureProxy(peer, forwarded) || network.publicUrl == null && InetAddress.getByName(peer).isLoopbackAddress)) {
+                        !(network.secureProxy(peer, forwarded) || network.publicUrl == null && ipAddress(peer).loopback)) {
                         limits.audit(peer, "browser_origin_or_transport")
                         call.respondText("Forbidden", status = HttpStatusCode.Forbidden); return@post
                     }
@@ -145,14 +139,7 @@ class NetworkListener(private val runtime: ServerRuntime, private val auth: Devi
                         runtime.serve(connection, tailcatPeer)
                     } finally { limits.close(source) }
                 }
-                staticResources("/", "web") {
-                    enableAutoHeadResponse()
-                    contentType { url -> when (url.path.substringAfterLast('.')) {
-                        "wasm" -> ContentType("application", "wasm")
-                        "mjs" -> ContentType.Application.JavaScript
-                        else -> null
-                    } }
-                }
+                webApp()
             }
         }
         return try { server.start(wait = false) } catch (e: Exception) { server.stop(0, 0); throw e }

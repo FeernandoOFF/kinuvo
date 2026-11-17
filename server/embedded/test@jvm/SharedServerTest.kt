@@ -38,7 +38,7 @@ class SharedServerTest {
     @Test
     fun otherDevicesPairOverTheNetworkWhileTheAppKeepsItsOwnConnection(): Unit = runBlocking {
         withTimeout(10_000) {
-            val auth = DeviceAuth(java.io.File(home.toString(), "server-devices.json"))
+            val auth = DeviceAuth(Path(home, "server-devices.json"))
             val server = EmbeddedServerHost.create(home, listOf(provider), continuous = true, peers = { SharedPeers(it, auth) }, modelSources = { listOf(provider) })
             val listener = NetworkListener(server.runtime, auth)
             val port = listener.start("127.0.0.1", listOf(0))

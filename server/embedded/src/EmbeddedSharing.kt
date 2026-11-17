@@ -3,6 +3,8 @@ package kinuvo.server.embedded
 import kinuvo.server.plugin.TailcatServing
 import kinuvo.server.plugin.TailcatTunnel
 import kotlinx.coroutines.*
+import kotlinx.coroutines.IO
+import kotlin.concurrent.Volatile
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.io.files.Path

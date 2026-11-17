@@ -1,5 +1,6 @@
 package kinuvo.server
 
+import kotlinx.io.files.Path
 import kinuvo.testing.harness.TemporaryDirectories
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.mock.MockEngine
@@ -25,7 +26,7 @@ class DevicePushTest {
     @AfterTest
     fun deleteTemporaryDirectories() = temporaryDirectories.close()
 
-    private val auth = DeviceAuth(temporaryDirectories.create("device-push").resolve("devices.json").toFile())
+    private val auth = DeviceAuth(Path(temporaryDirectories.create("device-push").resolve("devices.json").toString()))
     private val keys = WebPush.newKeyPair()
     private val secret = WebPush.newAuthSecret()
 

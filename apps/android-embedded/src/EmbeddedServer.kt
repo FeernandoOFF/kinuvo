@@ -30,7 +30,6 @@ import org.koin.dsl.module
 import org.koin.mp.KoinPlatform.getKoin
 import kotlinx.coroutines.sync.withLock
 import kotlinx.io.files.Path
-import java.io.File
 
 /**
  * A Server in the app's process; [ServerService] keeps it running, with its Routines, while the app is in the background.
@@ -43,7 +42,7 @@ internal class AndroidEmbeddedServer(private val context: Context) : EmbeddedSer
     private var listener: NetworkListener? = null
     private val prefs = context.getSharedPreferences("kinuvo-server", Context.MODE_PRIVATE)
     private val home = Path(context.filesDir.path, "Kinuvo")
-    private val auth = DeviceAuth(File(home.toString(), "server-devices.json"))
+    private val auth = DeviceAuth(Path(home, "server-devices.json"))
 
     private val tailcat get() = Tailcat.takeIf { it.supported }
     private var tailcatListener: NetworkListener? = null

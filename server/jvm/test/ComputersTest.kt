@@ -251,7 +251,7 @@ class ComputersTest {
 
     @Test
     fun reconnectingDesktopAppStaysOneComputer() {
-        val auth = DeviceAuth(java.io.File(home, "devices.json"))
+        val auth = DeviceAuth(Path(home.path, "devices.json"))
         repeat(2) {
             val token = auth.sessionToken()
             auth.authenticate("Mac", token, null)
