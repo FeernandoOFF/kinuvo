@@ -10,7 +10,7 @@
 
   const EMPTY = { agents: [], models: [], tools: [], inputs: [] };
   let wf = null, catalog = EMPTY, run = null;
-  let editor = null, dfOf = {}, stepOf = {}, placed = {}, muted = false, selected = null, timer = null, sent = '';
+  let shown = false, editor = null, dfOf = {}, stepOf = {}, placed = {}, muted = false, selected = null, timer = null, sent = '';
   const expanded = new Set();
   const $ = (id) => document.getElementById(id);
   const post = (type, extra) => parent.postMessage({ kinuvo: 'workflow', json: JSON.stringify(Object.assign({ type }, extra)) }, '*');
@@ -84,9 +84,9 @@
         <label>Is<select data-f="op">${options(Object.keys(OPS).map((k) => ({ value: k, label: OPS[k] })), s.op || 'Equals')}</select></label>
         <div data-right${unary(s.op) ? ' hidden' : ''}>${area('right', 'Value', s.right, 'true', { refs: true })}</div>`;
       case 'review': return `
-        ${area('text', 'Question', s.text, 'Is this draft ready?')}
+        ${area('text', 'Question', s.text, 'Is this draft ready?', { refs: true })}
         ${area('value', 'Value to review', s.value, 'A JSON object becomes one field per key', { refs: true, mono: true })}`;
-      default: return area('text', 'Question', s.text, 'Publish the draft?');
+      default: return area('text', 'Question', s.text, 'Publish the draft?', { refs: true });
     }
   }
 
@@ -200,6 +200,31 @@
     if (!t) return;
     Object.keys(THEME_VARS).forEach((k) => { if (t[k]) document.documentElement.style.setProperty(THEME_VARS[k], t[k]); });
     document.documentElement.style.colorScheme = t.dark ? 'dark' : 'light';
+  }
+
+  /** Shows the whole graph, shrunk if it has to be, under the toolbar. */
+  function fit() {
+    const host = $('df');
+    let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+    wf.steps.forEach((s) => {
+      const el = nodeEl(s.id);
+      if (!el) return;
+      const n = editor.getNodeFromId(dfOf[s.id]);
+      x0 = Math.min(x0, n.pos_x); y0 = Math.min(y0, n.pos_y);
+      x1 = Math.max(x1, n.pos_x + el.offsetWidth); y1 = Math.max(y1, n.pos_y + el.offsetHeight);
+    });
+    const w = host.clientWidth, h = host.clientHeight, top = 52, pad = 24;
+    if (x1 < x0 || !w || !h) return;
+    // Below this cards are unreadable; a graph that still does not fit starts at its first step.
+    const z = Math.max(0.35, Math.min(1, (w - 2 * pad) / (x1 - x0), (h - top - pad) / (y1 - y0)));
+    editor.zoom_min = Math.min(editor.zoom_min, z);
+    editor.zoom = z; editor.zoom_last_value = z;
+    // The canvas scales about its centre, so a point p lands at centre + (p - centre) * z + offset.
+    const place = (from, to, size, view, start) => ((to - from) * z > view ? start - size / 2 - (from - size / 2) * z : start + view / 2 - size / 2 - ((from + to) / 2 - size / 2) * z);
+    editor.canvas_x = place(x0, x1, w, w - 2 * pad, pad);
+    editor.canvas_y = place(y0, y1, h, h - top - pad, top);
+    editor.precanvas.style.transform = `translate(${editor.canvas_x}px, ${editor.canvas_y}px) scale(${z})`;
+    wf.steps.forEach((s) => editor.updateConnectionNodes('node-' + dfOf[s.id]));
   }
 
   function freeId(kind) {
@@ -357,7 +382,7 @@
     $('menu').addEventListener('click', (e) => { const k = e.target.dataset && e.target.dataset.add; if (k) { $('menu').hidden = true; addStep(k); } });
     $('zoomIn').addEventListener('click', () => editor.zoom_in());
     $('zoomOut').addEventListener('click', () => editor.zoom_out());
-    $('zoomReset').addEventListener('click', () => { editor.zoom_reset(); editor.canvas_x = 0; editor.canvas_y = 0; editor.zoom_refresh(); });
+    $('zoomReset').addEventListener('click', fit);
   }
 
   addEventListener('message', (e) => {
@@ -369,9 +394,13 @@
       run = m.run || null;
       applyTheme(m.theme);
       if (!editor) start();
+      const first = !shown;
+      shown = true;
       selected = null;
       build();
       sent = JSON.stringify(wf);
+      // A phone shows one card at full size, so it opens on the whole graph.
+      if (first && wf.steps.length > 1 && $('df').clientWidth < 600) requestAnimationFrame(fit);
     } else if (!wf) { return; }
     else if (m.type === 'run') { run = m.run || null; applyRun(); }
     else if (m.type === 'catalog') { catalog = Object.assign({}, EMPTY, m.catalog); fillSelects(); fillRefs(); }
