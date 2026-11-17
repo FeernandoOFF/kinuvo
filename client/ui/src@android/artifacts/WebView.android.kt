@@ -2,6 +2,7 @@ package kinuvo.ui.artifacts
 
 import android.os.Handler
 import android.os.Looper
+import android.view.ViewGroup.LayoutParams
 import android.webkit.JavascriptInterface
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -25,6 +26,8 @@ internal actual fun WebView(html: String, modifier: Modifier, onMessage: ((Strin
     AndroidView(
     factory = { context ->
         android.webkit.WebView(context).apply {
+            // Without a size of its own the page's viewport height starts at zero, and a frame sized in vh stays that tall.
+            layoutParams = LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT)
             // Every frame sees it; only the visual editor sets onMessage, and its policy runs no artifact scripts.
             if (onMessage != null) addJavascriptInterface(EditBridge { current }, "Kinuvo")
             settings.javaScriptEnabled = true
