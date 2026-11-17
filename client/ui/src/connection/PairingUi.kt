@@ -76,7 +76,7 @@ internal fun PairingPanel(info: PairingInfo, selected: String?, onSelect: (Strin
         }
         if (link != null && live) {
             Text(when {
-                tailcat -> "Scan in the Kinuvo app on the other device. It connects from any network through Tailcat, with nothing else to install."
+                tailcat -> "Scan in the Kinuvo app on the other device. It pairs and connects from any network through Tailcat, with nothing else to install."
                 browser -> "Scan with the other device's camera, or open the link in its browser."
                 else -> "Scan with the other device's camera, or open the link there."
             },
@@ -101,7 +101,7 @@ internal fun PairingPanel(info: PairingInfo, selected: String?, onSelect: (Strin
                 CopyButton(info.code)
             }
         }
-        if (tailcat) Pill("This link holds the Server's private address. Share it only with your own devices.", Modifier.fillMaxWidth(), icon = Lucide.KeyRound)
+        if (tailcat) Pill("Admits one device and expires with the code. Share it only with your own devices.", Modifier.fillMaxWidth(), icon = Lucide.KeyRound)
         if (info.management) Pill("Can change server settings and answer approvals", Modifier.fillMaxWidth(), tone = Tone.Warning, icon = Lucide.ShieldAlert)
         error?.let { Pill(it, Modifier.fillMaxWidth(), tone = Tone.Danger, icon = Lucide.CircleX) }
     } }
@@ -176,13 +176,13 @@ internal fun ConnectionSettingsPane(p: Pane) {
             }
             if (tailcat != null) {
                 val starting = tailcat == SharingState.Starting
-                GroupRow("Any network", subtitle = "Devices connect from anywhere through Tailcat, with no account or VPN. They still pair with a code from here.", icon = Lucide.Globe, chevron = false) {
+                GroupRow("Any network", subtitle = "Devices connect from anywhere through Tailcat, with no account or VPN. Pair them from Add a device.", icon = Lucide.Globe, chevron = false) {
                     if (starting) Spinner()
                     ToggleSwitch(tailcat == SharingState.On || starting, p.actions.onShareTailcat, enabled = !starting)
                 }
                 (tailcat as? SharingState.Error)?.let { GroupBox { Pill(it.message, tone = Tone.Danger, icon = Lucide.CircleX) } }
-                ConfirmRow("Reset private address", Lucide.RotateCcw, "Reset this Server's private address?", p.actions.onResetTailcat, "Reset", enabled = !starting,
-                    detail = "Devices that connect through Tailcat stop reaching this Server until they pair again with a new link. Devices on your network are not affected.")
+                ConfirmRow("Disconnect all any-network devices", Lucide.RotateCcw, "Disconnect all any-network devices?", p.actions.onResetTailcat, "Disconnect", enabled = !starting,
+                    detail = "Every Device that connects through Tailcat stops reaching this Server until it pairs again. Devices on your network are not affected.")
             }
         }
         if (p.ui.capabilities.supports(ServerFeature.Pairing)) {
