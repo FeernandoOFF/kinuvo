@@ -115,6 +115,8 @@ internal class IosEmbeddedServer(private val model: AppleLanguageModel, private 
     }
     override val sharingOptions get() = mapOf(SharingOption.Lan to null, SharingOption.Tailcat to tailcatSharing)
     override val sharesInBackground = false
+    // Any network belongs to this Server, so restore it at launch even when the app opens on a remote Server.
+    init { if (tailcat != null && defaults.boolForKey(TAILCAT)) MainScope().launch { runCatching { host() } } }
 
     override suspend fun endpoint(): Endpoint {
         val local = host()

@@ -298,7 +298,8 @@ class AppViewModel(
             try {
                 action(control)
                 state.update { it.copy(sharingOptions = sharingStates(), sharing = servers.sharing?.enabled) }
-                refreshPairing()
+                // Pairing is a capability read at connect, so reconnect for Add a device to show or hide.
+                if (connected?.server == Server.Embedded) connect(Server.Embedded) else refreshPairing()
             } catch (e: CancellationException) { throw e }
             catch (e: Exception) { state.update { it.copy(sharingOptions = sharingStates() + (option to SharingState.Error(e.userMessage))) } }
         }
