@@ -20,6 +20,17 @@ Tool arguments that are exactly one reference keep their type, so `"input": "{{s
 
 You can build Workflows in the app's editor or ask an Agent: “Turn the steps we just tested into a Workflow, with a Review before sending anything.” The Agent shows an Approval before saving or running it. The examples below are plain JSON files.
 
+## In the app
+
+Open **Routines & Workflows** and add a Workflow. While it is still empty, the app offers a few examples to start from; picking one fills the graph, which you can change before saving.
+
+- **Add step** adds a step after the selected one. Drag from a step's right dot to another step's left dot to connect them. A Condition has two dots: the upper one is followed when it is true, the lower one when it is false.
+- **Insert…** above a field adds a reference to an earlier step's output or to one of the Workflow's inputs.
+- **Inputs** lists the values a run starts with, each with a default. Under **Run** you can change them for one run without touching the defaults.
+- While a run waits for you, a bar at the top says so: an Approval is answered right there, and a Review opens the chat that holds its form.
+- When a run ends, **Run** shows its result, or the step that failed and why. **Retry failed steps** starts again from that step and keeps what the earlier steps produced, so nothing that already worked is paid for twice.
+- Pick a run in **Run history** to see each step's status and output on the graph.
+
 ## Inputs and branches
 
 Declare inputs with a name, description and default. A default such as `3`, `true` or `["a"]` is used as that number, yes/no or list; anything else is text. Use `{{input.email}}` in prompts and arguments, or `{{input}}` for the whole object. Passed values replace defaults and keep their JSON types. Missing inputs render as empty text. A tool argument that is exactly one reference keeps the value's type.
