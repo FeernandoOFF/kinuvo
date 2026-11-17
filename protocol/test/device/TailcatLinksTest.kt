@@ -4,12 +4,13 @@ import kotlin.test.*
 
 class TailcatLinksTest {
     @Test fun roundTripAndBounds() {
-        val address = "tc" + "aB_9-".repeat(28)
-        assertEquals(PairLink(address, "123456"), Links.parsePair(Links.tailcatPair(address, "123456")))
-        for (bad in listOf("tc", "tc!" + "a".repeat(140), "tc" + "a".repeat(2047), "tc" + "a".repeat(140) + "/")) {
-            assertFalse(Links.isTailcatAddress(bad))
-            assertNull(Links.parsePair("kinuvo://pair?tailcat=$bad&code=123456"))
-            assertFailsWith<IllegalArgumentException> { Links.tailcatPair(bad, "123456") }
+        val invite = "kinuvo1:" + "aB_9-".repeat(80)
+        assertTrue(Links.isTailcatInvite(invite))
+        assertEquals(PairLink(invite, ""), Links.parsePair(Links.tailcatPair(invite)))
+        for (bad in listOf("kinuvo1:", "kinuvo1:short", "tailpocket1:" + "a".repeat(100), "kinuvo1:!" + "a".repeat(100), "kinuvo1:" + "a".repeat(4096), "kinuvo1:" + "a".repeat(100) + "/")) {
+            assertFalse(Links.isTailcatInvite(bad), bad.take(20))
+            assertNull(Links.parsePair("kinuvo://pair?tailcat=$bad"))
+            assertFailsWith<IllegalArgumentException> { Links.tailcatPair(bad) }
         }
         assertEquals(PairLink("https://home.example", "123456"), Links.parsePair(Links.pair("https://home.example", "123456")))
         assertEquals(PairLink("https://home.example", "123456"), Links.parsePair(Links.webPair("https://home.example", "123456")))

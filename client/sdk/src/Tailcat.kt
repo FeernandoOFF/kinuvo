@@ -20,14 +20,22 @@ interface TailcatForward {
     suspend fun invalidate() = close()
 }
 
+/** A paired tunnel: [link] is the secret to keep and [open]; [payload] is what the Server sent while pairing. */
+class TailcatPairing(val link: String, val payload: String, val name: String) {
+    override fun toString() = "TailcatPairing(name=$name)"
+}
+
 interface TailcatForwarder {
     val supported: Boolean
-    suspend fun open(address: String): TailcatForward
+    /** Pairs this Device with the Server that showed [invite]. */
+    suspend fun pair(invite: String, device: String): TailcatPairing
+    suspend fun open(link: String): TailcatForward
 }
 
 object UnsupportedTailcatForwarder : TailcatForwarder {
     override val supported = false
-    override suspend fun open(address: String): TailcatForward = error("Tailcat connections are not supported on this platform yet")
+    override suspend fun pair(invite: String, device: String): TailcatPairing = error("Tailcat connections are not supported on this platform yet")
+    override suspend fun open(link: String): TailcatForward = error("Tailcat connections are not supported on this platform yet")
 }
 
 class SharedTailcatForwarder(private val native: TailcatForwarder) : TailcatForwarder {
@@ -36,8 +44,10 @@ class SharedTailcatForwarder(private val native: TailcatForwarder) : TailcatForw
     private class Shared(val forward: TailcatForward, var users: Int = 0)
     private val forwards = mutableMapOf<String, Shared>()
 
-    override suspend fun open(address: String): TailcatForward = lock.withLock {
-        val shared = forwards[address] ?: Shared(native.open(address)).also { forwards[address] = it }
+    override suspend fun pair(invite: String, device: String) = native.pair(invite, device)
+
+    override suspend fun open(link: String): TailcatForward = lock.withLock {
+        val shared = forwards[link] ?: Shared(native.open(link)).also { forwards[link] = it }
         shared.users++
         object : TailcatForward {
             override val port get() = shared.forward.port
@@ -47,8 +57,8 @@ class SharedTailcatForwarder(private val native: TailcatForwarder) : TailcatForw
                     if (!released) {
                         released = true
                         shared.users--
-                        if (shared.users == 0 && forwards[address] === shared) {
-                            forwards.remove(address)
+                        if (shared.users == 0 && forwards[link] === shared) {
+                            forwards.remove(link)
                             shared.forward.close()
                         }
                     }
@@ -56,8 +66,8 @@ class SharedTailcatForwarder(private val native: TailcatForwarder) : TailcatForw
             }
             override suspend fun invalidate() = withContext(NonCancellable) {
                 lock.withLock {
-                    if (forwards[address] === shared) {
-                        forwards.remove(address)
+                    if (forwards[link] === shared) {
+                        forwards.remove(link)
                         shared.forward.close()
                     }
                 }
@@ -67,11 +77,11 @@ class SharedTailcatForwarder(private val native: TailcatForwarder) : TailcatForw
 }
 
 /** Each connection attempt owns its forward, including failed handshakes. */
-suspend fun tailcatConnection(address: String, forwarder: TailcatForwarder,
+suspend fun tailcatConnection(link: String, forwarder: TailcatForwarder,
     connect: (suspend (String) -> FrameConnection)? = null,
 ): FrameConnection {
     check(forwarder.supported) { "Tailcat connections are not supported on this platform yet" }
-    val forward = withContext(NonCancellable) { forwarder.open(address) }
+    val forward = withContext(NonCancellable) { forwarder.open(link) }
     val http = try { httpClient { install(WebSockets) { maxFrameSize = MAX_FRAME_SIZE } } }
     catch (e: Throwable) {
         withContext(NonCancellable) { forward.close() }

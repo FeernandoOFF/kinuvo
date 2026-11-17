@@ -15,7 +15,8 @@ class TailcatConnectionTest {
         var closed = 0
         val forwarder = object : TailcatForwarder {
             override val supported = true
-            override suspend fun open(address: String): TailcatForward {
+            override suspend fun pair(invite: String, device: String): TailcatPairing = error("unused")
+            override suspend fun open(link: String): TailcatForward {
                 opened++
                 return object : TailcatForward {
                     override val port = 1234
@@ -62,7 +63,8 @@ class TailcatConnectionTest {
         var closed = 0
         val pool = SharedTailcatForwarder(object : TailcatForwarder {
             override val supported = true
-            override suspend fun open(address: String): TailcatForward {
+            override suspend fun pair(invite: String, device: String): TailcatPairing = error("unused")
+            override suspend fun open(link: String): TailcatForward {
                 opened++
                 return object : TailcatForward {
                     override val port = opened
@@ -89,7 +91,8 @@ class TailcatConnectionTest {
         var closed = false
         val forwarder = object : TailcatForwarder {
             override val supported = true
-            override suspend fun open(address: String) = object : TailcatForward {
+            override suspend fun pair(invite: String, device: String): TailcatPairing = error("unused")
+            override suspend fun open(link: String) = object : TailcatForward {
                 override val port = 1
                 override suspend fun close() { closed = true }
             }
