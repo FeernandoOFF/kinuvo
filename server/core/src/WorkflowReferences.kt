@@ -41,7 +41,7 @@ internal fun nowValue(at: Long, zone: TimeZone): JsonObject {
  * in a step's text, resolved against earlier steps' outputs, the run's input and the time the step starts.
  */
 internal object WorkflowReferences {
-    private val pattern = Regex("\\{\\{(?:steps\\.([a-zA-Z0-9_-]+)\\.output|(input|now))((?:\\.[^.{}\\s]+)*)}}")
+    private val pattern = Regex("\\{\\{(?:steps\\.([a-zA-Z0-9_-]+)\\.output|(input|now))((?:\\.[^.{}\\s]+)*)\\}\\}")
     private val fence = Regex("^```[a-zA-Z0-9]*[ \\t]*\\r?\\n(.*?)\\r?\\n?```$", RegexOption.DOT_MATCHES_ALL)
 
     fun strings(step: WorkflowStep): List<String> = when (step) {

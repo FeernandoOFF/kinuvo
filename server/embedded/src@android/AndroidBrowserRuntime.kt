@@ -3,8 +3,10 @@ package kinuvo.server.embedded
 import android.content.Context
 import android.graphics.Bitmap
 import android.os.SystemClock
+import android.view.InputDevice
 import android.view.KeyEvent
 import android.view.MotionEvent
+import android.view.ViewConfiguration
 import android.view.inputmethod.EditorInfo
 import android.webkit.JsResult
 import android.webkit.JsPromptResult
@@ -157,7 +159,7 @@ class AndroidBrowserRuntime(private val context: Context) : BrowserService {
                         tab.surface.view.dispatchKeyEvent(KeyEvent(now, now, KeyEvent.ACTION_DOWN, key, 0, modifiers))
                         tab.surface.view.dispatchKeyEvent(KeyEvent(now, SystemClock.uptimeMillis(), KeyEvent.ACTION_UP, key, 0, modifiers))
                     }
-                    BrowserAction.Scroll -> tab.surface.view.scrollBy(0, (command.y ?: 500).coerceIn(-2000, 2000))
+                    BrowserAction.Scroll -> wheel(tab.surface.view, (command.y ?: 500).coerceIn(-2000, 2000))
                     BrowserAction.Wait -> delay((command.y ?: 500).coerceIn(0, 5000).toLong())
                     BrowserAction.Close -> { remove(tab); return@withLock null }
                     else -> error("Unsupported Browser action")
@@ -271,6 +273,17 @@ class AndroidBrowserRuntime(private val context: Context) : BrowserService {
                 if (current.viewers == 0) { current.producer?.cancel(); current.producer = null; current.frames.resetReplayCache() }
             } }
         }
+    }
+    /** A mouse wheel at the centre, like the desktop runtime, so inner scrolling containers move too. */
+    private fun wheel(view: WebView, dy: Int) {
+        val properties = MotionEvent.PointerProperties().apply { id = 0; toolType = MotionEvent.TOOL_TYPE_MOUSE }
+        val coords = MotionEvent.PointerCoords().apply {
+            x = AndroidBrowserSurface.WIDTH / 2f; y = AndroidBrowserSurface.HEIGHT / 2f
+            setAxisValue(MotionEvent.AXIS_VSCROLL, -dy / ViewConfiguration.get(view.context).scaledVerticalScrollFactor)
+        }
+        val now = SystemClock.uptimeMillis()
+        val event = MotionEvent.obtain(now, now, MotionEvent.ACTION_SCROLL, 1, arrayOf(properties), arrayOf(coords), 0, 0, 1f, 1f, 0, 0, InputDevice.SOURCE_MOUSE, 0)
+        try { view.dispatchGenericMotionEvent(event) } finally { event.recycle() }
     }
     private fun geometry(tab: Tab) = "${tab.geometry}:${tab.surface.view.scrollX}:${tab.surface.view.scrollY}"
     private fun remove(tab: Tab) {
