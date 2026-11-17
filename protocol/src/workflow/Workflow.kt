@@ -75,7 +75,9 @@ fun inputValue(text: String): JsonElement {
 @Serializable enum class WorkflowRunStatus { Running, Done, Failed, Cancelled }
 @Serializable enum class StepStatus { Pending, Running, WaitingApproval, Done, Failed, Skipped, Cancelled }
 @Serializable data class StepRun(val status: StepStatus = StepStatus.Pending, val sessionId: SessionId? = null,
-    val output: String? = null, val error: String? = null, val interactionId: InteractionId? = null)
+    val output: String? = null, val error: String? = null, val interactionId: InteractionId? = null,
+    /** The tool is running and waits on a call it made, so a restart can't replay it. */
+    val started: Boolean = false)
 @Serializable data class WorkflowRun(val id: WorkflowRunId, val workflowId: WorkflowId,
     val status: WorkflowRunStatus, val startedAt: Long, val endedAt: Long? = null,
     val steps: Map<StepId, StepRun>, val workflow: Workflow,

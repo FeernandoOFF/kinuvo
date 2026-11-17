@@ -52,7 +52,8 @@ class Workflows internal constructor(
         data = data.copy(runs = data.runs.map { r -> if (r.status != WorkflowRunStatus.Running) r else {
             val steps = r.steps.mapValues { (id, s) -> when {
                 s.status in terminal -> s
-                s.status == StepStatus.WaitingApproval -> s.copy(status = StepStatus.Pending, interactionId = null)
+                s.status == StepStatus.WaitingApproval && !s.started -> s.copy(status = StepStatus.Pending, interactionId = null)
+                s.status == StepStatus.WaitingApproval -> s.copy(status = StepStatus.Failed, error = "Interrupted by a Server restart")
                 s.status != StepStatus.Running -> s
                 r.workflow.steps.find { it.id == id } is WorkflowStep.Model -> s.copy(status = StepStatus.Pending)
                 else -> s.copy(status = StepStatus.Failed, error = "Interrupted by a Server restart")
@@ -287,18 +288,22 @@ class Workflows internal constructor(
                     var recorded = surface
                     if (surface) harness.log.append(agent.id, session!!, call)
                     var pending: InteractionId? = null
+                    var started = false
                     val turn = ToolTurn(emit = { event ->
                         when (event) {
                             is AgentEvent.InteractionRequested -> {
+                                val own = !started && (event.interaction as? PendingInteraction.Approval)?.toolCallName == step.tool
+                                if (!own) started = true
                                 val id = attention(run, agent, session).also { session = it }
                                 if (!recorded) { recorded = true; harness.log.append(agent.id, id, call) }
                                 val interaction = event.interaction
                                 harness.log.publish(agent.id, id, if (interaction is PendingInteraction.Approval) event.copy(interaction = interaction.copy(trustable = false)) else event)
                                 pending = event.interaction.id
-                                update(run.id, step.id, StepRun(StepStatus.WaitingApproval, id, interactionId = event.interaction.id))
+                                update(run.id, step.id, StepRun(StepStatus.WaitingApproval, id, interactionId = event.interaction.id, started = started))
                             }
                             is AgentEvent.InteractionResolved -> session?.let { id ->
                                 pending = null
+                                started = true
                                 harness.log.publish(agent.id, id, event)
                                 update(run.id, step.id, StepRun(StepStatus.Running, id))
                             }

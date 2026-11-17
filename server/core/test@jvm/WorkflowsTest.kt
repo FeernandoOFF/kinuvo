@@ -192,6 +192,43 @@ class WorkflowsTest {
         }
     }
 
+    @Test fun aCallMadeByARunningToolMarksTheStepStarted() = runBlocking<Unit> {
+        val script = object : kinuvo.server.plugin.Tool {
+            override val descriptor = kinuvo.server.plugin.toolSpec("script", "Calls deploy")
+            override suspend fun execute(args: JsonObject) = error("unused")
+            override suspend fun execute(args: JsonObject, callId: String, run: kinuvo.server.plugin.ToolRun) = run.call("deploy", "{}").output
+        }
+        val tools = object : kinuvo.server.plugin.ServerPlugin {
+            override val definition = kinuvo.protocol.plugin.PluginDefinition("test.script", "Script")
+            override suspend fun prepare(run: kinuvo.server.plugin.RunContext, activate: Boolean) = kinuvo.server.plugin.PluginTools(listOf(script))
+        }
+        TestServer.start(plugins = listOf(fakes, tools), scenario = { agent("work") }).use { server ->
+            val c = client(server)
+            val w = c.call(Api.CreateWorkflow, workflow(tool("a", "script")))
+            c.run(w.id)
+            suspend fun approve(after: InteractionId?): StepRun {
+                val s = await(c, w.id) { it.steps[StepId("a")]?.let { a -> a.status == StepStatus.WaitingApproval && a.interactionId != after } == true }.steps.getValue(StepId("a"))
+                assertTrue(c.call(Api.Respond, RespondParams(s.sessionId!!, s.interactionId!!, InteractionAnswer.Approval(ApprovalDecision.AllowOnce))))
+                return s
+            }
+            val own = approve(null)
+            assertFalse(own.started)
+            assertTrue(approve(own.interactionId).started)
+            assertEquals("deployed", finished(c).steps[StepId("a")]?.output)
+        }
+    }
+
+    @Test fun aToolWaitingOnACallItMadeFailsOnRestartInsteadOfReplaying() = runBlocking<Unit> {
+        deployed.set(0)
+        val w = workflow(tool("a", "deploy"))
+        restarted(w, mapOf("a" to StepRun(StepStatus.WaitingApproval, placeholder, interactionId = InteractionId("old"), started = true))) { _, c, _ ->
+            val done = await(c, w.id) { it.status != WorkflowRunStatus.Running }
+            assertEquals(WorkflowRunStatus.Failed, done.status)
+            assertEquals("Interrupted by a Server restart", done.steps[StepId("a")]?.error)
+            assertEquals(0, deployed.get())
+        }
+    }
+
     @Test fun interruptedRunningStepsFailTheRunWhileModelStepsAreAskedAgain() = runBlocking<Unit> {
         for (kind in listOf(turn("a"), tool("a", "deploy"))) {
             val w = workflow(kind, turn("b"), edges = listOf(edge("a", "b")))
