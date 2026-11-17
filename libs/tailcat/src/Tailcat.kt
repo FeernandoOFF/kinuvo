@@ -29,9 +29,10 @@ object Tailcat : TailcatServing, TailcatForwarder {
     override fun serve(state: Path, port: Int, name: String): TailcatTunnel {
         val handle = native.open("host_start", buildJsonObject { put("state", state.toString()); put("name", name); put("port", port) })
         return object : TailcatTunnel, AutoCloseable by handle {
-            override fun invite(code: String, payload: String, ttlSeconds: Int): TailcatInvite {
+            override fun invite(code: String, payload: String, ttlSeconds: Int, boundPhones: Set<String>): TailcatInvite {
                 val result = native.call("host_pair", buildJsonObject {
                     put("handle", handle.id); put("code", code); put("payload", payload); put("ttl", ttlSeconds)
+                    put("boundPhones", JsonArray(boundPhones.map(::JsonPrimitive)))
                 })
                 val pairing = result.getValue("pairing")
                 return object : TailcatInvite {

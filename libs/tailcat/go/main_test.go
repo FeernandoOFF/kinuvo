@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/jt-wang/tailpocket/connecthost"
+	"tailscale.com/types/key"
 )
 
 func TestSavedStateAndResetLock(t *testing.T) {
@@ -124,6 +125,34 @@ func TestRevocationsSurviveRestartAndResetClearsThem(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(dir, revokedFile)); !os.IsNotExist(err) {
 		t.Fatal("revocations retained")
+	}
+}
+
+func TestPruneRemovesOldestOrphanAndKeepsBoundPhones(t *testing.T) {
+	allowed := make([]string, connecthost.MaxPhones)
+	for i := range allowed {
+		allowed[i] = key.NewNode().Public().String()
+	}
+	var saved connecthost.State
+	backend, err := connecthost.New(connecthost.Config{
+		Allowed: allowed,
+		Save:    func(s connecthost.State) error { saved = s; return nil },
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer backend.Close()
+	host := &hostTunnel{host: backend, revoked: []string{allowed[0]}}
+	host.prune(context.Background(), allowed)
+	if !slices.Equal(backend.Allowed(), allowed) {
+		t.Fatal("pruned a bound phone")
+	}
+
+	bound := append(slices.Clone(allowed[:1]), allowed[3:]...)
+	host.prune(context.Background(), bound)
+	want := slices.Delete(slices.Clone(allowed), 1, 2)
+	if !slices.Equal(backend.Allowed(), want) || !slices.Equal(saved.Allowed, want) {
+		t.Fatal("pruning did not remove and persist exactly the oldest orphan")
 	}
 }
 

@@ -63,7 +63,7 @@ class CliTest {
             assertEquals(listOf("default"), server.harness.store.agents().map { it.id.value })
             val invite = "kinuvo1:" + "a".repeat(140)
             server.auth.tailcat(object : TailcatTunnel {
-                override fun invite(code: String, payload: String, ttlSeconds: Int) = object : TailcatInvite {
+                override fun invite(code: String, payload: String, ttlSeconds: Int, boundPhones: Set<String>) = object : TailcatInvite {
                     override val text = invite
                     override val expiresAt = 0L
                     override val open = true

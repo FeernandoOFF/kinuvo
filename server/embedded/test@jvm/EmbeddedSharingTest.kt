@@ -25,7 +25,7 @@ class EmbeddedSharingTest {
                 assertEquals(1234, port)
                 assertEquals("Test", name)
                 return object : TailcatTunnel {
-                    override fun invite(code: String, payload: String, ttlSeconds: Int) = error("unused")
+                    override fun invite(code: String, payload: String, ttlSeconds: Int, boundPhones: Set<String>) = error("unused")
                     override fun phoneOf(code: String) = null
                     override fun revoke(phone: String) = Unit
                     override fun close() { events += "close"; closed++ }

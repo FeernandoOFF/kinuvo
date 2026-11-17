@@ -27,7 +27,7 @@ class TailcatTest {
         val revoked = mutableListOf<String>()
         var phone: String? = null
         var payloads = mutableListOf<String>()
-        override fun invite(code: String, payload: String, ttlSeconds: Int): TailcatInvite {
+        override fun invite(code: String, payload: String, ttlSeconds: Int, boundPhones: Set<String>): TailcatInvite {
             invites++
             payloads += payload
             assertTrue(ttlSeconds in 10..600)

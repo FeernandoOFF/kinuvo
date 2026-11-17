@@ -190,7 +190,7 @@ func (h *hostTunnel) pair(r request) response {
 	}
 	ctx, done := context.WithTimeout(context.Background(), 30*time.Second)
 	defer done()
-	h.prune(ctx)
+	h.prune(ctx, r.BoundPhones)
 	p, err := h.host.Pair(ctx, connecthost.PairOptions{
 		TTL: time.Duration(r.TTL) * time.Second,
 		Payload: func(phone connecthost.Phone) (string, error) {
@@ -256,25 +256,38 @@ func (h *hostTunnel) revoke(phone string) error {
 	return nil
 }
 
-// prune really removes the oldest revoked phones once the paired list is full, so revoking never blocks pairing.
-func (h *hostTunnel) prune(ctx context.Context) {
-	for len(h.host.Allowed()) >= connecthost.MaxPhones {
-		h.rmu.Lock()
-		if len(h.revoked) == 0 {
-			h.rmu.Unlock()
+// prune frees a slot when full, preferring revoked phones and then the oldest orphan.
+func (h *hostTunnel) prune(ctx context.Context, bound []string) {
+	allowed := h.host.Allowed()
+	if len(allowed) < connecthost.MaxPhones {
+		return
+	}
+	h.rmu.Lock()
+	index := slices.IndexFunc(h.revoked, func(phone string) bool {
+		return slices.Contains(allowed, phone) && !slices.Contains(bound, phone)
+	})
+	var oldest string
+	if index >= 0 {
+		oldest = h.revoked[index]
+	}
+	h.rmu.Unlock()
+	if oldest == "" {
+		index = slices.IndexFunc(allowed, func(phone string) bool { return !slices.Contains(bound, phone) })
+		if index < 0 {
 			return
 		}
-		oldest := h.revoked[0]
-		h.rmu.Unlock()
-		if err := h.host.Revoke(ctx, oldest); err != nil {
-			debugLog("prune failed: %v", err)
-			return
-		}
-		h.rmu.Lock()
-		h.revoked = slices.DeleteFunc(h.revoked, func(p string) bool { return p == oldest })
-		saved := slices.Clone(h.revoked)
-		h.rmu.Unlock()
-		saveRevoked(h.state, saved)
+		oldest = allowed[index]
+	}
+
+	if err := h.host.Revoke(ctx, oldest); err != nil {
+		debugLog("prune failed: %v", err)
+		return
+	}
+	h.rmu.Lock()
+	defer h.rmu.Unlock()
+	if index := slices.Index(h.revoked, oldest); index >= 0 {
+		h.revoked = slices.Delete(h.revoked, index, index+1)
+		saveRevoked(h.state, h.revoked)
 	}
 }
 

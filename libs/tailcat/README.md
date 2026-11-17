@@ -17,11 +17,11 @@ Exports `kinuvo_tailcat_abi_version() -> int`, `kinuvo_tailcat_call(method, para
 
 Server (host) methods; `state` is `<home>/tailcat`, holding `state.json` (0600: identity and paired phone keys, both secret) and a lock file:
 - `host_start {state,name,port}` -> `{handle}`: serves paired phones, proxying each connection to loopback `port`.
-- `host_pair {handle,code,payload,ttl}` -> `{pairing,invite,expiresAt}`: opens a one-phone pairing window; the phone receives `payload`, and the host remembers which phone used `code`.
+- `host_pair {handle,code,payload,ttl,boundPhones}` -> `{pairing,invite,expiresAt}`: opens a one-phone pairing window; the phone receives `payload`, and the host remembers which phone used `code`.
 - `host_pair_open {handle,pairing}` -> `{open}`; `host_close_pair {handle,pairing}`.
 - `host_phone {handle,code}` -> `{phone}`: the phone key bound to `code`, once.
 - `host_peer {handle,port}` -> `{phone}`: the verified phone on the bridge with loopback source `port`.
-- `host_revoke {handle,phone}`; `revoke {state,phone}` records it in `revoked.json` while no host runs. A revoked phone stays allowed at the Tailcat level so its connections reach the shim, which closes its open ones and answers new ones like a Server answers a revoked Device (the `/ws` upgrade succeeds, the first request frame fails `forbidden`, other requests get 401) without ever proxying them; connecthost's own `Revoke` only closes silently, which a phone cannot tell from a Server that is down. The oldest revoked phones are really removed once the paired list is full.
+- `host_revoke {handle,phone}`; `revoke {state,phone}` records it in `revoked.json` while no host runs. A revoked phone stays allowed at the Tailcat level so its connections reach the shim, which closes its open ones and answers new ones like a Server answers a revoked Device (the `/ws` upgrade succeeds, the first request frame fails `forbidden`, other requests get 401) without ever proxying them; connecthost's own `Revoke` only closes silently, which a phone cannot tell from a Server that is down. When the paired list is full, opening an invite removes the oldest revoked phone or the oldest phone without a Device binding, preserving all bound phones.
 - `reset {state}`: deletes the identity and phones; needs the host stopped.
 
 Client (phone) methods:

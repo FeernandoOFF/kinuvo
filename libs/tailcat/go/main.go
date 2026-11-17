@@ -16,20 +16,21 @@ import (
 const abiVersion = 3
 
 type request struct {
-	State     string `json:"state"`
-	Name      string `json:"name"`
-	Port      int    `json:"port"`
-	Handle    uint64 `json:"handle"`
-	Pairing   uint64 `json:"pairing"`
-	Code      string `json:"code"`
-	Payload   string `json:"payload"`
-	TTL       int    `json:"ttl"`
-	Phone     string `json:"phone"`
-	Invite    string `json:"invite"`
-	Device    string `json:"device"`
-	Op        int64  `json:"op"`
-	TimeoutMs int    `json:"timeoutMs"`
-	Link      string `json:"link"`
+	State       string   `json:"state"`
+	Name        string   `json:"name"`
+	Port        int      `json:"port"`
+	Handle      uint64   `json:"handle"`
+	Pairing     uint64   `json:"pairing"`
+	Code        string   `json:"code"`
+	Payload     string   `json:"payload"`
+	TTL         int      `json:"ttl"`
+	Phone       string   `json:"phone"`
+	BoundPhones []string `json:"boundPhones"`
+	Invite      string   `json:"invite"`
+	Device      string   `json:"device"`
+	Op          int64    `json:"op"`
+	TimeoutMs   int      `json:"timeoutMs"`
+	Link        string   `json:"link"`
 }
 
 type response struct {
