@@ -205,7 +205,7 @@ class RunComposer internal constructor(
         if (activate && requireModel) chat.requireReady()
         val run = RunContext(e.agent, sessionId, routine?.routine, taskId)
         val contributed = (if (privateSession) emptyList() else plugins).map { it.prepare(run, activate).ownedBy(it.instance, it.manifest) }
-        val own = PluginTools(if (privateSession) subAgents?.tools(agent.id, requireNotNull(sessionId)).orEmpty() + manageTools(agent, sessionId, true) + listOf(AskUserTool()) else toolsFor(e, sessionId, routine, catalogs)).ownedBy(PluginInstanceId("kinuvo.core")).tools
+        val own = PluginTools(if (privateSession) subAgents?.tools(agent.id, requireNotNull(sessionId)).orEmpty() + manageTools(agent, sessionId, true) + listOf(AskUserTool()) else toolsFor(e, sessionId, routine, catalogs, scope)).ownedBy(PluginInstanceId("kinuvo.core")).tools
         val aliased = own + contributed.flatMap { it.tools }
         val all = aliased.withModelNames().also { it.indexedTools() }
         val renamed = aliased.zip(all).filter { (a, b) -> a !== b }.associate { (a, b) -> a.descriptor.name to b.descriptor.name }
@@ -331,7 +331,7 @@ class RunComposer internal constructor(
             throw ServerException(SubAgentError.Privacy(agent.name))
     }
 
-    private suspend fun toolsFor(e: Effective, sessionId: SessionId?, routine: RoutineTurn?, catalogs: List<UiCatalog>): List<Tool> {
+    private suspend fun toolsFor(e: Effective, sessionId: SessionId?, routine: RoutineTurn?, catalogs: List<UiCatalog>, scope: ToolScope = ToolScope.All): List<Tool> {
         val agent = e.agent
         val search = if (ToolNames.WEB_FETCH in agent.config.tools) harness.webSearch() else null
         val available = modelCatalog().imageModels().filter { ref ->
@@ -348,7 +348,7 @@ class RunComposer internal constructor(
                 } }
             }, attachments::bytes) else null
         val uiTool = catalogs.takeIf { sessionId != null && it.isNotEmpty() }?.let(::ShowUiTool)
-        return manageTools(agent, sessionId) + (sessionId?.let { teams?.tools(agent.id, it) }.orEmpty()) + (sessionId?.let { subAgents?.tools(agent.id, it) }.orEmpty()) + builtInTools(e, sessionId, routine, search) + listOfNotNull(search?.let { WebSearchTool(it, compact = e.profile.tools.callsPerTurn != null, region = SearchRegion.fromTimeZone(timeZone.id)) }, imageTool, uiTool, ShowHtmlTool().takeIf { sessionId != null })
+        return manageTools(agent, sessionId) + (sessionId?.let { teams?.tools(agent.id, it) }.orEmpty()) + (sessionId?.let { subAgents?.tools(agent.id, it) }.orEmpty()) + builtInTools(e, sessionId, routine, search) + listOfNotNull(search?.let { WebSearchTool(it, compact = e.profile.tools.callsPerTurn != null, region = SearchRegion.fromTimeZone(timeZone.id)) }, imageTool, uiTool, ShowHtmlTool().takeIf { sessionId != null && (uiTool != null || ToolNames.SHOW_HTML in scope.names.orEmpty()) })
     }
 
     private suspend fun manageTools(agent: Agent, session: SessionId?, hidden: Boolean = false): List<Tool> =

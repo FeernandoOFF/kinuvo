@@ -23,6 +23,7 @@ import kotlinx.coroutines.test.setMain
 import kotlinx.coroutines.test.resetMain
 import kotlinx.io.files.Path
 import java.nio.file.Files
+import kinuvo.protocol.tool.ToolNames
 import kotlin.test.*
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -246,6 +247,16 @@ class WorkflowsTest {
             assertEquals("""{"x":1}""", done.steps[StepId("a")]?.output)
             assertNull(done.steps[StepId("a")]?.sessionId)
             assertTrue(server.harness.store.sessions(agent).isEmpty())
+        }
+    }
+
+    @Test fun aShowHtmlStepRendersInTheRunsSessionWithoutADeviceCatalog() = runBlocking<Unit> {
+        TestServer.start(plugins = listOf(fakes), scenario = { agent("work") }).use { server ->
+            val c = client(server)
+            c.run(c.call(Api.CreateWorkflow, workflow(tool("t", ToolNames.SHOW_HTML, buildJsonObject { put("title", "T"); put("html", "<p>hi</p>") }))).id)
+            val done = finished(c)
+            assertEquals(WorkflowRunStatus.Done, done.status, done.steps[StepId("t")]?.error)
+            assertNotNull(done.steps[StepId("t")]?.sessionId)
         }
     }
 
