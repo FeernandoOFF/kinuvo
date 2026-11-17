@@ -59,3 +59,5 @@ require (
 	gvisor.dev/gvisor v0.0.0-20260224225140-573d5e7127a8 // indirect
 	tailscale.com v1.103.0-pre.0.20260904030409-31d8badb3bfb // indirect
 )
+
+replace github.com/jt-wang/tailpocket => ./third_party/tailpocket
