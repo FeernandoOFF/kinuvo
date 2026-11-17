@@ -57,24 +57,8 @@ All of them run as the Agent `default`.
 
 The fetch examples use public pages, which needs the `web_fetch` tool on the Agent. If a web reader such as Firecrawl is set up, `web_fetch` returns Markdown instead of JSON, and the digest example's script will fail; the first step then needs to be changed.
 
-## Import and run
+## Run and retry
 
-`import` creates the Workflow on the Server; `--replace` updates one that already exists. Give `-a AGENT` to run every step as that Agent. Without it, an Agent the Server does not have is replaced by the first Agent.
+To use an example, ask an Agent with the Workflows tool to save it: paste the file or its path. **Run** starts a run; a Review or Approval waits in the Workflow's Session in the app. **Retry** runs a failed or cancelled run again with its original graph and inputs. Done steps keep their outputs and Sessions; unfinished steps run again. Check for partial effects before retrying a step that sends or changes data. Only one run can be active at a time.
 
-```sh
-kinuvo -a default workflows import docs/examples/workflows/extract-review-fill.json
-kinuvo workflows run extract-review-fill --wait
-kinuvo workflows runs extract-review-fill
-```
-
-`run` starts the run and prints its id. Add `--input '{"email":"Please help today"}'` or repeat `-i name=value` to supply inputs. `--wait` waits, prints step statuses and the final output, and exits unsuccessfully if the run fails or is cancelled. A waiting Review still needs your answer in the app.
-
-`workflows retry RUN_ID` retries a failed or cancelled run using its original graph and inputs. Done steps keep their outputs and Sessions; unfinished steps run again. Check for partial effects before retrying a step that sends or changes data. Only one run can be active at a time.
-
- A Review or Approval appears as a question in a new Session in the app. `runs` shows the latest runs and each step's status. To use another Server home, set `KINUVO_HOME` for each command:
-
-```sh
-KINUVO_HOME=/absolute/test-data kinuvo -a default workflows import extract-review-fill.json
-```
-
-`workflows show ID` prints a Workflow as JSON that `import` reads back, which is a convenient way to copy and change one. `workflows list` and `workflows remove ID` do the rest. See [CLI commands](../reference/cli.md), [ADR 0036](../adr/0036-workflows.md), [ADR 0040](../adr/0040-workflow-tool-and-model-steps.md) and [ADR 0042](../adr/0042-workflow-runs-resume-after-restart.md).
+See [ADR 0036](../adr/0036-workflows.md), [ADR 0040](../adr/0040-workflow-tool-and-model-steps.md) and [ADR 0042](../adr/0042-workflow-runs-resume-after-restart.md).

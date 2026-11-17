@@ -18,7 +18,7 @@ import kotlin.time.Duration.Companion.seconds
 class WorkflowTool(private val workflows: Workflows, private val agentId: AgentId, private val sessionId: SessionId?) : CoreTool {
     override val descriptor = toolSpec(ToolNames.WORKFLOWS,
         "Save proven work from chat as a Workflow: cheap Tool steps (run_code, MCP, web_fetch), small Model requests, and a Review where the user checks data. " +
-            "Actions: list, get, save, run, status, cancel, retry, delete. save takes the same workflow JSON as CLI import: id,name,agentId (defaults to you),inputs:[{name,description,default}],steps,edges:[{from,to,branch?}]. " +
+            "Actions: list, get, save, run, status, cancel, retry, delete. save takes workflow JSON: id,name,agentId (defaults to you),inputs:[{name,description,default}],steps,edges:[{from,to,branch?}]. " +
             "Step type and fields: tool(id,tool,args), model(id,prompt,system?), condition(id,left,op,right), review(id,text,value), approval(id,text), agent_turn(id,agentId,prompt), text(id,text) whose output is its rendered text. " +
             "Tool/Model/Condition need no Session. References: {{steps.ID.output[.path]}}, {{input.name}} and {{now}} (ISO time in the Workflow's timeZone; .date .time .weekday .timezone .utc .timestamp); exact argument references keep JSON types. " +
             "Condition ops: Equals,NotEquals,Contains,NotContains,Empty,NotEmpty,GreaterThan,LessThan. branch true/false edges leave Conditions; unused branches skip. " +
