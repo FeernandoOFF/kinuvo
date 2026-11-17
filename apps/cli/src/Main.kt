@@ -46,7 +46,7 @@ private class Serve : CoreSuspendingCliktCommand("serve") {
     private val behindProxy by option("--behind-proxy", help = "Sit behind a reverse proxy in another container: allow a non-loopback bind with an HTTPS origin (or KINUVO_BEHIND_PROXY=1)").flag()
     private val computer by option("--computer", help = "Expose this desktop as a Computer through cua-driver").flag()
     private val tailscale by option("--tailscale", help = "Provide private HTTPS through Tailscale Serve (requires Tailscale with HTTPS enabled)").flag()
-    private val tailcat by option("--tailcat", help = "Allow paired Devices to connect through a secret Tailcat address").flag()
+    private val tailcat by option("--tailcat", help = "Allow paired Devices to connect from any network through a private Tailcat tunnel").flag()
     private val tailscalePort by option("--tailscale-port", help = "Tailscale HTTPS port").int().default(443)
 
     override fun help(context: Context) = "Run the Server (the default command)."
@@ -112,12 +112,12 @@ private object LocalAccess : ServerAccess {
 }
 
 private class TailcatReset : CoreSuspendingCliktCommand("tailcat-reset") {
-    override fun help(context: Context) = "Discard this home's Tailcat address. Stop the Server first; the next start creates a new address."
+    override fun help(context: Context) = "Discard this home's Tailcat identity and every phone paired through it. Stop the Server first; Devices pair again with a new link."
     override suspend fun run() {
         serveErrors {
             try { Tailcat.reset(Path(kinuvoHome().toString(), "tailcat")) }
             catch (e: IllegalStateException) { throw ServeException(e.message ?: "Could not reset Tailcat") }
         }
-        echo("Tailcat address reset. Start the Server with --tailcat to create a new address.")
+        echo("Tailcat identity reset. Start the Server with --tailcat and run kinuvo pair to pair Devices again.")
     }
 }

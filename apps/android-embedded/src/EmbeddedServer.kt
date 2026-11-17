@@ -47,8 +47,9 @@ internal class AndroidEmbeddedServer(private val context: Context) : EmbeddedSer
 
     private val tailcat get() = Tailcat.takeIf { it.supported }
     private var tailcatListener: NetworkListener? = null
+    init { auth.offlineTailcatRevoke = { phone -> tailcat?.revoke(Path(home.toString(), "tailcat"), phone) } }
     private val sharingHost = EmbeddedSharing(
-        Path(home.toString(), "tailcat"), { tailcat },
+        Path(home.toString(), "tailcat"), Build.MODEL, { tailcat },
         { prefs.getBoolean(if (it) TAILCAT else SHARED, false) },
         { tailcat, enabled -> prefs.edit().putBoolean(if (tailcat) TAILCAT else SHARED, enabled).apply() },
         { enabled -> listenLocked(requireNotNull(server), enabled) },
@@ -58,7 +59,7 @@ internal class AndroidEmbeddedServer(private val context: Context) : EmbeddedSer
             listener.start("127.0.0.1", emptyList())
         },
         { tailcatListener?.stop(); tailcatListener = null },
-        { address, pairable -> auth.tailcatAddress = address; auth.pairable = pairable },
+        { tunnel, pairable -> auth.tailcat(tunnel); auth.pairable = pairable },
     )
 
     override val sharing: ServerSharing = object : ServerSharing {

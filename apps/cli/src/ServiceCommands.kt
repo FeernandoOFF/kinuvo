@@ -287,7 +287,7 @@ private class InstallService : CoreSuspendingCliktCommand("install") {
     private val publicUrl by option("--public-url", help = "HTTPS origin served by a reverse proxy")
     private val computer by option("--computer", help = "Expose this desktop as a Computer through cua-driver").flag()
     private val tailscale by option("--tailscale", help = "Provide private HTTPS through Tailscale Serve and retain it across service restarts").flag()
-    private val tailcat by option("--tailcat", help = "Retain a secret Tailcat address across service restarts").flag()
+    private val tailcat by option("--tailcat", help = "Keep the private Tailcat tunnel running across service restarts").flag()
     private val tailscalePort by option("--tailscale-port", help = "Tailscale HTTPS port").int().default(443)
     private val jar by option("--jar", help = "Executable jar to run (default: the one running this command); copied to <home>/bin/kinuvo.jar")
     private val force by option("--force", help = "Install even while another Server runs on this home; stop it first or both run Routines").flag()

@@ -28,7 +28,3 @@ client/ui/avatars/
 
 # Wrangler local deployment state
 .wrangler/
-
-# Generated Android Tailcat libraries
-/apps/android/jniLibs/
-/apps/android-play/jniLibs/
