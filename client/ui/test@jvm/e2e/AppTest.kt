@@ -14,6 +14,8 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.viewmodel.compose.LocalViewModelStoreOwner
 import com.composables.ui.theme.InteractionMode
 import kinuvo.app.connection.Device
+import kinuvo.app.connection.EmbeddedServer
+import kinuvo.app.connection.Endpoint
 import kinuvo.app.connection.DeviceCredentials
 import kinuvo.app.connection.Preferences
 import kinuvo.app.connection.Servers
@@ -61,6 +63,7 @@ internal fun appTest(
     scenario: suspend Scenario.(Agent) -> Unit = {},
     /** A desktop window with a pointer, instead of a phone. */
     desktop: Boolean = false,
+    onboarding: Boolean = false,
     block: suspend AppTest.() -> Unit,
 ) = (if (desktop) ::runDesktopTest else ::runPhoneTest) {
     val server = withContext(Dispatchers.Default) {
@@ -71,7 +74,11 @@ internal fun appTest(
         })
     }
     try {
-        runApp({ server.connect() }, AppTest(this, server, flow), block, if (desktop) InteractionMode.Pointer else InteractionMode.Touch)
+        runApp({ server.connect() }, AppTest(this, server, flow), block, if (desktop) InteractionMode.Pointer else InteractionMode.Touch,
+            embedded = if (onboarding) object : EmbeddedServer {
+                private val token = server.pairDevice()
+                override suspend fun endpoint() = Endpoint("memory://test-server", token) { server.connect() }
+            } else null)
     } finally {
         withContext(Dispatchers.Default + NonCancellable) { server.stop() }
     }
@@ -81,7 +88,7 @@ internal fun appTest(
 internal const val REPLY = "Hello from the scripted model"
 
 @OptIn(ExperimentalTestApi::class)
-private suspend fun <T : AppDriver> ComposeUiTest.runApp(connect: suspend (String) -> FrameConnection, app: T, block: suspend T.() -> Unit, mode: InteractionMode = InteractionMode.Touch) {
+private suspend fun <T : AppDriver> ComposeUiTest.runApp(connect: suspend (String) -> FrameConnection, app: T, block: suspend T.() -> Unit, mode: InteractionMode = InteractionMode.Touch, embedded: EmbeddedServer? = null) {
     val values = mutableMapOf<String, String>()
     val tokens = mutableMapOf<String, String>()
     val preferences = object : Preferences {
@@ -98,7 +105,7 @@ private suspend fun <T : AppDriver> ComposeUiTest.runApp(connect: suspend (Strin
         single<Preferences> { preferences }
         single<DeviceCredentials> { credentials }
         single { Device("Test phone", "UTC", SERVER_URL) }
-        single { Servers(get(), null, get(), connect).apply { onboardingComplete = true } }
+        single { Servers(get(), embedded, get(), connect).apply { onboardingComplete = embedded == null } }
     })
     mainClock.autoAdvance = false
     try {
