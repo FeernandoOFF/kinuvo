@@ -23,6 +23,7 @@ data class CoreToolEntry(
 
 object CoreToolRegistry {
     val entries = listOf(
+        CoreToolEntry(ToolNames.WORKFLOWS, ToolGroup.Data, Risk.Low, ToolKind.Standard, false, "Read and manage Workflows."),
         CoreToolEntry(ToolNames.AGENT_GET, ToolGroup.Interactive, Risk.Low, ToolKind.Standard, true, "Read your own Agent settings."),
         CoreToolEntry(ToolNames.AGENT_UPDATE, ToolGroup.Interactive, Risk.High, ToolKind.Standard, false, "Change your own Agent settings after the user's Approval."),
         CoreToolEntry(ToolNames.AGENT_CREATE, ToolGroup.Interactive, Risk.High, ToolKind.Standard, false, "Create a blank Agent after the user's Approval."),

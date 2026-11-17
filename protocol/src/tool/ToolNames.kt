@@ -31,6 +31,7 @@ object ToolNames {
     const val REFLECTION_FEEDBACK = "reflection_feedback"
     const val COMPUTER_LIST = "computer_list"
     const val SHELL = "shell"
+    const val WORKFLOWS = "workflows"
     const val SCHEDULE = "schedule"
     const val KNOWLEDGE = "knowledge"
     const val KNOWLEDGE_REWRITE = "knowledge_rewrite"
@@ -54,7 +55,7 @@ object ToolNames {
     const val CALENDAR = "calendar"
 
     /** The built-in tools an Agent's `tools:` can turn on. */
-    val OPTIONAL = listOf(AGENT_MANAGE, MEMORY, WEB_FETCH, SKILLS, SCHEDULE, KNOWLEDGE, TASKS, ASK_USER, ARTIFACT, DEVICE_TOOLS, RUN_CODE, COMPUTER, "browser", REMINDERS, CALENDAR)
+    val OPTIONAL = listOf(AGENT_MANAGE, MEMORY, WEB_FETCH, SKILLS, SCHEDULE, WORKFLOWS, KNOWLEDGE, TASKS, ASK_USER, ARTIFACT, DEVICE_TOOLS, RUN_CODE, COMPUTER, "browser", REMINDERS, CALENDAR)
     val DEFAULT = OPTIONAL
     /** Groups a plugin provides, offered only where one is installed. */
     val FROM_PLUGINS = setOf(RUN_CODE, "browser", REMINDERS, CALENDAR)

@@ -152,6 +152,7 @@ class ServerRuntime(
                     installed = now
                 }
             } }
+            assembly.workflows.resume()
             if (schedule) { assembly.scheduler.start(); assembly.dispatcher.start() }
             scheduling = schedule
             for (connection in executions.catalog().connections) {

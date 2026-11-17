@@ -1,10 +1,7 @@
 package kinuvo.ui.workflow
 
-import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -17,42 +14,26 @@ import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.clipToBounds
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.Path
-import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.IntOffset
-import androidx.compose.ui.unit.IntSize
-import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.unit.dp
 import com.composables.icons.lucide.*
 import com.composables.ui.components.*
 import com.composables.ui.theme.*
-import com.composeunstyled.theme.Theme
 import kinuvo.app.workflow.*
 import kinuvo.protocol.agent.AgentId
 import kinuvo.protocol.agent.AgentInfo
 import kinuvo.protocol.routine.Trigger
 import kinuvo.protocol.session.SessionId
 import kinuvo.protocol.workflow.*
-import kinuvo.ui.agent.AgentAvatar
 import kinuvo.ui.design.*
 import kinuvo.ui.navigation.PageAction
 import kinuvo.ui.navigation.PageHeader
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.drop
+import kinuvo.ui.settings.relative
 import kotlinx.datetime.TimeZone
-import kotlin.math.roundToInt
-
-private val NodeWidth = 208.dp
-private val NodeHeight = 68.dp
+import kotlin.time.Clock
 
 /** This Server's Workflows for a page that lists them beside something else, e.g. Routines: [onOpen] opens one's graph. */
 class WorkflowsSection(
@@ -99,13 +80,12 @@ fun WorkflowsScreen(workflows: List<Workflow>, agents: List<AgentInfo>, onOpen: 
     }
 }
 
-/** A Workflow's graph to edit and run: steps on a pannable canvas, the selected step's settings beside it, and the latest run's state on each step. */
+/** A Workflow to edit and run: its graph in the web editor, the rest of its settings and its runs beside it. */
 @Composable
 fun WorkflowScreen(model: WorkflowViewModel, agents: List<AgentInfo>, onOpenSession: (AgentId, SessionId) -> Unit, onDelete: () -> Unit, onBack: (() -> Unit)? = null) {
     val state by model.state.collectAsState()
     val saved = state.workflow
     val generation = state.generation
-    var selected by rememberSaveable { mutableStateOf<String?>(null) }
     var confirmDelete by remember { mutableStateOf(false) }
     val workflow = state.draft
     val run = state.activeRun ?: state.latestRun
@@ -126,36 +106,35 @@ fun WorkflowScreen(model: WorkflowViewModel, agents: List<AgentInfo>, onOpenSess
         }
         if (dirty) UnsavedBar(state.saving, onDiscard = model::discard, onSave = model::save)
         state.error?.let { ErrorMessage(it, Modifier.fillMaxWidth().padding(horizontal = Spacing.space12, vertical = Spacing.space6)) }
-        val steps = run?.takeIf { it.workflow.steps.map(WorkflowStep::id) == workflow.steps.map(WorkflowStep::id) || running }?.steps ?: state.steps
-        val waiting = workflow.steps.filterIsInstance<WorkflowStep.Approval>().filter { steps[it.id]?.status == StepStatus.WaitingApproval }
-        waiting.forEach { approval -> key(approval.id.value) { WaitingBar(approval) { allow -> model.approve(approval.id, allow) } } }
-        val step = workflow.steps.firstOrNull { it.id.value == selected }
+        state.waiting.forEach { step -> key(step.id.value) {
+            WaitingBar(step, onOpen = state.sessionOf(step.id, state.activeRun)?.let { (agent, session) -> { onOpenSession(agent, session) } }) { allow -> model.approve(step.id, allow) }
+        } }
         val edit = model::edit
-        val graph = @Composable { modifier: Modifier ->
-            WorkflowCanvas(workflow, steps, agents, step?.id, modifier, onSelect = { selected = it?.value }, onChange = edit,
-                onAdd = { kind -> selected = model.add(kind, agents, step).value })
-        }
-        val inspector = @Composable { modifier: Modifier ->
+        val settings = @Composable { modifier: Modifier ->
             Column(modifier.verticalScroll(rememberScrollState()).padding(Spacing.space16), verticalArrangement = Arrangement.spacedBy(Spacing.space12)) {
-                val result = step?.let { steps[it.id] }
-                if (step != null && result != null && run != null)
-                    StepResult(step, result, onOpen = { id -> (step as? WorkflowStep.AgentTurn)?.let { onOpenSession(it.agentId, id) } })
-                key(generation, step?.id?.value) {
-                    if (step == null) WorkflowSettings(workflow, edit)
-                    else StepSettings(workflow, step, agents, edit, onRemove = { model.remove(step.id); selected = null })
+                key(generation) {
+                    WorkflowSettings(workflow, agents, edit)
+                    RunPanel(state, saved, running, onInput = model::input, onRun = model::run, onRetry = model::retry)
                 }
+                RunHistory(state.runs, state.run?.id, model::view)
             }
         }
         BoxWithConstraints(Modifier.weight(1f).fillMaxWidth()) {
-            val half = maxHeight * 0.5f
             if (maxWidth < 720.dp) Column(Modifier.fillMaxSize()) {
-                graph(Modifier.fillMaxWidth().height(half))
+                // The graph gets the whole screen until the settings are asked for; a new Workflow opens with them, for its name.
+                var open by rememberSaveable(workflow.id.value) { mutableStateOf(workflow.blank) }
+                WorkflowEditor(model, agents, onOpenSession, Modifier.fillMaxWidth().weight(1f))
                 HorizontalSeparator()
-                inspector(Modifier.fillMaxWidth().weight(1f))
+                Row(Modifier.fillMaxWidth().clickable { open = !open }.padding(horizontal = Spacing.space16, vertical = Spacing.space10),
+                    verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.space8)) {
+                    Text("Settings and runs", Modifier.weight(1f), style = TextStyles.secondary, color = color(mutedColor))
+                    Icon(if (open) Lucide.ChevronDown else Lucide.ChevronUp, Modifier.size(16.dp), tint = color(mutedColor), contentDescription = if (open) "Hide settings" else "Show settings")
+                }
+                if (open) settings(Modifier.fillMaxWidth().weight(1f))
             } else Row(Modifier.fillMaxSize()) {
-                graph(Modifier.weight(1f).fillMaxHeight())
+                WorkflowEditor(model, agents, onOpenSession, Modifier.weight(1f).fillMaxHeight())
                 VerticalSeparator()
-                inspector(Modifier.width(360.dp).fillMaxHeight())
+                settings(Modifier.width(340.dp).fillMaxHeight())
             }
         }
     }
@@ -172,114 +151,7 @@ private fun UnsavedBar(saving: Boolean, onDiscard: () -> Unit, onSave: () -> Uni
 }
 
 @Composable
-private fun WorkflowCanvas(workflow: Workflow, steps: Map<StepId, StepRun>, agents: List<AgentInfo>, selected: StepId?, modifier: Modifier,
-    onSelect: (StepId?) -> Unit, onChange: (Workflow) -> Unit, onAdd: (StepKind) -> Unit) {
-    val density = LocalDensity.current.density
-    var pan by remember { mutableStateOf(Offset(32f, 64f)) }
-    val positions = layout(workflow)
-    val latest by rememberUpdatedState(workflow)
-    val edgeColor = color(borderColor)
-    val doneColor = color(accentColor)
-    var size by remember { mutableStateOf(IntSize.Zero) }
-    // Brings a newly selected or added step into view.
-    LaunchedEffect(selected, size) {
-        val p = selected?.let { positions[it] } ?: return@LaunchedEffect
-        if (size == IntSize.Zero) return@LaunchedEffect
-        val width = size.width / density; val height = size.height / density; val margin = 16f
-        fun fit(at: Float, offset: Float, node: Float, room: Float, start: Float) = when {
-            at + offset + node > room - margin -> room - margin - node - at
-            at + offset < start -> start - at
-            else -> offset
-        }
-        pan = Offset(fit(p.x, pan.x, NodeWidth.value, width, margin), fit(p.y, pan.y, NodeHeight.value, height, 56f))
-    }
-    Box(modifier.clipToBounds().background(color(panelColor)).onSizeChanged { size = it }
-        .pointerInput(Unit) { detectDragGestures { change, drag -> change.consume(); pan += drag / density } }
-        .clickable(interactionSource = null, indication = null) { onSelect(null) }) {
-        Canvas(Modifier.matchParentSize()) {
-            val w = NodeWidth.toPx(); val h = NodeHeight.toPx()
-            workflow.edges.forEach { edge ->
-                val a = positions[edge.from] ?: return@forEach
-                val b = positions[edge.to] ?: return@forEach
-                val start = Offset((a.x + pan.x).dp.toPx() + w, (a.y + pan.y).dp.toPx() + h / 2)
-                val end = Offset((b.x + pan.x).dp.toPx(), (b.y + pan.y).dp.toPx() + h / 2)
-                val bend = ((end.x - start.x) / 2).coerceAtLeast(40.dp.toPx())
-                val path = Path().apply { moveTo(start.x, start.y); cubicTo(start.x + bend, start.y, end.x - bend, end.y, end.x, end.y) }
-                val tint = if (steps[edge.from]?.status == StepStatus.Done) doneColor else edgeColor
-                drawPath(path, tint, style = Stroke(2.dp.toPx()))
-                val tip = 6.dp.toPx()
-                drawPath(Path().apply { moveTo(end.x, end.y); lineTo(end.x - tip, end.y - tip / 1.4f); lineTo(end.x - tip, end.y + tip / 1.4f); close() }, tint)
-            }
-        }
-        workflow.steps.forEach { step ->
-            val p = positions.getValue(step.id)
-            key(step.id.value) {
-                StepNode(step, steps[step.id], agents, step.id == selected,
-                    Modifier.offset { IntOffset(((p.x + pan.x) * density).roundToInt(), ((p.y + pan.y) * density).roundToInt()) }
-                        .pointerInput(step.id) {
-                            detectDragGestures(onDragStart = { onSelect(step.id) }) { change, drag ->
-                                change.consume()
-                                val current = layout(latest).getValue(step.id)
-                                onChange(latest.move(step.id, Position(current.x + drag.x / density, current.y + drag.y / density)))
-                            }
-                        },
-                    onClick = { onSelect(step.id) })
-            }
-        }
-        Row(Modifier.align(Alignment.TopStart).padding(Spacing.space8), horizontalArrangement = Arrangement.spacedBy(Spacing.space6)) {
-            Button(onClick = { onAdd(StepKind.Agent) }, style = ButtonStyle.Outlined, buttonSize = ButtonSize.Small, enabled = agents.isNotEmpty()) {
-                Icon(Lucide.Bot, Modifier.size(14.dp)); Text("Agent turn", style = TextStyles.caption)
-            }
-            Button(onClick = { onAdd(StepKind.Approval) }, style = ButtonStyle.Outlined, buttonSize = ButtonSize.Small) {
-                Icon(Lucide.ShieldCheck, Modifier.size(14.dp)); Text("Approval", style = TextStyles.caption)
-            }
-            IconButton(onClick = { pan = Offset(32f, 64f) }, style = ButtonStyle.Ghost, modifier = Modifier.size(32.dp)) {
-                Icon(Lucide.Crosshair, Modifier.size(14.dp), contentDescription = "Recenter")
-            }
-        }
-    }
-}
-
-@Composable
-private fun StepNode(step: WorkflowStep, result: StepRun?, agents: List<AgentInfo>, selected: Boolean, modifier: Modifier, onClick: () -> Unit) {
-    val shape = Theme[shapes][mediumShape]
-    val border = when {
-        selected -> color(accentColor)
-        result?.status == StepStatus.WaitingApproval -> color(warningColor)
-        result?.status == StepStatus.Failed -> color(destructiveColor)
-        else -> color(borderColor)
-    }
-    Row(modifier.size(NodeWidth, NodeHeight).clip(shape).background(color(backgroundColor)).border(if (selected) 2.dp else 1.dp, border, shape)
-        .clickable(onClick = onClick).padding(horizontal = Spacing.space10).semantics { contentDescription = "Step ${step.id.value}" },
-        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.space8)) {
-        when (step) {
-            is WorkflowStep.AgentTurn -> AgentAvatar(agents.firstOrNull { it.id == step.agentId }, 24.dp)
-            is WorkflowStep.Approval -> Icon(Lucide.ShieldCheck, Modifier.size(20.dp), tint = color(warningColor))
-        }
-        Column(Modifier.weight(1f)) {
-            Text(title(step, agents), style = TextStyles.secondary, fontWeight = FontWeight.Medium, singleLine = true, overflow = TextOverflow.Ellipsis)
-            Text(detail(step).ifBlank { "No ${if (step is WorkflowStep.Approval) "question" else "prompt"} yet" }, style = TextStyles.caption,
-                color = color(mutedColor), maxLines = 2, overflow = TextOverflow.Ellipsis)
-        }
-        result?.let { StatusIcon(it.status) }
-    }
-}
-
-@Composable
-private fun StatusIcon(status: StepStatus) {
-    when (status) {
-        StepStatus.Pending -> Icon(Lucide.Circle, Modifier.size(14.dp), tint = color(mutedColor), contentDescription = "Pending")
-        StepStatus.Running -> Spinner(size = 14.dp)
-        StepStatus.WaitingApproval -> Icon(Lucide.Hand, Modifier.size(14.dp), tint = color(warningColor), contentDescription = "Needs you")
-        StepStatus.Done -> Icon(Lucide.CircleCheck, Modifier.size(14.dp), tint = color(successColor), contentDescription = "Done")
-        StepStatus.Failed -> Icon(Lucide.CircleX, Modifier.size(14.dp), tint = color(destructiveColor), contentDescription = "Failed")
-        StepStatus.Skipped -> Icon(Lucide.SkipForward, Modifier.size(14.dp), tint = color(mutedColor), contentDescription = "Skipped")
-        StepStatus.Cancelled -> Icon(Lucide.CircleSlash, Modifier.size(14.dp), tint = color(mutedColor), contentDescription = "Cancelled")
-    }
-}
-
-@Composable
-private fun WorkflowSettings(workflow: Workflow, onChange: (Workflow) -> Unit) {
+private fun WorkflowSettings(workflow: Workflow, agents: List<AgentInfo>, onChange: (Workflow) -> Unit) {
     val current by rememberUpdatedState(workflow)
     Text("Workflow", style = TextStyles.title, fontWeight = FontWeight.Bold)
     val name = synced(workflow.name) { onChange(current.copy(name = it)) }
@@ -303,93 +175,101 @@ private fun WorkflowSettings(workflow: Workflow, onChange: (Workflow) -> Unit) {
         else -> {}
     }
     if (workflow.trigger != null) SwitchRow("Scheduled runs on", workflow.enabled, { onChange(current.copy(enabled = it)) })
-    Text("Select a step to edit it. Drag steps to arrange them and the background to pan.", style = TextStyles.caption, color = color(mutedColor))
+    FormField("Runs as", "The Agent Tool and Model steps run under.") {
+        Picker(listOf<AgentInfo?>(null) + agents, agents.firstOrNull { it.id == workflow.agentId }, { it?.name ?: "Not set" }, { onChange(current.copy(agentId = it?.id)) })
+    }
+    val description = synced(workflow.description) { onChange(current.copy(description = it)) }
+    FormField("Description", "What this Workflow is for. Agents read it when they pick a Workflow to run.") { Input(description, "Optional", capitalize = true) }
+    InputsEditor(workflow.inputs) { onChange(current.copy(inputs = it)) }
 }
 
+/** The values a run starts with: a name steps read as `{{input.name}}` and the value used when a run gives none. */
 @Composable
-private fun StepSettings(workflow: Workflow, step: WorkflowStep, agents: List<AgentInfo>, onChange: (Workflow) -> Unit, onRemove: () -> Unit) {
-    val current by rememberUpdatedState(workflow)
-    fun replace(new: WorkflowStep) = onChange(current.copy(steps = current.steps.map { if (it.id == step.id) new else it }))
-    val latest = { current.steps.first { it.id == step.id } }
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        Text(if (step is WorkflowStep.Approval) "Approval" else "Agent turn", Modifier.weight(1f), style = TextStyles.title, fontWeight = FontWeight.Bold)
-        Pill(step.id.value)
-    }
-    when (step) {
-        is WorkflowStep.AgentTurn -> {
-            FormField("Agent") {
-                Picker(agents, agents.firstOrNull { it.id == step.agentId } ?: agents.firstOrNull(), { it?.name ?: "No Agent" },
-                    { agent -> agent?.let { replace((latest() as WorkflowStep.AgentTurn).copy(agentId = it.id)) } })
-            }
-            val prompt = synced(step.prompt) { replace((latest() as WorkflowStep.AgentTurn).copy(prompt = it)) }
-            FormField("Prompt", "Insert an earlier step's output to pass it along.") {
-                Input(prompt, "What should the Agent do?", capitalize = true, lineLimits = TextFieldLineLimits.MultiLine(minHeightInLines = 4, maxHeightInLines = 12))
-            }
-            val earlier = ancestors(workflow, step.id)
-            if (earlier.isNotEmpty()) FlowRow(horizontalArrangement = Arrangement.spacedBy(Spacing.space6), verticalArrangement = Arrangement.spacedBy(Spacing.space6)) {
-                earlier.forEach { id ->
-                    Button(onClick = { prompt.edit { append("{{steps.${id.value}.output}}") } }, style = ButtonStyle.Outlined, buttonSize = ButtonSize.Small) {
-                        Icon(Lucide.Plus, Modifier.size(12.dp)); Text("${id.value} output", style = TextStyles.caption)
+private fun InputsEditor(inputs: List<WorkflowInput>, onChange: (List<WorkflowInput>) -> Unit) {
+    val current by rememberUpdatedState(inputs)
+    // Rows are keyed by position, so adding or removing one must rebuild their fields.
+    var revision by remember { mutableIntStateOf(0) }
+    FormField("Inputs", "Values a run starts with. A step reads one as {{input.name}}; a scheduled run uses the defaults.") {
+        Column(verticalArrangement = Arrangement.spacedBy(Spacing.space6)) {
+            inputs.forEachIndexed { index, input -> key(index, revision) {
+                fun change(to: WorkflowInput) = onChange(current.mapIndexed { i, old -> if (i == index) to else old })
+                val name = synced(input.name) { text -> change(current[index].copy(name = text.trim())) }
+                val default = synced(input.default) { text -> change(current[index].copy(default = text)) }
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.space6)) {
+                    Input(name, "name", Modifier.weight(2f), compact = true, error = !InputName.matches(input.name) || inputs.count { it.name == input.name } > 1)
+                    Input(default, "default", Modifier.weight(3f), compact = true)
+                    Button(onClick = { revision++; onChange(current.filterIndexed { i, _ -> i != index }) }, style = ButtonStyle.Ghost, buttonSize = ButtonSize.Small) {
+                        Icon(Lucide.X, Modifier.size(14.dp), contentDescription = "Remove input ${input.name}")
                     }
                 }
-            }
-            FormField("Session") {
-                Segmented(listOf("New each run", "Continue last"), step.session.ordinal) { replace((latest() as WorkflowStep.AgentTurn).copy(session = StepSession.entries[it])) }
-            }
-        }
-        is WorkflowStep.Approval -> {
-            val text = synced(step.text) { replace((latest() as WorkflowStep.Approval).copy(text = it)) }
-            FormField("Question", "The run waits here until you allow it; denying ends the run.") {
-                Input(text, "Publish the draft?", capitalize = true, lineLimits = TextFieldLineLimits.MultiLine(minHeightInLines = 2, maxHeightInLines = 6))
+            } }
+            Button(onClick = { revision++; onChange(current + WorkflowInput(freeName(current))) }, style = ButtonStyle.Ghost, buttonSize = ButtonSize.Small) {
+                Icon(Lucide.Plus, Modifier.size(14.dp)); Text("Add input")
             }
         }
-    }
-    val after = workflow.edges.filter { it.to == step.id }.map { it.from }.toSet()
-    val blocked = descendants(workflow, step.id) + step.id
-    val candidates = workflow.steps.filter { it.id !in blocked }
-    if (candidates.isNotEmpty()) FormField("Runs after", "A step starts once every step it runs after is done.") {
-        Column(verticalArrangement = Arrangement.spacedBy(1.dp)) {
-            candidates.forEach { other ->
-                val on = other.id in after
-                ListRow(on, {
-                    val edges = if (on) current.edges.filterNot { it.from == other.id && it.to == step.id } else current.edges + WorkflowEdge(other.id, step.id)
-                    onChange(current.copy(edges = edges))
-                }) {
-                    Text(title(other, agents), Modifier.weight(1f), singleLine = true, overflow = TextOverflow.Ellipsis)
-                    Text(other.id.value, style = TextStyles.caption, color = color(mutedColor))
-                    if (on) Icon(Lucide.Check, Modifier.size(14.dp), tint = color(accentColor), contentDescription = "Runs after")
-                }
-            }
-        }
-    }
-    if (workflow.steps.size > 1) Button(onClick = onRemove, style = ButtonStyle.Outlined, contentColor = color(destructiveColor), modifier = Modifier.fillMaxWidth()) {
-        Icon(Lucide.Trash2, Modifier.size(14.dp)); Text("Remove step")
     }
 }
 
+private val InputName = Regex("[a-zA-Z0-9_-]+")
+private fun freeName(inputs: List<WorkflowInput>) = generateSequence(1) { it + 1 }.map { "input-$it" }.first { name -> inputs.none { it.name == name } }
+
+/** Starts a run with a value for each input, and shows how the selected run ended. */
 @Composable
-private fun StepResult(step: WorkflowStep, result: StepRun, onOpen: (SessionId) -> Unit) {
+private fun RunPanel(state: WorkflowState, saved: Workflow?, running: Boolean, onInput: (String, String) -> Unit, onRun: () -> Unit, onRetry: () -> Unit) {
+    Text("Run", style = TextStyles.title, fontWeight = FontWeight.Bold)
+    val inputs = saved?.inputs.orEmpty()
+    inputs.forEach { input -> key(input.name) {
+        val value = synced(state.inputValues[input.name] ?: input.default) { onInput(input.name, it) }
+        FormField(input.name, input.description.takeIf { it.isNotBlank() }) { Input(value, input.default.ifBlank { "Value" }) }
+    } }
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.space8)) {
-        StatusIcon(result.status)
-        Text("Last run: ${result.status.label}", Modifier.weight(1f), fontWeight = FontWeight.Medium)
-        result.sessionId?.takeIf { step is WorkflowStep.AgentTurn }?.let { id ->
-            Button(onClick = { onOpen(id) }, style = ButtonStyle.Ghost, buttonSize = ButtonSize.Small) { Text("Open Session", style = TextStyles.caption) }
+        Button(onClick = onRun, style = ButtonStyle.Primary, buttonSize = ButtonSize.Small, enabled = saved != null && !state.dirty && !running && !state.saving) {
+            Text(if (running) "Running…" else if (inputs.isEmpty()) "Run" else "Run with these")
         }
+        if (state.canRetry && !state.dirty) Button(onClick = onRetry, style = ButtonStyle.Outlined, buttonSize = ButtonSize.Small, enabled = !state.saving) { Text("Retry failed steps") }
     }
-    result.error?.let { ErrorMessage(it) }
-    result.output?.takeIf { it.isNotBlank() }?.let { Panel(Modifier.fillMaxWidth()) { Markdown(it) } }
-    HorizontalSeparator()
+    if (state.dirty) Text("Save your changes to run them.", style = TextStyles.caption, color = color(mutedColor))
+    val run = state.run ?: return
+    val failed = run.workflow.steps.firstOrNull { run.steps[it.id]?.status == StepStatus.Failed }
+    val error = failed?.let { run.steps[it.id]?.error }
+    when {
+        failed != null -> FormField("Failed at ${failed.id}") { CodeBlock(error ?: "No error message", error = true, previewChars = 1200) }
+        !run.output.isNullOrBlank() -> FormField("Result") { CodeBlock(run.output.orEmpty(), previewChars = 1200) }
+    }
 }
 
-/** An Approval step the run waits on, answered without finding it in the graph. */
 @Composable
-private fun WaitingBar(step: WorkflowStep.Approval, onAnswer: (Boolean) -> Unit) {
+private fun RunHistory(runs: List<WorkflowRun>, shown: WorkflowRunId?, onView: (WorkflowRunId) -> Unit) {
+    val now = remember(runs) { Clock.System.now().toEpochMilliseconds() }
+    Text("Run history", style = TextStyles.title, fontWeight = FontWeight.Bold)
+    if (runs.isEmpty()) Text("No runs yet. Pick one to see its result on the graph.", style = TextStyles.caption, color = color(mutedColor))
+    Column(verticalArrangement = Arrangement.spacedBy(1.dp)) {
+        runs.take(10).forEach { run ->
+            ListRow(run.id == shown, { onView(run.id) }) {
+                Text(run.status.label.replaceFirstChar { it.uppercase() } + if (run.retryOf != null) " · retry" else "", Modifier.weight(1f))
+                run.endedAt?.let { Text(duration(it - run.startedAt), style = TextStyles.caption, color = color(mutedColor)) }
+                Text(relative(run.startedAt, now), style = TextStyles.caption, color = color(mutedColor))
+            }
+        }
+    }
+}
+
+/** A step the run waits on, reached without finding it in the graph: an Approval is answered here, a Review or a tool's Approval in its Session. */
+@Composable
+private fun WaitingBar(step: WorkflowStep, onOpen: (() -> Unit)?, onAnswer: (Boolean) -> Unit) {
     Row(Modifier.fillMaxWidth().background(color(warningColor).copy(alpha = 0.12f)).padding(horizontal = Spacing.space12, vertical = Spacing.space6),
         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.space8)) {
-        Icon(Lucide.Hand, Modifier.size(16.dp), tint = color(warningColor))
-        Text(step.text.ifBlank { "Continue the run?" }, Modifier.weight(1f), style = TextStyles.secondary, maxLines = 2, overflow = TextOverflow.Ellipsis)
-        Button(onClick = { onAnswer(false) }, style = ButtonStyle.Ghost, buttonSize = ButtonSize.Small, contentColor = color(destructiveColor)) { Text("Deny") }
-        Button(onClick = { onAnswer(true) }, style = ButtonStyle.Primary, buttonSize = ButtonSize.Small) { Text("Allow") }
+        Icon(if (step is WorkflowStep.Review) Lucide.ListChecks else Lucide.Hand, Modifier.size(16.dp), tint = color(warningColor))
+        val text = when (step) {
+            is WorkflowStep.Approval -> step.text.ifBlank { "Continue the run?" }
+            is WorkflowStep.Review -> "Review: ${step.text.ifBlank { "check the data to continue" }}"
+            else -> "${step.id} needs your Approval"
+        }
+        Text(text, Modifier.weight(1f), style = TextStyles.secondary, maxLines = 2, overflow = TextOverflow.Ellipsis)
+        if (step is WorkflowStep.Approval) {
+            Button(onClick = { onAnswer(false) }, style = ButtonStyle.Ghost, buttonSize = ButtonSize.Small, contentColor = color(destructiveColor)) { Text("Deny") }
+            Button(onClick = { onAnswer(true) }, style = ButtonStyle.Primary, buttonSize = ButtonSize.Small) { Text("Allow") }
+        } else if (onOpen != null) Button(onClick = onOpen, style = ButtonStyle.Primary, buttonSize = ButtonSize.Small) { Text(if (step is WorkflowStep.Review) "Review" else "Open") }
     }
 }
 
@@ -402,18 +282,6 @@ private fun synced(initial: String, onChange: (String) -> Unit): TextFieldState 
     return state
 }
 
-private fun title(step: WorkflowStep, agents: List<AgentInfo>) = when (step) {
-    is WorkflowStep.AgentTurn -> agents.firstOrNull { it.id == step.agentId }?.name ?: step.agentId.value
-    is WorkflowStep.Approval -> "Approval"
-}
-
-private val outputRef = Regex("""\{\{\s*steps\.([a-zA-Z0-9_-]+)\.output\s*}}""")
-
-private fun detail(step: WorkflowStep) = when (step) {
-    is WorkflowStep.AgentTurn -> step.prompt.replace(outputRef) { "‹${it.groupValues[1]}›" }
-    is WorkflowStep.Approval -> step.text
-}.lineSequence().firstOrNull().orEmpty()
-
 internal fun summary(workflow: Workflow): String {
     val schedule = when (val t = workflow.trigger) {
         null -> "Manual"
@@ -424,11 +292,12 @@ internal fun summary(workflow: Workflow): String {
     return "$schedule · ${workflow.steps.size} step${if (workflow.steps.size == 1) "" else "s"}"
 }
 
-private val WorkflowRunStatus.label get() = when (this) {
-    WorkflowRunStatus.Running -> "running"; WorkflowRunStatus.Done -> "done"; WorkflowRunStatus.Failed -> "failed"; WorkflowRunStatus.Cancelled -> "cancelled"
+private fun duration(millis: Long) = when {
+    millis < 1000 -> "${millis} ms"
+    millis < 60_000 -> "${millis / 1000} s"
+    else -> "${millis / 60_000} min"
 }
 
-private val StepStatus.label get() = when (this) {
-    StepStatus.Pending -> "waiting to start"; StepStatus.Running -> "running"; StepStatus.WaitingApproval -> "needs you"; StepStatus.Done -> "done"
-    StepStatus.Failed -> "failed"; StepStatus.Skipped -> "skipped"; StepStatus.Cancelled -> "cancelled"
+private val WorkflowRunStatus.label get() = when (this) {
+    WorkflowRunStatus.Running -> "running"; WorkflowRunStatus.Done -> "done"; WorkflowRunStatus.Failed -> "failed"; WorkflowRunStatus.Cancelled -> "cancelled"
 }

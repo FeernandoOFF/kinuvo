@@ -308,7 +308,7 @@ internal fun ChatItemView(item: ChatItem, actions: ChatActions, spoken: Int? = n
                 Text(item.message, color = color(destructiveColor), style = TextStyles.secondary)
             }
         }
-        is ChatItem.Notice -> Expandable(Lucide.TriangleAlert, item.message, tint = color(warningColor)) {
+        is ChatItem.Notice -> if (item.code == WORKFLOW_NOTE) WorkflowMarker(item.message) else Expandable(Lucide.TriangleAlert, item.message, tint = color(warningColor)) {
             // What it had written before stopping, quieter than a finished reply.
             Column(Modifier.alpha(0.85f), verticalArrangement = Arrangement.spacedBy(Spacing.space8)) { item.draft.forEach { ChatItemView(it, actions) } }
         }
@@ -574,6 +574,20 @@ internal fun RequestMetricsView(metrics: RequestMetrics, initiallyExpanded: Bool
     }
 }
 
+
+/** The code of a Notice a Workflow run leaves in its Session. */
+private const val WORKFLOW_NOTE = "workflow"
+
+/** Something a Workflow run did, set apart from the conversation as a divider. */
+@Composable
+private fun WorkflowMarker(text: String) {
+    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.space8)) {
+        HorizontalSeparator(Modifier.weight(1f))
+        Icon(Lucide.Workflow, Modifier.size(13.dp), tint = color(mutedColor))
+        Text(text, Modifier.widthIn(max = 260.dp), style = TextStyles.caption, color = color(mutedColor), maxLines = 2, overflow = TextOverflow.Ellipsis)
+        HorizontalSeparator(Modifier.weight(1f))
+    }
+}
 
 @Composable
 private fun CompactionMarker(item: ChatItem.Compaction) {

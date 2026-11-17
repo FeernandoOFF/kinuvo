@@ -8,7 +8,8 @@ internal fun RouteBuilder.workflowRoutes() {
     handle(Api.CreateWorkflow) { server.workflows.save(it, create = true) }
     handle(Api.UpdateWorkflow) { server.workflows.save(it, create = false) }
     handle(Api.DeleteWorkflow) { server.workflows.delete(it) }
-    handle(Api.RunWorkflow) { server.workflows.run(it) }
+    handle(Api.RunWorkflow) { server.workflows.run(it.id, it.input) }
+    handle(Api.RetryWorkflow) { server.workflows.retry(it) }
     handle(Api.CancelWorkflow) { server.workflows.cancel(it) }
     handle(Api.WorkflowRuns) { server.workflows.history(it) }
 }

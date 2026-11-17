@@ -1,0 +1,1 @@
+Drawflow 0.0.60 (MIT, https://github.com/jerosoler/Drawflow), dist/drawflow.min.js and dist/drawflow.min.css unmodified, from the drawflow@0.0.60 npm package.

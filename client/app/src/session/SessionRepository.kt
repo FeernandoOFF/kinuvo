@@ -349,8 +349,8 @@ private fun SessionData.chatItems(): List<ChatItem> {
             is PendingInteraction.Approval -> {
                 val call = items.indexOfLast { it is ChatItem.ToolCall && it.callId == request.toolCallId && it.result == null }
                 if (call >= 0) items[call] = (items[call] as ChatItem.ToolCall).copy(approval = request)
-                // An MCP App's own tool call asks outside a run, with no call in the list yet.
-                else items += ChatItem.ToolCall(key("approval-${request.id}", -4), request.toolCallId, request.toolCallName, request.args, approval = request, identity = request.identity)
+                // An MCP App's own tool call asks outside a run, with no call in the list yet; a Workflow's Approval is no tool call at all.
+                else if (request.toolCallName != WORKFLOW_APPROVAL) items += ChatItem.ToolCall(key("approval-${request.id}", -4), request.toolCallId, request.toolCallName, request.args, approval = request, identity = request.identity)
             }
             is PendingInteraction.Questions -> {
                 val call = items.indexOfLast { it is ChatItem.ToolCall && it.callId == request.toolCallId && it.result == null }
@@ -373,3 +373,6 @@ private fun SessionData.withReceiptTimes(previous: SessionData?): SessionData {
     val now = Clock.System.now().toEpochMilliseconds()
     return copy(receivedAt = receivedAt + fresh.associate { it.id to now })
 }
+
+/** The tool name a Workflow's Approval step asks under; it stands for the step, not for a tool. */
+const val WORKFLOW_APPROVAL = "workflow_approval"

@@ -7,8 +7,11 @@ import kinuvo.client.ConnectionState
 import kinuvo.client.KinuvoClient
 import kinuvo.protocol.Api
 import kinuvo.protocol.approval.*
+import kinuvo.protocol.agent.AgentId
+import kinuvo.protocol.capability.CapabilitiesParams
 import kinuvo.protocol.workflow.*
 import kotlinx.coroutines.Job
+import kotlinx.serialization.json.JsonObject
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
@@ -57,7 +60,10 @@ class WorkflowRepository(internal val connection: ConnectedServer) : ServerBound
     suspend fun save(workflow: Workflow, create: Boolean = false): Workflow = connection.call {
         it.call(if (create) Api.CreateWorkflow else Api.UpdateWorkflow, workflow)
     }
-    suspend fun run(id: WorkflowId) = connection.call { it.call(Api.RunWorkflow, id) }
+    suspend fun models() = connection.config.models()
+    suspend fun tools(agent: AgentId): List<String> = connection.call { it.call(Api.Capabilities, CapabilitiesParams(agent)).tools.map { tool -> tool.id } }
+    suspend fun run(id: WorkflowId, input: JsonObject = JsonObject(emptyMap())) = connection.call { it.call(Api.RunWorkflow, RunWorkflowParams(id, input)) }
+    suspend fun retry(id: WorkflowRunId) = connection.call { it.call(Api.RetryWorkflow, id) }
     suspend fun cancel(id: WorkflowRunId) = connection.call { it.call(Api.CancelWorkflow, id) }
     suspend fun delete(id: WorkflowId) = connection.call { it.call(Api.DeleteWorkflow, id) }
     suspend fun approve(step: StepRun, allow: Boolean): Boolean = connection.call {

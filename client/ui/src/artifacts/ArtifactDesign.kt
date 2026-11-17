@@ -80,7 +80,7 @@ internal fun DesignCanvas(content: String, background: Color, modifier: Modifier
 }
 
 /** The app's way into the canvas frame: [pageDelivery] calls this, and only the canvas accepts what it forwards from its parent. */
-private const val RECEIVE = """;window.kinuvoReceive=function(m){var f=document.getElementById("f");if(f&&f.contentWindow)f.contentWindow.postMessage(JSON.parse(m),"*")}"""
+internal const val RECEIVE = """;window.kinuvoReceive=function(m){var f=document.getElementById("f");if(f&&f.contentWindow)f.contentWindow.postMessage(JSON.parse(m),"*")}"""
 
 private fun Color.css() = "rgb(${(red * 255).toInt()},${(green * 255).toInt()},${(blue * 255).toInt()})"
 

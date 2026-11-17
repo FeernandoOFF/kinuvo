@@ -15,6 +15,7 @@ import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.selects.select
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonElement
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
 
@@ -32,7 +33,7 @@ private class Request(val name: String, val args: String, val reply: Completable
  * Runs JavaScript in its own QuickJS runtime with no host access. Tool calls run one at a time on the caller's
  * coroutine, so they emit their events and wait on Approvals like the model's own calls.
  */
-suspend fun runScript(code: String, tools: List<String>, limits: Limits = Limits(), call: suspend (String, String) -> SessionEntry.ToolResult): ScriptResult {
+suspend fun runScript(code: String, tools: List<String>, limits: Limits = Limits(), input: JsonElement? = null, call: suspend (String, String) -> SessionEntry.ToolResult): ScriptResult {
     require(limits.output in 1..100_000 && limits.calls in 0..1000 && limits.memory > 0 && limits.timeout > Duration.ZERO)
     if (code.length > MAX_TOOL_RESULT) return ScriptResult(null, "", "Script source is too large.")
     val logs = CappedText(limits.output)
@@ -63,7 +64,7 @@ suspend fun runScript(code: String, tools: List<String>, limits: Limits = Limits
             }
         })
         coroutineScope {
-            val evaluation = async { js.evaluate<Any?>(script(tools, code), "script.js") }
+            val evaluation = async { js.evaluate<Any?>(script(tools, code, input), "script.js") }
             while (true) {
                 val request = select<Request?> { evaluation.onAwait { null }; requests.onReceive { it } } ?: break
                 val result = call(request.name, request.args)
@@ -94,8 +95,8 @@ suspend fun runScript(code: String, tools: List<String>, limits: Limits = Limits
     return ScriptResult(value.takeIf { error == null }, logs.text(), error)
 }
 
-private fun script(tools: List<String>, code: String) =
-    HEAD.replace("TOOLS", Json.encodeToString(tools)) + "\n" + code + "\n" + TAIL
+private fun script(tools: List<String>, code: String, input: JsonElement?) =
+    HEAD.replace("TOOLS", Json.encodeToString(tools)) + "\n" + (input?.let { "globalThis.input = $it;\n" } ?: "") + code + "\n" + TAIL
 
 private val HEAD = """
     (() => {
