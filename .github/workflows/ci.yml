@@ -62,6 +62,7 @@ jobs:
           python3 scripts/test-sign-macos.py
           python3 scripts/test-notarize-macos.py
           bash -n scripts/package.sh scripts/notarize-macos.sh
+          libs/tailcat/stamp.sh check
 
   tests:
     needs: changes

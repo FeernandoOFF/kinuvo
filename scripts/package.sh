@@ -79,16 +79,22 @@ allow_native_access() { # Skiko, QuickJS and Rive load native libraries
   "$java_home/bin/jar" ufm "$1" "$work/native-access.mf"
 }
 
+# The committed Tailcat library for this platform, if one exists; Tailcat reports itself unavailable elsewhere.
+tailcat_library() {
+  local file=libs/tailcat/prebuilt/$os-$arch/libKinuvoTailcat.dylib
+  if [ -f "$file" ]; then printf '%s\n' "$file"; fi
+}
+
 package_jar() {
   KINUVO_VERSION=$version ./package-server.sh
   cp build/tasks/_cli_executableJarJvm/cli-jvm-executable.jar "$dist/kinuvo.jar"
   restore_collisions cli "$dist/kinuvo.jar"
-  if [ "$os" != windows ]; then
-    local tailcat_library
-    tailcat_library=$(./scripts/build-tailcat.sh "$arch")
+  local tailcat
+  tailcat=$(tailcat_library)
+  if [ -n "$tailcat" ]; then
     mkdir -p "$work/tailcat/BOOT-INF/classes/natives/$os-$arch"
-    cp "$tailcat_library" "$work/tailcat/BOOT-INF/classes/natives/$os-$arch/"
-    cp native/tailcat/LICENSE.tailcat "$work/tailcat/BOOT-INF/classes/natives/"
+    cp "$tailcat" "$work/tailcat/BOOT-INF/classes/natives/$os-$arch/"
+    cp libs/tailcat/LICENSE.tailcat libs/tailcat/LICENSE.tailpocket "$work/tailcat/BOOT-INF/classes/natives/"
     (cd "$work/tailcat" && "$java_home/bin/jar" uf "$dist/kinuvo.jar" BOOT-INF/classes)
   fi
   allow_native_access "$dist/kinuvo.jar"
@@ -104,11 +110,11 @@ package_cli() {
   mkdir -p "$app/bin" "$app/lib"
   cp "$jar" "$app/lib/kinuvo.jar"
   python3 scripts/package-natives.py "$app/lib/kinuvo.jar" "$os" "$arch"
-  if [ "$os" != windows ]; then
-    local tailcat_library
-    tailcat_library=$(./scripts/build-tailcat.sh "$arch")
-    cp "$tailcat_library" "$app/lib/"
-    cp native/tailcat/LICENSE.tailcat "$app/lib/"
+  local tailcat
+  tailcat=$(tailcat_library)
+  if [ -n "$tailcat" ]; then
+    cp "$tailcat" "$app/lib/"
+    cp libs/tailcat/LICENSE.tailcat libs/tailcat/LICENSE.tailpocket "$app/lib/"
   fi
   runtime "$app/runtime" --include-locales en
   rm -rf "$app/runtime/lib/fonts"
@@ -146,11 +152,11 @@ package_desktop() {
   if [[ $numeric =~ ^[0-9]+(\.[0-9]+){0,2}$ ]] && { [ "$os" != macos ] || [ "${numeric%%.*}" != 0 ]; }; then
     args+=(--app-version "$numeric")
   fi
-  if [ "$os" != windows ]; then
-    local tailcat_library
-    tailcat_library=$(./scripts/build-tailcat.sh "$arch")
-    cp "$tailcat_library" "$work/input/"
-    cp native/tailcat/LICENSE.tailcat "$work/input/"
+  local tailcat
+  tailcat=$(tailcat_library)
+  if [ -n "$tailcat" ]; then
+    cp "$tailcat" "$work/input/"
+    cp libs/tailcat/LICENSE.tailcat libs/tailcat/LICENSE.tailpocket "$work/input/"
   fi
   case $os in
     macos)
