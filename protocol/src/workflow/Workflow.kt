@@ -45,6 +45,10 @@ sealed interface WorkflowStep {
     data class Model(override val id: StepId, val prompt: String, val system: String? = null, val model: ProviderModelRef? = null, override val position: Position? = null) : WorkflowStep
 
     /** Compares [left] with [right]; its output is `true` or `false`, and each outgoing edge may follow only one [WorkflowEdge.branch]. */
+    /** Fixed text, references rendered, as its output: a starting value for the steps after it. */
+    @Serializable @SerialName("text")
+    data class Text(override val id: StepId, val text: String, override val position: Position? = null) : WorkflowStep
+
     @Serializable @SerialName("condition")
     data class Condition(override val id: StepId, val left: String, val op: ConditionOp = ConditionOp.Equals, val right: String = "", override val position: Position? = null) : WorkflowStep
 }

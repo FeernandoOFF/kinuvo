@@ -143,6 +143,7 @@ fun WorkflowStep.placed(at: Position?): WorkflowStep = when (this) {
     is WorkflowStep.Tool -> copy(position = at)
     is WorkflowStep.Model -> copy(position = at)
     is WorkflowStep.Condition -> copy(position = at)
+    is WorkflowStep.Text -> copy(position = at)
 }
 
 /** The Workflow without its editor layout. */

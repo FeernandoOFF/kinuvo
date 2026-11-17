@@ -39,6 +39,7 @@ class WorkflowEditorDocumentTest {
         val page = workflowEditorPage("n")
         assertTrue(page.contains("parent.postMessage({ kinuvo: 'workflow', json: JSON.stringify("))
         assertTrue(page.contains("e.source !== parent"))
-        assertTrue(page.contains("data-add=\"review\""))
+        assertTrue(page.contains("['review', 'Check and edit the data']"))
+        assertTrue(page.contains("['text', 'Fixed text or JSON the next steps read']"))
     }
 }

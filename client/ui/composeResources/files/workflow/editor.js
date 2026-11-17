@@ -1,8 +1,25 @@
 (() => {
   'use strict';
   const GAP_X = 340, GAP_Y = 300, MARGIN = 40;
-  const KINDS = { agent_turn: 'Agent turn', model: 'Model', tool: 'Tool', approval: 'Approval', review: 'Review', condition: 'Condition' };
-  const PREFIX = { agent_turn: 'agent', model: 'model', tool: 'tool', approval: 'approval', review: 'review', condition: 'condition' };
+  const KINDS = { text: 'Text', agent_turn: 'Agent turn', model: 'Model', tool: 'Tool', approval: 'Approval', review: 'Review', condition: 'Condition' };
+  const PREFIX = { text: 'text', agent_turn: 'agent', model: 'model', tool: 'tool', approval: 'approval', review: 'review', condition: 'condition' };
+  const svg = (d) => `<svg viewBox="0 0 24 24" aria-hidden="true">${d}</svg>`;
+  const ICONS = {
+    text: svg('<path d="M4 7V4h16v3M9 20h6M12 4v16"/>'),
+    tool: svg('<path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/>'),
+    model: svg('<path d="M12 3l1.9 5.8L20 10.7l-6.1 1.9L12 18.5l-1.9-5.9L4 10.7l6.1-1.9z"/><path d="M19 17v4M17 19h4"/>'),
+    condition: svg('<path d="M16 3h5v5M8 3H3v5M12 22v-8.3a4 4 0 0 0-1.17-2.87L3 3M15 9l6-6"/>'),
+    agent_turn: svg('<path d="M12 8V4H8"/><rect width="16" height="12" x="4" y="8" rx="2"/><path d="M2 14h2M20 14h2M15 13v2M9 13v2"/>'),
+    review: svg('<path d="m3 17 2 2 4-4M3 7l2 2 4-4M13 6h8M13 12h8M13 18h8"/>'),
+    approval: svg('<path d="M18 11V6a2 2 0 0 0-4 0M14 10V4a2 2 0 0 0-4 0v2M10 10.5V6a2 2 0 0 0-4 0v8"/><path d="M18 8a2 2 0 1 1 4 0v6a8 8 0 0 1-8 8h-2c-2.8 0-4.5-.86-6-2.34l-3.6-3.6a2 2 0 0 1 2.83-2.82L7 15"/>'),
+  };
+  const MENU = [
+    ['Start', [['text', 'Fixed text or JSON the next steps read']]],
+    ['Automate', [['tool', 'Run a tool, an MCP tool or code'], ['model', 'Ask a model, no Session'], ['condition', 'Follow one of two branches']]],
+    ['Agent', [['agent_turn', 'An Agent works on it in a Session']]],
+    ['You', [['review', 'Check and edit the data'], ['approval', 'Say yes or no to continue']]],
+  ];
+  const NOW = [['now', 'Date and time'], ['now.date', 'Date'], ['now.time', 'Time'], ['now.weekday', 'Weekday']];
   const OPS = { Equals: 'equals', NotEquals: 'does not equal', Contains: 'contains', NotContains: 'does not contain', Empty: 'is empty', NotEmpty: 'is not empty', GreaterThan: 'is greater than', LessThan: 'is less than' };
   const unary = (op) => op === 'Empty' || op === 'NotEmpty';
   const STATUS = { Pending: 'Pending', Running: 'Running', WaitingApproval: 'Waiting', Done: 'Done', Failed: 'Failed', Skipped: 'Skipped', Cancelled: 'Cancelled' };
@@ -83,6 +100,7 @@
         ${area('left', 'If', s.left, 'A value, usually from an earlier step', { refs: true })}
         <label>Is<select data-f="op">${options(Object.keys(OPS).map((k) => ({ value: k, label: OPS[k] })), s.op || 'Equals')}</select></label>
         <div data-right${unary(s.op) ? ' hidden' : ''}>${area('right', 'Value', s.right, 'true', { refs: true })}</div>`;
+      case 'text': return area('text', 'Text', s.text, 'Text or JSON for the next steps', { refs: true });
       case 'review': return `
         ${area('text', 'Question', s.text, 'Is this draft ready?', { refs: true })}
         ${area('value', 'Value to review', s.value, 'A JSON object becomes one field per key', { refs: true, mono: true })}`;
@@ -91,7 +109,7 @@
   }
 
   const cardHtml = (s) => `<div class="card" data-step="${esc(s.id)}">
-    <div class="head"><span class="kind">${KINDS[s.type] || esc(s.type)}</span><code class="chip" title="Step id">${esc(s.id)}</code><span class="badge"></span><button class="del" type="button" data-del aria-label="Delete step">&#10005;</button></div>
+    <div class="head"><span class="ico">${ICONS[s.type] || ''}</span><span class="kind">${KINDS[s.type] || esc(s.type)}</span><code class="chip" title="Step id">${esc(s.id)}</code><span class="badge"></span><button class="del" type="button" data-del aria-label="Delete step">&#10005;</button></div>
     ${fields(s)}<div class="run"></div>${s.type === 'condition' ? '<div class="ports"><span>true &rarr;</span><span>false &rarr;</span></div>' : ''}</div>`;
 
   function addCard(s, at) {
@@ -117,11 +135,10 @@
       const list = ancestors(s.id).map((x) => ({ value: 'steps.' + x + '.output', label: x }));
       const inputs = (catalog.inputs || []).map((x) => ({ value: 'input.' + x, label: x }));
       const group = (label, items) => (items.length ? `<optgroup label="${label}">` + items.map((x) => `<option value="${esc(x.value)}">${esc(x.label)}</option>`).join('') + '</optgroup>' : '');
-      const any = list.length + inputs.length;
-      const html = any ? '<option value="">Insert…</option>' + group('Output of', list) + group('Input', inputs) : '<option value="">Nothing to insert</option>';
+      const now = NOW.map(([value, label]) => ({ value, label }));
+      const html = '<option value="">Insert…</option>' + group('Output of', list) + group('Input', inputs) + group('Now', now);
       card.querySelectorAll('select.ref').forEach((sel) => {
         if (sel.dataset.h !== html) { sel.innerHTML = html; sel.dataset.h = html; }
-        sel.disabled = !any;
       });
     });
   }
@@ -225,7 +242,29 @@
     editor.canvas_y = place(y0, y1, h, h - top - pad, top);
     editor.precanvas.style.transform = `translate(${editor.canvas_x}px, ${editor.canvas_y}px) scale(${z})`;
     wf.steps.forEach((s) => editor.updateConnectionNodes('node-' + dfOf[s.id]));
+    zoomLabel();
   }
+  const zoomLabel = () => { $('zoomFit').textContent = Math.round(editor.zoom * 100) + '%'; };
+
+  /** Drawflow's edge is a 3px line; a wide invisible copy on top of it is what a finger or pointer hits. */
+  function widenEdges() {
+    const sync = () => editor.precanvas.querySelectorAll('svg.connection').forEach((c) => {
+      const line = c.children[0];
+      if (!line) return;
+      let hit = c.querySelector('path.hit');
+      if (!hit) { hit = document.createElementNS('http://www.w3.org/2000/svg', 'path'); hit.setAttribute('class', 'main-path hit'); c.appendChild(hit); }
+      const d = line.getAttribute('d');
+      if (hit.getAttribute('d') !== d) hit.setAttribute('d', d);
+    });
+    new MutationObserver((list) => { if (list.some((m) => !(m.target.classList && m.target.classList.contains('hit')))) sync(); })
+      .observe(editor.precanvas, { subtree: true, childList: true, attributes: true, attributeFilter: ['d'] });
+  }
+
+  function menuHtml() {
+    return MENU.map(([group, items]) => `<div class="grp">${group}</div>` + items.map(([k, hint]) =>
+      `<button type="button" role="menuitem" data-add="${k}" class="k-${k}"><span class="ico">${ICONS[k]}</span><span class="txt"><b>${KINDS[k]}</b><small>${hint}</small></span></button>`).join('')).join('');
+  }
+  const toggleMenu = (open) => { $('menu').hidden = !open; $('addBtn').setAttribute('aria-expanded', String(open)); };
 
   function freeId(kind) {
     const taken = new Set(wf.steps.map((s) => s.id));
@@ -255,7 +294,7 @@
     const y = at && !same.length ? at.y : (same.length ? Math.max(...same.map((p) => p.y)) + GAP_Y : MARGIN + 40);
     const id = freeId(kind);
     const agent = (anchor && anchor.agentId) || wf.agentId || (catalog.agents[0] && catalog.agents[0].id) || '';
-    const s = { agent_turn: { type: 'agent_turn', id, agentId: agent, prompt: '', session: 'New' }, model: { type: 'model', id, prompt: '' },
+    const s = { text: { type: 'text', id, text: '' }, agent_turn: { type: 'agent_turn', id, agentId: agent, prompt: '', session: 'New' }, model: { type: 'model', id, prompt: '' },
       tool: { type: 'tool', id, tool: '', args: {} }, approval: { type: 'approval', id, text: '' }, review: { type: 'review', id, text: '', value: '' },
       condition: { type: 'condition', id, left: anchor ? '{{steps.' + anchor.id + '.output}}' : '', op: 'Equals', right: 'true' } }[kind];
     s.position = { x, y };
@@ -314,7 +353,7 @@
 
   function onClick(e) {
     const t = e.target;
-    if (t.closest && t.closest('#add') === null) $('menu').hidden = true;
+    if (t.closest && t.closest('#add') === null) toggleMenu(false);
     const ex = t.closest && t.closest('[data-ex]');
     if (ex) { const k = ex.dataset.ex; expanded.has(k) ? expanded.delete(k) : expanded.add(k); applyRun(); return; }
     const sess = t.closest && t.closest('[data-open]');
@@ -329,7 +368,41 @@
     // Typing and selecting text in a card must not drag the node, and Delete must not remove it: the delete button does.
     editor.draggable_inputs = false;
     editor.key = () => {};
+    // A connection dropped anywhere on a card goes to its input.
+    editor.force_first_input = true;
     editor.start();
+    widenEdges();
+    let pointer = { x: 0, y: 0 };
+    $('df').addEventListener('pointerdown', (e) => { pointer = { x: e.clientX, y: e.clientY }; }, true);
+    const edgeDel = $('edgeDel');
+    editor.on('connectionSelected', () => {
+      edgeDel.hidden = false;
+      const w = edgeDel.offsetWidth, h = edgeDel.offsetHeight;
+      edgeDel.style.left = Math.max(8, Math.min(innerWidth - w - 8, pointer.x - w / 2)) + 'px';
+      edgeDel.style.top = Math.max(52, Math.min(innerHeight - h - 8, pointer.y - h - 14)) + 'px';
+    });
+    editor.on('connectionUnselected', () => { edgeDel.hidden = true; });
+    // A short edge hides under its ports, so a tap on an input picks its connections in turn.
+    $('df').addEventListener('pointerup', (e) => {
+      const input = e.target.closest && e.target.closest('.input');
+      if (!input || Math.hypot(e.clientX - pointer.x, e.clientY - pointer.y) > 10) return;
+      const node = input.closest('.drawflow-node').id;
+      const hits = [...editor.precanvas.querySelectorAll(`svg.connection.node_in_${node} path.hit`)];
+      if (!hits.length) return;
+      const next = hits[(hits.indexOf(editor.connection_selected) + 1) % hits.length];
+      if (editor.node_selected) { editor.node_selected.classList.remove('selected'); editor.node_selected = null; editor.dispatch('nodeUnselected', true); }
+      if (editor.connection_selected) editor.connection_selected.classList.remove('selected');
+      editor.connection_selected = next; next.classList.add('selected');
+      editor.dispatch('connectionSelected', {});
+    });
+    edgeDel.addEventListener('click', () => { editor.removeConnection(); edgeDel.hidden = true; });
+    document.addEventListener('keydown', (e) => {
+      if ((e.key === 'Delete' || e.key === 'Backspace') && editor.connection_selected && !/INPUT|TEXTAREA|SELECT/.test(e.target.tagName)) {
+        editor.removeConnection(); edgeDel.hidden = true; e.preventDefault();
+      }
+    });
+    editor.on('zoom', zoomLabel);
+    $('menu').innerHTML = menuHtml();
     editor.on('nodeSelected', (id) => { selected = stepOf[id] || null; });
     editor.on('nodeUnselected', () => { selected = null; });
     editor.on('nodeMoved', (id) => {
@@ -378,11 +451,11 @@
     root.addEventListener('change', onChange);
     root.addEventListener('focusin', (e) => { if (e.target.dataset) e.target.dataset.touched = '1'; });
     document.addEventListener('click', onClick);
-    $('addBtn').addEventListener('click', () => { $('menu').hidden = !$('menu').hidden; });
-    $('menu').addEventListener('click', (e) => { const k = e.target.dataset && e.target.dataset.add; if (k) { $('menu').hidden = true; addStep(k); } });
+    $('addBtn').addEventListener('click', () => toggleMenu($('menu').hidden));
+    $('menu').addEventListener('click', (e) => { const b = e.target.closest('[data-add]'); if (b) { toggleMenu(false); addStep(b.dataset.add); } });
     $('zoomIn').addEventListener('click', () => editor.zoom_in());
     $('zoomOut').addEventListener('click', () => editor.zoom_out());
-    $('zoomReset').addEventListener('click', fit);
+    $('zoomFit').addEventListener('click', fit);
   }
 
   addEventListener('message', (e) => {
@@ -399,6 +472,7 @@
       selected = null;
       build();
       sent = JSON.stringify(wf);
+      zoomLabel();
       // A phone shows one card at full size, so it opens on the whole graph.
       if (first && wf.steps.length > 1 && $('df').clientWidth < 600) requestAnimationFrame(fit);
     } else if (!wf) { return; }

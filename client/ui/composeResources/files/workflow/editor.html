@@ -2,19 +2,15 @@
 <style><!--@editor.css--></style>
 <body>
 <div id="bar">
-  <div id="add"><button id="addBtn" type="button">+ Add step</button>
-    <div id="menu" hidden>
-      <button type="button" data-add="agent_turn">Agent turn</button>
-      <button type="button" data-add="model">Model</button>
-      <button type="button" data-add="tool">Tool</button>
-      <button type="button" data-add="condition">Condition</button>
-      <button type="button" data-add="approval">Approval</button>
-      <button type="button" data-add="review">Review</button>
-    </div></div>
-  <button type="button" id="zoomOut" aria-label="Zoom out">&minus;</button>
-  <button type="button" id="zoomIn" aria-label="Zoom in">+</button>
-  <button type="button" id="zoomReset" aria-label="Show the whole graph">Fit</button>
+  <div id="add"><button id="addBtn" type="button" aria-haspopup="menu" aria-expanded="false"><svg viewBox="0 0 24 24"><path d="M5 12h14M12 5v14"/></svg>Add step</button>
+    <div id="menu" role="menu" hidden></div></div>
 </div>
+<div id="zoom">
+  <button type="button" id="zoomOut" title="Zoom out" aria-label="Zoom out">&minus;</button>
+  <button type="button" id="zoomFit" title="Fit" aria-label="Show the whole graph">100%</button>
+  <button type="button" id="zoomIn" title="Zoom in" aria-label="Zoom in">+</button>
+</div>
+<button type="button" id="edgeDel" hidden><svg viewBox="0 0 24 24"><path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>Remove connection</button>
 <div id="df"></div>
 <datalist id="tools"></datalist>
 <script nonce="@nonce"><!--@drawflow.min.js--></script>

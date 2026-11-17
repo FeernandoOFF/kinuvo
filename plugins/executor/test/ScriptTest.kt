@@ -37,6 +37,14 @@ class ScriptTest {
         assertNull(run("1 + 1").value)
     }
 
+    @Test fun readsTheClockWithoutIntl() {
+        val now = System.currentTimeMillis()
+        val read = run("return Date.now()").value!!.toLong()
+        assertTrue(read in now - 5_000..now + 5_000, "$read vs $now")
+        assertEquals("undefined", run("return typeof Intl").value)
+        assertEquals("2026-11-17", run("return new Date(input).toISOString().slice(0, 10)", input = Json.parseToJsonElement("\"2026-11-17T09:30:00+01:00\"")).value)
+    }
+
     @Test fun passesInputAsAVariable() {
         val input = Json.parseToJsonElement("""{"hits":[{"title":"a \"quoted\" \u2028 line"},{"title":"b"}],"n":2}""")
         assertEquals("a \"quoted\" \u2028 line,b 2", run("return input.hits.map(h => h.title).join(',') + ' ' + input.n", input = input).value)

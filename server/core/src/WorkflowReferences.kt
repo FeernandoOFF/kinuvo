@@ -11,16 +11,37 @@ import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.doubleOrNull
+import kotlinx.datetime.TimeZone
+import kotlinx.datetime.offsetAt
+import kotlinx.datetime.toLocalDateTime
+import kotlin.time.Instant
 
-/** What a run's references read: each earlier step's output, null when it has none, and the run's input. */
-internal class WorkflowValues(val outputs: (StepId) -> String?, val input: JsonObject = JsonObject(emptyMap()))
+/** What a run's references read: each earlier step's output, null when it has none, the run's input, and the current time. */
+internal class WorkflowValues(val outputs: (StepId) -> String?, val input: JsonObject = JsonObject(emptyMap()), val now: JsonObject = JsonObject(emptyMap()))
+
+/** `{{now...}}`: [at] in [zone] as `iso` (local with offset, also plain `{{now}}`), `date`, `time`, `weekday`, `timezone`, `utc` and `timestamp` (ms). */
+internal fun nowValue(at: Long, zone: TimeZone): JsonObject {
+    val instant = Instant.fromEpochMilliseconds(at)
+    val local = instant.toLocalDateTime(zone)
+    fun two(n: Int) = n.toString().padStart(2, '0')
+    val time = "${two(local.hour)}:${two(local.minute)}"
+    return JsonObject(mapOf(
+        "iso" to JsonPrimitive("${local.date}T$time:${two(local.second)}${zone.offsetAt(instant)}"),
+        "date" to JsonPrimitive(local.date.toString()),
+        "time" to JsonPrimitive(time),
+        "weekday" to JsonPrimitive(local.dayOfWeek.name.lowercase().replaceFirstChar { it.uppercase() }),
+        "timezone" to JsonPrimitive(zone.id),
+        "utc" to JsonPrimitive(Instant.fromEpochMilliseconds(at - at % 1000).toString()),
+        "timestamp" to JsonPrimitive(at),
+    ))
+}
 
 /**
- * `{{steps.<id>.output}}`, `{{steps.<id>.output.<key or index>...}}`, `{{input}}` and `{{input.<name>...}}` in a step's text,
- * resolved against earlier steps' outputs and the run's input.
+ * `{{steps.<id>.output}}`, `{{steps.<id>.output.<key or index>...}}`, `{{input}}`, `{{input.<name>...}}` and `{{now[.field]}}`
+ * in a step's text, resolved against earlier steps' outputs, the run's input and the time the step starts.
  */
 internal object WorkflowReferences {
-    private val pattern = Regex("\\{\\{(?:steps\\.([a-zA-Z0-9_-]+)\\.output|(input))((?:\\.[^.{}\\s]+)*)}}")
+    private val pattern = Regex("\\{\\{(?:steps\\.([a-zA-Z0-9_-]+)\\.output|(input|now))((?:\\.[^.{}\\s]+)*)}}")
     private val fence = Regex("^```[a-zA-Z0-9]*[ \\t]*\\r?\\n(.*?)\\r?\\n?```$", RegexOption.DOT_MATCHES_ALL)
 
     fun strings(step: WorkflowStep): List<String> = when (step) {
@@ -30,6 +51,7 @@ internal object WorkflowReferences {
         is WorkflowStep.Approval -> listOf(step.text)
         is WorkflowStep.Review -> listOf(step.text, step.value)
         is WorkflowStep.Condition -> listOf(step.left, step.right)
+        is WorkflowStep.Text -> listOf(step.text)
     }
 
     private fun strings(element: JsonElement): List<String> = when (element) {
@@ -72,6 +94,7 @@ internal object WorkflowReferences {
     private fun resolve(match: MatchResult, values: WorkflowValues): JsonElement {
         val path = match.groupValues[3].split('.').filter { it.isNotEmpty() }
         val step = match.groupValues[1]
+        if (match.groupValues[2] == "now") return if (path.isEmpty()) values.now["iso"] ?: JsonNull else values.now[path.joinToString(".")] ?: JsonNull
         var at: JsonElement = if (step.isEmpty()) values.input else {
             val output = values.outputs(StepId(step)) ?: return JsonNull
             json(output) ?: if (path.isEmpty()) return JsonPrimitive(output) else error("${match.value}: step output is not JSON")

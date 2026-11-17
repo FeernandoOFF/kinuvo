@@ -315,6 +315,7 @@ class Workflows internal constructor(
                     if (result.isError) error(result.output)
                     update(run.id, step.id, StepRun(StepStatus.Done, session, result.output))
                 }
+                is WorkflowStep.Text -> update(run.id, step.id, StepRun(StepStatus.Done, output = render(run.id, step.text)))
                 is WorkflowStep.Condition -> {
                     val refs = outputs(run.id)
                     val result = WorkflowReferences.test(WorkflowReferences.render(step.left, refs), step.op, WorkflowReferences.render(step.right, refs))
@@ -363,7 +364,8 @@ class Workflows internal constructor(
 
     private suspend fun outputs(id: WorkflowRunId): WorkflowValues {
         val run = lock.withLock { data.runs.first { it.id == id } }
-        return WorkflowValues({ run.steps[it]?.output }, run.input)
+        val zone = try { TimeZone.of(run.workflow.timeZone) } catch (_: IllegalArgumentException) { TimeZone.UTC }
+        return WorkflowValues({ run.steps[it]?.output }, run.input, nowValue(clock(), zone))
     }
 
     private suspend fun render(id: WorkflowRunId, text: String) = WorkflowReferences.render(text, outputs(id))

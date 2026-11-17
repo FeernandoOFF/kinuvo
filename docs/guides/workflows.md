@@ -9,6 +9,7 @@ The point is cost and control. A large model works a task out once in a chat. Th
 
 | Step | What it does |
 | --- | --- |
+| Text | Outputs its text, with references filled in. Use it to start a flow with fixed text or JSON, such as a list to work through or today's date. |
 | Condition | Compares values without a model or Session. Follow true and false edges to choose what happens next; unused branches are skipped. |
 | Tool | Makes one tool call with fixed arguments, no model and no Session. A tool that needs an Approval asks for one as usual. |
 | Model | Makes one model request with no tools and no Session. Its reply is the output. |
@@ -24,12 +25,17 @@ You can build Workflows in the app's editor or ask an Agent: “Turn the steps w
 
 Open **Routines & Workflows** and add a Workflow. While it is still empty, the app offers a few examples to start from; picking one fills the graph, which you can change before saving.
 
-- **Add step** adds a step after the selected one. Drag from a step's right dot to another step's left dot to connect them. A Condition has two dots: the upper one is followed when it is true, the lower one when it is false.
-- **Insert…** above a field adds a reference to an earlier step's output or to one of the Workflow's inputs.
+- **Add step** adds a step after the selected one. Drag from a step's right dot onto another step to connect them. A Condition has two dots: the upper one is followed when it is true, the lower one when it is false.
+- Tap or click a connection, or the left dot it ends at, then **Remove connection** to delete it. On a computer, Delete also removes the selected connection.
+- **Insert…** above a field adds a reference to an earlier step's output, one of the Workflow's inputs, or the current date and time.
 - **Inputs** lists the values a run starts with, each with a default. Under **Run** you can change them for one run without touching the defaults.
 - While a run waits for you, a bar at the top says so: an Approval is answered right there, and a Review opens the chat that holds its form.
 - When a run ends, **Run** shows its result, or the step that failed and why. **Retry failed steps** starts again from that step and keeps what the earlier steps produced, so nothing that already worked is paid for twice.
 - Pick a run in **Run history** to see each step's status and output on the graph.
+
+## Date and time
+
+`{{now}}` is the time a step starts, in the Workflow's time zone, such as `2026-11-17T09:30:00+01:00`. `{{now.date}}`, `{{now.time}}`, `{{now.weekday}}`, `{{now.timezone}}`, `{{now.utc}}` and `{{now.timestamp}}` (milliseconds) give one part. Agents already know today's date but not the time, so put `{{now}}` in an Agent turn's prompt when the time matters. `run_code` can call `new Date()`, which uses the Server's clock and time zone and has no `Intl`; pass `"now": "{{now}}"` in its `input` to get the Workflow's zone instead.
 
 ## Inputs and branches
 

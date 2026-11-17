@@ -509,6 +509,28 @@ class WorkflowsTest {
         }
     }
 
+    @Test fun aTextStepStartsTheFlowWithItsRenderedText() = runBlocking<Unit> {
+        TestServer.start(plugins = listOf(fakes), scenario = { agent("work") }).use { server ->
+            val c = client(server)
+            val text = WorkflowStep.Text(StepId("text-1"), "{\"to\":\"{{input.who}}\",\"on\":\"{{now.date}}\"}")
+            val w = c.call(Api.CreateWorkflow, workflow(text, tool("a", "echo", buildJsonObject { put("to", "{{steps.text-1.output.to}}"); put("now", "{{now}}") }), edges = listOf(edge("text-1", "a")))
+                .copy(timeZone = "Europe/Madrid", inputs = listOf(WorkflowInput("who", default = "Ann"))))
+            c.run(w.id)
+            val done = finished(c)
+            assertEquals(WorkflowRunStatus.Done, done.status)
+            val out = Json.parseToJsonElement(done.steps[StepId("a")]?.output!!).jsonObject
+            assertEquals("Ann", out["to"]?.jsonPrimitive?.content)
+            assertTrue(Regex("\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\+0[12]:00").matches(out["now"]!!.jsonPrimitive.content), out.toString())
+        }
+    }
+
+    @Test fun nowReferencesReadTheTimeInTheWorkflowsZone() {
+        val now = nowValue(1_763_380_800_123, kotlinx.datetime.TimeZone.of("America/New_York"))
+        val values = WorkflowValues({ null }, now = now)
+        assertEquals("2025-11-17T07:00:00-05:00 Monday 07:00 2025-11-17 America/New_York 2025-11-17T12:00:00Z 1763380800123",
+            WorkflowReferences.render("{{now}} {{now.weekday}} {{now.time}} {{now.date}} {{now.timezone}} {{now.utc}} {{now.timestamp}}", values))
+    }
+
     @Test fun fencedJsonOutputIsReadLikeJson() = runBlocking<Unit> {
         TestServer.start(plugins = listOf(fakes), scenario = { agent("work") }).use { server ->
             val c = client(server)
