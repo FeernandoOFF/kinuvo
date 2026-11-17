@@ -18,6 +18,7 @@ import (
 const (
 	invitePrefix = "kinuvo1:"
 	stateFile    = "state.json"
+	revokedFile  = "revoked.json"
 	maxBound     = 64
 )
 
@@ -28,6 +29,10 @@ type hostTunnel struct {
 	next  uint64
 	pairs map[uint64]*connecthost.Pairing
 	bound map[string]string
+
+	state   string
+	rmu     sync.Mutex
+	revoked []string
 }
 
 func loadState(dir string) (connecthost.State, error) {
@@ -54,6 +59,30 @@ func saveState(dir string, st connecthost.State) error {
 	if err != nil {
 		return err
 	}
+	return writeAtomic(dir, stateFile, data)
+}
+
+func loadRevoked(dir string) ([]string, error) {
+	data, err := os.ReadFile(filepath.Join(dir, revokedFile))
+	if os.IsNotExist(err) {
+		return nil, nil
+	}
+	var phones []string
+	if err != nil || json.Unmarshal(data, &phones) != nil {
+		return nil, errors.New("invalid saved revocations")
+	}
+	return phones, nil
+}
+
+func saveRevoked(dir string, phones []string) error {
+	data, err := json.Marshal(phones)
+	if err != nil {
+		return err
+	}
+	return writeAtomic(dir, revokedFile, data)
+}
+
+func writeAtomic(dir, name string, data []byte) error {
 	f, err := os.CreateTemp(dir, "state-")
 	if err != nil {
 		return errors.New("cannot create state file")
@@ -66,7 +95,7 @@ func saveState(dir string, st connecthost.State) error {
 		err = e
 	}
 	if err == nil {
-		err = os.Rename(f.Name(), filepath.Join(dir, stateFile))
+		err = os.Rename(f.Name(), filepath.Join(dir, name))
 	}
 	if err != nil {
 		return errors.New("cannot save state")
@@ -95,6 +124,10 @@ func startHost(r request) (_ *hostTunnel, err error) {
 	if err != nil {
 		return nil, err
 	}
+	revoked, err := loadRevoked(r.State)
+	if err != nil {
+		return nil, err
+	}
 	h, err := connecthost.New(connecthost.Config{
 		Name: r.Name, Identity: st.Identity, Allowed: st.Allowed,
 		Save: func(s connecthost.State) error { return saveState(r.State, s) },
@@ -110,11 +143,28 @@ func startHost(r request) (_ *hostTunnel, err error) {
 		debugLog("host start failed: %v", err)
 		return nil, startupError(err)
 	}
+	ht := &hostTunnel{tunnel: t, host: h, pairs: map[uint64]*connecthost.Pairing{}, bound: map[string]string{}, state: r.State, revoked: revoked}
+	t.refuse = ht.refuseRevoked
 	go t.accept(func() (net.Conn, error) {
 		return (&net.Dialer{Timeout: 10 * time.Second}).DialContext(ctx, "tcp", fmt.Sprintf("127.0.0.1:%d", r.Port))
 	})
 	ready = true
-	return &hostTunnel{tunnel: t, host: h, pairs: map[uint64]*connecthost.Pairing{}, bound: map[string]string{}}, nil
+	return ht, nil
+}
+
+func (h *hostTunnel) isRevoked(phone string) bool {
+	h.rmu.Lock()
+	defer h.rmu.Unlock()
+	return phone != "" && slices.Contains(h.revoked, phone)
+}
+
+// refuseRevoked answers a revoked phone like a revoked Device and reports whether c was one.
+func (h *hostTunnel) refuseRevoked(c net.Conn) bool {
+	if !h.isRevoked(connecthost.PhoneOf(c)) {
+		return false
+	}
+	answerRevoked(c)
+	return true
 }
 
 func (h *hostTunnel) bind(code, phone string) {
@@ -140,6 +190,7 @@ func (h *hostTunnel) pair(r request) response {
 	}
 	ctx, done := context.WithTimeout(context.Background(), 30*time.Second)
 	defer done()
+	h.prune(ctx)
 	p, err := h.host.Pair(ctx, connecthost.PairOptions{
 		TTL: time.Duration(r.TTL) * time.Second,
 		Payload: func(phone connecthost.Phone) (string, error) {
@@ -186,13 +237,45 @@ func (h *hostTunnel) closePairing(id uint64) {
 	}
 }
 
+// revoke keeps the phone allowed at the Tailcat level, so its connections still reach this process and get
+// refused with an answer; connecthost.Revoke would close them silently, which looks like a Server that is down.
 func (h *hostTunnel) revoke(phone string) error {
-	ctx, done := context.WithTimeout(context.Background(), 30*time.Second)
-	defer done()
-	if err := h.host.Revoke(ctx, phone); err != nil {
-		return errors.New("cannot revoke the paired phone")
+	if !slices.Contains(h.host.Allowed(), phone) {
+		return nil
+	}
+	h.rmu.Lock()
+	if !slices.Contains(h.revoked, phone) {
+		h.revoked = append(h.revoked, phone)
+	}
+	saved := slices.Clone(h.revoked)
+	h.rmu.Unlock()
+	h.closePhone(phone)
+	if err := saveRevoked(h.state, saved); err != nil {
+		return errors.New("cannot save the revoked phone")
 	}
 	return nil
+}
+
+// prune really removes the oldest revoked phones once the paired list is full, so revoking never blocks pairing.
+func (h *hostTunnel) prune(ctx context.Context) {
+	for len(h.host.Allowed()) >= connecthost.MaxPhones {
+		h.rmu.Lock()
+		if len(h.revoked) == 0 {
+			h.rmu.Unlock()
+			return
+		}
+		oldest := h.revoked[0]
+		h.rmu.Unlock()
+		if err := h.host.Revoke(ctx, oldest); err != nil {
+			debugLog("prune failed: %v", err)
+			return
+		}
+		h.rmu.Lock()
+		h.revoked = slices.DeleteFunc(h.revoked, func(p string) bool { return p == oldest })
+		saved := slices.Clone(h.revoked)
+		h.rmu.Unlock()
+		saveRevoked(h.state, saved)
+	}
 }
 
 func revokeOffline(dir, phone string) error {
@@ -202,15 +285,14 @@ func revokeOffline(dir, phone string) error {
 	}
 	defer release(lock)
 	st, err := loadState(dir)
-	if err != nil || st.Identity == "" {
+	if err != nil || st.Identity == "" || !slices.Contains(st.Allowed, phone) {
 		return err
 	}
-	kept := slices.DeleteFunc(slices.Clone(st.Allowed), func(p string) bool { return p == phone })
-	if len(kept) == len(st.Allowed) {
-		return nil
+	revoked, err := loadRevoked(dir)
+	if err != nil || slices.Contains(revoked, phone) {
+		return err
 	}
-	st.Allowed = kept
-	return saveState(dir, st)
+	return saveRevoked(dir, append(revoked, phone))
 }
 
 func resetState(dir string) error {
@@ -219,7 +301,7 @@ func resetState(dir string) error {
 		return err
 	}
 	defer release(lock)
-	for _, name := range []string{stateFile, "key.json"} {
+	for _, name := range []string{stateFile, revokedFile, "key.json"} {
 		if err = os.Remove(filepath.Join(dir, name)); err != nil && !os.IsNotExist(err) {
 			return errors.New("cannot remove saved state")
 		}

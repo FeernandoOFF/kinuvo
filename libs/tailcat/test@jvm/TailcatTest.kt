@@ -1,5 +1,7 @@
 package kinuvo.tailcat
 
+import kinuvo.client.AuthException
+import kinuvo.client.ConnectionState
 import kinuvo.client.KinuvoClient
 import kinuvo.protocol.ProtocolJson
 import kinuvo.protocol.device.TailcatPayload
@@ -35,7 +37,7 @@ class TailcatTest {
     }
 
     @Test
-    fun livePairingBindsThePhoneToTheDeviceAndRevokingReachesIt(): Unit = runBlocking {
+    fun livePairingBindsThePhoneToTheDeviceAndRevokingUnpairsIt(): Unit = runBlocking {
         if (System.getenv("KINUVO_TAILCAT_LIVE") != "1") return@runBlocking
         withTimeout(180_000) {
             val server = TestServer.start()
@@ -66,6 +68,11 @@ class TailcatTest {
                             socket.soTimeout = 30_000
                             assertEquals(-1, socket.getInputStream().read())
                         }
+                        val revoked = KinuvoClient("tailcat:live", "remote", token = token, connection = { tailcatConnection(pairing.link, Tailcat) })
+                        try {
+                            assertFailsWith<AuthException> { revoked.connect() }
+                            assertTrue((revoked.state.value as ConnectionState.Disconnected).rejected)
+                        } finally { revoked.close() }
                     } finally { forward.close() }
                 } finally { server.auth.tailcat(null); tunnel.close() }
             } finally { listener.stop(); server.close() }

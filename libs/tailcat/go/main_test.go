@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -66,15 +67,26 @@ func TestInvalidSavedState(t *testing.T) {
 	release(lock)
 }
 
-func TestRevokeOfflineEditsAllowedList(t *testing.T) {
+func TestRevokeOfflineKeepsThePhoneAllowedButRevoked(t *testing.T) {
 	dir := t.TempDir()
 	saveState(dir, connecthost.State{Identity: `{"v":1}`, Allowed: []string{"nodekey:a", "nodekey:b"}})
-	if r := dispatch("revoke", request{State: dir, Phone: "nodekey:a"}); r.Error != "" {
-		t.Fatal(r.Error)
+	for range 2 {
+		if r := dispatch("revoke", request{State: dir, Phone: "nodekey:a"}); r.Error != "" {
+			t.Fatal(r.Error)
+		}
 	}
 	got, _ := loadState(dir)
-	if !slices.Equal(got.Allowed, []string{"nodekey:b"}) || got.Identity != `{"v":1}` {
+	if !slices.Equal(got.Allowed, []string{"nodekey:a", "nodekey:b"}) || got.Identity != `{"v":1}` {
 		t.Fatalf("%+v", got)
+	}
+	if revoked, _ := loadRevoked(dir); !slices.Equal(revoked, []string{"nodekey:a"}) {
+		t.Fatalf("revoked: %v", revoked)
+	}
+	if r := dispatch("revoke", request{State: dir, Phone: "nodekey:unknown"}); r.Error != "" {
+		t.Fatal(r.Error)
+	}
+	if revoked, _ := loadRevoked(dir); len(revoked) != 1 {
+		t.Fatalf("unknown phone recorded: %v", revoked)
 	}
 	if r := dispatch("revoke", request{State: t.TempDir(), Phone: "nodekey:a"}); r.Error != "" {
 		t.Fatal("missing state is not an error")
@@ -84,6 +96,144 @@ func TestRevokeOfflineEditsAllowedList(t *testing.T) {
 	if dispatch("revoke", request{State: dir, Phone: "nodekey:b"}).Error == "" {
 		t.Fatal("edited state of a running host")
 	}
+}
+
+func TestRevocationsSurviveRestartAndResetClearsThem(t *testing.T) {
+	dir := t.TempDir()
+	if err := saveRevoked(dir, []string{"nodekey:a"}); err != nil {
+		t.Fatal(err)
+	}
+	started := dispatch("host_start", request{State: dir, Name: "Test", Port: 9})
+	if started.Error != "" {
+		t.Fatal(started.Error)
+	}
+	host := lookupHost(started.Handle)
+	if !host.isRevoked("nodekey:a") || host.isRevoked("nodekey:b") || host.isRevoked("") {
+		t.Fatal("revoked phones not loaded")
+	}
+	if r := dispatch("host_revoke", request{Handle: started.Handle, Phone: "nodekey:b"}); r.Error != "" || host.isRevoked("nodekey:b") {
+		t.Fatalf("an unpaired key was recorded: %q", r.Error)
+	}
+	dispatch("stop", request{Handle: started.Handle})
+	os.WriteFile(filepath.Join(dir, revokedFile), []byte("nope"), 0600)
+	if dispatch("host_start", request{State: dir, Name: "Test", Port: 9}).Error == "" {
+		t.Fatal("started from invalid revocations")
+	}
+	if r := dispatch("reset", request{State: dir}); r.Error != "" {
+		t.Fatal(r.Error)
+	}
+	if _, err := os.Stat(filepath.Join(dir, revokedFile)); !os.IsNotExist(err) {
+		t.Fatal("revocations retained")
+	}
+}
+
+type fakeListener struct{ conns chan net.Conn }
+
+func (l fakeListener) Accept() (net.Conn, error) {
+	c, ok := <-l.conns
+	if !ok {
+		return nil, net.ErrClosed
+	}
+	return c, nil
+}
+func (l fakeListener) Close() error   { return nil }
+func (l fakeListener) Addr() net.Addr { return &net.TCPAddr{} }
+
+func TestRevokedPhoneIsAnsweredAndNeverProxied(t *testing.T) {
+	dir := t.TempDir()
+	host := &hostTunnel{tunnel: newTunnel(func() {}), state: dir}
+	host.revoked = []string{"nodekey:revoked"}
+	listener := fakeListener{conns: make(chan net.Conn)}
+	host.listener = listener
+	host.tunnel.refuse = host.refuseRevoked
+	dials := make(chan struct{}, 4)
+	backend, backendSide := net.Pipe()
+	defer backend.Close()
+	go host.accept(func() (net.Conn, error) { dials <- struct{}{}; return backendSide, nil })
+	defer close(listener.conns)
+
+	connect := func(phone string) net.Conn {
+		client, server := net.Pipe()
+		listener.conns <- &connecthost.Conn{Conn: server, Phone: phone}
+		return client
+	}
+
+	web := connect("nodekey:revoked")
+	web.SetDeadline(time.Now().Add(5 * time.Second))
+	go io.WriteString(web, "GET /ws HTTP/1.1\r\nHost: x\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\nSec-WebSocket-Version: 13\r\n\r\n")
+	reader := bufio.NewReader(web)
+	resp, err := http.ReadResponse(reader, nil)
+	if err != nil || resp.StatusCode != 101 || resp.Header.Get("Sec-WebSocket-Accept") != "s3pPLMBiTxaQ9kYGzzhZRbK+xOo=" {
+		t.Fatalf("handshake: %v %+v", err, resp)
+	}
+	request := []byte(`{"type":"req","id":"7","method":"connect","params":{}}`)
+	mask := []byte{1, 2, 3, 4}
+	masked := make([]byte, len(request))
+	for i := range request {
+		masked[i] = request[i] ^ mask[i%4]
+	}
+	go web.Write(append(append([]byte{0x81, 0x80 | byte(len(request))}, mask...), masked...))
+	opcode, payload, ok := readServerFrame(reader)
+	if !ok || opcode != 1 {
+		t.Fatalf("frame: %d %v", opcode, ok)
+	}
+	var answer struct {
+		Type, ID string
+		Ok       bool
+		Error    struct{ Code, Message string }
+	}
+	if json.Unmarshal(payload, &answer) != nil || answer.Type != "res" || answer.ID != "7" || answer.Ok || answer.Error.Code != "forbidden" || answer.Error.Message != revokedMessage {
+		t.Fatalf("answer: %s", payload)
+	}
+	if opcode, _, ok = readServerFrame(reader); !ok || opcode != 8 {
+		t.Fatal("not closed after the answer")
+	}
+
+	plain := connect("nodekey:revoked")
+	plain.SetDeadline(time.Now().Add(5 * time.Second))
+	go io.WriteString(plain, "GET /api HTTP/1.1\r\nHost: x\r\n\r\n")
+	if resp, err = http.ReadResponse(bufio.NewReader(plain), nil); err != nil || resp.StatusCode != 401 {
+		t.Fatalf("plain request: %v %+v", err, resp)
+	}
+
+	select {
+	case <-dials:
+		t.Fatal("revoked phone reached the Server")
+	default:
+	}
+
+	allowed := connect("nodekey:ok")
+	select {
+	case <-dials:
+	case <-time.After(5 * time.Second):
+		t.Fatal("paired phone not proxied")
+	}
+	go io.WriteString(allowed, "ping")
+	buf := make([]byte, 4)
+	backend.SetDeadline(time.Now().Add(5 * time.Second))
+	if _, err := io.ReadFull(backend, buf); err != nil || string(buf) != "ping" {
+		t.Fatalf("proxy: %q %v", buf, err)
+	}
+
+	host.closePhone("nodekey:ok")
+	allowed.SetReadDeadline(time.Now().Add(5 * time.Second))
+	if _, err := allowed.Read(buf); err == nil {
+		t.Fatal("connection of a newly revoked phone stayed open")
+	}
+	backend.SetReadDeadline(time.Now().Add(5 * time.Second))
+	if _, err := backend.Read(buf); err == nil {
+		t.Fatal("Server side of a newly revoked phone stayed open")
+	}
+}
+
+func readServerFrame(r io.Reader) (byte, []byte, bool) {
+	var head [2]byte
+	if _, err := io.ReadFull(r, head[:]); err != nil {
+		return 0, nil, false
+	}
+	payload := make([]byte, head[1]&0x7f)
+	_, err := io.ReadFull(r, payload)
+	return head[0] & 0x0f, payload, err == nil
 }
 
 func TestStopIsBoundedAndRetainsLockUntilClosed(t *testing.T) {
@@ -208,14 +358,32 @@ func TestLivePairForwardRevoke(t *testing.T) {
 	if r := dispatch("host_revoke", request{Handle: host.Handle, Phone: phone.Phone}); r.Error != "" {
 		t.Fatal(r.Error)
 	}
-	if body, err := get(opened.Port); err == nil && body == "hello" {
-		t.Fatal("revoked phone still reaches the Server")
+	client := &http.Client{Timeout: 40 * time.Second, Transport: &http.Transport{DisableKeepAlives: true}}
+	resp, err := client.Get(fmt.Sprintf("http://127.0.0.1:%d/hello", opened.Port))
+	if err != nil || resp.StatusCode != http.StatusUnauthorized {
+		t.Fatalf("revoked phone is not refused with a 401: %v %v", resp, err)
 	}
+	resp.Body.Close()
+	ws, err := net.Dial("tcp", fmt.Sprintf("127.0.0.1:%d", opened.Port))
+	if err != nil {
+		t.Fatal(err)
+	}
+	ws.SetDeadline(time.Now().Add(40 * time.Second))
+	io.WriteString(ws, "GET /ws HTTP/1.1\r\nHost: 127.0.0.1\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\nSec-WebSocket-Version: 13\r\n\r\n")
+	wsReader := bufio.NewReader(ws)
+	upgraded, err := http.ReadResponse(wsReader, nil)
+	if err != nil || upgraded.StatusCode != 101 {
+		t.Fatalf("revoked websocket upgrade: %v %v", upgraded, err)
+	}
+	ws.Close()
 	dispatch("stop", request{Handle: opened.Handle})
 	dispatch("stop", request{Handle: host.Handle})
 	raw, _ := os.ReadFile(filepath.Join(dir, stateFile))
 	var st connecthost.State
-	if json.Unmarshal(raw, &st) != nil || len(st.Allowed) != 0 {
+	if json.Unmarshal(raw, &st) != nil || !slices.Equal(st.Allowed, []string{phone.Phone}) {
 		t.Fatalf("state after revoke: %s", raw)
+	}
+	if revoked, _ := loadRevoked(dir); !slices.Equal(revoked, []string{phone.Phone}) {
+		t.Fatalf("revoked after revoke: %v", revoked)
 	}
 }

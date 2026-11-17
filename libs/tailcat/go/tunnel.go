@@ -10,6 +10,8 @@ import (
 	"sync"
 	"syscall"
 	"time"
+
+	"github.com/jt-wang/tailpocket/connecthost"
 )
 
 type stopper interface{ stop() error }
@@ -18,6 +20,8 @@ type tunnel struct {
 	mu          sync.Mutex
 	closed      bool
 	conns       map[net.Conn]bool
+	links       map[net.Conn]net.Conn
+	refuse      func(net.Conn) bool
 	listener    net.Listener
 	cancel      context.CancelFunc
 	closeNative func() error
@@ -25,7 +29,7 @@ type tunnel struct {
 }
 
 func newTunnel(cancel context.CancelFunc) *tunnel {
-	return &tunnel{conns: make(map[net.Conn]bool), cancel: cancel}
+	return &tunnel{conns: make(map[net.Conn]bool), links: make(map[net.Conn]net.Conn), cancel: cancel}
 }
 
 func hold(state string) (*os.File, error) {
@@ -92,7 +96,10 @@ func (t *tunnel) accept(dial func() (net.Conn, error)) {
 					debugLog("native panic: %v", v)
 				}
 			}()
-			defer func() { a.Close(); t.mu.Lock(); delete(t.conns, a); t.mu.Unlock() }()
+			defer func() { a.Close(); t.mu.Lock(); delete(t.conns, a); delete(t.links, a); t.mu.Unlock() }()
+			if t.refuse != nil && t.refuse(a) {
+				return
+			}
 			b, err := dial()
 			if err != nil {
 				debugLog("dial failed: %v", err)
@@ -102,6 +109,9 @@ func (t *tunnel) accept(dial func() (net.Conn, error)) {
 				return
 			}
 			defer func() { b.Close(); t.mu.Lock(); delete(t.conns, b); t.mu.Unlock() }()
+			t.mu.Lock()
+			t.links[a] = b
+			t.mu.Unlock()
 			done := make(chan struct{})
 			go func() {
 				defer func() { recover(); close(done) }()
@@ -120,6 +130,24 @@ func (t *tunnel) accept(dial func() (net.Conn, error)) {
 			}
 			<-done
 		}()
+	}
+}
+
+// closePhone drops every connection a phone has open, and the Server connections bridged to them.
+func (t *tunnel) closePhone(phone string) {
+	t.mu.Lock()
+	var drop []net.Conn
+	for c := range t.conns {
+		if connecthost.PhoneOf(c) == phone {
+			drop = append(drop, c)
+			if b := t.links[c]; b != nil {
+				drop = append(drop, b)
+			}
+		}
+	}
+	t.mu.Unlock()
+	for _, c := range drop {
+		c.Close()
 	}
 }
 
