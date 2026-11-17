@@ -40,7 +40,7 @@ On macOS or Linux, start your Server with `kinuvo serve --tailcat`, then run
 `kinuvo pair` to show its additional Tailcat link and QR code. Paste the link into
 the desktop app's Server address field, or paste the secret address and pairing
 code, then choose Pair.
-Android, iOS and web clients do not support Tailcat yet.
+Desktop, Android and iOS clients support Tailcat; web clients do not yet.
 
 Keep the link private: its address grants network reachability, while the code
 grants Device access. The saved address stays in your Device's secure storage.
