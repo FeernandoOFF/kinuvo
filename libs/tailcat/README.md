@@ -1,14 +1,15 @@
 # libs/tailcat
 
-Native Tailcat transport: a Go shim over [TailPocket](https://github.com/jt-wang/tailpocket) v0.2.4 (MIT, on Tailcat v0.6.0), committed prebuilt binaries, and the Kotlin bindings. `libs/` is the home for prebuilt native libraries; CI and releases never need Go or the NDK.
+Native Tailcat transport: a Go shim over [TailPocket](https://github.com/jt-wang/tailpocket) v0.2.4 (MIT, on Tailcat v0.6.0), prebuilt binaries published as GitHub Release assets, and the Kotlin bindings. `libs/` is the home for prebuilt native libraries; CI and releases never need Go or the NDK.
 
 - `go/`: the shim source (`go test ./...`; `KINUVO_TAILCAT_LIVE=1` adds a ~30 s live relay test).
-- `prebuilt/`: `macos-arm64/libKinuvoTailcat.dylib`, `android-arm64-v8a/` and `android-x86_64/` shared objects, `KinuvoTailcat.xcframework` (iOS device and simulator static libraries).
-- `STAMP`: hash of `go/*.go`, `go/*.c`, go.mod, go.sum and the Go and NDK versions, plus a hash of each artifact. `stamp.sh check` verifies it without any toolchain and runs in CI.
-- `build.sh [macos] [android] [ios]`: manual rebuild, then rewrites STAMP. Needs Go 1.27.3 (`mise exec go@1.27.3 -- libs/tailcat/build.sh`), Xcode and NDK 28.2.13676358 (`ANDROID_HOME`). Run it only when `go/` changes and commit `prebuilt/` and `STAMP`.
+- `prebuilt/` (git-ignored): `macos-arm64/libKinuvoTailcat.dylib`, `android-arm64-v8a/` and `android-x86_64/` shared objects, `KinuvoTailcat.xcframework` (iOS device and simulator static libraries). Filled by `scripts/libs.sh fetch` from `prebuilt.json`; the `mise` tasks (`kotlin`, `android`, `ios`, `server`, `cli`, `desktop*`), the iOS "Fetch native libraries" build phase and CI run it, and `mise run libs:fetch` does it by hand. Run it before calling `./kotlin` directly.
+- `prebuilt.json`: the `libs-tailcat-<stamp>` release tag plus URL and sha256 of every file (the xcframework is one zip). Written by `scripts/libs.sh publish tailcat`.
+- `STAMP`: hash of `go/*.go`, `go/*.c`, go.mod, go.sum and the Go and NDK versions. `stamp.sh check` verifies it, and that `prebuilt.json` is published for it, without any toolchain; it runs in CI.
+- `build.sh [macos] [android] [ios]`: manual rebuild, then rewrites STAMP. Needs Go 1.27.3 (`mise exec go@1.27.3 -- libs/tailcat/build.sh`), Xcode and NDK 28.2.13676358 (`ANDROID_HOME`). Run it only when `go/` changes, then `scripts/libs.sh publish tailcat` (creates the prerelease, uploads, rewrites `prebuilt.json`) and commit `STAMP` and `prebuilt.json`.
 - Kotlin module (`src`, `src@jvm`, `src@android`, `src@ios`): implements the SDK's `TailcatForwarder` and the Server's `TailcatServing`; only app shells depend on it. FFM on the JVM, JNI on Android, and on iOS a Swift wrapper (`apps/ios/src/AppleTailcat.swift`) installs the linked library's entry point through `installTailcat`.
 
-Android apps pick up the libraries through symlinks in `apps/android/jniLibs` and `apps/android-play/jniLibs`. The iOS project links the xcframework with `-lresolv -framework Security -framework CoreFoundation`.
+Android apps pick up the fetched libraries through symlinks in `apps/android/jniLibs` and `apps/android-play/jniLibs`. The iOS project links the xcframework with `-lresolv -framework Security -framework CoreFoundation`.
 
 ## ABI 2
 

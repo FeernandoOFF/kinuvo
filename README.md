@@ -22,9 +22,12 @@ irm https://raw.githubusercontent.com/FeernandoOFF/kinuvo/main/install.ps1 | iex
 
 ## Build from source
 
-The optional Tailcat transport uses prebuilt native libraries committed in
-`libs/tailcat/prebuilt`; building from source needs no Go or NDK. Only
-`libs/tailcat/build.sh` rebuilds them, when the Go sources change.
+The optional Tailcat transport uses prebuilt native libraries pinned by
+`libs/tailcat/prebuilt.json` and downloaded from GitHub Releases into the
+git-ignored `libs/tailcat/prebuilt` (`mise run libs:fetch`, run automatically
+by the `mise` tasks); building from source needs no Go or NDK. Only
+`libs/tailcat/build.sh` rebuilds them, when the Go sources change. Running
+`./kotlin` directly needs a prior `mise run libs:fetch` (or `scripts/libs.sh fetch`).
 
 Uses the [Kotlin Toolchain](https://kotlin-toolchain.org) (`./kotlin`, no install needed):
 

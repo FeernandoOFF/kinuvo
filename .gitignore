@@ -28,3 +28,5 @@ client/ui/avatars/
 
 # Wrangler local deployment state
 .wrangler/
+
+libs/*/prebuilt/

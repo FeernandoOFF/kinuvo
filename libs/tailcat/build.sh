@@ -1,6 +1,6 @@
 #!/bin/sh
 # Rebuilds libs/tailcat/prebuilt and STAMP. Manual: needs Go (mise exec go@1.27.3 -- libs/tailcat/build.sh), Xcode and the Android NDK.
-# Run it only when libs/tailcat/go changes; CI checks STAMP and never builds.
+# Run it only when libs/tailcat/go changes, then scripts/libs.sh publish tailcat; CI checks STAMP and never builds.
 # Usage: build.sh [macos] [android] [ios]   (default: all)
 set -eu
 root=$(CDPATH='' cd -- "$(dirname -- "$0")" && pwd)

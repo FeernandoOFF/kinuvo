@@ -142,6 +142,7 @@
 			isa = PBXNativeTarget;
 			buildConfigurationList = 29FA657F58E7DECBB4BB59E4 /* Build configuration list for PBXNativeTarget "app" */;
 			buildPhases = (
+				C0DE7050000000000000F001 /* Fetch native libraries */,
 				29FA6C8B0C1B680D8EBAD49B /* Build Kotlin */,
 				29FA651FA641A60EB2D87F7C /* Sources */,
 				29FA6708579CCE9D9F3B329E /* Frameworks */,
@@ -224,6 +225,21 @@
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXShellScriptBuildPhase section */
+		C0DE7050000000000000F001 /* Fetch native libraries */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputPaths = (
+			);
+			name = "Fetch native libraries";
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "\"${SRCROOT}/../../scripts/libs.sh\" fetch\n";
+		};
 		29FA6C8B0C1B680D8EBAD49B /* Build Kotlin */ = {
 			isa = PBXShellScriptBuildPhase;
 			alwaysOutOfDate = 1;

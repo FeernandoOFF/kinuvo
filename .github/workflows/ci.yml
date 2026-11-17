@@ -61,7 +61,7 @@ jobs:
           python3 scripts/test-package-natives.py
           python3 scripts/test-sign-macos.py
           python3 scripts/test-notarize-macos.py
-          bash -n scripts/package.sh scripts/notarize-macos.sh
+          bash -n scripts/package.sh scripts/notarize-macos.sh scripts/libs.sh
           libs/tailcat/stamp.sh check
 
   tests:
@@ -92,6 +92,7 @@ jobs:
       MODULES: ${{ matrix.modules }}
     steps:
       - uses: actions/checkout@v5
+      - uses: ./.github/actions/fetch-libs
       # The CLI and JDKs are the same for every suite, so one copy is shared; Maven artifacts differ per suite.
       - id: toolchain
         uses: actions/cache/restore@v4

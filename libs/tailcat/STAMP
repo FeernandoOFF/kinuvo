@@ -2,13 +2,3 @@ sha256=6bddda049149e9f6a5fdc87eff3e74f25f98f89fb5ba38954c9d37a3f658b593
 go=go1.27.3
 ndk=28.2.13676358
 tailpocket=v0.2.4
-artifact e1579a7fa631b8d2a63a7517f9126adfda724deec6861957fed03138a9311c88  ./KinuvoTailcat.xcframework/Info.plist
-artifact 3e1fd38a8b55f9b557a0b38b041dc41bb50aef9634d1f95a4d63254e2476b58e  ./KinuvoTailcat.xcframework/ios-arm64-simulator/Headers/KinuvoTailcat.h
-artifact f667851aae645017ece3e3decd45ca1c56e7d6b5d71aa9e6009f98120ebbff9c  ./KinuvoTailcat.xcframework/ios-arm64-simulator/Headers/module.modulemap
-artifact 2c1e13574fd14a70a2070cbbca057943828d8ed961af732beaaf0eb825f6ba04  ./KinuvoTailcat.xcframework/ios-arm64-simulator/libKinuvoTailcat.a
-artifact 3e1fd38a8b55f9b557a0b38b041dc41bb50aef9634d1f95a4d63254e2476b58e  ./KinuvoTailcat.xcframework/ios-arm64/Headers/KinuvoTailcat.h
-artifact f667851aae645017ece3e3decd45ca1c56e7d6b5d71aa9e6009f98120ebbff9c  ./KinuvoTailcat.xcframework/ios-arm64/Headers/module.modulemap
-artifact b225f238c149c0c215636ea8dd291873e25cdaf38b34c228a7eec787d62e38d7  ./KinuvoTailcat.xcframework/ios-arm64/libKinuvoTailcat.a
-artifact ad1210a141dc8ba485c8469c270553f85cd1b175d17f03fd809a123563645882  ./android-arm64-v8a/libKinuvoTailcat.so
-artifact 82de9e85da6650ccce56ad6316d04fede9812545e81e0e06b5130afda12bd732  ./android-x86_64/libKinuvoTailcat.so
-artifact 8bd5f43cbb9707474d90eaba8f9263826f0892599fd9ce286bdd7f08d346ac5f  ./macos-arm64/libKinuvoTailcat.dylib

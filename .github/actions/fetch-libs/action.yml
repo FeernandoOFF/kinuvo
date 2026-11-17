@@ -1,0 +1,11 @@
+name: Fetch prebuilt libraries
+description: Downloads the native libraries pinned by libs/*/prebuilt.json, cached by manifest.
+runs:
+  using: composite
+  steps:
+    - uses: actions/cache@v4
+      with:
+        path: libs/*/prebuilt
+        key: libs-v1-${{ runner.os }}-${{ hashFiles('libs/*/prebuilt.json') }}
+    - shell: bash
+      run: scripts/libs.sh fetch

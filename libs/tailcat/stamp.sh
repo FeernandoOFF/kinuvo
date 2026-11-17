@@ -1,5 +1,5 @@
 #!/bin/sh
-# stamp.sh write [go-version ndk-version] | check
+# stamp.sh write <go-version> <ndk-version> | sources | check
 set -eu
 root=$(CDPATH='' cd -- "$(dirname -- "$0")" && pwd)
 stamp="$root/STAMP"
@@ -16,12 +16,6 @@ sources() {
 
 combined() { { sources; printf 'go=%s\nndk=%s\n' "$1" "$2"; } | sha | cut -d' ' -f1; }
 
-artifacts() {
-    (cd "$root/prebuilt" && find . -type f ! -name .DS_Store | LC_ALL=C sort | while read -r file; do
-        printf '%s  %s\n' "$(sha "$file" | cut -d' ' -f1)" "$file"
-    done)
-}
-
 field() { sed -n "s/^$1=//p" "$stamp"; }
 
 case "${1:-}" in
@@ -31,21 +25,22 @@ case "${1:-}" in
         {
             printf 'sha256=%s\n' "$(combined "$go_version" "$ndk_version")"
             printf 'go=%s\nndk=%s\ntailpocket=%s\n' "$go_version" "$ndk_version" "$(sed -n 's/^.*jt-wang\/tailpocket \(v[^ ]*\).*$/\1/p' "$root/go/go.mod" | head -1)"
-            artifacts | sed 's/^/artifact /'
         } > "$stamp"
         ;;
-    check)
+    sources | check)
         [ -f "$stamp" ] || { echo "libs/tailcat/STAMP is missing; run libs/tailcat/build.sh" >&2; exit 1; }
         expected=$(combined "$(field go)" "$(field ndk)")
         if [ "$expected" != "$(field sha256)" ]; then
-            echo "libs/tailcat/go changed since the prebuilt libraries were built; run libs/tailcat/build.sh and commit prebuilt/ and STAMP" >&2
+            echo "libs/tailcat/go changed since STAMP was written; run libs/tailcat/build.sh, then scripts/libs.sh publish tailcat, and commit STAMP and prebuilt.json" >&2
             exit 1
         fi
-        if [ "$(artifacts | sed 's/^/artifact /')" != "$(sed -n 's/^\(artifact .*\)$/\1/p' "$stamp")" ]; then
-            echo "libs/tailcat/prebuilt does not match STAMP; run libs/tailcat/build.sh and commit prebuilt/ and STAMP" >&2
+        [ "$1" = sources ] && exit 0
+        published=$(sed -n 's/^ *"stamp": *"\([^"]*\)".*$/\1/p' "$root/prebuilt.json" 2>/dev/null | head -1)
+        if [ "$published" != "$(field sha256)" ]; then
+            echo "libs/tailcat/prebuilt.json is not published for STAMP; run scripts/libs.sh publish tailcat and commit prebuilt.json" >&2
             exit 1
         fi
-        echo "libs/tailcat prebuilt libraries match their sources"
+        echo "libs/tailcat STAMP matches its sources and published libraries"
         ;;
-    *) echo "usage: stamp.sh write <go> <ndk> | check" >&2; exit 2 ;;
+    *) echo "usage: stamp.sh write <go> <ndk> | sources | check" >&2; exit 2 ;;
 esac
