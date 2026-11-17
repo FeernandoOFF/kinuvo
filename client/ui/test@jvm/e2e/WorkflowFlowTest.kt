@@ -126,6 +126,9 @@ class WorkflowFlowTest {
         screenshot("waiting")
         tap("Review")
         await("Dana", timeout = 30_000)
+        // The run's own lines are dividers in the Workflow's Session.
+        await("Run started")
+        screenshot("session")
     }
 
     @Test fun desktopOpensAWorkflowBesideTheList() = appTest("workflow-desktop", desktop = true) {

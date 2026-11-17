@@ -618,14 +618,23 @@ class WorkflowsTest {
             assertTrue(c.call(Api.Respond, RespondParams(two.sessionId!!, two.interactionId!!, InteractionAnswer.Approval(ApprovalDecision.AllowOnce))))
             val r = waiting("r")
             assertTrue(c.call(Api.Respond, RespondParams(r.sessionId!!, r.interactionId!!, InteractionAnswer.Questions(mapOf("value" to listOf("edited"))))))
-            assertEquals(WorkflowRunStatus.Done, finished(c).status)
+            val done = finished(c)
+            assertEquals(WorkflowRunStatus.Done, done.status)
             assertEquals(setOf(one.sessionId), setOf(two.sessionId, r.sessionId))
-            assertEquals(listOf(one.sessionId), server.harness.store.sessions(agent).map { it.id })
             assertEquals("Test", server.harness.store.session(agent, one.sessionId!!).title)
-            val entries = server.harness.store.entries(agent, one.sessionId!!)
-            assertEquals(listOf("workflow_approval", "workflow_approval", "workflow_review"), entries.filterIsInstance<SessionEntry.ToolCall>().map { it.name })
-            assertEquals(listOf("Allowed", "Allowed", "edited"), entries.filterIsInstance<SessionEntry.ToolResult>().map { it.output })
-            assertTrue(entries.filterIsInstance<SessionEntry.ToolCall>().first().args.contains("First?"))
+            suspend fun notes() = server.harness.store.entries(agent, one.sessionId!!).filterIsInstance<SessionEntry.Notice>().also { n -> assertTrue(n.all { it.code == "workflow" }) }.map { it.message }
+            withTimeout(5000) { while (notes().last() != "Run done") delay(20) }
+            assertEquals(listOf("Run started", "Approval “First?”: allowed", "Approval “Second?”: allowed", "Review “Check it”: submitted", "Run done"), notes())
+            assertTrue(server.harness.store.entries(agent, one.sessionId!!).none { it is SessionEntry.ToolCall })
+            // The next run continues in the same Session.
+            val second = c.run(w.id)
+            val again = await(c, w.id) { it.id == second.id && it.steps[StepId("one")]?.status == StepStatus.WaitingApproval }.steps.getValue(StepId("one"))
+            assertEquals(one.sessionId, again.sessionId)
+            assertTrue(c.call(Api.Respond, RespondParams(again.sessionId!!, again.interactionId!!, InteractionAnswer.Approval(ApprovalDecision.Deny()))))
+            assertEquals(WorkflowRunStatus.Failed, await(c, w.id) { it.id == second.id && it.status != WorkflowRunStatus.Running }.status)
+            withTimeout(5000) { while (notes().last() != "Run failed") delay(20) }
+            assertEquals(listOf("Run started", "Approval “First?”: denied", "Run failed"), notes().takeLast(3))
+            assertEquals(listOf(one.sessionId), server.harness.store.sessions(agent).map { it.id })
         }
     }
 
