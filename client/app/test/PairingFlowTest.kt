@@ -9,8 +9,10 @@ import kinuvo.protocol.device.Links
 import kinuvo.protocol.device.PairLink
 import kinuvo.client.TailcatForwarder
 import kinuvo.client.TailcatForward
+import kinuvo.client.TailcatPairing
 import kinuvo.protocol.*
 import kinuvo.protocol.device.*
+import kinuvo.protocol.connection.ConnectParams
 import kinuvo.protocol.connection.ConnectResult
 import kinuvo.protocol.capability.ServerCapabilities
 import kotlinx.coroutines.*
@@ -25,7 +27,8 @@ import kotlin.test.*
 class PairingFlowTest {
     private val unsupported = object : TailcatForwarder {
         override val supported = false
-        override suspend fun open(address: String): TailcatForward = error("Must not open")
+        override suspend fun pair(invite: String, device: String): TailcatPairing = error("Must not pair")
+        override suspend fun open(link: String): TailcatForward = error("Must not open")
     }
 
     private val reader = object : DeviceReader {
@@ -42,10 +45,11 @@ class PairingFlowTest {
         val app = AppViewModel(Servers(prefs, credentials = prefs.credentials, tailcat = unsupported), Device("test"), owner, access)
         val store = ViewModelStore().also { it.put("app", app) }
         try {
-            val address = "tc" + "a".repeat(140)
-            app.openPairLink(PairLink(address, "123456"))
+            val invite = "kinuvo1:" + "a".repeat(140)
+            app.openPairLink(PairLink(invite, ""))
             assertTrue(assertIs<Connection.Unpaired>(app.state.value.connection).error!!.contains("not supported"))
-            app.pair(address, "123456")
+            app.pair(invite, "")
+            advanceUntilIdle()
             assertTrue(assertIs<Connection.Unpaired>(app.state.value.connection).error!!.contains("not supported"))
             assertTrue(app.state.value.servers.isEmpty())
         } finally { store.clearAndJoin(); owner.close(); Dispatchers.resetMain() }
@@ -114,6 +118,53 @@ class PairingFlowTest {
             assertTrue(Api.RevokeDevice.name in methods)
             assertTrue(servers.all.isEmpty())
             assertNull(app.state.value.notice)
+        } finally { store.clear(); owner.close(); Dispatchers.resetMain() }
+    }
+
+    @Test
+    fun scanningATailcatInvitePairsTheTunnelThenTheDeviceWithTheCodeItCarries() = runBlocking {
+        Dispatchers.setMain(Dispatchers.Unconfined)
+        val prefs = MemoryPreferences()
+        val connects = Channel<ConnectParams>(Channel.UNLIMITED)
+        val frames = Channel<Frame>(Channel.UNLIMITED)
+        val wire = object : FrameConnection {
+            override val incoming = frames.receiveAsFlow()
+            override suspend fun send(frame: Frame) {
+                val request = frame as Frame.Request
+                val payload = if (request.method == Api.Connect.name) {
+                    connects.send(ProtocolJson.decodeFromJsonElement(Api.Connect.params, request.params))
+                    ProtocolJson.encodeToJsonElement(Api.Connect.result, ConnectResult("device-token", "Server", capabilities = ServerCapabilities("server"), management = false))
+                } else ProtocolJson.encodeToJsonElement(Api.RevokeDevice.result, Unit)
+                frames.send(Frame.Response(request.id, true, payload))
+            }
+            override suspend fun close() { frames.close() }
+        }
+        val invites = mutableListOf<Pair<String, String>>()
+        val tunnel = object : TailcatForwarder {
+            override val supported = true
+            override suspend fun pair(invite: String, device: String): TailcatPairing {
+                invites += invite to device
+                return TailcatPairing("private-link", """{"code":"654321"}""", "Kitchen")
+            }
+            override suspend fun open(link: String): TailcatForward = error("Not used")
+        }
+        val servers = Servers(prefs, credentials = prefs.credentials, transport = { wire }, tailcat = tunnel)
+        val access = DeviceAccess(prefs, reader)
+        val owner = ConnectedServer(Notifications(emptyList()), access)
+        val app = AppViewModel(servers, Device("test"), owner, access)
+        val store = ViewModelStore().also { it.put("app", app) }
+        try {
+            val invite = "kinuvo1:" + "a".repeat(140)
+            app.openPairLink(Links.parsePair(Links.tailcatPair(invite))!!)
+            assertEquals(invite, app.state.value.pendingPair?.server)
+            app.pair(invite, "")
+            withTimeout(5_000) { assertEquals("654321", connects.receive().pairingCode) }
+            assertEquals(listOf(invite to "test"), invites)
+            withTimeout(5_000) { while (app.state.value.connection !is Connection.Ready) delay(10) }
+            val saved = servers.all.filterIsInstance<Server.Remote>().single()
+            assertEquals(RemoteTransport.Tailcat, saved.transport)
+            assertEquals("device-token", saved.token)
+            assertEquals("private-link", saved.tailcatLink)
         } finally { store.clear(); owner.close(); Dispatchers.resetMain() }
     }
 

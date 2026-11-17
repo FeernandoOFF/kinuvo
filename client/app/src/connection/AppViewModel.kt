@@ -149,21 +149,26 @@ class AppViewModel(
 
     fun pair(url: String, code: String, name: String = "") {
         Links.parsePair(url)?.let { pair(it.server, it.code, name); return }
-        if (Links.isTailcatAddress(url.trim())) { pairTailcat(url.trim(), code, name); return }
+        if (Links.isTailcatInvite(url.trim())) { pairTailcat(url.trim(), name); return }
         val normalized = try { normalizeUrl(url) } catch (e: IllegalArgumentException) {
             state.update { it.copy(connection = Connection.Unpaired(e.userMessage)) }; return
         }
         connect(Server.Remote(normalized, name = name.trim().ifEmpty { null }), code.trim())
     }
 
-    fun pairTailcat(address: String, code: String, name: String = "") {
-        try { connect(servers.tailcatServer(address.trim(), name.trim().ifEmpty { null }), code.trim()) }
-        catch (e: IllegalStateException) { state.update { it.copy(connection = Connection.Unpaired(e.userMessage)) } }
-        catch (e: IllegalArgumentException) { state.update { it.copy(connection = Connection.Unpaired(e.userMessage)) } }
+    fun pairTailcat(invite: String, name: String = "") {
+        disconnect()
+        state.update { it.copy(connection = Connection.Connecting()) }
+        connecting = viewModelScope.launch {
+            val paired = try { servers.pairTailcat(invite.trim(), device.name, name.trim().ifEmpty { null }) }
+            catch (e: CancellationException) { throw e }
+            catch (e: Exception) { state.update { it.copy(connection = Connection.Unpaired(e.userMessage)) }; return@launch }
+            open(paired.server, paired.code)
+        }
     }
 
     fun openPairLink(link: PairLink) {
-        if (Links.isTailcatAddress(link.server)) {
+        if (Links.isTailcatInvite(link.server)) {
             if (!servers.tailcatSupported) {
                 disconnect()
                 state.update { it.copy(connection = Connection.Unpaired("Tailcat connections are not supported on this platform yet")) }

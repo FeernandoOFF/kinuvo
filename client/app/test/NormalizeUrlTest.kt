@@ -8,7 +8,7 @@ import kotlin.test.assertFailsWith
 
 class NormalizeUrlTest {
     @Test fun tailcatSecretsAreNotConvertedToHostUrls() {
-        assertFailsWith<IllegalArgumentException> { normalizeUrl("tc" + "a".repeat(140)) }
+        assertFailsWith<IllegalArgumentException> { normalizeUrl("kinuvo1:" + "a".repeat(140)) }
     }
 
     @Test

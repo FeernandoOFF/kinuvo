@@ -3,8 +3,10 @@ package kinuvo.app.connection
 
 import kinuvo.app.agent.*
 import kinuvo.protocol.FrameConnection
+import kinuvo.protocol.ProtocolJson
 import kinuvo.protocol.device.Links
 import kinuvo.protocol.device.PairingCode
+import kinuvo.protocol.device.TailcatPayload
 import kinuvo.protocol.agent.AgentId
 import kinuvo.protocol.session.SessionId
 import kotlin.time.Instant
@@ -18,12 +20,13 @@ import kinuvo.client.UnsupportedTailcatForwarder
 import kinuvo.client.tailcatConnection
 import kotlin.uuid.Uuid
 import kotlinx.serialization.KSerializer
+import kotlinx.serialization.SerializationException
 
 /** A Server this Device can connect to. */
 sealed interface Server {
-    /** Reached over the network; [url] is a URL or an opaque local key for Tailcat, whose secret [tailcatAddress] stays in secure storage. [token] is null until paired. [name] is this Device's alias for it; [serverId] tells URLs to the same Server apart. */
+    /** Reached over the network; [url] is a URL or an opaque local key for Tailcat, whose secret [tailcatLink] stays in secure storage. [token] is null until paired. [name] is this Device's alias for it; [serverId] tells URLs to the same Server apart. */
     @Serializable
-    data class Remote(val url: String, @Transient val token: String? = null, val name: String? = null, val serverId: String? = null, val transport: RemoteTransport = RemoteTransport.Url, @Transient val tailcatAddress: String? = null) : Server {
+    data class Remote(val url: String, @Transient val token: String? = null, val name: String? = null, val serverId: String? = null, val transport: RemoteTransport = RemoteTransport.Url, @Transient val tailcatLink: String? = null) : Server {
         override fun toString() = "Remote(url=$url, name=$name, serverId=$serverId, transport=$transport)"
     }
 
@@ -52,7 +55,7 @@ fun pairingInfo(url: String, pairing: PairingCode): PairingInfo {
     return PairingInfo(pairing.code, Instant.parse(pairing.expiresAt), (listOfNotNull(pairing.publicUrl, own.takeIf { pairing.publicUrl == null }) + pairing.addresses.takeIf { pairing.publicUrl == null }.orEmpty().map {
         val host = if (':' in it && !it.startsWith('[')) "[$it]" else it
         "http://$host:${pairing.port}"
-    }).distinct(), pairing.management, pairing.tailcatAddress?.let { Links.tailcatPair(it, pairing.code) })
+    }).distinct(), pairing.management, pairing.tailcatInvite?.let(Links::tailcatPair))
 }
 
 private val LOOPBACK = setOf("127.0.0.1", "localhost", "[::1]", "0.0.0.0")
@@ -108,11 +111,16 @@ class Servers(
 
     val tailcatSupported get() = tailcat.supported
 
-    fun tailcatServer(address: String, name: String? = null): Server.Remote {
-        require(Links.isTailcatAddress(address)) { "Invalid Tailcat address" }
+    /** Pairs this Device's tunnel with the Server that showed [invite]; [code] then pairs the Device itself over it. */
+    class TailcatPaired(val server: Server.Remote, val code: String)
+
+    suspend fun pairTailcat(invite: String, device: String, name: String? = null): TailcatPaired {
+        require(Links.isTailcatInvite(invite)) { "Invalid Tailcat invite" }
         check(tailcat.supported) { "Tailcat connections are not supported on this platform yet" }
-        return remotes().firstOrNull { it.tailcatAddress == address }?.copy(token = null)
-            ?: Server.Remote("tailcat:${Uuid.random()}", name = name, transport = RemoteTransport.Tailcat, tailcatAddress = address)
+        val paired = tailcat.pair(invite, device)
+        val code = try { ProtocolJson.decodeFromString(TailcatPayload.serializer(), paired.payload).code }
+        catch (e: SerializationException) { throw IllegalStateException("The Server did not send a pairing code", e) }
+        return TailcatPaired(Server.Remote("tailcat:${Uuid.random()}", name = name, transport = RemoteTransport.Tailcat, tailcatLink = paired.link), code)
     }
 
     val sharing get() = embedded?.sharingOptions?.get(SharingOption.Lan)
@@ -138,7 +146,7 @@ class Servers(
 
     suspend fun endpoint(server: Server): Endpoint = when (server) {
         is Server.Remote -> Endpoint(server.url, server.token, transport?.let { connect -> { connect(server.url) } }
-            ?: if (server.transport == RemoteTransport.Tailcat) ({ tailcatConnection(requireNotNull(server.tailcatAddress) { "Tailcat address missing; pair again" }, forwards) }) else null)
+            ?: if (server.transport == RemoteTransport.Tailcat) ({ tailcatConnection(requireNotNull(server.tailcatLink) { "Tailcat link missing; pair again" }, forwards) }) else null)
         Server.Embedded -> requireNotNull(embedded) { "No embedded server on this device" }.endpoint()
     }
 
@@ -154,7 +162,7 @@ class Servers(
             val name = if (known?.serverId != null) known.name else known?.name ?: server.name ?: serverName
             val saved = server.copy(url = if (server.transport == RemoteTransport.Tailcat && known?.transport == RemoteTransport.Tailcat) known.url else server.url, token = token, serverId = serverId ?: known?.serverId, name = name)
             credentials.write(saved.url, token)
-            saved.tailcatAddress?.let { credentials.write("${saved.url}.address", it) }
+            saved.tailcatLink?.let { credentials.write("${saved.url}.link", it) }
             if (known != null && prefs[CURRENT] == known.url) prefs[CURRENT] = saved.url
             saveRemotes(all.filterNot(::same) + saved)
             all.filter { same(it) && it.url != saved.url }.forEach { deleteCredentials(it.url) }
@@ -211,10 +219,10 @@ class Servers(
 
     private fun remotes(): List<Server.Remote> {
         val stored = prefs[SERVERS]?.let { decode(remotes, it) }.orEmpty()
-        return stored.map { it.copy(token = credentials.read(it.url), tailcatAddress = if (it.transport == RemoteTransport.Tailcat) credentials.read("${it.url}.address") else null) }
+        return stored.map { it.copy(token = credentials.read(it.url), tailcatLink = if (it.transport == RemoteTransport.Tailcat) credentials.read("${it.url}.link") else null) }
     }
 
-    private fun deleteCredentials(key: String) { credentials.delete(key); credentials.delete("$key.address") }
+    private fun deleteCredentials(key: String) { credentials.delete(key); credentials.delete("$key.link") }
 
     private fun saveRemotes(list: List<Server.Remote>) {
         prefs[SERVERS] = Json.encodeToString(remotes, list)
