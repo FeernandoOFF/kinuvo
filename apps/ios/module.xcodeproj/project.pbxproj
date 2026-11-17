@@ -18,6 +18,7 @@
 		C0DE70500000000000000005 /* PushKeys.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0DE70500000000000000004 /* PushKeys.swift */; };
 		C0DE70500000000000000006 /* NotificationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0DE70500000000000000007 /* NotificationService.swift */; };
 		C0DE70500000000000000011 /* KinuvoNotifications.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = C0DE70500000000000000010 /* KinuvoNotifications.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		C0DE70500000000000000030 /* Tailcat in Frameworks */ = {isa = PBXBuildFile; productRef = C0DE70500000000000000032 /* Tailcat */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -81,6 +82,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				C0DE70500000000000000030 /* Tailcat in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -154,6 +156,9 @@
 				29FA6339BB8DB2E19C54C879 /* src */,
 			);
 			name = app;
+			packageProductDependencies = (
+				C0DE70500000000000000032 /* Tailcat */,
+			);
 			productName = app;
 			productReference = 29FA6B51CBB0E5CA09FB0275 /* Kinuvo.app */;
 			productType = "com.apple.product-type.application";
@@ -191,6 +196,9 @@
 				en,
 			);
 			mainGroup = 29FA697D41AC883FC5322BDF;
+			packageReferences = (
+				C0DE70500000000000000031 /* XCRemoteSwiftPackageReference "tailcat-swift" */,
+			);
 			productRefGroup = 29FA6D261A4ADE9AE71720B6 /* Products */;
 			projectDirPath = "";
 			projectRoot = "";
@@ -444,6 +452,25 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		C0DE70500000000000000031 /* XCRemoteSwiftPackageReference "tailcat-swift" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/slopus/tailcat-swift";
+			requirement = {
+				kind = revision;
+				revision = 98ab07701e7d420b9ee3e0bc452100b830dfb0ae;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		C0DE70500000000000000032 /* Tailcat */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = C0DE70500000000000000031 /* XCRemoteSwiftPackageReference "tailcat-swift" */;
+			productName = Tailcat;
+		};
+/* End XCSwiftPackageProductDependency section */
 		CA1150000000000000000010 = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; path = KinuvoCalls.appex; sourceTree = BUILT_PRODUCTS_DIR;};
 		CA1150000000000000000007 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = liveactivity/CallWidget.swift; sourceTree = SOURCE_ROOT;};
 		CA1150000000000000000004 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = src/CallActivity.swift; sourceTree = SOURCE_ROOT;};

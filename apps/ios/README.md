@@ -74,6 +74,8 @@ In the desktop app, open the Server menu and choose **Pair a phone**. For a head
 
 With `--tailscale`, use the advertised `https://<machine>.<tailnet>.ts.net` address and connect the iPhone to the same tailnet. HTTPS and secure WebSockets use Apple's networking engine. See [browser access](../../docs/browser-access.md) for the Server setup. For direct private-network addresses, use the same Wi-Fi or VPN and allow local-network access when iOS asks. `localhost` on an iPhone refers to the phone, so use the Server machine's address. The simulator can reach a Server on the Mac through `127.0.0.1`.
 
+Tailcat pairing links (`kinuvo://pair?tailcat=…`) work too. The app links [tailcat-swift](https://github.com/slopus/tailcat-swift), a pure-Swift Tailcat client, as a remote Swift package pinned to revision `98ab07701e7d420b9ee3e0bc452100b830dfb0ae` (committed in `Package.resolved`). It is a third-party port, so the pin moves only after re-checking pairing, reconnect and a Server restart against the Go v0.7.0 Servers. The first build needs network access to resolve the package. `AppleTailcat.swift` runs a loopback-only listener per tunnel and forwards to the Server's Tailcat port; iOS is client-only. The tunnel stops while the app is suspended and is rebuilt on reconnect. No background mode, entitlement or extra privacy-manifest entry is needed: the existing local-network description covers direct LAN paths, and loopback and outbound UDP/TCP need none.
+
 Pairing is remembered across app launches. The shared client reconnects while the app is active; remote runs remain on the Server in the background.
 
 ## Push notifications
