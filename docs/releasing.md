@@ -68,17 +68,14 @@ Windows desktop apps remain unsigned. Choose **More info → Run anyway** in Sma
 
 ## Target native libraries
 
-Tailcat packaging needs a C toolchain and Go 1.27.1+; Go automatically downloads
-the required toolchain for tailcat v0.7.0. Build locally with
-`scripts/build-tailcat.sh arm64` or `x64`.
-
-Before packaging either Android app, install NDK `28.2.13676358` with
-`sdkmanager 'ndk;28.2.13676358'`, then run
-`mise run exec -- scripts/build-tailcat.sh android`. Set `ANDROID_HOME` to the SDK
-(or `ANDROID_NDK_HOME` to an alternate NDK). This produces the arm64-v8a and
-x86_64 libraries used by both Android apps. The release workflow does this before
-packaging. Without the libraries, Android Tailcat sharing and connections are
-unavailable; LAN still works.
+Tailcat packages the committed libraries in `libs/tailcat/prebuilt` (macOS arm64,
+Android arm64-v8a and x86_64, and an iOS xcframework); releases need no Go or NDK.
+The Android apps pick theirs up through symlinks in `apps/android*/jniLibs`. CI
+checks `libs/tailcat/STAMP` with `libs/tailcat/stamp.sh check`. After changing
+`libs/tailcat/go`, run `mise exec go@1.27.3 -- libs/tailcat/build.sh` (Go, Xcode
+and the Android NDK `28.2.13676358`; set `ANDROID_HOME` or `ANDROID_NDK_HOME`)
+and commit `prebuilt/` and `STAMP`. Platforms without a library (Linux, Windows,
+Intel macOS) report Tailcat as unavailable.
 
 Desktop and bundled-runtime CLI packages filter nested jars to the target OS and
 architecture, including LiteRT-LM, zstd and WebRTC. The universal `kinuvo.jar`

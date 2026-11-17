@@ -122,13 +122,8 @@ Add options: repeatable `--env KEY=VALUE`, `--header KEY=VALUE`, `--include TOOL
 
 ## Tailcat
 
-On macOS and Linux, `kinuvo serve --tailcat` adds a secret Tailcat address without replacing the normal listener. `kinuvo service install --tailcat` keeps it enabled across service restarts. `kinuvo pair` shows the secret pairing link. Keep it private: anyone who knows it can reach the Server, but still needs a pairing code or Device token.
+On macOS, `kinuvo serve --tailcat` adds a private tunnel without replacing the normal listener. `kinuvo service install --tailcat` keeps it enabled across service restarts. `kinuvo pair` shows an additional pairing link and QR code while the tunnel is active; each admits one Device and expires with the pairing code. Keep it private. A Device paired through the tunnel still pairs with the Server's one-time code, which the tunnel delivers, and holds an ordinary Device token. `kinuvo devices revoke` also removes the Device's access to the tunnel.
 
-The address stays the same across restarts. To invalidate it, stop the Server, run `kinuvo tailcat-reset` with the same home, then start it again with `--tailcat`. Devices need the new address; existing Device tokens remain valid.
+The tunnel's private address stays the same across restarts. To drop it and every phone paired through it, stop the Server, run `kinuvo tailcat-reset` with the same home, then start it again with `--tailcat`. Devices pair again with a new link; Device tokens for other transports remain valid.
 
-Tailcat uses free public relays when a direct connection is unavailable. They have no availability guarantee. Both ends must use compatible Kinuvo releases. Desktop clients can pair through Tailcat links or a pasted address and code. Mobile and web support is planned.
-
-Tailcat addresses are never printed in Server logs. `kinuvo pair` shows an additional
-secret Tailcat pairing link and QR code when Tailcat is active. Building the optional
-native library requires a C toolchain and Go 1.27.1+ (Go downloads that toolchain
-automatically for tailcat v0.7.0); run `scripts/build-tailcat.sh arm64` or `x64`.
+Tailcat uses free public relays when a direct connection is unavailable. They have no availability guarantee. Both ends must use compatible Kinuvo releases. Desktop, Android and iOS clients can pair through these links; web support is planned. The tunnel needs the prebuilt native library, available on macOS (Apple silicon); other platforms report Tailcat as unavailable. Addresses and links are never printed in Server logs.

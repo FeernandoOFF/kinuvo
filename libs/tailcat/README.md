@@ -1,50 +1,30 @@
-# Tailcat shim
+# libs/tailcat
 
-Build with Go 1.27.1+ and a C toolchain using ../../scripts/build-tailcat.sh [arm64|x64].
-macOS supports both architectures with the installed Apple SDK. Linux cross builds
-require a matching CC; by default the script builds for the host architecture.
+Native Tailcat transport: a Go shim over [TailPocket](https://github.com/jt-wang/tailpocket) v0.2.4 (MIT, on Tailcat v0.6.0), committed prebuilt binaries, and the Kotlin bindings. `libs/` is the home for prebuilt native libraries; CI and releases never need Go or the NDK.
 
-ABI 1 exports kinuvo_tailcat_abi_version() -> int,
-kinuvo_tailcat_call(method, params) -> UTF-8 JSON string, and
-kinuvo_tailcat_free(string). All strings passed to call are borrowed for that call;
-the returned string must be freed, including error responses.
+- `go/`: the shim source (`go test ./...`; `KINUVO_TAILCAT_LIVE=1` adds a ~30 s live relay test).
+- `prebuilt/`: `macos-arm64/libKinuvoTailcat.dylib`, `android-arm64-v8a/` and `android-x86_64/` shared objects, `KinuvoTailcat.xcframework` (iOS device and simulator static libraries).
+- `STAMP`: hash of `go/*.go`, `go/*.c`, go.mod, go.sum and the Go and NDK versions, plus a hash of each artifact. `stamp.sh check` verifies it without any toolchain and runs in CI.
+- `build.sh [macos] [android] [ios]`: manual rebuild, then rewrites STAMP. Needs Go 1.27.3 (`mise exec go@1.27.3 -- libs/tailcat/build.sh`), Xcode and NDK 28.2.13676358 (`ANDROID_HOME`). Run it only when `go/` changes and commit `prebuilt/` and `STAMP`.
+- Kotlin module (`src`, `src@jvm`, `src@android`, `src@ios`): implements the SDK's `TailcatForwarder` and the Server's `TailcatServing`; only app shells depend on it. FFM on the JVM, JNI on Android, and on iOS a Swift wrapper (`apps/ios/src/AppleTailcat.swift`) installs the linked library's entry point through `installTailcat`.
 
-Methods:
-- serve: {"state":"/private/server/home/tailcat","port":12345} -> {"handle":1,"address":"tc…"}
-- forward: {"address":"tc…"} -> {"handle":2,"port":12346}
-- stop: {"handle":1} -> {}
-- reset: {"state":"/private/server/home/tailcat"} -> {}
+Android apps pick up the libraries through symlinks in `apps/android/jniLibs` and `apps/android-play/jniLibs`. The iOS project links the xcframework with `-lresolv -framework Security -framework CoreFoundation`.
 
-Failures return {"error":"…"} without credentials. Handles are process-local.
-Stop is idempotent and bounded to two seconds; a timed-out native close may remain
-in the process until exit. Do not unload the library. Reset requires exclusive
-access to the state directory and must follow shutdown, never key deletion while
-a Server is active. Callers should use the dedicated untrusted listener as the
-serve target, not a listener configured to trust loopback proxy headers.
+## ABI 2
 
-Tests use temporary directories and local sockets. KINUVO_TAILCAT_LIVE=1 opts into
-the public relay test; the default tests do not contact relays.
+Exports `kinuvo_tailcat_abi_version() -> int`, `kinuvo_tailcat_call(method, params) -> UTF-8 JSON` and `kinuvo_tailcat_free(string)`. Strings passed to `call` are borrowed for the call; the returned string must be freed, errors included. Failures return `{"error":"…"}` with a fixed, non-secret message. Handles are process-local; `stop` is idempotent and bounded to two seconds. Never unload the library.
 
-Android: `mise run exec -- scripts/build-tailcat.sh android` uses NDK
-28.2.13676358 (API 26) from ANDROID_HOME/ANDROID_SDK_ROOT, or ANDROID_NDK_HOME.
-It builds arm64-v8a and x86_64 sequentially with cgo and 16 KB ELF page alignment.
-The Android-only C wrapper exports JNI methods in the same libKinuvoTailcat.so;
-desktop exports and builds are unchanged. syscall.Flock is supplied by Go's
-Android/Linux syscall implementation.
+Server (host) methods; `state` is `<home>/tailcat`, holding `state.json` (0600: identity and paired phone keys, both secret) and a lock file:
+- `host_start {state,name,port}` -> `{handle}`: serves paired phones, proxying each connection to loopback `port`.
+- `host_pair {handle,code,payload,ttl}` -> `{pairing,invite,expiresAt}`: opens a one-phone pairing window; the phone receives `payload`, and the host remembers which phone used `code`.
+- `host_pair_open {handle,pairing}` -> `{open}`; `host_close_pair {handle,pairing}`.
+- `host_phone {handle,code}` -> `{phone}`: the phone key bound to `code`, once.
+- `host_revoke {handle,phone}`; `revoke {state,phone}` edits the saved state while no host runs.
+- `reset {state}`: deletes the identity and phones; needs the host stopped.
 
-Kotlin Toolchain 0.13.0's SourceAndroidConventionPaths uses the module-root
-`jniLibs/<abi>/` directory for app packaging. Its library AAR writer does not
-include local JNI directories, so the script builds once under
-`build/tailcat/android-<arch>/` and stages ignored copies in both
-`apps/android/jniLibs/` and `apps/android-play/jniLibs/`. Never commit these outputs. The Kotlin ports adapter and
-JSON/handle ownership live in `src@jvmAndAndroid`; src@android uses JNI and src@jvm
-uses FFM. Native calls must run on an IO dispatcher.
+Client (phone) methods:
+- `pair {invite,device,op,timeoutMs}` -> `{link,payload,name}`; `cancel {op}`.
+- `forward {link}` -> `{handle,port}`: a loopback port forwarded to the Server.
+- `stop {handle}` closes any handle.
 
-Android supplies a live Java NetworkInterface snapshot through JNI to netmon;
-Go netlink enumeration is denied to app UIDs, and upstream disables its fallback
-in cgo builds. This applies to both roles and needs no additional permission.
-Native diagnostics use the KinuvoTailcat logcat tag at DEBUG level on Android;
-on desktop set KINUVO_TAILCAT_DEBUG=1 for stderr. Diagnostics redact addresses
-and credential-bearing messages. Startup errors return fixed, non-secret reasons.
-The Android build script invalidates the toolchain packaging cache after staging
-native libraries because Kotlin Toolchain 0.13 does not track jniLibs changes.
+Use the dedicated untrusted listener as the host's `port`, never one that trusts loopback proxy headers. Native calls block; run them on an IO dispatcher. Diagnostics use the `KinuvoTailcat` logcat tag on Android and `KINUVO_TAILCAT_DEBUG=1` (stderr) elsewhere; they redact addresses and credential-bearing messages.

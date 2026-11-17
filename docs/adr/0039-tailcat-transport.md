@@ -3,7 +3,7 @@ title: "Optional Tailcat transport"
 description: "Reach a Server through a secret peer-to-peer address while retaining Device authentication."
 ---
 
-Status: Accepted
+Status: Superseded by [0040](0040-tailpocket-transport.md)
 
 ## Decision
 

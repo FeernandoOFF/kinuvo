@@ -22,9 +22,9 @@ irm https://raw.githubusercontent.com/FeernandoOFF/kinuvo/main/install.ps1 | iex
 
 ## Build from source
 
-The optional Tailcat native transport needs a C toolchain and Go 1.27.1+
-(Go downloads the required toolchain automatically). Build it with
-`scripts/build-tailcat.sh arm64` or `x64`.
+The optional Tailcat transport uses prebuilt native libraries committed in
+`libs/tailcat/prebuilt`; building from source needs no Go or NDK. Only
+`libs/tailcat/build.sh` rebuilds them, when the Go sources change.
 
 Uses the [Kotlin Toolchain](https://kotlin-toolchain.org) (`./kotlin`, no install needed):
 

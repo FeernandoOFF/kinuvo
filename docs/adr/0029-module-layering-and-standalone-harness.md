@@ -14,7 +14,7 @@ Status: Accepted
 Target layout:
 
 - `protocol`: wire and domain values (typed IDs, session entries, events, tool identity, neutral tool descriptors, `WireError`).
-- `native/tailcat`: JVM/Android native Tailcat binding, an adapter for the `TailcatForwarder` (`client/sdk`) and `TailcatServing` (`server/plugin-api`) ports. Only `apps/*` depend on it and hand it to the client and Server hosts.
+- `libs/tailcat`: JVM, Android and iOS native Tailcat binding over TailPocket, an adapter for the `TailcatForwarder` (`client/sdk`) and `TailcatServing` (`server/plugin-api`) ports. Only `apps/*` depend on it and hand it to the client and Server hosts.
 - `client/`: `sdk` (transport), `app` (repositories, ViewModels, the `EmbeddedServer` interface), `ui` (rendering only, no Server dependencies).
 - `harness/`: `api` (execution contracts), `builtin` (the native harness), and the adapters `acp` and `remote`.
 - `server/`: `plugin-api` (including verified model downloads), `core`, `rpc`, and the hosts `jvm` and `embedded`.
