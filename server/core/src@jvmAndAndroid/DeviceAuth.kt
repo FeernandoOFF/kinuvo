@@ -93,12 +93,15 @@ class DeviceAuth(private val file: File, private val now: () -> Instant = { Cloc
         return pairingCode
     }
 
-    @Synchronized
     override fun pairing(refresh: Boolean, management: Boolean): PairingCode? {
-        if (!pairable) return null
-        if (refresh || pairingCode.isEmpty() || now() >= codeExpires || codeManagement != management) refreshCode(management)
-        val current = PairingCode(pairingCode, codeExpires.toString(), port, addresses(), publicUrl ?: learnedUrl(), codeManagement)
-        return current.copy(tailcatInvite = tailcatInvite(current.code, codeExpires))
+        // Opening the invite can wait on Tailcat startup, so it runs outside this monitor.
+        val (current, expires, bound) = synchronized(this) {
+            if (!pairable) return null
+            if (refresh || pairingCode.isEmpty() || now() >= codeExpires || codeManagement != management) refreshCode(management)
+            Triple(PairingCode(pairingCode, codeExpires.toString(), port, addresses(), publicUrl ?: learnedUrl(), codeManagement), codeExpires,
+                devices().mapNotNull { it.tailcatPhone }.toSet())
+        }
+        return current.copy(tailcatInvite = tailcatInvite(current.code, expires, bound))
     }
 
     /** Serves pairing through [tunnel] from now on, or stops when null; the caller closes the tunnel it passed earlier. */
@@ -112,14 +115,14 @@ class DeviceAuth(private val file: File, private val now: () -> Instant = { Cloc
 
     private class TailcatWindow(val code: String, val invite: TailcatInvite)
 
-    private fun tailcatInvite(code: String, expires: Instant): String? = synchronized(tailcatLock) {
+    private fun tailcatInvite(code: String, expires: Instant, bound: Set<String>): String? = synchronized(tailcatLock) {
         val tunnel = tunnel ?: return null
         window?.takeIf { it.code == code && it.invite.open }?.let { return it.invite.text }
         window?.invite?.let { runCatching { it.close() } }
         window = null
         val seconds = (expires - now()).inWholeSeconds.toInt()
         if (seconds < MIN_INVITE_SECONDS) return null
-        val invite = try { tunnel.invite(code, ProtocolJson.encodeToString(TailcatPayload.serializer(), TailcatPayload(code)), seconds, devices().mapNotNull { it.tailcatPhone }.toSet()) }
+        val invite = try { tunnel.invite(code, ProtocolJson.encodeToString(TailcatPayload.serializer(), TailcatPayload(code)), seconds, bound) }
         catch (e: Exception) { log.warn { "Could not open a Tailcat pairing window: ${e.message}" }; return null }
         window = TailcatWindow(code, invite)
         invite.text
