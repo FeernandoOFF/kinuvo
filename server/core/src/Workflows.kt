@@ -1,5 +1,7 @@
 package kinuvo.server
 
+import kinuvo.protocol.tool.ToolNames
+import kinuvo.server.tools.ToolScope
 import kinuvo.protocol.agent.AgentId
 import arrow.core.raise.Raise
 import arrow.core.raise.context.raise
@@ -116,8 +118,8 @@ class Workflows internal constructor(
         start(old.workflow, old.input, old)
     }
 
-    /** Each declared input's default under what the run was given; a default that reads as a JSON number, boolean, object or array is that value. */
-    private fun input(workflow: Workflow, given: JsonObject) = JsonObject(workflow.inputs.associate { it.name to inputValue(it.default) } + given)
+    /** Each declared input's string default under what the run was given. */
+    private fun input(workflow: Workflow, given: JsonObject) = JsonObject(workflow.inputs.associate { it.name to JsonPrimitive(it.default) } + given)
 
     private suspend fun start(workflow: Workflow, given: JsonObject = JsonObject(emptyMap()), retryOf: WorkflowRun? = null): WorkflowRun {
         val r = WorkflowRun(WorkflowRunId(Uuid.random().toString()), workflow.id, WorkflowRunStatus.Running, clock(),
@@ -266,7 +268,12 @@ class Workflows internal constructor(
                     val agent = runsAs(run)
                     update(run.id, step.id, StepRun(StepStatus.Running, session))
                     val args = WorkflowReferences.render(step.args, outputs(run.id))
-                    val gate = harness.composer.compose(agent, sessionId = null, requireModel = false).gate
+                    val surface = step.tool in setOf(ToolNames.SHOW_UI, ToolNames.SHOW_HTML)
+                    if (surface && session == null) session = harness.newSession(agent).id
+                    val gate = harness.composer.compose(agent, sessionId = if (surface) session else null,
+                        scope = if (surface) ToolScope.only(step.tool) else ToolScope.All, requireModel = false).gate
+                    val call = SessionEntry.ToolCall(ToolCallId(Uuid.random().toString()), step.tool, args.toString())
+                    if (surface) harness.log.append(agent.id, session!!, call)
                     var pending: InteractionId? = null
                     val turn = ToolTurn(emit = { event ->
                         when (event) {
@@ -285,8 +292,9 @@ class Workflows internal constructor(
                             else -> Unit
                         }
                     })
-                    val result = try { gate.invoke(SessionEntry.ToolCall(ToolCallId(Uuid.random().toString()), step.tool, args.toString()), turn) }
+                    val result = try { gate.invoke(call, turn) }
                     finally { pending?.let { id -> withContext(NonCancellable) { session?.let { harness.log.publish(agent.id, it, AgentEvent.InteractionResolved(id, false)) } } } }
+                    if (surface) harness.log.append(agent.id, session!!, SessionEntry.ToolResult(call.id, step.tool, result.output, result.isError))
                     if (result.isError) error(result.output)
                     update(run.id, step.id, StepRun(StepStatus.Done, session, result.output))
                 }

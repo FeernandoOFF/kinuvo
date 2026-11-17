@@ -71,6 +71,7 @@ open class AgentRuntime(
     /** The harness builds models without a registered provider, e.g. scripted ones in tests, so no provider is asked whether it is ready. */
     unmanagedModels: Boolean = false,
 ) : ServerSettings by dependencies.settings {
+    var workflows: Workflows? = null
     var agentManagement: AgentManagement? = null
     var subAgents: SubAgents? = null
     var teams: Teams? = null

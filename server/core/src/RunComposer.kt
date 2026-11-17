@@ -39,6 +39,7 @@ import kotlin.time.Duration
 import kinuvo.protocol.session.SessionEntry
 import kinuvo.harness.simplified
 import kinuvo.harness.with
+import kinuvo.server.tools.WorkflowTool
 import kinuvo.server.tools.AgentManageTools
 import kinuvo.server.tools.AgentManageScope
 import kinuvo.server.tools.ToolScope
@@ -347,7 +348,7 @@ class RunComposer internal constructor(
                 } }
             }, attachments::bytes) else null
         val uiTool = catalogs.takeIf { sessionId != null && it.isNotEmpty() }?.let(::ShowUiTool)
-        return manageTools(agent, sessionId) + (sessionId?.let { teams?.tools(agent.id, it) }.orEmpty()) + (sessionId?.let { subAgents?.tools(agent.id, it) }.orEmpty()) + builtInTools(e, sessionId, routine, search) + listOfNotNull(search?.let { WebSearchTool(it, compact = e.profile.tools.callsPerTurn != null, region = SearchRegion.fromTimeZone(timeZone.id)) }, imageTool, uiTool, uiTool?.let { ShowHtmlTool() })
+        return manageTools(agent, sessionId) + (sessionId?.let { teams?.tools(agent.id, it) }.orEmpty()) + (sessionId?.let { subAgents?.tools(agent.id, it) }.orEmpty()) + builtInTools(e, sessionId, routine, search) + listOfNotNull(search?.let { WebSearchTool(it, compact = e.profile.tools.callsPerTurn != null, region = SearchRegion.fromTimeZone(timeZone.id)) }, imageTool, uiTool, ShowHtmlTool().takeIf { sessionId != null })
     }
 
     private suspend fun manageTools(agent: Agent, session: SessionId?, hidden: Boolean = false): List<Tool> =
@@ -358,6 +359,7 @@ class RunComposer internal constructor(
         when (it) {
             ToolNames.MEMORY -> MemoryTool(agent, docs, memoryCap = e.memoryCap, userCap = e.userCap)
             ToolNames.WEB_FETCH -> dependencies.webFetch(search)
+            ToolNames.WORKFLOWS -> harness.workflows?.let { WorkflowTool(it, agent.id, sessionId) }
             ToolNames.SCHEDULE -> ScheduleTool(agent, routines, { timeZone }, sessionId, routine?.routine)
             ToolNames.ASK_USER -> AskUserTool(routine != null).takeIf { routine?.routine?.approvals != RoutineApprovals.Deny }
             ToolNames.ARTIFACT -> ArtifactTool(agent, sessionId, artifacts) { readFile(agent, it) }

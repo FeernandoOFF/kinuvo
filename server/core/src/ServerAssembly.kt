@@ -79,7 +79,7 @@ internal class ServerAssembly(
     val runs = Runs(harness.log, scope, nativeFactory)
     val devicePush = devicePush(auth, harness.serverId)
     val notifications = Notifications(harness, scope, runs::routine, { external.registrationOrArchived(AgentId(it))?.name }, devicePush)
-    val workflows: Workflows = Workflows(harness, runs, scope, { hub.broadcast(Api.WorkflowsChanged, it) }, { hub.broadcast(Api.WorkflowRunChanged, it) }, wakeScheduler = { scheduler.wakeUp() })
+    val workflows: Workflows = Workflows(harness, runs, scope, { hub.broadcast(Api.WorkflowsChanged, it) }, { hub.broadcast(Api.WorkflowRunChanged, it) }, wakeScheduler = { scheduler.wakeUp() }).also { harness.workflows = it }
     val scheduler: Scheduler = Scheduler(harness, runs, scope, onRan = { hub.broadcast(Api.RoutineRan, it); notifications.routineRan(it) }, workflowTick = workflows::tick)
     val admin = Admin(harness, runs) { hub.broadcast(Api.AgentsChanged, it) }.also { harness.agentManagement = AgentManagement(harness, it) }
     private val reflectionReview = ReflectionReview(harness)
