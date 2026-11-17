@@ -12,7 +12,7 @@ internal actual val blockingDispatcher: CoroutineDispatcher = Dispatchers.IO
 
 internal actual fun nativeCall(): (String, String) -> String = try {
     System.loadLibrary("KinuvoTailcat")
-    check(TailcatJni.abiVersion() == 2) { "Unsupported Tailcat ABI" }
+    check(TailcatJni.abiVersion() == 3) { "Unsupported Tailcat ABI" }
     TailcatJni::call
 } catch (e: LinkageError) { throw IllegalStateException("Tailcat native library could not be loaded", e) }
 

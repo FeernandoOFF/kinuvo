@@ -54,8 +54,11 @@ class DeviceAuth(private val file: File, private val now: () -> Instant = { Cloc
     private var codeManagement = false
     private var attempts = 0
 
+    override fun authenticate(device: String, token: String?, pairingCode: String?) =
+        authenticate(device, token, pairingCode, null)
+
     @Synchronized
-    override fun authenticate(device: String, token: String?, pairingCode: String?): String? {
+    override fun authenticate(device: String, token: String?, pairingCode: String?, tailcatPeer: String?): String? {
         if (token != null && token in sessionTokens) return token.also {
             // A reconnect with a new session token replaces the app's earlier one rather than adding another Device.
             sessionDevices.entries.removeIf { (other, own) -> other != it && own.name == device.take(80) }
@@ -67,7 +70,7 @@ class DeviceAuth(private val file: File, private val now: () -> Instant = { Cloc
         if (!MessageDigest.isEqual(pairingCode.toByteArray(), this.pairingCode.toByteArray())) { if (attempts >= 10) closePairing(); return null }
         val newToken = randomToken()
         val time = now()
-        val phone = synchronized(tailcatLock) { tunnel?.phoneOf(this.pairingCode) }
+        val phone = synchronized(tailcatLock) { tunnel?.phoneOf(this.pairingCode)?.takeIf { it == tailcatPeer } }
         save(devices() + PairedDevice(device.take(80), sha256(newToken), time.toString(), lastSeen = time.toString(),
             id = identity(sha256(newToken)), management = codeManagement, expiresAt = (time + 90.days).toString(), tailcatPhone = phone))
         closePairing()
@@ -105,6 +108,8 @@ class DeviceAuth(private val file: File, private val now: () -> Instant = { Cloc
         window = null
         this.tunnel = tunnel
     }
+
+    internal fun tailcatPeer(port: Int): String? = synchronized(tailcatLock) { tunnel?.peerAt(port) }
 
     private class TailcatWindow(val code: String, val invite: TailcatInvite)
 

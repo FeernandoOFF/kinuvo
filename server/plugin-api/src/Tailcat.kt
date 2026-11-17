@@ -16,6 +16,8 @@ interface TailcatTunnel : AutoCloseable {
     /** Opens a one-phone pairing window whose reply carries [payload]; [phoneOf] later finds the phone that used [code]. */
     fun invite(code: String, payload: String, ttlSeconds: Int): TailcatInvite
     fun phoneOf(code: String): String?
+    /** The verified phone bridged to the Server from this loopback source port. */
+    fun peerAt(port: Int): String? = null
     fun revoke(phone: String)
 }
 

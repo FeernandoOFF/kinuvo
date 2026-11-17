@@ -44,6 +44,8 @@ object Tailcat : TailcatServing, TailcatForwarder {
 
             override fun phoneOf(code: String) = native.call("host_phone", buildJsonObject { put("handle", handle.id); put("code", code) })["phone"]?.jsonPrimitive?.content
 
+            override fun peerAt(port: Int) = native.call("host_peer", buildJsonObject { put("handle", handle.id); put("port", port) })["phone"]?.jsonPrimitive?.content
+
             override fun revoke(phone: String) { native.call("host_revoke", buildJsonObject { put("handle", handle.id); put("phone", phone) }) }
         }
     }

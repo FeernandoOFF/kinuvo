@@ -108,7 +108,13 @@ func (t *tunnel) accept(dial func() (net.Conn, error)) {
 			if !t.track(b) {
 				return
 			}
-			defer func() { b.Close(); t.mu.Lock(); delete(t.conns, b); t.mu.Unlock() }()
+			defer func() {
+				t.mu.Lock()
+				delete(t.links, a)
+				delete(t.conns, b)
+				t.mu.Unlock()
+				b.Close()
+			}()
 			t.mu.Lock()
 			t.links[a] = b
 			t.mu.Unlock()
@@ -133,6 +139,19 @@ func (t *tunnel) accept(dial func() (net.Conn, error)) {
 	}
 }
 
+func (t *tunnel) peerAt(port int) string {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	if !t.closed {
+		for peer, backend := range t.links {
+			if addr, ok := backend.LocalAddr().(*net.TCPAddr); ok && addr.Port == port {
+				return connecthost.PhoneOf(peer)
+			}
+		}
+	}
+	return ""
+}
+
 // closePhone drops every connection a phone has open, and the Server connections bridged to them.
 func (t *tunnel) closePhone(phone string) {
 	t.mu.Lock()
@@ -141,6 +160,7 @@ func (t *tunnel) closePhone(phone string) {
 		if connecthost.PhoneOf(c) == phone {
 			drop = append(drop, c)
 			if b := t.links[c]; b != nil {
+				delete(t.links, c)
 				drop = append(drop, b)
 			}
 		}

@@ -135,12 +135,14 @@ class NetworkListener(private val runtime: ServerRuntime, private val auth: Devi
                         val browser = call.request.header("Origin") != null
                         val credential = if (browser) call.request.cookies[SESSION_COOKIE]?.takeIf { auth.cookieMaxAge(it) != null } else null
                         if (browser && credential == null) { close(); return@webSocket }
-                        runtime.serve(connection(credential) { frame ->
+                        val tailcatPeer = if (remoteOnly && peer == "127.0.0.1") auth.tailcatPeer(call.request.local.remotePort) else null
+                        val connection = connection(credential) { frame ->
                             val params = (frame as? Frame.Request)?.takeIf { it.method == Api.Connect.name }?.let {
                                 runCatching { ProtocolJson.decodeFromJsonElement(ConnectParams.serializer(), it.params) }.getOrNull()
                             }
                             credential?.let(auth::valid) == true || params?.token?.let(auth::valid) == true || limits.authenticate(source)
-                        })
+                        }
+                        runtime.serve(connection, tailcatPeer)
                     } finally { limits.close(source) }
                 }
                 staticResources("/", "web") {

@@ -12,7 +12,7 @@ import java.lang.foreign.ValueLayout.ADDRESS
 import java.lang.foreign.ValueLayout.JAVA_INT
 import java.nio.file.Files
 
-private const val ABI = 2
+private const val ABI = 3
 
 internal actual val blockingDispatcher: CoroutineDispatcher = Dispatchers.IO
 

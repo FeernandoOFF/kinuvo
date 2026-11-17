@@ -11,7 +11,7 @@ Native Tailcat transport: a Go shim over [TailPocket](https://github.com/jt-wang
 
 Android apps pick up the fetched libraries through symlinks in `apps/android/jniLibs` and `apps/android-play/jniLibs`. The iOS project links the xcframework with `-lresolv -framework Security -framework CoreFoundation`.
 
-## ABI 2
+## ABI 3
 
 Exports `kinuvo_tailcat_abi_version() -> int`, `kinuvo_tailcat_call(method, params) -> UTF-8 JSON` and `kinuvo_tailcat_free(string)`. Strings passed to `call` are borrowed for the call; the returned string must be freed, errors included. Failures return `{"error":"…"}` with a fixed, non-secret message. Handles are process-local; `stop` is idempotent and bounded to two seconds. Never unload the library.
 
@@ -20,6 +20,7 @@ Server (host) methods; `state` is `<home>/tailcat`, holding `state.json` (0600: 
 - `host_pair {handle,code,payload,ttl}` -> `{pairing,invite,expiresAt}`: opens a one-phone pairing window; the phone receives `payload`, and the host remembers which phone used `code`.
 - `host_pair_open {handle,pairing}` -> `{open}`; `host_close_pair {handle,pairing}`.
 - `host_phone {handle,code}` -> `{phone}`: the phone key bound to `code`, once.
+- `host_peer {handle,port}` -> `{phone}`: the verified phone on the bridge with loopback source `port`.
 - `host_revoke {handle,phone}`; `revoke {state,phone}` records it in `revoked.json` while no host runs. A revoked phone stays allowed at the Tailcat level so its connections reach the shim, which closes its open ones and answers new ones like a Server answers a revoked Device (the `/ws` upgrade succeeds, the first request frame fails `forbidden`, other requests get 401) without ever proxying them; connecthost's own `Revoke` only closes silently, which a phone cannot tell from a Server that is down. The oldest revoked phones are really removed once the paired list is full.
 - `reset {state}`: deletes the identity and phones; needs the host stopped.
 

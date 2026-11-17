@@ -39,7 +39,7 @@ class TailcatTest {
                 override fun close() { closedInvites += text }
             }
         }
-        override fun phoneOf(code: String) = phone
+        override fun phoneOf(code: String) = phone.also { phone = null }
         override fun revoke(phone: String) { revoked += phone }
         override fun close() = Unit
     }
@@ -85,12 +85,26 @@ class TailcatTest {
     }
 
     @Test
+    fun onlyTheMatchingTunnelPeerInheritsThePhoneBinding() = withAuth { auth ->
+        val tunnel = FakeTunnel()
+        auth.tailcat(tunnel)
+        for (peer in listOf(null, "nodekey:other", "nodekey:phone")) {
+            val code = auth.refreshCode()
+            tunnel.phone = "nodekey:phone"
+            assertNotNull(auth.authenticate("Device", null, code, peer))
+            assertNull(tunnel.phone)
+            assertNull(auth.authenticate("Replay", null, code, "nodekey:phone"))
+        }
+        assertEquals(listOf(null, null, "nodekey:phone"), auth.devices().map { it.tailcatPhone })
+    }
+
+    @Test
     fun revokingADeviceRevokesItsTunnelPhone() = withAuth { auth ->
         val tunnel = FakeTunnel()
         auth.tailcat(tunnel)
         tunnel.phone = "nodekey:phone"
         auth.refreshCode()
-        val tunneled = auth.authenticate("Phone", null, auth.pairingCode)!!
+        val tunneled = auth.authenticate("Phone", null, auth.pairingCode, "nodekey:phone")!!
         tunnel.phone = null
         auth.refreshCode()
         auth.authenticate("Laptop", null, auth.pairingCode)!!
@@ -105,7 +119,7 @@ class TailcatTest {
         assertEquals(1, tunnel.revoked.size)
         tunnel.phone = "nodekey:later"
         auth.refreshCode()
-        auth.authenticate("Later", null, auth.pairingCode)
+        auth.authenticate("Later", null, auth.pairingCode, "nodekey:later")
         auth.tailcat(null)
         val offline = mutableListOf<String>()
         auth.offlineTailcatRevoke = { offline += it }

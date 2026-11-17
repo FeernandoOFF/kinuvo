@@ -8,7 +8,9 @@ class SharedPeers(private val local: PeerRegistry, private val network: PeerRegi
     private fun owner(token: String) = if (local.valid(token)) local else network
     override val pairable get() = network.pairable
     override fun authenticate(device: String, token: String?, pairingCode: String?) =
-        if (token != null && local.valid(token)) local.authenticate(device, token, null) else network.authenticate(device, token, pairingCode)
+        authenticate(device, token, pairingCode, null)
+    override fun authenticate(device: String, token: String?, pairingCode: String?, tailcatPeer: String?) =
+        if (token != null && local.valid(token)) local.authenticate(device, token, null) else network.authenticate(device, token, pairingCode, tailcatPeer)
     override fun valid(token: String) = local.valid(token) || network.valid(token)
     override fun management(token: String) = owner(token).management(token)
     override fun rotate(token: String) = owner(token).rotate(token)

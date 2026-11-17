@@ -13,7 +13,7 @@ import (
 	"github.com/jt-wang/tailpocket/connectmobile"
 )
 
-const abiVersion = 2
+const abiVersion = 3
 
 type request struct {
 	State     string `json:"state"`
@@ -96,7 +96,7 @@ func dispatch(method string, r request) response {
 			return response{Error: err.Error()}
 		}
 		return response{Handle: register(h)}
-	case "host_pair", "host_pair_open", "host_close_pair", "host_phone", "host_revoke":
+	case "host_pair", "host_pair_open", "host_close_pair", "host_phone", "host_peer", "host_revoke":
 		h := lookupHost(r.Handle)
 		if h == nil {
 			return response{Error: "Tailcat is not running"}
@@ -110,6 +110,8 @@ func dispatch(method string, r request) response {
 			h.closePairing(r.Pairing)
 		case "host_phone":
 			return response{Phone: h.phoneOf(r.Code)}
+		case "host_peer":
+			return response{Phone: h.peerAt(r.Port)}
 		case "host_revoke":
 			if err := h.revoke(r.Phone); err != nil {
 				return response{Error: err.Error()}
