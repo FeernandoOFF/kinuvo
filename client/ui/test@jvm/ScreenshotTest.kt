@@ -328,6 +328,15 @@ class ScreenshotTest {
                     ), SettingsActions())
                 }
             }
+            render("connection-settings-tailcat-foreground-$suffix", 1000, 1100) {
+                KinuvoTheme(dark = dark) {
+                    SettingsContent(settingsAt(Route.Settings(AgentId("main"), SettingsSection.Connection)).copy(
+                        capabilities = ServerCapabilities("home", setOf(ServerFeature.Pairing)),
+                        server = Server.Embedded, servers = listOf(Server.Embedded),
+                        sharingOptions = mapOf(SharingOption.Tailcat to SharingState.On), sharesInBackground = false, devices = DevicesState(paired),
+                    ), SettingsActions())
+                }
+            }
         }
     }
 

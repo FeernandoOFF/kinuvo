@@ -66,6 +66,8 @@ interface EmbeddedServer {
     /** Lets other Devices reach this Server over the network; null where it can't. */
     val sharing: ServerSharing? get() = null
     val sharingOptions: Map<SharingOption, ServerSharing?> get() = mapOf(SharingOption.Lan to sharing, SharingOption.Tailcat to null)
+    /** Whether other Devices still reach it while this app is in the background. */
+    val sharesInBackground: Boolean get() = true
 }
 
 /** An embedded Server listening on the local network and VPNs such as Tailscale, so other Devices can pair with it. */
@@ -125,6 +127,7 @@ class Servers(
 
     val sharing get() = embedded?.sharingOptions?.get(SharingOption.Lan)
     val sharingOptions get() = SharingOption.entries.associateWith { embedded?.sharingOptions?.get(it) }
+    val sharesInBackground get() = embedded?.sharesInBackground != false
 
     val all: List<Server> get() = listOfNotNull(Server.Embedded.takeIf { embedded != null }) + remotes()
 

@@ -78,6 +78,7 @@ data class AppState(
     /** Whether the embedded Server is reachable from other Devices; null when it can't be. */
     val sharing: Boolean? = null,
     val sharingOptions: Map<SharingOption, SharingState> = emptyMap(),
+    val sharesInBackground: Boolean = true,
     val tailcatSupported: Boolean = false,
     val online: Boolean = false,
     val agentsLoaded: Boolean = false,
@@ -100,7 +101,7 @@ class AppViewModel(
     val serverLifetime get() = owner.generation
     private val initialServers = runCatching { servers.all to servers.current }
     val state: StateFlow<AppState>
-        field = MutableStateFlow(AppState(sharingOptions = sharingStates(), tailcatSupported = servers.tailcatSupported, servers = initialServers.getOrNull()?.first.orEmpty(), agentId = servers.lastView?.agentId, onboarding = !servers.onboardingComplete))
+        field = MutableStateFlow(AppState(sharingOptions = sharingStates(), sharesInBackground = servers.sharesInBackground, tailcatSupported = servers.tailcatSupported, servers = initialServers.getOrNull()?.first.orEmpty(), agentId = servers.lastView?.agentId, onboarding = !servers.onboardingComplete))
 
     /** Where the app opens: the last view when there's a Server to reconnect to. */
     val startRoute: Route = if (initialServers.getOrNull()?.second != null) lastView() else Route.Connect
@@ -525,7 +526,7 @@ class AppViewModel(
         deviceAccess.reset()
         views.clear()
         drafts.clear()
-        state.value = AppState(sharingOptions = sharingStates(), tailcatSupported = servers.tailcatSupported, servers = runCatching { servers.all }.getOrDefault(emptyList()), connection = Connection.Unpaired(), onboarding = true, firstRun = state.value.firstRun + 1)
+        state.value = AppState(sharingOptions = sharingStates(), sharesInBackground = servers.sharesInBackground, tailcatSupported = servers.tailcatSupported, servers = runCatching { servers.all }.getOrDefault(emptyList()), connection = Connection.Unpaired(), onboarding = true, firstRun = state.value.firstRun + 1)
     }
 
     private fun disconnect() {
