@@ -18,7 +18,7 @@
 		C0DE70500000000000000005 /* PushKeys.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0DE70500000000000000004 /* PushKeys.swift */; };
 		C0DE70500000000000000006 /* NotificationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0DE70500000000000000007 /* NotificationService.swift */; };
 		C0DE70500000000000000011 /* KinuvoNotifications.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = C0DE70500000000000000010 /* KinuvoNotifications.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
-		C0DE70500000000000000030 /* Tailcat in Frameworks */ = {isa = PBXBuildFile; productRef = C0DE70500000000000000032 /* Tailcat */; };
+		C0DE70500000000000000030 /* KinuvoTailcat.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = C0DE70500000000000000033 /* KinuvoTailcat.xcframework */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -55,6 +55,7 @@
 		B7C0DE51A9F04E2E9A3C2202 /* ../../client/ui/src@ios/AppleQrScanner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "../../client/ui/src@ios/AppleQrScanner.swift"; sourceTree = SOURCE_ROOT; };
 		A8E591E0DDAD4A838B177202 /* ../../plugins/apple-frameworks/native/AppleEventKit.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "../../plugins/apple-frameworks/native/AppleEventKit.swift"; sourceTree = SOURCE_ROOT; };
 		A8E591E0DDAD4A838B17700A /* ../../client/ui/src@ios/AppleSpeech.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "../../client/ui/src@ios/AppleSpeech.swift"; sourceTree = SOURCE_ROOT; };
+		C0DE70500000000000000033 /* KinuvoTailcat.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; path = ../../libs/tailcat/prebuilt/KinuvoTailcat.xcframework; sourceTree = SOURCE_ROOT; };
 		C0DE70500000000000000002 /* ../../client/ui/src@ios/ApplePush.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "../../client/ui/src@ios/ApplePush.swift"; sourceTree = SOURCE_ROOT; };
 		C0DE70500000000000000004 /* PushKeys.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PushKeys.swift; sourceTree = "<group>"; };
 		C0DE70500000000000000007 /* NotificationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationService.swift; sourceTree = "<group>"; };
@@ -82,7 +83,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				C0DE70500000000000000030 /* Tailcat in Frameworks */,
+				C0DE70500000000000000030 /* KinuvoTailcat.xcframework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -104,6 +105,7 @@
 				29FA6339BB8DB2E19C54C879 /* src */,
 				C0DE70500000000000000012 /* notifications */,
 				C0DE70500000000000000002 /* ../../client/ui/src@ios/ApplePush.swift */,
+				C0DE70500000000000000033 /* KinuvoTailcat.xcframework */,
 				A8E591E0DDAD4A838B177002 /* ../../client/ui/src@ios/AppleDeviceReader.swift */,
 				A8E591E0DDAD4A838B177004 /* ../../client/ui/src@ios/AppleAttachmentPicker.swift */,
 				A8E591E0DDAD4A838B177104 /* ../../client/ui/src@ios/AppleFolderAccess.swift */,
@@ -156,9 +158,6 @@
 				29FA6339BB8DB2E19C54C879 /* src */,
 			);
 			name = app;
-			packageProductDependencies = (
-				C0DE70500000000000000032 /* Tailcat */,
-			);
 			productName = app;
 			productReference = 29FA6B51CBB0E5CA09FB0275 /* Kinuvo.app */;
 			productType = "com.apple.product-type.application";
@@ -196,9 +195,6 @@
 				en,
 			);
 			mainGroup = 29FA697D41AC883FC5322BDF;
-			packageReferences = (
-				C0DE70500000000000000031 /* XCRemoteSwiftPackageReference "tailcat-swift" */,
-			);
 			productRefGroup = 29FA6D261A4ADE9AE71720B6 /* Products */;
 			projectDirPath = "";
 			projectRoot = "";
@@ -307,6 +303,14 @@
 				);
 				MARKETING_VERSION = 0.1.0;
 				ONLY_ACTIVE_ARCH = YES;
+				OTHER_LDFLAGS = (
+					"$(inherited)",
+					"-lresolv",
+					"-framework",
+					Security,
+					"-framework",
+					CoreFoundation,
+				);
 				PRODUCT_BUNDLE_IDENTIFIER = com.feernandooff.kinuvo;
 				PRODUCT_MODULE_NAME = app;
 				PRODUCT_NAME = Kinuvo;
@@ -346,6 +350,14 @@
 					"@loader_path/Frameworks",
 				);
 				MARKETING_VERSION = 0.1.0;
+				OTHER_LDFLAGS = (
+					"$(inherited)",
+					"-lresolv",
+					"-framework",
+					Security,
+					"-framework",
+					CoreFoundation,
+				);
 				PRODUCT_BUNDLE_IDENTIFIER = com.feernandooff.kinuvo;
 				PRODUCT_MODULE_NAME = app;
 				PRODUCT_NAME = Kinuvo;
@@ -452,25 +464,6 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
-
-/* Begin XCRemoteSwiftPackageReference section */
-		C0DE70500000000000000031 /* XCRemoteSwiftPackageReference "tailcat-swift" */ = {
-			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/slopus/tailcat-swift";
-			requirement = {
-				kind = revision;
-				revision = 98ab07701e7d420b9ee3e0bc452100b830dfb0ae;
-			};
-		};
-/* End XCRemoteSwiftPackageReference section */
-
-/* Begin XCSwiftPackageProductDependency section */
-		C0DE70500000000000000032 /* Tailcat */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = C0DE70500000000000000031 /* XCRemoteSwiftPackageReference "tailcat-swift" */;
-			productName = Tailcat;
-		};
-/* End XCSwiftPackageProductDependency section */
 		CA1150000000000000000010 = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; path = KinuvoCalls.appex; sourceTree = BUILT_PRODUCTS_DIR;};
 		CA1150000000000000000007 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = liveactivity/CallWidget.swift; sourceTree = SOURCE_ROOT;};
 		CA1150000000000000000004 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = src/CallActivity.swift; sourceTree = SOURCE_ROOT;};

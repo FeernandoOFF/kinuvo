@@ -2,6 +2,7 @@ product: ios/app
 
 dependencies:
   - ../../client/ui
+  - ../../libs/tailcat
   - ../../server/embedded
   - ../../plugins/apple-frameworks: exported
   - ../../providers/apple: exported

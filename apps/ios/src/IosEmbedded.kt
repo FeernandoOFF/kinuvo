@@ -3,8 +3,8 @@ package dev.kinuvo.ios.embedded
 import kinuvo.app.connection.EmbeddedServer
 import kinuvo.app.connection.Endpoint
 import kinuvo.app.connection.OnDeviceSupport
-import kinuvo.client.CallbackTailcatForwarder
 import kinuvo.client.TailcatForwarder
+import kinuvo.tailcat.Tailcat
 import kinuvo.plugins.apple.AppleSystem
 import kinuvo.plugins.apple.ApplePlugin
 import kinuvo.providers.apple.AppleLanguageModel
@@ -39,12 +39,6 @@ interface BackgroundRuns {
     fun update(runs: Int, steps: Long)
 }
 
-/** The Swift Tailcat tunnel: [open] reports a loopback port forwarded to the Server, or 0 when it can't connect. */
-interface NativeTailcat {
-    fun open(address: String, completion: (Int) -> Unit)
-    fun close(port: Int, completion: () -> Unit)
-}
-
 /** Stops every run on the iPhone Server, e.g. when iOS ends the app's background time; [completion] runs once they've saved. */
 fun stopLocalRuns(completion: () -> Unit) {
     MainScope().launch { try { localHost?.runtime?.stopRuns() } finally { completion() } }
@@ -54,7 +48,7 @@ fun stopLocalRuns(completion: () -> Unit) {
  * Starts the shared Koin graph with the on-device Server bound as the [EmbeddedServer].
  * [folders] reopens the folders the user picked outside the sandbox; their moved paths reach the Server when it starts.
  */
-fun startKinuvoWithEmbeddedServer(model: AppleLanguageModel, keychain: NativeKeychain, folders: FolderAccess, runs: BackgroundRuns, apple: AppleSystem, tailcat: NativeTailcat) {
+fun startKinuvoWithEmbeddedServer(model: AppleLanguageModel, keychain: NativeKeychain, folders: FolderAccess, runs: BackgroundRuns, apple: AppleSystem) {
     backgroundRuns = runs
     iosKeychain = { service, account ->
         object : Keychain {
@@ -66,7 +60,7 @@ fun startKinuvoWithEmbeddedServer(model: AppleLanguageModel, keychain: NativeKey
     }
     startKinuvo(module {
         single<OnDeviceSupport> { OnDeviceSupport { provider -> provider != "apple" || model.unavailableCode("system") == null } }
-        single<TailcatForwarder> { CallbackTailcatForwarder(tailcat::open, tailcat::close) }
+        single<TailcatForwarder> { Tailcat }
         single<EmbeddedServer> { IosEmbeddedServer(model, folders, apple) }
     })
 }
