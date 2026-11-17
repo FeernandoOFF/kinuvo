@@ -11,6 +11,18 @@ import kotlin.test.assertEquals
 import kotlin.test.assertNull
 
 class WorkflowStepTest {
+    @Test fun conditionInputsAndBranchesRoundTrip() {
+        val w = Workflow(WorkflowId("w"), "W", listOf(
+            WorkflowStep.Condition(StepId("c"), "{{input.n}}", ConditionOp.GreaterThan, "2"),
+            WorkflowStep.Tool(StepId("t"), "echo")),
+            listOf(WorkflowEdge(StepId("c"), StepId("t"), true)),
+            description = "Compare", inputs = listOf(WorkflowInput("n", "A number", "3")))
+        assertEquals(w, ProtocolJson.decodeFromString<Workflow>(ProtocolJson.encodeToString(w)))
+        val run = WorkflowRun(WorkflowRunId("r"), w.id, WorkflowRunStatus.Done, 1,
+            steps = emptyMap(), workflow = w, input = buildJsonObject { put("n", 4) }, output = "ok", retryOf = WorkflowRunId("old"))
+        assertEquals(run, ProtocolJson.decodeFromString<WorkflowRun>(ProtocolJson.encodeToString(run)))
+    }
+
     @Test fun toolAndModelStepsRoundTrip() {
         val workflow = Workflow(WorkflowId("w"), "W", listOf(
             WorkflowStep.Tool(StepId("t"), "echo", buildJsonObject { put("a", "{{steps.x.output.a}}") }, Position(1f, 2f)),

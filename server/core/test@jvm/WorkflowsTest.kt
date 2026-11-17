@@ -500,9 +500,9 @@ class WorkflowsTest {
             val args = buildJsonObject { put("who", "{{input.who}}"); put("n", "{{input.n}}"); put("text", "{{input.who}} x{{input.n}} {{input.missing}}!"); put("deep", "{{input.o.k}}"); put("gone", "{{input.missing}}") }
             val w = c.call(Api.CreateWorkflow, workflow(tool("a", "echo", args)).copy(inputs = listOf(WorkflowInput("who", default = "Bob"), WorkflowInput("n", default = "2"))))
             val started = c.run(w.id, buildJsonObject { put("who", "Ann"); putJsonObject("o") { put("k", true) } })
-            assertEquals(JsonPrimitive(2), started.input["n"])
+            assertEquals(JsonPrimitive("2"), started.input["n"])
             val done = finished(c)
-            assertEquals("""{"who":"Ann","n":2,"text":"Ann x2 !","deep":true,"gone":null}""", done.steps[StepId("a")]?.output)
+            assertEquals("""{"who":"Ann","n":"2","text":"Ann x2 !","deep":true,"gone":null}""", done.steps[StepId("a")]?.output)
             assertEquals(done.steps[StepId("a")]?.output, done.output)
             val bad = assertFailsWith<KinuvoException> { c.call(Api.UpdateWorkflow, w.copy(inputs = listOf(WorkflowInput("a b")))) }
             assertEquals("invalid_params", bad.code)
@@ -563,6 +563,23 @@ class WorkflowsTest {
             val out = Json.parseToJsonElement(finished(c).output!!).jsonObject
             assertEquals(JsonPrimitive("Bob"), out.getValue("a").jsonObject["who"])
             assertEquals(JsonPrimitive(1), out["b"])
+        }
+    }
+
+    @Test fun retryConflictsWithAnActiveRunAndReevaluatesCancelledSteps() = runBlocking<Unit> {
+        TestServer.start(scenario = { agent("work") }).use { server ->
+            val c = client(server)
+            val w = c.call(Api.CreateWorkflow, workflow(WorkflowStep.Approval(StepId("a"), "Continue?")))
+            val first = c.run(w.id)
+            await(c, w.id) { it.id == first.id && it.steps[StepId("a")]?.status == StepStatus.WaitingApproval }
+            val cancelled = c.call(Api.CancelWorkflow, first.id)
+            val active = c.run(w.id)
+            assertEquals("conflict", assertFailsWith<KinuvoException> { c.call(Api.RetryWorkflow, cancelled.id) }.code)
+            c.call(Api.CancelWorkflow, active.id)
+            val retry = c.call(Api.RetryWorkflow, cancelled.id)
+            assertEquals(cancelled.input, retry.input)
+            assertEquals(StepStatus.Pending, retry.steps[StepId("a")]?.status)
+            c.call(Api.CancelWorkflow, retry.id)
         }
     }
 

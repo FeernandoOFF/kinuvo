@@ -97,8 +97,8 @@ internal object WorkflowReferences {
         return when (op) {
             ConditionOp.Equals -> equal()
             ConditionOp.NotEquals -> !equal()
-            ConditionOp.Contains -> r in l
-            ConditionOp.NotContains -> r !in l
+            ConditionOp.Contains -> right in left
+            ConditionOp.NotContains -> right !in left
             ConditionOp.Empty -> empty()
             ConditionOp.NotEmpty -> !empty()
             ConditionOp.GreaterThan -> numbers().let { (a, b) -> a > b }
