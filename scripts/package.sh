@@ -89,14 +89,13 @@ package_jar() {
   KINUVO_VERSION=$version ./package-server.sh
   cp build/tasks/_cli_executableJarJvm/cli-jvm-executable.jar "$dist/kinuvo.jar"
   restore_collisions cli "$dist/kinuvo.jar"
-  local tailcat
-  tailcat=$(tailcat_library)
-  if [ -n "$tailcat" ]; then
-    mkdir -p "$work/tailcat/BOOT-INF/classes/natives/$os-$arch"
-    cp "$tailcat" "$work/tailcat/BOOT-INF/classes/natives/$os-$arch/"
-    cp libs/tailcat/LICENSE.tailcat libs/tailcat/LICENSE.tailpocket "$work/tailcat/BOOT-INF/classes/natives/"
-    (cd "$work/tailcat" && "$java_home/bin/jar" uf "$dist/kinuvo.jar" BOOT-INF/classes)
-  fi
+  # The JAR is portable, so it carries every desktop Tailcat library whatever host packages it.
+  local tailcat=libs/tailcat/prebuilt/macos-arm64/libKinuvoTailcat.dylib
+  [ -f "$tailcat" ] || { echo "Missing $tailcat; run mise run libs:fetch" >&2; exit 1; }
+  mkdir -p "$work/tailcat/BOOT-INF/classes/natives/macos-arm64"
+  cp "$tailcat" "$work/tailcat/BOOT-INF/classes/natives/macos-arm64/"
+  cp libs/tailcat/LICENSE.tailcat libs/tailcat/LICENSE.tailpocket "$work/tailcat/BOOT-INF/classes/natives/"
+  (cd "$work/tailcat" && "$java_home/bin/jar" uf "$dist/kinuvo.jar" BOOT-INF/classes)
   allow_native_access "$dist/kinuvo.jar"
 }
 
