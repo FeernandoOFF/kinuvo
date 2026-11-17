@@ -119,7 +119,7 @@ class Workflows internal constructor(
     }
 
     /** Each declared input's string default under what the run was given. */
-    private fun input(workflow: Workflow, given: JsonObject) = JsonObject(workflow.inputs.associate { it.name to JsonPrimitive(it.default) } + given)
+    private fun input(workflow: Workflow, given: JsonObject) = JsonObject(workflow.inputs.associate { it.name to inputValue(it.default) } + given)
 
     private suspend fun start(workflow: Workflow, given: JsonObject = JsonObject(emptyMap()), retryOf: WorkflowRun? = null): WorkflowRun {
         val r = WorkflowRun(WorkflowRunId(Uuid.random().toString()), workflow.id, WorkflowRunStatus.Running, clock(),

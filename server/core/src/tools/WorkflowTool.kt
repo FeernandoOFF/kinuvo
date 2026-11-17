@@ -45,7 +45,8 @@ class WorkflowTool(private val workflows: Workflows, private val agentId: AgentI
     override suspend fun execute(args: JsonObject): String = throwing<WorkflowError, String> {
         val action = args.requireString("action")
         fun id() = args.requireString("id")
-        fun encode(run: WorkflowRun) = ProtocolJson.encodeToString(WorkflowRun.serializer(), run)
+        // The graph is the caller's own; repeating it in every result would only cost tokens.
+        fun encode(run: WorkflowRun) = JsonObject(ProtocolJson.encodeToJsonElement(WorkflowRun.serializer(), run).jsonObject - "workflow").toString()
         when (action) {
             "list" -> JsonArray(workflows.list().map { w -> buildJsonObject {
                 put("id", w.id.value); put("name", w.name); put("description", w.description)

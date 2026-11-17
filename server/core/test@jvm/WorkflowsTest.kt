@@ -500,9 +500,9 @@ class WorkflowsTest {
             val args = buildJsonObject { put("who", "{{input.who}}"); put("n", "{{input.n}}"); put("text", "{{input.who}} x{{input.n}} {{input.missing}}!"); put("deep", "{{input.o.k}}"); put("gone", "{{input.missing}}") }
             val w = c.call(Api.CreateWorkflow, workflow(tool("a", "echo", args)).copy(inputs = listOf(WorkflowInput("who", default = "Bob"), WorkflowInput("n", default = "2"))))
             val started = c.run(w.id, buildJsonObject { put("who", "Ann"); putJsonObject("o") { put("k", true) } })
-            assertEquals(JsonPrimitive("2"), started.input["n"])
+            assertEquals(JsonPrimitive(2), started.input["n"])
             val done = finished(c)
-            assertEquals("""{"who":"Ann","n":"2","text":"Ann x2 !","deep":true,"gone":null}""", done.steps[StepId("a")]?.output)
+            assertEquals("""{"who":"Ann","n":2,"text":"Ann x2 !","deep":true,"gone":null}""", done.steps[StepId("a")]?.output)
             assertEquals(done.steps[StepId("a")]?.output, done.output)
             val bad = assertFailsWith<KinuvoException> { c.call(Api.UpdateWorkflow, w.copy(inputs = listOf(WorkflowInput("a b")))) }
             assertEquals("invalid_params", bad.code)

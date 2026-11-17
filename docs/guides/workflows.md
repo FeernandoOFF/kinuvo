@@ -22,7 +22,7 @@ You can build Workflows in the app's editor or ask an Agent: “Turn the steps w
 
 ## Inputs and branches
 
-Declare inputs with a name, description and string default. Use `{{input.email}}` in prompts and arguments, or `{{input}}` for the whole object. Passed values replace defaults and keep their JSON types. Missing inputs render as empty text. A tool argument that is exactly one reference keeps the value's type.
+Declare inputs with a name, description and default. A default such as `3`, `true` or `["a"]` is used as that number, yes/no or list; anything else is text. Use `{{input.email}}` in prompts and arguments, or `{{input}}` for the whole object. Passed values replace defaults and keep their JSON types. Missing inputs render as empty text. A tool argument that is exactly one reference keeps the value's type.
 
 A Condition compares its left and right values. Choose Equals, NotEquals, Contains, NotContains, Empty, NotEmpty, GreaterThan or LessThan. Empty includes blank text, null, [], {}, and false. Numeric comparisons need numbers. Label its outgoing edges true or false; unlabelled edges always continue. A merge waits for both branches to settle and runs when at least one reaches it.
 
