@@ -62,6 +62,10 @@ class CliTest {
             assertEquals(listOf("demo", "Demo", "2", "manual", "work"), kinuvo("workflows", "list").lines().first { "demo" in it }.split(Regex("\\s+")))
             assertContains(kinuvo("workflows", "run", "demo"), "Started run")
             assertContains(kinuvo("workflows", "runs", "demo"), "approval-1")
+            val inputs = File(home, "inputs.json").apply { writeText("""{"id":"ask","name":"Ask","inputs":[{"name":"n","default":"1"}],"steps":[{"type":"condition","id":"condition-1","left":"{{input.n}}","op":"GreaterThan","right":"2"}]}""") }
+            kinuvo("workflows", "import", inputs.path)
+            assertContains(kinuvo("workflows", "run", "ask", "-i", "n=5", "--wait"), "\ntrue")
+            assertContains(kinuvo("workflows", "run", "ask", "--input", """{"n":1}""", "--wait"), "\nfalse")
             kinuvo("-a", "work", "mcp", "add", "fs", "--command", "npx", "--include", "read", "--", "-y", "server", "/tmp")
             assertEquals("fs agent stdio - npx -y server /tmp", kinuvo("-a", "work", "mcp", "ls").lines()[1].split(Regex("\\s+")).joinToString(" "))
             kinuvo("-a", "work", "skills", "create", "notes", "--description", "Take notes", "--body", "Write them down", "--shared")

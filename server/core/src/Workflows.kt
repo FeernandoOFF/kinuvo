@@ -17,6 +17,9 @@ import kotlinx.coroutines.*
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.datetime.TimeZone
+import kotlinx.serialization.json.JsonNull
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
 import kotlin.time.Clock
 import kotlin.uuid.Uuid
 
@@ -95,15 +98,34 @@ class Workflows internal constructor(
     }
 
     context(_: Raise<WorkflowError>)
-    suspend fun run(id: WorkflowId): WorkflowRun = lock.withLock {
+    suspend fun run(id: WorkflowId, input: JsonObject = JsonObject(emptyMap())): WorkflowRun = lock.withLock {
         val workflow = find(id)
         if (data.runs.any { it.workflowId == id && it.status == WorkflowRunStatus.Running }) raise(WorkflowError.Conflict("Workflow is already running"))
-        start(workflow)
+        start(workflow, input)
     }
 
-    private suspend fun start(workflow: Workflow): WorkflowRun {
+    context(_: Raise<WorkflowError>)
+    suspend fun runOf(id: WorkflowRunId): WorkflowRun = lock.withLock { data.runs.find { it.id == id } ?: raise(WorkflowError.NotFound(id.value)) }
+
+    /** A new run of a failed or cancelled run's graph and input that keeps its Done steps and executes the rest. */
+    context(_: Raise<WorkflowError>)
+    suspend fun retry(id: WorkflowRunId): WorkflowRun = lock.withLock {
+        val old = data.runs.find { it.id == id } ?: raise(WorkflowError.NotFound(id.value))
+        find(old.workflowId)
+        if (old.status != WorkflowRunStatus.Failed && old.status != WorkflowRunStatus.Cancelled) raise(WorkflowError.Conflict("Only a failed or cancelled run can be retried"))
+        if (data.runs.any { it.workflowId == old.workflowId && it.status == WorkflowRunStatus.Running }) raise(WorkflowError.Conflict("Workflow is already running"))
+        start(old.workflow, old.input, old)
+    }
+
+    /** Each declared input's default under what the run was given; a default that reads as a JSON number, boolean, object or array is that value. */
+    private fun input(workflow: Workflow, given: JsonObject) = JsonObject(workflow.inputs.associate { i ->
+        i.name to (WorkflowReferences.json(i.default.trim())?.takeUnless { it is JsonNull || (it is JsonPrimitive && it.isString) } ?: JsonPrimitive(i.default))
+    } + given)
+
+    private suspend fun start(workflow: Workflow, given: JsonObject = JsonObject(emptyMap()), retryOf: WorkflowRun? = null): WorkflowRun {
         val r = WorkflowRun(WorkflowRunId(Uuid.random().toString()), workflow.id, WorkflowRunStatus.Running, clock(),
-            steps = workflow.steps.associate { it.id to StepRun() }, workflow = workflow)
+            steps = workflow.steps.associate { step -> step.id to (retryOf?.steps?.get(step.id)?.let { old -> if (old.status == StepStatus.Done) old else StepRun(sessionId = old.sessionId) } ?: StepRun()) },
+            workflow = workflow, input = if (retryOf != null) given else input(workflow, given), retryOf = retryOf?.id)
         data = data.copy(runs = data.runs + r); persist(); runChanged(r)
         val job = scope.launch(start = CoroutineStart.ATOMIC) { execute(r) }
         jobs[r.id] = job
@@ -148,8 +170,12 @@ class Workflows internal constructor(
                 val tasks = mutableMapOf<StepId, Deferred<Unit>>()
                 val ordered = order(initial.workflow)
                 for (step in ordered) {
-                    val predecessors = initial.workflow.edges.filter { it.to == step.id }.map { tasks.getValue(it.from) }
-                    tasks[step.id] = if (initial.steps[step.id]?.status == StepStatus.Done) async {} else async { predecessors.awaitAll(); step(initial, step) }
+                    val incoming = initial.workflow.edges.filter { it.to == step.id }
+                    val predecessors = incoming.map { tasks.getValue(it.from) }
+                    tasks[step.id] = if (initial.steps[step.id]?.status == StepStatus.Done) async {} else async {
+                        predecessors.awaitAll()
+                        if (incoming.isEmpty() || live(initial.id, incoming)) step(initial, step) else update(initial.id, step.id, StepRun(StepStatus.Skipped))
+                    }
                 }
                 tasks.values.awaitAll()
             }
@@ -158,13 +184,30 @@ class Workflows internal constructor(
         finally { withContext(NonCancellable) {
             lock.withLock {
                 val current = data.runs.first { it.id == initial.id }
-                val finished = current.copy(status = status, endedAt = clock(), steps = current.steps.mapValues { (_, s) ->
+                val steps = current.steps.mapValues { (_, s) ->
                     if (s.status in terminal) s else s.copy(status = if (status == WorkflowRunStatus.Cancelled) StepStatus.Cancelled else StepStatus.Skipped, interactionId = null)
-                })
+                }
+                val finished = current.copy(status = status, endedAt = clock(), steps = steps, output = if (status == WorkflowRunStatus.Done) output(current.workflow, steps) else null)
                 data = data.copy(runs = data.runs.map { if (it.id == finished.id) finished else it }); jobs.remove(initial.id)
                 persist(); runChanged(finished)
             }
         } }
+    }
+
+    /** An edge is followed when its source is Done and, out of a Condition, its branch is the Condition's result. */
+    private suspend fun live(id: WorkflowRunId, incoming: List<WorkflowEdge>) = lock.withLock {
+        val steps = data.runs.first { it.id == id }.steps
+        incoming.any { e -> steps[e.from]?.let { it.status == StepStatus.Done && (e.branch == null || it.output == e.branch.toString()) } == true }
+    }
+
+    /** What the run produced: the output of its last step, or of each of them by id when several branches end. */
+    private fun output(w: Workflow, steps: Map<StepId, StepRun>): String? {
+        val ends = w.steps.filter { s -> w.edges.none { it.from == s.id } }.mapNotNull { s -> steps[s.id]?.takeIf { it.status == StepStatus.Done }?.output?.let { s.id to it } }
+        return when (ends.size) {
+            0 -> null
+            1 -> ends.single().second
+            else -> JsonObject(ends.associate { (id, text) -> id.value to (WorkflowReferences.json(text) ?: JsonPrimitive(text)) }).toString()
+        }
     }
 
     private suspend fun step(run: WorkflowRun, step: WorkflowStep) {
@@ -250,6 +293,11 @@ class Workflows internal constructor(
                     if (result.isError) error(result.output)
                     update(run.id, step.id, StepRun(StepStatus.Done, session, result.output))
                 }
+                is WorkflowStep.Condition -> {
+                    val refs = outputs(run.id)
+                    val result = WorkflowReferences.test(WorkflowReferences.render(step.left, refs), step.op, WorkflowReferences.render(step.right, refs))
+                    update(run.id, step.id, StepRun(StepStatus.Done, output = result.toString()))
+                }
                 is WorkflowStep.Model -> {
                     val agent = runsAs(run)
                     update(run.id, step.id, StepRun(StepStatus.Running))
@@ -269,9 +317,9 @@ class Workflows internal constructor(
         } catch (e: Exception) { update(run.id, step.id, StepRun(StepStatus.Failed, session, error = e.message)); throw e }
     }
 
-    private suspend fun outputs(id: WorkflowRunId): (StepId) -> String? {
-        val values = lock.withLock { data.runs.first { it.id == id }.steps.mapValues { it.value.output } }
-        return { values[it] }
+    private suspend fun outputs(id: WorkflowRunId): WorkflowValues {
+        val run = lock.withLock { data.runs.first { it.id == id } }
+        return WorkflowValues({ run.steps[it]?.output }, run.input)
     }
 
     private suspend fun render(id: WorkflowRunId, text: String) = WorkflowReferences.render(text, outputs(id))
@@ -297,6 +345,9 @@ class Workflows internal constructor(
         val ids = w.steps.map { it.id }
         check(ids.distinct().size == ids.size && ids.all { it.value.matches(Regex("[a-zA-Z0-9_-]+")) }, "Step ids must be unique letters, digits, underscores or hyphens")
         check(w.edges.all { it.from in ids && it.to in ids }, "Unknown edge endpoint")
+        check(w.edges.all { e -> e.branch == null || w.steps.first { it.id == e.from } is WorkflowStep.Condition }, "Only an edge out of a Condition step can have a branch")
+        val inputs = w.inputs.map { it.name }
+        check(inputs.distinct().size == inputs.size && inputs.all { it.matches(Regex("[a-zA-Z0-9_-]+")) }, "Input names must be unique letters, digits, underscores or hyphens")
         check(order(w).size == ids.size, "Workflow contains a cycle")
         try { TimeZone.of(w.timeZone); w.trigger?.let(Schedule::validate) }
         catch (e: IllegalArgumentException) { raise(WorkflowError.Invalid(e.message ?: "Invalid schedule")) }

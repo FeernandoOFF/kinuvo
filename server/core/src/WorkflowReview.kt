@@ -30,7 +30,7 @@ internal class ReviewForm private constructor(val questions: List<Question>, pri
         private val pretty = Json { prettyPrint = true }
 
         fun of(rendered: String): ReviewForm {
-            val fields = try { Json.parseToJsonElement(rendered) as? JsonObject } catch (_: IllegalArgumentException) { null }
+            val fields = WorkflowReferences.json(rendered) as? JsonObject
             if (fields == null || fields.isEmpty() || fields.size > AskUserTool.MAX_QUESTIONS || fields.keys.any { it.isBlank() })
                 return ReviewForm(listOf(Question(TEXT, "Value", QuestionKind.LongText, default = listOf(rendered))), null)
             return ReviewForm(fields.map { (key, value) ->

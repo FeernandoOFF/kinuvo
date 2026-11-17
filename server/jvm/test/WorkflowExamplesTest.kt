@@ -92,7 +92,7 @@ class WorkflowExamplesTest {
         server { on("extract customer") { reply(extracted) } }.use { server ->
             val c = client(server)
             val w = c.call(Api.CreateWorkflow, load("extract-review-fill"))
-            c.call(Api.RunWorkflow, w.id)
+            c.call(Api.RunWorkflow, RunWorkflowParams(w.id))
             val (step, asked) = waiting(server, c, w.id, "review-1")
             asked as PendingInteraction.Questions
             assertEquals(listOf("customer", "order", "issue", "refund", "urgent"), asked.questions.map { it.id })
@@ -115,7 +115,7 @@ class WorkflowExamplesTest {
         server { on("Write a digest") { reply("Kotlin 3 leads the front page.") }; on("reviewed Hacker News digest") { reply("Shared it.") } }.use { server ->
             val c = client(server)
             val w = c.call(Api.CreateWorkflow, load("front-page-digest"))
-            c.call(Api.RunWorkflow, w.id)
+            c.call(Api.RunWorkflow, RunWorkflowParams(w.id))
             val (step, asked) = waiting(server, c, w.id, "review-1")
             assertEquals(listOf("Kotlin 3 leads the front page."), (asked as PendingInteraction.Questions).questions.single().default)
             respond(c, step, InteractionAnswer.Questions(mapOf(asked.questions.single().id to listOf("Edited digest."))))
@@ -134,7 +134,7 @@ class WorkflowExamplesTest {
         server { on("Write a briefing") { reply("Kotlin is typed. People discuss Kotlin 3.") }; on("Share this briefing") { reply("Shared it.") } }.use { server ->
             val c = client(server)
             val w = c.call(Api.CreateWorkflow, load("two-sources-one-answer"))
-            c.call(Api.RunWorkflow, w.id)
+            c.call(Api.RunWorkflow, RunWorkflowParams(w.id))
             val (step, _) = waiting(server, c, w.id, "approval-1")
             val before = await(c, w.id) { true }
             assertEquals(StepStatus.Done, before.steps.getValue(StepId("tool-1")).status)

@@ -15,6 +15,7 @@ import kotlin.jvm.JvmInline
 @Serializable @JvmInline value class StepId(val value: String) { override fun toString() = value }
 @Serializable data class Position(val x: Float, val y: Float)
 @Serializable enum class StepSession { New, Continue }
+@Serializable enum class ConditionOp { Equals, NotEquals, Contains, NotContains, Empty, NotEmpty, GreaterThan, LessThan }
 
 @Serializable
 sealed interface WorkflowStep {
@@ -36,18 +37,27 @@ sealed interface WorkflowStep {
 
     @Serializable @SerialName("model")
     data class Model(override val id: StepId, val prompt: String, val system: String? = null, val model: ProviderModelRef? = null, override val position: Position? = null) : WorkflowStep
+
+    /** Compares [left] with [right]; its output is `true` or `false`, and each outgoing edge may follow only one [WorkflowEdge.branch]. */
+    @Serializable @SerialName("condition")
+    data class Condition(override val id: StepId, val left: String, val op: ConditionOp = ConditionOp.Equals, val right: String = "", override val position: Position? = null) : WorkflowStep
 }
 
-@Serializable data class WorkflowEdge(val from: StepId, val to: StepId)
+/** [branch] is set only on an edge out of a Condition: the edge is followed when the Condition's result equals it. */
+@Serializable data class WorkflowEdge(val from: StepId, val to: StepId, val branch: Boolean? = null)
+/** A named value a run is started with, read by steps as `{{input.<name>}}`. */
+@Serializable data class WorkflowInput(val name: String, val description: String = "", val default: String = "")
 @Serializable data class Workflow(
     val id: WorkflowId, val name: String, val steps: List<WorkflowStep>, val edges: List<WorkflowEdge> = emptyList(),
     val trigger: Trigger? = null, val timeZone: String = "UTC", val enabled: Boolean = true, val createdAt: Long = 0,
-    val agentId: AgentId? = null,
+    val agentId: AgentId? = null, val description: String = "", val inputs: List<WorkflowInput> = emptyList(),
 )
+@Serializable data class RunWorkflowParams(val id: WorkflowId, val input: JsonObject = JsonObject(emptyMap()))
 @Serializable enum class WorkflowRunStatus { Running, Done, Failed, Cancelled }
 @Serializable enum class StepStatus { Pending, Running, WaitingApproval, Done, Failed, Skipped, Cancelled }
 @Serializable data class StepRun(val status: StepStatus = StepStatus.Pending, val sessionId: SessionId? = null,
     val output: String? = null, val error: String? = null, val interactionId: InteractionId? = null)
 @Serializable data class WorkflowRun(val id: WorkflowRunId, val workflowId: WorkflowId,
     val status: WorkflowRunStatus, val startedAt: Long, val endedAt: Long? = null,
-    val steps: Map<StepId, StepRun>, val workflow: Workflow)
+    val steps: Map<StepId, StepRun>, val workflow: Workflow,
+    val input: JsonObject = JsonObject(emptyMap()), val output: String? = null, val retryOf: WorkflowRunId? = null)

@@ -74,7 +74,8 @@ Schedule options: `--at 2026-11-01T09:00`, `--every 30m` (also `2h`, `1d`), `--c
 | `workflows list` | List Workflows |
 | `workflows show ID` | Print a Workflow as JSON, as `import` reads it |
 | `workflows import FILE` | Create a Workflow from JSON (`-` reads stdin); `--replace` updates an existing one. With `-a`, or when the file names an Agent the Server lacks, every Agent in it becomes that Agent |
-| `workflows run ID` | Start a run and print its id without waiting |
+| `workflows run ID` | Start a run and print its id. `--input JSON` or repeated `-i NAME=VALUE` give its inputs; `--wait` waits for it to end, prints each step and the result, and fails unless it ends done |
+| `workflows retry RUN_ID` | Run a failed or cancelled run again from the step that stopped it |
 | `workflows runs ID` | Latest runs with each step's status and a one-line output or error |
 | `workflows remove ID` | Delete it |
 
