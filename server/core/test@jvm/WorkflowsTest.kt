@@ -604,4 +604,41 @@ class WorkflowsTest {
             assertEquals("not_found", assertFailsWith<KinuvoException> { c.call(Api.RetryWorkflow, WorkflowRunId("nope")) }.code)
         }
     }
+
+    @Test fun aRunAsksInOneNamedSessionThatRecordsTheAnswers() = runBlocking<Unit> {
+        TestServer.start(plugins = listOf(fakes), scenario = { agent("work") }).use { server ->
+            val c = client(server)
+            val w = c.call(Api.CreateWorkflow, workflow(WorkflowStep.Approval(StepId("one"), "First?"), WorkflowStep.Approval(StepId("two"), "Second?"), review("r", "note"),
+                edges = listOf(edge("one", "two"), edge("two", "r"))))
+            c.run(w.id)
+            suspend fun waiting(id: String) = await(c, w.id) { it.steps[StepId(id)]?.status == StepStatus.WaitingApproval }.steps.getValue(StepId(id))
+            val one = waiting("one")
+            assertTrue(c.call(Api.Respond, RespondParams(one.sessionId!!, one.interactionId!!, InteractionAnswer.Approval(ApprovalDecision.AllowOnce))))
+            val two = waiting("two")
+            assertTrue(c.call(Api.Respond, RespondParams(two.sessionId!!, two.interactionId!!, InteractionAnswer.Approval(ApprovalDecision.AllowOnce))))
+            val r = waiting("r")
+            assertTrue(c.call(Api.Respond, RespondParams(r.sessionId!!, r.interactionId!!, InteractionAnswer.Questions(mapOf("value" to listOf("edited"))))))
+            assertEquals(WorkflowRunStatus.Done, finished(c).status)
+            assertEquals(setOf(one.sessionId), setOf(two.sessionId, r.sessionId))
+            assertEquals(listOf(one.sessionId), server.harness.store.sessions(agent).map { it.id })
+            assertEquals("Test", server.harness.store.session(agent, one.sessionId!!).title)
+            val entries = server.harness.store.entries(agent, one.sessionId!!)
+            assertEquals(listOf("workflow_approval", "workflow_approval", "workflow_review"), entries.filterIsInstance<SessionEntry.ToolCall>().map { it.name })
+            assertEquals(listOf("Allowed", "Allowed", "edited"), entries.filterIsInstance<SessionEntry.ToolResult>().map { it.output })
+            assertTrue(entries.filterIsInstance<SessionEntry.ToolCall>().first().args.contains("First?"))
+        }
+    }
+
+    @Test fun savingWithoutChangingTheScheduleKeepsTheNextRun() = runBlocking<Unit> {
+        TestServer.start(plugins = listOf(fakes), scenario = { agent("work") }).use { server ->
+            val c = client(server)
+            val w = c.call(Api.CreateWorkflow, workflow(tool("a", "echo")).copy(trigger = Trigger.Every(60)))
+            val before = server.harness.store.workflows().next[w.id]
+            delay(30)
+            c.call(Api.UpdateWorkflow, w.copy(steps = listOf(tool("a", "echo").copy(position = Position(5f, 6f)))))
+            assertEquals(before, server.harness.store.workflows().next[w.id])
+            c.call(Api.UpdateWorkflow, w.copy(trigger = Trigger.Every(5)))
+            assertNotEquals(before, server.harness.store.workflows().next[w.id])
+        }
+    }
 }

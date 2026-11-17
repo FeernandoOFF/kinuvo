@@ -5,6 +5,7 @@ import kinuvo.server.tools.ToolScope
 import kinuvo.protocol.agent.AgentId
 import arrow.core.raise.Raise
 import arrow.core.raise.context.raise
+import kinuvo.harness.Agent
 import kinuvo.harness.ExecutionInput
 import kinuvo.harness.ToolTurn
 import kinuvo.protocol.WireErrorCode
@@ -20,6 +21,8 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.datetime.TimeZone
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
 import kotlinx.serialization.json.JsonPrimitive
 import kotlin.time.Clock
 import kotlin.uuid.Uuid
@@ -41,6 +44,8 @@ class Workflows internal constructor(
     private val lock = Mutex()
     private var data = WorkflowData()
     private val jobs = mutableMapOf<WorkflowRunId, Job>()
+    private val attentionLock = Mutex()
+    private val attention = mutableMapOf<WorkflowRunId, SessionId>()
 
     /** Unfinished runs keep their state except interrupted Tool and Agent steps, which may have had side effects and fail instead of replaying. */
     suspend fun recover() = lock.withLock {
@@ -85,7 +90,8 @@ class Workflows internal constructor(
             if (!create && old == null) raise(WorkflowError.NotFound(workflow.id.value))
             val saved = workflow.copy(createdAt = old?.createdAt ?: clock())
             data = data.copy(workflows = data.workflows.filterNot { it.id == saved.id } + saved,
-                next = data.next + (saved.id to ((saved.trigger as? Trigger.Once)?.at ?: next(saved, clock() - 1))))
+                next = if (old != null && old.trigger == saved.trigger && old.timeZone == saved.timeZone && saved.id in data.next) data.next
+                    else data.next + (saved.id to ((saved.trigger as? Trigger.Once)?.at ?: next(saved, clock() - 1))))
             persist(); changed(data.workflows); wakeScheduler(); saved
         }
     }
@@ -187,7 +193,7 @@ class Workflows internal constructor(
                     if (s.status in terminal) s else s.copy(status = if (status == WorkflowRunStatus.Cancelled) StepStatus.Cancelled else StepStatus.Skipped, interactionId = null)
                 }
                 val finished = current.copy(status = status, endedAt = clock(), steps = steps, output = if (status == WorkflowRunStatus.Done) output(current.workflow, steps) else null)
-                data = data.copy(runs = data.runs.map { if (it.id == finished.id) finished else it }); jobs.remove(initial.id)
+                data = data.copy(runs = data.runs.map { if (it.id == finished.id) finished else it }); jobs.remove(initial.id); attention.remove(initial.id)
                 persist(); runChanged(finished)
             }
         } }
@@ -234,14 +240,17 @@ class Workflows internal constructor(
                 }
                 is WorkflowStep.Approval -> {
                     val agent = sessionAgent(run)
-                    session = session ?: harness.newSession(agent).id
+                    session = session ?: attention(run, agent)
                     val pending = harness.approvals.register()
                     try {
-                        val interaction = PendingInteraction.Approval(pending.id, ToolCallId(Uuid.random().toString()), "workflow_approval", "{}",
+                        val call = asked(agent, session, "workflow_approval", step, step.text)
+                        val interaction = PendingInteraction.Approval(pending.id, call.id, call.name, call.args,
                             reason = step.text, trustable = false, preview = ChangePreview("Continue Workflow", body = step.text))
                         harness.log.publish(agent.id, session, AgentEvent.InteractionRequested(interaction))
                         update(run.id, step.id, StepRun(StepStatus.WaitingApproval, session, interactionId = pending.id))
-                        if (pending.await() is ApprovalDecision.Deny) error("Workflow Approval rejected")
+                        val allowed = pending.await() !is ApprovalDecision.Deny
+                        harness.log.append(agent.id, session, SessionEntry.ToolResult(call.id, call.name, if (allowed) "Allowed" else "Denied", !allowed))
+                        if (!allowed) error("Workflow Approval rejected")
                         update(run.id, step.id, StepRun(StepStatus.Done, session))
                     } finally {
                         pending.close()
@@ -250,15 +259,18 @@ class Workflows internal constructor(
                 }
                 is WorkflowStep.Review -> {
                     val agent = sessionAgent(run)
-                    session = session ?: harness.newSession(agent).id
+                    session = session ?: attention(run, agent)
                     val form = ReviewForm.of(render(run.id, step.value))
                     val pending = harness.questions.register()
                     try {
-                        val interaction = PendingInteraction.Questions(pending.id, ToolCallId(Uuid.random().toString()), step.text.ifBlank { null }, form.questions)
+                        val call = asked(agent, session, "workflow_review", step, step.text)
+                        val interaction = PendingInteraction.Questions(pending.id, call.id, step.text.ifBlank { null }, form.questions)
                         harness.log.publish(agent.id, session, AgentEvent.InteractionRequested(interaction))
                         update(run.id, step.id, StepRun(StepStatus.WaitingApproval, session, interactionId = pending.id))
-                        val answers = pending.await() ?: error("Review declined")
-                        update(run.id, step.id, StepRun(StepStatus.Done, session, form.output(answers)))
+                        val answers = pending.await()
+                        val output = answers?.let { runCatching { form.output(it) } }
+                        harness.log.append(agent.id, session, SessionEntry.ToolResult(call.id, call.name, output?.getOrNull() ?: output?.exceptionOrNull()?.message ?: "Declined", output?.isSuccess != true))
+                        update(run.id, step.id, StepRun(StepStatus.Done, session, (output ?: error("Review declined")).getOrThrow()))
                     } finally {
                         pending.close()
                         withContext(NonCancellable) { harness.log.publish(agent.id, session, AgentEvent.InteractionResolved(pending.id)) }
@@ -269,16 +281,18 @@ class Workflows internal constructor(
                     update(run.id, step.id, StepRun(StepStatus.Running, session))
                     val args = WorkflowReferences.render(step.args, outputs(run.id))
                     val surface = step.tool in setOf(ToolNames.SHOW_UI, ToolNames.SHOW_HTML)
-                    if (surface && session == null) session = harness.newSession(agent).id
+                    if (surface && session == null) session = attention(run, agent)
                     val gate = harness.composer.compose(agent, sessionId = if (surface) session else null,
                         scope = if (surface) ToolScope.only(step.tool) else ToolScope.All, requireModel = false).gate
                     val call = SessionEntry.ToolCall(ToolCallId(Uuid.random().toString()), step.tool, args.toString())
+                    var recorded = surface
                     if (surface) harness.log.append(agent.id, session!!, call)
                     var pending: InteractionId? = null
                     val turn = ToolTurn(emit = { event ->
                         when (event) {
                             is AgentEvent.InteractionRequested -> {
-                                val id = session ?: harness.newSession(agent).id.also { session = it }
+                                val id = session ?: attention(run, agent).also { session = it }
+                                if (!recorded) { recorded = true; harness.log.append(agent.id, id, call) }
                                 val interaction = event.interaction
                                 harness.log.publish(agent.id, id, if (interaction is PendingInteraction.Approval) event.copy(interaction = interaction.copy(trustable = false)) else event)
                                 pending = event.interaction.id
@@ -294,7 +308,7 @@ class Workflows internal constructor(
                     })
                     val result = try { gate.invoke(call, turn) }
                     finally { pending?.let { id -> withContext(NonCancellable) { session?.let { harness.log.publish(agent.id, it, AgentEvent.InteractionResolved(id, false)) } } } }
-                    if (surface) harness.log.append(agent.id, session!!, SessionEntry.ToolResult(call.id, step.tool, result.output, result.isError))
+                    if (recorded) harness.log.append(agent.id, session!!, SessionEntry.ToolResult(call.id, step.tool, result.output, result.isError))
                     if (result.isError) error(result.output)
                     update(run.id, step.id, StepRun(StepStatus.Done, session, result.output))
                 }
@@ -320,6 +334,27 @@ class Workflows internal constructor(
             withContext(NonCancellable) { session?.let { runs.stop(it); runs.join(it) }; update(run.id, step.id, StepRun(StepStatus.Cancelled, session)) }
             throw e
         } catch (e: Exception) { update(run.id, step.id, StepRun(StepStatus.Failed, session, error = e.message)); throw e }
+    }
+
+    /**
+     * The one Session where a run asks for the user: its Approvals, Reviews and tools' Approvals share it, named after the Workflow,
+     * and each leaves what was asked and answered there, so the Session reads as the run's record instead of staying empty.
+     */
+    private suspend fun attention(run: WorkflowRun, agent: Agent): SessionId = attentionLock.withLock {
+        val shared = lock.withLock {
+            val steps = data.runs.first { it.id == run.id }.steps
+            run.workflow.steps.filter { it !is WorkflowStep.AgentTurn }.firstNotNullOfOrNull { steps[it.id]?.sessionId } ?: attention[run.id]
+        }
+        shared ?: harness.newSession(agent).id.also {
+            harness.log.append(agent.id, it, SessionEntry.Details(title = run.workflow.name))
+            attention[run.id] = it
+        }
+    }
+
+    private suspend fun asked(agent: Agent, session: SessionId, name: String, step: WorkflowStep, question: String): SessionEntry.ToolCall {
+        val call = SessionEntry.ToolCall(ToolCallId(Uuid.random().toString()), name, buildJsonObject { put("step", step.id.value); put("question", question) }.toString())
+        harness.log.append(agent.id, session, call)
+        return call
     }
 
     private suspend fun outputs(id: WorkflowRunId): WorkflowValues {
