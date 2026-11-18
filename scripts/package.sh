@@ -79,10 +79,22 @@ allow_native_access() { # Skiko, QuickJS and Rive load native libraries
   "$java_home/bin/jar" ufm "$1" "$work/native-access.mf"
 }
 
-# The committed Tailcat library for this platform, if one exists; Tailcat reports itself unavailable elsewhere.
-tailcat_library() {
-  local file=libs/tailcat/prebuilt/$os-$arch/libKinuvoTailcat.dylib
-  if [ -f "$file" ]; then printf '%s\n' "$file"; fi
+tailcat_library() { # platform
+  case "$1" in
+    macos-arm64 | macos-x64) printf '%s/libKinuvoTailcat.dylib\n' "$1" ;;
+    linux-arm64 | linux-x64) printf '%s/libKinuvoTailcat.so\n' "$1" ;;
+    windows-x64) printf '%s/KinuvoTailcat.dll\n' "$1" ;;
+  esac
+}
+
+copy_tailcat() { # platform destination
+  local library
+  library=$(tailcat_library "$1")
+  [ -n "$library" ] || return 0
+  local source=libs/tailcat/prebuilt/$library
+  [ -f "$source" ] || { echo "Missing $source; run mise run libs:fetch" >&2; exit 1; }
+  mkdir -p "$2"
+  cp "$source" "$2/"
 }
 
 package_jar() {
@@ -90,11 +102,11 @@ package_jar() {
   cp build/tasks/_cli_executableJarJvm/cli-jvm-executable.jar "$dist/kinuvo.jar"
   restore_collisions cli "$dist/kinuvo.jar"
   # The JAR is portable, so it carries every desktop Tailcat library whatever host packages it.
-  local tailcat=libs/tailcat/prebuilt/macos-arm64/libKinuvoTailcat.dylib
-  [ -f "$tailcat" ] || { echo "Missing $tailcat; run mise run libs:fetch" >&2; exit 1; }
-  mkdir -p "$work/tailcat/BOOT-INF/classes/natives/macos-arm64"
-  cp "$tailcat" "$work/tailcat/BOOT-INF/classes/natives/macos-arm64/"
-  cp libs/tailcat/LICENSE.tailcat libs/tailcat/LICENSE.tailpocket "$work/tailcat/BOOT-INF/classes/natives/"
+  local platform natives=$work/tailcat/BOOT-INF/classes/natives
+  for platform in macos-arm64 macos-x64 linux-arm64 linux-x64 windows-x64; do
+    copy_tailcat "$platform" "$natives/$platform"
+  done
+  cp libs/tailcat/LICENSE.tailcat libs/tailcat/LICENSE.tailpocket "$natives/"
   (cd "$work/tailcat" && "$java_home/bin/jar" uf "$dist/kinuvo.jar" BOOT-INF/classes)
   if [ -n "${KINUVO_VOICE_WORKERS:-}" ]; then
     (cd "$KINUVO_VOICE_WORKERS" && "$java_home/bin/jar" uf "$dist/kinuvo.jar" server-voice)
@@ -124,10 +136,8 @@ package_cli() {
   cp "$jar" "$app/lib/kinuvo.jar"
   bundle_voice "$app/lib/kinuvo.jar"
   python3 scripts/package-natives.py "$app/lib/kinuvo.jar" "$os" "$arch"
-  local tailcat
-  tailcat=$(tailcat_library)
-  if [ -n "$tailcat" ]; then
-    cp "$tailcat" "$app/lib/"
+  if [ -n "$(tailcat_library "$os-$arch")" ]; then
+    copy_tailcat "$os-$arch" "$app/lib"
     cp libs/tailcat/LICENSE.tailcat libs/tailcat/LICENSE.tailpocket "$app/lib/"
   fi
   runtime "$app/runtime" --include-locales en
@@ -166,10 +176,8 @@ package_desktop() {
   if [[ $numeric =~ ^[0-9]+(\.[0-9]+){0,2}$ ]] && { [ "$os" != macos ] || [ "${numeric%%.*}" != 0 ]; }; then
     args+=(--app-version "$numeric")
   fi
-  local tailcat
-  tailcat=$(tailcat_library)
-  if [ -n "$tailcat" ]; then
-    cp "$tailcat" "$work/input/"
+  if [ -n "$(tailcat_library "$os-$arch")" ]; then
+    copy_tailcat "$os-$arch" "$work/input"
     cp libs/tailcat/LICENSE.tailcat libs/tailcat/LICENSE.tailpocket "$work/input/"
   fi
   if [ "$os" = macos ] || [ "$arch" = x64 ]; then

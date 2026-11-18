@@ -5,6 +5,7 @@ go 1.27.1
 require (
 	github.com/jt-wang/tailpocket v0.2.4
 	github.com/tailscale/tailcat v0.6.0
+	golang.org/x/sys v0.49.0
 	tailscale.com v1.103.0-pre.0.20260904030409-31d8badb3bfb
 )
 
@@ -50,7 +51,6 @@ require (
 	golang.org/x/mod v0.42.0 // indirect
 	golang.org/x/net v0.61.0 // indirect
 	golang.org/x/sync v0.24.0 // indirect
-	golang.org/x/sys v0.49.0 // indirect
 	golang.org/x/term v0.47.0 // indirect
 	golang.org/x/text v0.43.0 // indirect
 	golang.org/x/time v0.15.0 // indirect

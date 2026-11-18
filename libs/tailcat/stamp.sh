@@ -9,6 +9,7 @@ sha() {
 }
 
 sources() {
+    printf '%s  build.sh\n' "$(sha "$root/build.sh" | cut -d' ' -f1)"
     (cd "$root/go" && find . -type f \( -name '*.go' -o -name '*.c' -o -name go.mod -o -name go.sum \) | LC_ALL=C sort | while read -r file; do
         printf '%s  %s\n' "$(sha "$file" | cut -d' ' -f1)" "$file"
     done)
@@ -31,7 +32,7 @@ case "${1:-}" in
         [ -f "$stamp" ] || { echo "libs/tailcat/STAMP is missing; run libs/tailcat/build.sh" >&2; exit 1; }
         expected=$(combined "$(field go)" "$(field ndk)")
         if [ "$expected" != "$(field sha256)" ]; then
-            echo "libs/tailcat/go changed since STAMP was written; run libs/tailcat/build.sh, then scripts/libs.sh publish tailcat, and commit STAMP and prebuilt.json" >&2
+            echo "libs/tailcat build inputs changed since STAMP was written; run libs/tailcat/build.sh, then scripts/libs.sh publish tailcat, and commit STAMP and prebuilt.json" >&2
             exit 1
         fi
         [ "$1" = sources ] && exit 0

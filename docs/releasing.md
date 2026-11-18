@@ -68,19 +68,18 @@ Windows desktop apps remain unsigned. Choose **More info → Run anyway** in Sma
 
 ## Target native libraries
 
-Tailcat packages the prebuilt libraries in `libs/tailcat/prebuilt` (macOS arm64,
-Android arm64-v8a and x86_64, and an iOS xcframework); releases need no Go or NDK.
+Tailcat packages prebuilt libraries for macOS and Linux (arm64 and x64), Windows
+x64, Android arm64-v8a and x86_64, and iOS. Releases need no native build toolchain.
 They are not in git: `libs/tailcat/prebuilt.json` pins each file by URL and sha256
 in a `libs-tailcat-<stamp>` prerelease, and `scripts/libs.sh fetch` (the
 `.github/actions/fetch-libs` step in CI and release jobs) downloads and verifies
 them. The Android apps pick theirs up through symlinks in `apps/android*/jniLibs`.
 CI checks `libs/tailcat/STAMP` and that `prebuilt.json` is published for it with
-`libs/tailcat/stamp.sh check`. After changing `libs/tailcat/go`, run
-`mise exec go@1.27.3 -- libs/tailcat/build.sh` (Go, Xcode and the Android NDK
-`28.2.13676358`; set `ANDROID_HOME` or `ANDROID_NDK_HOME`), then
+`libs/tailcat/stamp.sh check`. After changing the Tailcat build or its Go sources, run
+`mise exec go@1.27.3 zig@0.15.2 -- libs/tailcat/build.sh` on a Mac with Xcode and
+Android NDK `28.2.13676358` (set `ANDROID_HOME` or `ANDROID_NDK_HOME`), then
 `scripts/libs.sh publish tailcat` (needs `gh` and write access) and commit `STAMP`
-and `prebuilt.json`. Platforms without a library (Linux, Windows, Intel macOS)
-report Tailcat as unavailable.
+and `prebuilt.json`.
 
 Desktop and bundled-runtime CLI packages filter nested jars to the target OS and
 architecture, including LiteRT-LM, zstd and WebRTC. The universal `kinuvo.jar`
