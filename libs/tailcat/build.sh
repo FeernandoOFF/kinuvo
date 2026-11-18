@@ -1,14 +1,14 @@
 #!/bin/sh
-# Rebuilds libs/tailcat/prebuilt and STAMP. Manual: needs Go (mise exec go@1.27.3 -- libs/tailcat/build.sh), Xcode and the Android NDK.
-# Run it only when libs/tailcat/go changes, then scripts/libs.sh publish tailcat; CI checks STAMP and never builds.
-# Usage: build.sh [macos] [android] [ios]   (default: all)
+# Rebuilds libs/tailcat/prebuilt and STAMP. Needs Go 1.27.3, Xcode (macOS/iOS), Android NDK and Zig 0.15.2 (Linux/Windows).
+# Full build on Mac: mise exec go@1.27.3 zig@0.15.2 -- libs/tailcat/build.sh
+# Usage: build.sh [macos] [linux] [windows] [android] [ios]   (default: all)
 set -eu
 root=$(CDPATH='' cd -- "$(dirname -- "$0")" && pwd)
 out="$root/prebuilt"
 ndk_version=${KINUVO_NDK_VERSION:-28.2.13676358}
 ios_min=17.0
 go_cmd=go
-targets=${*:-macos android ios}
+targets=${*:-macos linux windows android ios}
 
 sdk="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-$HOME/Library/Android/sdk}}"
 ndk="${ANDROID_NDK_HOME:-$sdk/ndk/$ndk_version}"
@@ -16,13 +16,38 @@ go_version=$($go_cmd env GOVERSION)
 
 build_go() { (cd "$root/go" && "$go_cmd" build -p 2 -trimpath "$@"); }
 
+build_shared() {
+    mkdir -p "$out/$(dirname "$1")"
+    CGO_ENABLED=1 build_go -buildmode=c-shared -ldflags='-s -w' -o "$out/$1" .
+    rm -f "$out/${1%.*}.h"
+}
+
+case " $targets " in
+    *" linux "* | *" windows "*)
+        [ "$(zig version)" = 0.15.2 ] || { echo "Linux and Windows builds require Zig 0.15.2" >&2; exit 1; }
+        ;;
+esac
+
 for target in $targets; do
     case "$target" in
         macos)
-            rm -rf "$out/macos-arm64"; mkdir -p "$out/macos-arm64"
-            CGO_ENABLED=1 GOOS=darwin GOARCH=arm64 build_go -buildmode=c-shared -ldflags='-s -w' -o "$out/macos-arm64/libKinuvoTailcat.dylib" .
-            rm -f "$out/macos-arm64/libKinuvoTailcat.h"
-            codesign --force --sign - "$out/macos-arm64/libKinuvoTailcat.dylib"
+            sysroot=$(xcrun --sdk macosx --show-sdk-path)
+            for arch in arm64 amd64; do
+                case "$arch" in
+                    arm64) dir=macos-arm64 ;;
+                    amd64) dir=macos-x64 ;;
+                esac
+                GOOS=darwin GOARCH=$arch SDKROOT="$sysroot" MACOSX_DEPLOYMENT_TARGET=13.0 \
+                    CC="$(xcrun --sdk macosx --find clang)" build_shared "$dir/libKinuvoTailcat.dylib"
+                codesign --force --sign - "$out/$dir/libKinuvoTailcat.dylib"
+            done
+            ;;
+        linux)
+            GOOS=linux GOARCH=amd64 CC='zig cc -target x86_64-linux-gnu.2.28' build_shared linux-x64/libKinuvoTailcat.so
+            GOOS=linux GOARCH=arm64 CC='zig cc -target aarch64-linux-gnu.2.28' build_shared linux-arm64/libKinuvoTailcat.so
+            ;;
+        windows)
+            GOOS=windows GOARCH=amd64 CC='zig cc -target x86_64-windows-gnu' build_shared windows-x64/KinuvoTailcat.dll
             ;;
         android)
             case "$(uname -s)" in

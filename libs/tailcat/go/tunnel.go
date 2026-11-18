@@ -8,7 +8,6 @@ import (
 	"os"
 	"path/filepath"
 	"sync"
-	"syscall"
 	"time"
 
 	"github.com/jt-wang/tailpocket/connecthost"
@@ -43,7 +42,7 @@ func hold(state string) (*os.File, error) {
 	if err != nil {
 		return nil, errors.New("cannot open state lock")
 	}
-	if err = syscall.Flock(int(f.Fd()), syscall.LOCK_EX|syscall.LOCK_NB); err != nil {
+	if err := lockState(f); err != nil {
 		f.Close()
 		return nil, errors.New("Tailcat is active for this home; stop the Server first")
 	}
@@ -52,7 +51,7 @@ func hold(state string) (*os.File, error) {
 
 func release(f *os.File) {
 	if f != nil {
-		syscall.Flock(int(f.Fd()), syscall.LOCK_UN)
+		unlockState(f)
 		f.Close()
 	}
 }
