@@ -13,6 +13,9 @@ import kinuvo.server.*
 import kinuvo.harness.ToolGate
 import kinuvo.harness.ToolProvider
 import kinuvo.harness.ToolReports
+import kinuvo.protocol.tool.ToolNames
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.withContext
 import kinuvo.harness.ToolTurn
 import kinuvo.protocol.session.AgentEvent
 import kinuvo.protocol.approval.ApprovalDecision
@@ -143,7 +146,13 @@ class ToolService(
         override suspend fun call(name: String, args: String): SessionEntry.ToolResult {
             val inner = SessionEntry.ToolCall(ToolCallId("${call.id}-${++count}"), name, args, toolsByName[name]?.identity)
             if (tools.none { it.name == name }) return SessionEntry.ToolResult(inner.id, name, "Unknown tool '$name'", isError = true)
-            return invoke(inner, approvalId, turn).also { attached += it.attachments }
+            return invoke(inner, approvalId, turn).also {
+                attached += it.attachments
+                if (!it.isError && name in setOf(ToolNames.SHOW_UI, ToolNames.SHOW_HTML)) withContext(NonCancellable) {
+                    turn.record(inner.copy(parent = call.id))
+                    turn.record(it.copy(parent = call.id))
+                }
+            }
         }
         override suspend fun attach(name: String, bytes: ByteArray) =
             requireNotNull(attach) { "Files can't be shown to the model in this run" }(name, bytes).also { attached += it }

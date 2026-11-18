@@ -63,6 +63,7 @@ class AgentRun(
         var cancelled = false
         val turn = ToolTurn(
             progress = { send(it) },
+            record = { session.append(it) },
             stopped = { stopped = it },
             emit = { event ->
                 if (event is AgentEvent.ToolCallStart) session.toolStarted(event.toolCallId)

@@ -140,6 +140,31 @@ class RunCodeTest {
         assertContains(replied, "- memory({\"action\":\"add\",\"content\":\"GraalJS\"}) → ok")
     }
 
+    @Test
+    fun scriptPersistsDisplayCallsWithoutSendingThemToTheModel() = runBlocking {
+        val agent = store.agents().single()
+        val displays = listOf(ToolNames.SHOW_UI, ToolNames.SHOW_HTML).map { FakeTool(it, Risk.Low) { "shown" } }
+        val tools = ExecutorPlugin().prepare(RunContext(agent, null), activate = true)
+            .ownedBy(kinuvo.protocol.plugin.PluginInstanceId("kinuvo.executor")).tools.plus(displays).withModelNames()
+        val model = scriptedModel { prompt, _ ->
+            val results = prompt.messages.toolResults
+            if (results.isEmpty()) flowOf(StreamFrame.ToolCallComplete("c1", "run_code", args("await tools.show_ui({}); await tools.show_html({}); return 'done'")), StreamFrame.End())
+            else {
+                assertEquals(listOf("run_code"), results.map { it.tool })
+                flowOf(StreamFrame.TextDelta("Done."), StreamFrame.End())
+            }
+        }
+        val session = store.createSession(agent.id, "")
+        AgentRun(agent, store, model, tools).run(session.id, "Show both").collect {}
+        val entries = store.entries(agent.id, session.id)
+        val calls = entries.filterIsInstance<SessionEntry.ToolCall>().filter { it.parent != null }
+        assertEquals(listOf(ToolNames.SHOW_UI, ToolNames.SHOW_HTML), calls.map { it.name })
+        assertTrue(calls.all { it.parent == ToolCallId("c1") })
+        val results = entries.filterIsInstance<SessionEntry.ToolResult>().filter { it.parent != null }
+        assertEquals(calls.map { it.id }, results.map { it.id })
+        assertTrue(results.all { !it.isError && it.parent == ToolCallId("c1") })
+    }
+
     private fun args(code: String) = JsonObject(mapOf("code" to kotlinx.serialization.json.JsonPrimitive(code))).toString()
 
     private fun transcript(events: List<AgentEvent>, entries: List<SessionEntry>) = buildString {

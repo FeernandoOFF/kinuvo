@@ -22,7 +22,7 @@ fun List<SessionEntry>.activeHistory(): List<SessionEntry> {
     val activations = history.filterIsInstance<SessionEntry.Activation>().associateBy { it.name }
     return history.filterIndexed { index, entry -> (entry !is SessionEntry.Context || index == contextAt) &&
         (entry !is SessionEntry.Activation || activations[entry.name] === entry)
-    }.filterNot { it is SessionEntry.Compaction || it is SessionEntry.Started || it is SessionEntry.Settings || it is SessionEntry.Details || it is SessionEntry.Reflection || it is SessionEntry.ReflectionReview || it is SessionEntry.Measurement || it is SessionEntry.Outcome || it is SessionEntry.Notice }
+    }.filterNot { it is SessionEntry.ToolCall && it.parent != null || it is SessionEntry.ToolResult && it.parent != null || it is SessionEntry.Compaction || it is SessionEntry.Started || it is SessionEntry.Settings || it is SessionEntry.Details || it is SessionEntry.Reflection || it is SessionEntry.ReflectionReview || it is SessionEntry.Measurement || it is SessionEntry.Outcome || it is SessionEntry.Notice }
 }
 
 /** The latest user message and what follows it, with the current [SessionEntry.Context] and Skill activations. */
@@ -67,8 +67,8 @@ fun List<SessionEntry>.estimatedTokens(instructions: String, tools: List<ToolDes
             is SessionEntry.UserMessage -> it.modelText.length + it.attachments.estimatedChars()
             is SessionEntry.AssistantMessage -> it.text.length
             is SessionEntry.Reasoning -> it.text.length + (it.encrypted?.length ?: 0)
-            is SessionEntry.ToolCall -> it.name.length + it.args.length
-            is SessionEntry.ToolResult -> it.output.length + it.attachments.estimatedChars()
+            is SessionEntry.ToolCall -> if (it.parent == null) it.name.length + it.args.length else 0
+            is SessionEntry.ToolResult -> if (it.parent == null) it.output.length + it.attachments.estimatedChars() else 0
             is SessionEntry.Compaction -> it.history.estimatedTokens("") * 4
             is SessionEntry.Activation -> it.content.length
             is SessionEntry.ToolReport -> it.tool.length + (it.callId?.value?.length ?: 0) + it.content.length

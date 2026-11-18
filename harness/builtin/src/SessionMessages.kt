@@ -48,6 +48,7 @@ class SessionMessages(private val model: AgentModel, private val imageReferences
     }
 
     fun messages(history: List<SessionEntry>): List<Message> = history.flatMap { entry ->
+        if (entry is SessionEntry.ToolCall && entry.parent != null || entry is SessionEntry.ToolResult && entry.parent != null) return@flatMap emptyList()
         if (entry is SessionEntry.Compaction) return@flatMap messages(entry.history)
         val toolFiles = (entry as? SessionEntry.ToolResult)?.attachments.orEmpty()
             .filter { model.attachments != null || !it.mimeType.startsWith("image/") }

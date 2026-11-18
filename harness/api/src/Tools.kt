@@ -36,6 +36,8 @@ class ToolTurn(
     val emit: suspend (AgentEvent) -> Unit = {},
     /** Replaces a running call's live output. */
     val progress: suspend (AgentEvent.ToolCallResult) -> Unit = { emit(it) },
+    /** Persists display entries produced by nested calls, outside the model conversation. */
+    val record: suspend (SessionEntry) -> Unit = {},
     /** Told what to record for a call still waiting, if the run is cancelled meanwhile. */
     val stopped: (String) -> Unit = {},
 ) {

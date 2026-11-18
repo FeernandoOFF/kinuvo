@@ -12,6 +12,17 @@ import kotlinx.coroutines.flow.emptyFlow
 import kotlin.test.*
 
 class SessionMessagesTest {
+    @Test fun nestedDisplayEntriesStayOutOfModelHistory() {
+        val parent = ToolCallId("script")
+        val call = SessionEntry.ToolCall(ToolCallId("script-1"), "show_ui", "{}", parent = parent)
+        val result = SessionEntry.ToolResult(call.id, call.name, "shown", parent = parent)
+        val history = listOf(SessionEntry.UserMessage("show it"), call, result)
+        assertEquals(listOf(history.first()), history.activeHistory())
+        assertEquals(messages.messages(listOf(history.first())), messages.messages(history))
+        assertEquals(emptyList(), messages.messages(listOf(SessionEntry.Compaction(history = listOf(call, result)))))
+        assertEquals(listOf(history.first()).estimatedTokens(""), history.estimatedTokens(""))
+    }
+
     @Test fun backgroundReportsRemainOrdinaryHistory() {
         val report = SessionEntry.ToolReport("shell", ToolCallId("call"), "done")
         val history = listOf(report, report, SessionEntry.UserMessage("continue"))
