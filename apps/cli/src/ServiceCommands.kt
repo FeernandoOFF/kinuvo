@@ -17,6 +17,7 @@ import kotlinx.serialization.json.Json
 import kinuvo.server.jvm.kinuvoHome
 import kinuvo.protocol.device.Platform
 import kinuvo.protocol.device.currentPlatform
+import java.util.Base64
 import java.io.File
 import java.nio.file.Files
 import java.nio.file.StandardCopyOption
@@ -24,7 +25,7 @@ import java.nio.file.attribute.PosixFilePermissions
 import kotlinx.coroutines.NonCancellable
 
 internal class ServiceCommands : Group(
-    "service", "Run the Server as a service of this machine's user, started at login and restarted when it exits (launchd or systemd).",
+    "service", "Run the Server as a service of this machine's user, started at login and restarted when it exits (launchd, systemd or Windows Task Scheduler).",
     InstallService(), UninstallService(), ServiceStatus(), RestartService(), ServiceLogs(),
 )
 
@@ -65,7 +66,8 @@ internal interface ServiceManager {
                     if (install || !legacy.file.exists() || app.installed()) app else legacy
                 }
                 Platform.Linux -> Systemd()
-                else -> throw CliktError("Services are supported on macOS (launchd) and Linux (systemd), not ${currentPlatform.displayName}")
+                Platform.Windows -> WindowsService()
+                else -> throw CliktError("Services are supported on macOS (launchd), Linux (systemd) and Windows (Task Scheduler), not ${currentPlatform.displayName}")
             }
         }
     }
@@ -281,6 +283,65 @@ internal class Systemd(home: File = File(System.getProperty("user.home"))) : Ser
     }
 }
 
+internal class WindowsService(
+    home: File = File(System.getProperty("user.home")),
+    private val user: String = listOfNotNull(System.getenv("USERDOMAIN"), System.getProperty("user.name")).joinToString("\\"),
+    private val run: (List<String>) -> Sh = { sh(*it.toTypedArray()) },
+) : ServiceManager {
+    override val file = File(home, ".kinuvo-service/server.xml")
+    override val label = TASK
+
+    internal fun script(spec: ServiceSpec) = buildString {
+        (spec.env + ("KINUVO_HOME" to spec.home)).forEach { (key, value) ->
+            require(key.matches(Regex("[A-Za-z_][A-Za-z0-9_]*")))
+            appendLine("\$env:$key = ${powershellQuote(value)}")
+        }
+        appendLine("& ${spec.command.joinToString(" ", transform = ::powershellQuote)} >> ${powershellQuote(spec.outputLog)} 2>&1")
+        appendLine("exit \$LASTEXITCODE")
+    }
+
+    override fun render(spec: ServiceSpec): String {
+        val encoded = Base64.getEncoder().encodeToString(script(spec).toByteArray(Charsets.UTF_16LE))
+        return """<?xml version="1.0" encoding="UTF-8"?>
+<Task version="1.2" xmlns="http://schemas.microsoft.com/windows/2004/02/mit/task">
+  <Triggers><LogonTrigger><Enabled>true</Enabled><UserId>${xml(user)}</UserId></LogonTrigger></Triggers>
+  <Principals><Principal id="User"><UserId>${xml(user)}</UserId><LogonType>InteractiveToken</LogonType><RunLevel>LeastPrivilege</RunLevel></Principal></Principals>
+  <Settings><MultipleInstancesPolicy>IgnoreNew</MultipleInstancesPolicy><DisallowStartIfOnBatteries>false</DisallowStartIfOnBatteries><StopIfGoingOnBatteries>false</StopIfGoingOnBatteries><AllowHardTerminate>true</AllowHardTerminate><StartWhenAvailable>true</StartWhenAvailable><Enabled>true</Enabled><Hidden>true</Hidden><ExecutionTimeLimit>PT0S</ExecutionTimeLimit><RestartOnFailure><Interval>PT1M</Interval><Count>999</Count></RestartOnFailure></Settings>
+  <Actions Context="User"><Exec><Command>powershell.exe</Command><Arguments>-NoProfile -NonInteractive -WindowStyle Hidden -EncodedCommand $encoded</Arguments></Exec></Actions>
+</Task>
+"""
+    }
+
+    private fun task(vararg args: String) = run(listOf("schtasks", *args, "/TN", TASK))
+    override fun installed() = task("/Query").code == 0
+    override fun install(spec: ServiceSpec) {
+        file.parentFile.mkdirs()
+        file.writeText(render(spec))
+        task("/Create", "/XML", file.path, "/F").orFail()
+        restart()
+    }
+    override fun uninstall() {
+        task("/End")
+        task("/Delete", "/F").orFail()
+        file.delete()
+    }
+    override fun restart() {
+        task("/End")
+        task("/Run").orFail()
+    }
+    override fun state(): String {
+        val result = task("/Query", "/FO", "CSV", "/V")
+        if (result.code != 0) return "not installed"
+        val row = result.out.lineSequence().filter { it.isNotBlank() }.drop(1).firstOrNull() ?: return "unknown"
+        return Regex(""""((?:[^"]|"")*)"(?:,|$)""").findAll(row).map { it.groupValues[1].replace("\"\"", "\"") }.toList().getOrNull(3) ?: "unknown"
+    }
+    override fun bootHint() = "The Windows task starts when you log in; keep this user signed in for Computer use."
+
+    companion object { const val TASK = "Kinuvo\\Server" }
+}
+
+internal fun powershellQuote(value: String) = "'" + value.replace("'", "''") + "'"
+
 private class InstallService : CoreSuspendingCliktCommand("install") {
     private val host by option("--host", help = "Interface to listen on").default("127.0.0.1")
     private val port by option("--port").int().default(JvmServerHost.DEFAULT_PORT)
@@ -308,7 +369,7 @@ private class InstallService : CoreSuspendingCliktCommand("install") {
         ownerOnly(log)
         ownerOnly(File(home, "logs/service-output.log"))
         val env = listOfNotNull("PATH", "KINUVO_HOME", "LANG", "KINUVO_LOG_LEVEL", "KINUVO_PUBLIC_URL", "KINUVO_TRUSTED_PROXIES", "DISPLAY", "WAYLAND_DISPLAY", "XAUTHORITY", "XDG_RUNTIME_DIR", "DBUS_SESSION_BUS_ADDRESS").mapNotNull { k -> System.getenv(k)?.let { k to it } }.toMap()
-        val java = File(System.getProperty("java.home"), "bin/java").path
+        val java = File(System.getProperty("java.home"), if (currentPlatform == Platform.Windows) "bin/java.exe" else "bin/java").path
         val servicePid = Regex("""pid (\d+)""").find(manager.state())?.groupValues?.get(1)?.toLong()
         LocalServer.read(kinuvoHome())?.takeIf { it.alive && it.pid != servicePid && !force }?.let {
             throw CliktError("A Server is already running on ${home.path} (pid ${it.pid}); stop it first, or pass --force")
@@ -381,7 +442,8 @@ private class ServiceLogs : CoreSuspendingCliktCommand("logs") {
         val directory = File(kinuvoHome().toString(), "logs")
         val logs = listOf(File(directory, "server.log"), File(directory, "service-output.log")).filter { it.exists() }
         if (logs.isEmpty()) throw CliktError("No logs yet at $directory")
-        val args = listOf("tail", "-n", lines.toString()) + (if (follow) listOf("-F") else emptyList()) + logs.map { it.path }
+        val args = if (currentPlatform == Platform.Windows) listOf("powershell.exe", "-NoProfile", "-NonInteractive", "-Command",
+            "Get-Content -LiteralPath " + logs.joinToString(",", transform = { powershellQuote(it.path) }) + " -Tail $lines" + if (follow) " -Wait" else "") else listOf("tail", "-n", lines.toString()) + (if (follow) listOf("-F") else emptyList()) + logs.map { it.path }
         ProcessBuilder(args).inheritIO().start().waitFor()
     }
 }

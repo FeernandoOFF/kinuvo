@@ -372,20 +372,9 @@ internal class McpDriver(path: String) : Driver {
     private val client = Client(Implementation("kinuvo", "0.1"))
     private var connected = false
     private var parameters: Map<String, Set<String>> = emptyMap()
-    private var awake: Process? = null
-    private var awakeAt = 0L
+    private val keepAwake = KeepAwake()
 
-    override fun keepAwake(active: Boolean) {
-        if (!active) { awake?.destroy(); awake = null; return }
-        if (currentPlatform != Platform.MacOS) return
-        val now = System.nanoTime()
-        if (awake?.isAlive == true && now - awakeAt < 5_000_000_000L) return
-        val next = ProcessBuilder("/usr/bin/caffeinate", "-diu", "-t", "15")
-            .redirectOutput(ProcessBuilder.Redirect.DISCARD).redirectError(ProcessBuilder.Redirect.DISCARD).start()
-        awake?.destroy()
-        awake = next
-        awakeAt = now
-    }
+    override fun keepAwake(active: Boolean) = keepAwake.update(active)
 
     private suspend fun connect() {
         if (!connected) {
