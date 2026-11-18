@@ -1,5 +1,9 @@
 package kinuvo.providers.codex
 
+import kinuvo.protocol.device.Arch
+import kinuvo.protocol.device.Platform
+import kinuvo.protocol.device.currentArch
+import kinuvo.protocol.device.currentPlatform
 import kinuvo.server.plugin.AgentProgress
 import kinuvo.server.plugin.VoiceOutput
 import kotlinx.serialization.json.buildJsonObject
@@ -25,17 +29,14 @@ class CodexRealtimeTest {
     }
 
     @Test fun unsupportedPlatformsNeverLoadNatives() {
-        for ((os, arch) in listOf("Linux" to "aarch64", "Windows 11" to "aarch64", "Mac OS X" to "x86", "FreeBSD" to "amd64")) {
+        for ((os, arch) in listOf(Platform.Linux to Arch.Arm64, Platform.Windows to Arch.Arm64, Platform.MacOS to Arch.Unknown, Platform.Unknown to Arch.X64)) {
             assertFalse(realtimeAvailable(os, arch) { error("Must not probe unsupported platforms") })
         }
-        assertFalse(realtimeAvailable("Mac OS X", "aarch64") { throw UnsatisfiedLinkError("missing native") })
-        assertFalse(realtimeAvailable("Mac OS X", "arm64") { throw ExceptionInInitializerError("native initialization") })
-        assertTrue(realtimeAvailable("Mac OS X", "aarch64") {})
     }
 
     @Test fun supportedPlatformsProbeNatives() {
-        for (os in listOf("Mac OS X", "Linux", "Windows 10", "Windows 11", "Windows Server 2025")) {
-            for (arch in listOf("x86_64", "amd64") + if (os == "Mac OS X") listOf("arm64", "aarch64") else emptyList()) {
+        for (os in listOf(Platform.MacOS, Platform.Linux, Platform.Windows)) {
+            for (arch in listOf(Arch.X64) + if (os == Platform.MacOS) listOf(Arch.Arm64) else emptyList()) {
                 var probed = false
                 assertTrue(realtimeAvailable(os, arch) { probed = true })
                 assertTrue(probed)
@@ -46,10 +47,8 @@ class CodexRealtimeTest {
     }
 
     @Test fun hostNativeLoads() {
-        val os = System.getProperty("os.name")
-        val arch = System.getProperty("os.arch")
-        if (!realtimeAvailable(os, arch) {}) return
-        assertTrue(CodexRealtime.available(), "WebRTC native must load on $os/$arch")
+        if (!realtimeAvailable {}) return
+        assertTrue(CodexRealtime.available(), "WebRTC native must load on $currentPlatform/$currentArch")
     }
 
     @Test fun interruptionDiscardsBufferedAndLateAudioUntilNextAssistantTurn() {

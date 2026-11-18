@@ -1,5 +1,7 @@
 package kinuvo.providers.apple
 
+import kinuvo.protocol.device.Platform
+import kinuvo.protocol.device.currentPlatform
 import kinuvo.protocol.capability.CapabilityState
 import ai.koog.prompt.Prompt
 import ai.koog.agents.core.tools.ToolDescriptor
@@ -12,7 +14,7 @@ import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.TimeUnit
 
 /** Only Apple's system CLI is used, including in launchd hosts with a minimal PATH. */
-fun fmProvider(): AppleProvider? = if (System.getProperty("os.name").startsWith("Mac") && File("/usr/bin/fm").canExecute())
+fun fmProvider(): AppleProvider? = if (currentPlatform == Platform.MacOS && File("/usr/bin/fm").canExecute())
     FmLanguageModel().let { AppleProvider(it, Dispatchers.IO, it::estimateTokens) } else null
 
 internal data class FmResult(val status: Int, val output: String, val error: String = "")

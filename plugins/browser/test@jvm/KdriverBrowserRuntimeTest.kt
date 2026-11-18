@@ -1,5 +1,7 @@
 package kinuvo.plugins.browser
 
+import kinuvo.protocol.device.Platform
+import kinuvo.protocol.device.currentPlatform
 import kinuvo.testing.harness.TemporaryDirectories
 import com.sun.net.httpserver.HttpServer
 import java.net.InetSocketAddress
@@ -97,7 +99,7 @@ class KdriverBrowserRuntimeTest {
             runtime.controlChanged(owner, tab)
             suspend fun input(action: BrowserAction, text: String) = runtime.userCommand(BrowserCommand(owner, action, tab, text = text))!!
             assertEquals("Hello 👋", input(BrowserAction.Type, "Hello 👋").tab.title)
-            input(BrowserAction.Key, if (System.getProperty("os.name").contains("Mac")) "Meta+A" else "Control+A")
+            input(BrowserAction.Key, if (currentPlatform == Platform.MacOS) "Meta+A" else "Control+A")
             assertEquals("日本語", input(BrowserAction.Type, "日本語").tab.title)
             assertEquals("日本", input(BrowserAction.Key, "Backspace").tab.title)
             input(BrowserAction.Key, "Home")
@@ -110,7 +112,7 @@ class KdriverBrowserRuntimeTest {
             assertEquals(600, sample.height)
             runtime.userCommand(BrowserCommand(owner, BrowserAction.Click, tab, x = 300, y = 500))
             assertFailsWith<IllegalStateException> { runtime.userCommand(BrowserCommand(owner, BrowserAction.Click, tab, x = 500, y = 500)) }
-            val hasDisplay = !System.getProperty("os.name").contains("Linux") || !System.getenv("DISPLAY").isNullOrBlank()
+            val hasDisplay = currentPlatform != Platform.Linux || !System.getenv("DISPLAY").isNullOrBlank()
             if (hasDisplay) {
                 val visible = runtime.presentation(BrowserPresentationRequest(owner, headless = false, hidden = false))
                 assertEquals(false, visible.runningHeadless)

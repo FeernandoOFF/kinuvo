@@ -1,5 +1,9 @@
 package kinuvo.plugins.voice
 
+import kinuvo.protocol.device.Arch
+import kinuvo.protocol.device.Platform
+import kinuvo.protocol.device.currentArch
+import kinuvo.protocol.device.currentPlatform
 import kotlinx.coroutines.*
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
@@ -12,11 +16,11 @@ import java.util.jar.JarFile
 @OptIn(InternalCoroutinesApi::class)
 class Inference(private val executable: File) {
     val unavailableReason: String? get() {
-        val os = System.getProperty("os.name")
-        val arch = System.getProperty("os.arch")
-        val x64 = arch in setOf("amd64", "x86_64")
-        val platform = os.startsWith("Mac") && (x64 || arch in setOf("arm64", "aarch64")) ||
-            (os.startsWith("Linux") || os.startsWith("Windows")) && x64
+        val os = currentPlatform
+        val arch = currentArch
+        val x64 = arch == Arch.X64
+        val platform = os == Platform.MacOS && (x64 || arch == Arch.Arm64) ||
+            (os == Platform.Linux || os == Platform.Windows) && x64
         return when {
             !platform -> "Downloaded voice isn't available on this Server's platform. Linux arm64 is unsupported."
             !executable.isFile || !executable.canExecute() -> "Voice worker missing from this Server build."
@@ -54,8 +58,8 @@ class Inference(private val executable: File) {
     }
     companion object {
         fun bundled(): File {
-            val worker = if (System.getProperty("os.name").startsWith("Mac")) "MacOS/KinuvoVoiceInference"
-                else if (System.getProperty("os.name").startsWith("Windows")) "windows-x64/KinuvoVoiceInference.exe"
+            val worker = if (currentPlatform == Platform.MacOS) "MacOS/KinuvoVoiceInference"
+                else if (currentPlatform == Platform.Windows) "windows-x64/KinuvoVoiceInference.exe"
                 else "linux-x64/KinuvoVoiceInference"
             System.getenv("KINUVO_VOICE_WORKER")?.let { return File(it) }
             val archive = File(System.getProperty("java.class.path", ""))

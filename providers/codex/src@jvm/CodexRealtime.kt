@@ -1,5 +1,9 @@
 package kinuvo.providers.codex
 
+import kinuvo.protocol.device.Arch
+import kinuvo.protocol.device.Platform
+import kinuvo.protocol.device.currentArch
+import kinuvo.protocol.device.currentPlatform
 import kinuvo.server.plugin.AgentProgress
 import dev.onvoid.webrtc.PeerConnectionFactory
 import dev.onvoid.webrtc.media.audio.AudioTrackSource
@@ -372,13 +376,13 @@ internal fun recoverableRealtimeError(error: JsonObject): Boolean =
 internal const val UNSUPPORTED_PLATFORM = "Live voice isn't available on this Server's platform."
 
 internal fun realtimeAvailable(
-    os: String = System.getProperty("os.name"),
-    arch: String = System.getProperty("os.arch"),
+    os: Platform = currentPlatform,
+    arch: Arch = currentArch,
     probe: () -> Unit,
 ): Boolean {
     val supported = when {
-        os == "Mac OS X" -> arch in setOf("aarch64", "arm64", "x86_64", "amd64")
-        os == "Linux" || os.startsWith("Windows ") -> arch in setOf("x86_64", "amd64")
+        os == Platform.MacOS -> arch in setOf(Arch.Arm64, Arch.X64)
+        os == Platform.Linux || os == Platform.Windows -> arch == Arch.X64
         else -> false
     }
     if (!supported) return false

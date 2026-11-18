@@ -1,5 +1,6 @@
 package kinuvo.server.jvm
 
+import kinuvo.protocol.device.currentArch
 import kinuvo.harness.AgentConfig
 import kinuvo.server.plugin.ServerPlugin
 import kinuvo.server.plugin.SecretProvider
@@ -19,7 +20,7 @@ import kinuvo.server.providers.ModelProviders
 
 class JvmAgentRuntime private constructor(home: Path, installed: Installed, modelFactory: ((AgentConfig) -> AgentModel)?) : AgentRuntime(
     installed.dependencies, { NativeExecutionFactory(it, installed.sources, modelFactory) },
-    platformDescription = "${currentPlatform.displayName} ${System.getProperty("os.arch")}",
+    platformDescription = "${currentPlatform.displayName} ${currentArch.displayName}",
     unmanagedModels = modelFactory != null,
 ) {
     val files = AgentFiles(home)

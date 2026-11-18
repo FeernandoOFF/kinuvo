@@ -1,5 +1,9 @@
 package kinuvo.tailcat
 
+import kinuvo.protocol.device.Arch
+import kinuvo.protocol.device.Platform
+import kinuvo.protocol.device.currentArch
+import kinuvo.protocol.device.currentPlatform
 import java.io.File
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
@@ -36,18 +40,16 @@ private fun load(): (String, String) -> String {
 internal actual fun onShutdown(action: () -> Unit) { Runtime.getRuntime().addShutdownHook(Thread(action)) }
 
 private fun library(): File {
-    val os = System.getProperty("os.name")
-    val arch = System.getProperty("os.arch")
-    val cpu = when (arch) {
-        "aarch64", "arm64" -> "arm64"
-        "amd64", "x86_64" -> "x64"
-        else -> null
+    val cpu = when (currentArch) {
+        Arch.Arm64 -> "arm64"
+        Arch.X64 -> "x64"
+        Arch.Unknown -> null
     }
     val (platform, name) = when {
-        cpu != null && os.startsWith("Mac") -> "macos-$cpu" to "libKinuvoTailcat.dylib"
-        cpu != null && os == "Linux" -> "linux-$cpu" to "libKinuvoTailcat.so"
-        cpu == "x64" && os.startsWith("Windows") -> "windows-x64" to "KinuvoTailcat.dll"
-        else -> error("Tailcat is unavailable on $os ($arch)")
+        cpu != null && currentPlatform == Platform.MacOS -> "macos-$cpu" to "libKinuvoTailcat.dylib"
+        cpu != null && currentPlatform == Platform.Linux -> "linux-$cpu" to "libKinuvoTailcat.so"
+        cpu == "x64" && currentPlatform == Platform.Windows -> "windows-x64" to "KinuvoTailcat.dll"
+        else -> error("Tailcat is unavailable on ${currentPlatform.displayName} (${currentArch.displayName})")
     }
     val root = generateSequence(File(".").canonicalFile) { it.parentFile }.firstOrNull { File(it, "project.yaml").isFile }
     val jar = runCatching { File(Tailcat::class.java.protectionDomain.codeSource.location.toURI()).parentFile }.getOrNull()

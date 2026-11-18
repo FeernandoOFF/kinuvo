@@ -1,5 +1,7 @@
 package kinuvo.server.jvm
 
+import kinuvo.protocol.device.Platform
+import kinuvo.protocol.device.currentPlatform
 import io.github.oshai.kotlinlogging.KotlinLogging
 import java.lang.foreign.Arena
 import java.lang.foreign.FunctionDescriptor
@@ -68,6 +70,6 @@ class ProcessActivity(private val reason: String) {
     }
 
     private companion object {
-        val macOS = System.getProperty("os.name").orEmpty().startsWith("Mac")
+        val macOS = currentPlatform == Platform.MacOS
     }
 }

@@ -1,5 +1,7 @@
 package kinuvo.server.jvm
 
+import kinuvo.protocol.device.Platform
+import kinuvo.protocol.device.currentPlatform
 import kotlin.test.Test
 import kotlin.test.assertEquals
 
@@ -7,7 +9,7 @@ class ProcessActivityTest {
     @Test fun holdsTheActivityUntilEveryHolderReleasesIt() {
         val reason = "Testing process activity ${ProcessHandle.current().pid()}"
         val activity = ProcessActivity(reason)
-        val macOS = System.getProperty("os.name").startsWith("Mac")
+        val macOS = currentPlatform == Platform.MacOS
         fun held() = ProcessBuilder("pmset", "-g", "assertions").start().inputStream.bufferedReader().readText().contains(reason)
         repeat(2) {
             val first = activity.hold()

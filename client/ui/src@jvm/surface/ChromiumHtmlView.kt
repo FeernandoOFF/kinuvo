@@ -1,5 +1,7 @@
 package kinuvo.ui.surface
 
+import kinuvo.protocol.device.Platform
+import kinuvo.protocol.device.currentPlatform
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.toComposeImageBitmap
 import kinuvo.protocol.browser.findChromium
@@ -89,7 +91,7 @@ internal fun chromiumCommand(command: JsonObject): CdpCommand {
 }
 
 internal class ChromiumHtmlView(executable: String = findChromium() ?: error(
-    if (System.getProperty("os.name").startsWith("Windows")) "HTML Surfaces need Microsoft Edge or Google Chrome."
+    if (currentPlatform == Platform.Windows) "HTML Surfaces need Microsoft Edge or Google Chrome."
     else "HTML Surfaces need Chromium or Google Chrome (e.g. sudo apt install chromium)."
 )) : HtmlHost {
     private val profile = Files.createTempDirectory("kinuvo-html-").toFile()
