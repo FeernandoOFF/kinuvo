@@ -21,6 +21,9 @@ internal class UriParts(val scheme: String?, val host: String?, val port: Int, v
 
 internal expect fun parseUri(value: String): UriParts
 
+/** The WebSocket frame limit before sign-in; the listener still caps unauthenticated frames at [preauth]. */
+internal expect fun preauthTransportFrameSize(preauth: Long, session: Long): Long
+
 internal expect fun secureRandomBytes(count: Int): ByteArray
 
 /** Serves the bundled web app, where the platform bundles one. */

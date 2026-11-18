@@ -74,7 +74,7 @@ class NetworkListener(private val runtime: ServerRuntime, private val auth: Devi
 
     private fun listen(host: String, port: Int): EmbeddedServer<*, *> {
         val server = embeddedServer(CIO, port = port, host = host) {
-            install(WebSockets) { pingPeriodMillis = 15_000; maxFrameSize = PREAUTH_FRAME_SIZE }
+            install(WebSockets) { pingPeriodMillis = 15_000; maxFrameSize = preauthTransportFrameSize(PREAUTH_FRAME_SIZE, SESSION_FRAME_SIZE) }
             routing {
                 for (rotate in listOf(false, true)) post(if (rotate) "/auth/rotate" else "/auth/session") {
                     call.response.header("Cache-Control", "no-store")
@@ -162,7 +162,7 @@ private fun WebSocketSession.connection(credential: String?, authenticate: (Fram
     override suspend fun send(frame: Frame) {
         val outgoing = if (frame is Frame.Response && !authenticated && frame.ok) {
             authenticated = true
-            this@connection.maxFrameSize = 15 * 1024 * 1024L
+            this@connection.maxFrameSize = SESSION_FRAME_SIZE
             if (credential != null) frame.copy(payload = ProtocolJson.encodeToJsonElement(ConnectResult.serializer(),
                 ProtocolJson.decodeFromJsonElement(ConnectResult.serializer(), frame.payload).copy(token = "browser-session"))) else frame
         } else frame
@@ -172,6 +172,7 @@ private fun WebSocketSession.connection(credential: String?, authenticate: (Fram
 }
 
 private const val PREAUTH_FRAME_SIZE = 4096L
+private const val SESSION_FRAME_SIZE = 15 * 1024 * 1024L
 private const val SESSION_COOKIE = "__Host-kinuvo-session"
 
 

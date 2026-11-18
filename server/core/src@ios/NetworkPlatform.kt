@@ -51,3 +51,6 @@ internal actual fun secureRandomBytes(count: Int): ByteArray = ByteArray(count).
 }
 
 internal actual fun Route.webApp() {}
+
+// Ktor/Native reads the next frame with the limit captured before sign-in, so raising it later is too late.
+internal actual fun preauthTransportFrameSize(preauth: Long, session: Long) = session

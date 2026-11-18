@@ -40,3 +40,5 @@ internal actual fun Route.webApp() {
         } }
     }
 }
+
+internal actual fun preauthTransportFrameSize(preauth: Long, session: Long) = preauth
