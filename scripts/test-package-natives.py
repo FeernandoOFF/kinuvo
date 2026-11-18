@@ -50,6 +50,7 @@ class PackageNativesTest(unittest.TestCase):
             with zipfile.ZipFile(path, 'w') as jar:
                 jar.writestr('BOOT-INF/classes/natives/macos-arm64/libKinuvoTailcat.dylib', b'mac')
                 jar.writestr('BOOT-INF/classes/natives/linux-x64/libKinuvoTailcat.so', b'linux')
+                jar.writestr('BOOT-INF/classes/natives/windows-x64/KinuvoTailcat.dll', b'windows')
                 jar.writestr('BOOT-INF/classes/natives/LICENSE.tailcat', b'license')
             natives.package(path, 'linux', 'x64')
             with zipfile.ZipFile(path) as jar:
