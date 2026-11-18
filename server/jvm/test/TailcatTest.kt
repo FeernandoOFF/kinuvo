@@ -1,5 +1,6 @@
 package kinuvo.server.jvm
 
+import kotlinx.io.files.Path
 import kinuvo.server.plugin.TailcatInvite
 import kinuvo.server.plugin.TailcatTunnel
 import kinuvo.protocol.device.PairingCode
@@ -11,7 +12,6 @@ import kinuvo.testing.server.TestServer
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
 import kotlinx.serialization.json.Json
-import java.io.File
 import java.net.URI
 import java.net.http.HttpClient
 import java.net.http.HttpRequest
@@ -46,7 +46,7 @@ class TailcatTest {
 
     private fun withAuth(block: (DeviceAuth) -> Unit) {
         val dir = Files.createTempDirectory("tailcat-test").toFile()
-        try { block(DeviceAuth(File(dir, "devices.json"))) } finally { dir.deleteRecursively() }
+        try { block(DeviceAuth(Path(dir.path, "devices.json"))) } finally { dir.deleteRecursively() }
     }
 
     @Test

@@ -1,5 +1,6 @@
 package kinuvo.server.jvm
 
+import kotlinx.io.files.Path
 import kinuvo.testing.harness.TemporaryDirectories
 import java.nio.file.Files
 import java.nio.file.attribute.PosixFilePermissions
@@ -17,7 +18,7 @@ class DeviceAuthSecurityTest {
 
     private var time = Instant.parse("2026-10-10T00:00:00Z")
     private val file = temporaryDirectories.create("device-auth-security").resolve("devices.json").toFile()
-    private val auth = DeviceAuth(file) { time }
+    private val auth = DeviceAuth(Path(file.path)) { time }
 
     @Test fun storedDevicesRequireIdentityAccessAndExpiry() {
         file.writeText("""{"devices":[{"name":"incomplete","tokenSha256":"hash","pairedAt":"2026-01-01T00:00:00Z"}]}""")
@@ -69,7 +70,7 @@ class DeviceAuthSecurityTest {
     fun cookieCredentialsSurviveRestartAndExpireWithTheDevice() {
         val token = assertNotNull(auth.authenticate("owner", null, auth.currentPairingCode()))
         assertEquals(90.days.inWholeSeconds.toInt(), auth.cookieMaxAge(token))
-        val restarted = DeviceAuth(file) { time }
+        val restarted = DeviceAuth(Path(file.path)) { time }
         assertTrue(restarted.valid(token))
         assertEquals(auth.cookieMaxAge(token), restarted.cookieMaxAge(token))
         assertNull(auth.cookieMaxAge(auth.sessionToken()))

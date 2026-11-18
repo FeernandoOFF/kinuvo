@@ -37,11 +37,15 @@ Next: [set up your first Agent](first-agent.md).
 ## Pair from any network
 
 On macOS, start your Server with `kinuvo serve --tailcat` (or turn on **Any network**
-in the desktop or Android app), then run `kinuvo pair` to show its additional
-private-tunnel link and QR code. Scan it, or paste the link into the Kinuvo app's
+in the desktop, Android or iPhone app), then run `kinuvo pair` to show its additional
+private-tunnel link and QR code; in the apps, use **Add a device**. Scan it, or paste the link into the Kinuvo app's
 Server address field, then choose Pair. One scan pairs the tunnel and the Device;
 there is no code to type.
 Desktop, Android and iOS clients support it; web clients do not yet.
+
+An iPhone shares its own Server only while Kinuvo is open on it: when the app goes
+to the background, iOS pauses the tunnel and other Devices reconnect once you open
+Kinuvo again. Android keeps sharing in the background.
 
 Keep the link private for the few minutes it is valid: it admits one Device. The
 tunnel's secret address stays in your Device's secure storage. Revoking a Device

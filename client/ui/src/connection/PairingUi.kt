@@ -176,7 +176,8 @@ internal fun ConnectionSettingsPane(p: Pane) {
             }
             if (tailcat != null) {
                 val starting = tailcat == SharingState.Starting
-                GroupRow("Any network", subtitle = "Devices connect from anywhere through Tailcat, with no account or VPN. Pair them from Add a device.", icon = Lucide.Globe, chevron = false) {
+                GroupRow("Any network", subtitle = "Devices connect from anywhere through Tailcat, with no account or VPN. Pair them from Add a device." +
+                    if (p.ui.sharesInBackground) "" else " They reach this Server only while Kinuvo is open here.", icon = Lucide.Globe, chevron = false) {
                     if (starting) Spinner()
                     ToggleSwitch(tailcat == SharingState.On || starting, p.actions.onShareTailcat, enabled = !starting)
                 }

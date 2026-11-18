@@ -45,7 +45,6 @@ import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
 import kotlinx.io.files.Path
-import java.io.File
 
 /**
  * The real [ServerRuntime] on a temporary home, with a [ModelScript] for a model and no platform plugins. Clients reach it
@@ -167,7 +166,7 @@ class TestServer private constructor(
             val recovery = MemoryExecutionRecovery()
             try {
                 Scenario(harness, directory, registry, recovery).scenario()
-                val auth = DeviceAuth(File(directory.toString(), "server-devices.json"))
+                val auth = DeviceAuth(Path(directory, "server-devices.json"))
                 val links = RemoteLinks()
                 val runtime = ServerRuntime(harness, auth, serverRoutes(), "Test Server", remoteLinks = links, remoteHarness = { RemoteExecutionFactory(links::link, harness.serverId, it) }, executionRegistry = registry, executionStorage = recovery,
                     executionFactory = executionFactory?.invoke(harness) ?: harnesses.takeIf { it.isNotEmpty() }?.let(::FakeHarnesses))

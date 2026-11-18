@@ -67,7 +67,7 @@ fun SettingsScreen(
     val show = { r: Route.Settings -> edits?.saved(); onNavigate(r, false) }
     SettingsContent(
         SettingsUi(state, appState.agents, now, appState.capabilities, (appState.connection as? Connection.Ready)?.server, appState.pairing, appState.pairingBase, appState.pairingError, appState.devices, (appState.connection as? Connection.Ready)?.client?.lastConnect?.management == true, appState.servers, appState.sharing,
-            (appState.connection as? Connection.Ready)?.let { serverLabel(it) } ?: "this Server", sharingOptions = appState.sharingOptions),
+            (appState.connection as? Connection.Ready)?.let { serverLabel(it) } ?: "this Server", sharingOptions = appState.sharingOptions, sharesInBackground = appState.sharesInBackground),
         SettingsActions(
             onBack = onBack,
             onRenameServer = app::rename,
@@ -157,6 +157,8 @@ data class SettingsUi(val state: SettingsState, val agents: List<AgentInfo> = em
     /** The selected Server's machine, as labels name it: its name, or "this device" when embedded here. */
     val serverName: String = "this Server",
     val sharingOptions: Map<SharingOption, SharingState> = emptyMap(),
+    /** Whether other Devices still reach this embedded Server while the app is in the background. */
+    val sharesInBackground: Boolean = true,
 ) {
     fun available(section: SettingsSection) = capabilities.allows(section) && (section != SettingsSection.Harnesses || state.harnesses.catalog != null)
     val route get() = state.route
