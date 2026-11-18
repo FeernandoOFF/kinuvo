@@ -1,26 +1,26 @@
 {
-  "stamp": "93ed42b03cdc4cac2219ebf9ca3e58f5f7300afd98db51bd6b715e81e64b68c2",
-  "tag": "libs-tailcat-93ed42b03cdc",
+  "stamp": "9aaae85cf0a48cfdab93849393283849e52a56827aa5f831bfcab053ee425168",
+  "tag": "libs-tailcat-9aaae85cf0a4",
   "files": [
     {
       "path": "KinuvoTailcat.xcframework",
-      "url": "https://github.com/FeernandoOFF/kinuvo/releases/download/libs-tailcat-93ed42b03cdc/KinuvoTailcat.xcframework.zip",
-      "sha256": "a27783447d4078b75ab1431d653cec9493196f9e2d46256a348cfbe434ff3085"
+      "url": "https://github.com/FeernandoOFF/kinuvo/releases/download/libs-tailcat-9aaae85cf0a4/KinuvoTailcat.xcframework.zip",
+      "sha256": "93028a64e4398285f1a9a92d6907d4eb8c6e198c632bb73281778b7a1bb462bb"
     },
     {
       "path": "android-arm64-v8a/libKinuvoTailcat.so",
-      "url": "https://github.com/FeernandoOFF/kinuvo/releases/download/libs-tailcat-93ed42b03cdc/android-arm64-v8a-libKinuvoTailcat.so",
-      "sha256": "db9903ca3f462ee14159d08ad100dea2442d4949b94d327dc3395fe7adeba961"
+      "url": "https://github.com/FeernandoOFF/kinuvo/releases/download/libs-tailcat-9aaae85cf0a4/android-arm64-v8a-libKinuvoTailcat.so",
+      "sha256": "9581198b89a120ccda11edf9bf1a7a3cc0851bee2e0fc7a4472011259ec1a53c"
     },
     {
       "path": "android-x86_64/libKinuvoTailcat.so",
-      "url": "https://github.com/FeernandoOFF/kinuvo/releases/download/libs-tailcat-93ed42b03cdc/android-x86_64-libKinuvoTailcat.so",
-      "sha256": "39272c392a32998362adad12f6798eecec3f3cb7d8df9ee3c28e64f61091d251"
+      "url": "https://github.com/FeernandoOFF/kinuvo/releases/download/libs-tailcat-9aaae85cf0a4/android-x86_64-libKinuvoTailcat.so",
+      "sha256": "c6f19d768c4304abcb166906785143c76ec02089cc18dd04cba0c34a364bee85"
     },
     {
       "path": "macos-arm64/libKinuvoTailcat.dylib",
-      "url": "https://github.com/FeernandoOFF/kinuvo/releases/download/libs-tailcat-93ed42b03cdc/macos-arm64-libKinuvoTailcat.dylib",
-      "sha256": "134cf2960af03b95cb4dce02141697c86873d64790ade9fa4d300abb5cc1d377"
+      "url": "https://github.com/FeernandoOFF/kinuvo/releases/download/libs-tailcat-9aaae85cf0a4/macos-arm64-libKinuvoTailcat.dylib",
+      "sha256": "09800de547cda077bd7b1a0605c6edb5f339bdeae3a8c3caa80f3233cc2ecd13"
     }
   ]
 }
