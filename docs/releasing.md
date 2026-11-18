@@ -97,7 +97,9 @@ and sherpa libraries. First model setup downloads pinned upstream artifacts thro
 under `<Server home>/engines/<engine-version-platform>` (`KINUVO_HOME` is respected
 through the Server's home). Setup needs internet access and adds download latency;
 subsequent uses work offline. Android and iOS packaging are unchanged. Building the
-voice worker still fetches the pinned SDK for its C header, but ships no SDK dylibs.
+voice worker fetches only its pinned C header. Packaged macOS, Linux x64 and
+Windows x64 Servers include the worker; Linux arm64 does not support downloaded
+voice. The universal release jar includes all three platform workers.
 
 The macOS worker uses `dlopen` with an absolute verified-store path, checks every
 required inference symbol, and does not depend on `DYLD_*` environment variables.

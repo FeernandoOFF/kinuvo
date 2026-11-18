@@ -11,10 +11,22 @@ import java.util.jar.JarFile
 
 @OptIn(InternalCoroutinesApi::class)
 class Inference(private val executable: File) {
-    val supported get() = System.getProperty("os.name").startsWith("Mac") && executable.canExecute()
+    val unavailableReason: String? get() {
+        val os = System.getProperty("os.name")
+        val arch = System.getProperty("os.arch")
+        val x64 = arch in setOf("amd64", "x86_64")
+        val platform = os.startsWith("Mac") && (x64 || arch in setOf("arm64", "aarch64")) ||
+            (os.startsWith("Linux") || os.startsWith("Windows")) && x64
+        return when {
+            !platform -> "Downloaded voice isn't available on this Server's platform. Linux arm64 is unsupported."
+            !executable.isFile || !executable.canExecute() -> "Voice worker missing from this Server build."
+            else -> null
+        }
+    }
+    val supported get() = unavailableReason == null
     private val slots = Semaphore(1)
     suspend fun run(operation: String, directory: File, language: String, variant: String, input: ByteArray, libraries: File? = null): ByteArray {
-        check(supported) { "Downloaded voice inference requires the packaged macOS Server worker" }
+        check(supported) { unavailableReason ?: "Voice inference unavailable" }
         return slots.withPermit { withTimeout(120_000) { withContext(Dispatchers.IO) {
             val args = mutableListOf(executable.path)
             libraries?.let { args += it.absolutePath }
@@ -42,25 +54,28 @@ class Inference(private val executable: File) {
     }
     companion object {
         fun bundled(): File {
+            val worker = if (System.getProperty("os.name").startsWith("Mac")) "MacOS/KinuvoVoiceInference"
+                else if (System.getProperty("os.name").startsWith("Windows")) "windows-x64/KinuvoVoiceInference.exe"
+                else "linux-x64/KinuvoVoiceInference"
             System.getenv("KINUVO_VOICE_WORKER")?.let { return File(it) }
             val archive = File(System.getProperty("java.class.path", ""))
             if (archive.isFile && archive.extension == "jar") {
                 JarFile(archive).use { jar ->
-                    if (jar.getJarEntry("server-voice/MacOS/KinuvoVoiceInference") != null) {
+                    if (jar.getJarEntry("server-voice/$worker") != null) {
                         val root = Files.createTempDirectory("kinuvo-voice-").toFile()
                         Runtime.getRuntime().addShutdownHook(Thread { root.deleteRecursively() })
                         jar.entries().asSequence().filter { !it.isDirectory && it.name.startsWith("server-voice/") }.forEach { entry ->
                             val file = File(root, entry.name.removePrefix("server-voice/")); file.parentFile.mkdirs()
                             jar.getInputStream(entry).use { input -> file.outputStream().use { input.copyTo(it) } }
                         }
-                        return File(root, "MacOS/KinuvoVoiceInference").apply { setExecutable(true, true) }
+                        return File(root, worker).apply { setExecutable(true, true) }
                     }
                 }
             }
             val resources = System.getProperty("compose.application.resources.dir")
-            if (resources != null) return File(resources, "voice-worker/MacOS/KinuvoVoiceInference")
+            if (resources != null) return File(resources, "voice-worker/$worker")
             val root = generateSequence(File(".").canonicalFile) { it.parentFile }.firstOrNull { File(it, "project.yaml").isFile }
-            return File(root ?: File("."), "build/voice-worker/MacOS/KinuvoVoiceInference")
+            return File(root ?: File("."), "build/voice-worker/$worker")
         }
         fun pcmToFloat(bytes: ByteArray): ByteArray {
             require(bytes.isNotEmpty() && bytes.size <= 960000 && bytes.size % 2 == 0) { "Expected at most 30 seconds of 16 kHz mono PCM16" }

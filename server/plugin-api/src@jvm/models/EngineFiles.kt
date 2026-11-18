@@ -42,17 +42,32 @@ fun liteRtEngine(home: File): EngineFiles {
     })
 }
 
-fun voiceEngine(home: File) = EngineFiles(home, ModelDownload("sherpa-onnx-1.13.8-macos-universal2", listOf(ModelFile("engine.tar.bz2",
-    "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-v1.13.8-osx-universal2-shared-lib.tar.bz2",
-    18819320, "c1cca5b4a1867543e27d42fbea513983e73f629d0aa53b43b51555a71d2108d9")),
-    mapOf("libsherpa-onnx-c-api.dylib" to 8743968L, "libonnxruntime.dylib" to 61117136L)) { staging ->
-    val archive = File(staging, "engine.tar.bz2")
-    // Extract only known regular files from the hash-pinned archive, never archive paths or links.
-    for (name in listOf("libsherpa-onnx-c-api.dylib", "libonnxruntime.dylib")) {
-        val process = ProcessBuilder("/usr/bin/tar", "-xOjf", archive.path,
-            "sherpa-onnx-v1.13.8-osx-universal2-shared-lib/lib/$name").redirectOutput(File(staging, name)).start()
-        try { runInterruptible { check(process.waitFor() == 0) { "Cannot extract voice engine" } } }
-        finally { if (process.isAlive) process.destroyForcibly() }
+fun voiceEngine(home: File): EngineFiles {
+    val os = System.getProperty("os.name")
+    val platform = when {
+        os.startsWith("Linux") -> "linux-x64-shared-lib"
+        os.startsWith("Windows") -> "win-x64-shared-MT-Release-lib"
+        else -> "osx-universal2-shared-lib"
     }
-    archive.delete()
-})
+    val (size, hash, libraries) = when {
+        os.startsWith("Linux") -> Triple(9816899L, "3892d184be41027e18165e67f549cd4e4cdd8dcd73ac5579e97afd55e14e30b6",
+            mapOf("libsherpa-onnx-c-api.so" to 5124192L, "libonnxruntime.so" to 27026609L))
+        os.startsWith("Windows") -> Triple(8032957L, "b8eedf41bd6d3779218887b48367bb7a3ece5aaa7667f01f69ee823a12b0a9e7",
+            mapOf("sherpa-onnx-c-api.dll" to 4605952L, "onnxruntime.dll" to 17799168L, "onnxruntime_providers_shared.dll" to 104960L))
+        else -> Triple(18819320L, "c1cca5b4a1867543e27d42fbea513983e73f629d0aa53b43b51555a71d2108d9",
+            mapOf("libsherpa-onnx-c-api.dylib" to 8743968L, "libonnxruntime.dylib" to 61117136L))
+    }
+    val name = "sherpa-onnx-v1.13.8-$platform"
+    val id = if (os.startsWith("Mac")) "sherpa-onnx-1.13.8-macos-universal2" else "sherpa-onnx-1.13.8-$platform"
+    return EngineFiles(home, ModelDownload(id, listOf(ModelFile("engine.tar.bz2",
+        "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/$name.tar.bz2", size, hash)), libraries) { staging ->
+        val archive = File(staging, "engine.tar.bz2")
+        for (library in libraries.keys) {
+            val process = ProcessBuilder("tar", "-xOjf", archive.path, "$name/lib/$library")
+                .redirectOutput(File(staging, library)).start()
+            try { runInterruptible { check(process.waitFor() == 0) { "Cannot extract voice engine" } } }
+            finally { if (process.isAlive) process.destroyForcibly() }
+        }
+        archive.delete()
+    })
+}

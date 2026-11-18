@@ -96,7 +96,21 @@ package_jar() {
   cp "$tailcat" "$work/tailcat/BOOT-INF/classes/natives/macos-arm64/"
   cp libs/tailcat/LICENSE.tailcat libs/tailcat/LICENSE.tailpocket "$work/tailcat/BOOT-INF/classes/natives/"
   (cd "$work/tailcat" && "$java_home/bin/jar" uf "$dist/kinuvo.jar" BOOT-INF/classes)
+  if [ -n "${KINUVO_VOICE_WORKERS:-}" ]; then
+    (cd "$KINUVO_VOICE_WORKERS" && "$java_home/bin/jar" uf "$dist/kinuvo.jar" server-voice)
+  else
+    bundle_voice "$dist/kinuvo.jar"
+  fi
   allow_native_access "$dist/kinuvo.jar"
+}
+
+bundle_voice() {
+  if [ "$os" = macos ] || [ "$arch" = x64 ]; then
+    ./scripts/build-local-voice.sh
+    mkdir -p "$work/voice/server-voice"
+    cp -R build/voice-worker/. "$work/voice/server-voice/"
+    (cd "$work/voice" && "$java_home/bin/jar" uf "$1" server-voice)
+  fi
 }
 
 package_cli() {
@@ -108,6 +122,7 @@ package_cli() {
   local app=$work/kinuvo
   mkdir -p "$app/bin" "$app/lib"
   cp "$jar" "$app/lib/kinuvo.jar"
+  bundle_voice "$app/lib/kinuvo.jar"
   python3 scripts/package-natives.py "$app/lib/kinuvo.jar" "$os" "$arch"
   local tailcat
   tailcat=$(tailcat_library)
@@ -157,10 +172,13 @@ package_desktop() {
     cp "$tailcat" "$work/input/"
     cp libs/tailcat/LICENSE.tailcat libs/tailcat/LICENSE.tailpocket "$work/input/"
   fi
+  if [ "$os" = macos ] || [ "$arch" = x64 ]; then
+    ./scripts/build-local-voice.sh
+    cp -R build/voice-worker "$work/input/"
+  fi
   case $os in
     macos)
       ./scripts/build-mac-speech.sh >/dev/null
-      cp -R build/voice-worker "$work/input/"
       ./scripts/build-mac-web.sh >/dev/null
       ./scripts/build-mac-apple.sh >/dev/null
       cp build/libKinuvoWeb.dylib "$work/input/"

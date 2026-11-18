@@ -8,8 +8,8 @@ Tiny or Base for transcription and Supertonic 3 for spoken replies, then select
 each part independently. Downloads never change the selected model automatically.
 Settings, model files, language and download progress belong to the selected
 Server and are shared by its paired Devices. Model inference currently requires
-a macOS Server with the packaged native worker. Windows, Linux and mobile
-embedded Servers cannot run these downloaded models.
+a packaged Server on macOS (Apple silicon or Intel), Linux x64 or Windows x64.
+Linux arm64 and mobile embedded Servers cannot run these downloaded models.
 
 Models live in `<Server home>/server-voice/models`; selections live in
 `server-voice/settings.json`. Existing `device-voice` downloads and desktop
@@ -66,11 +66,11 @@ synthesis characters and 8 MiB output audio. Ordinary authenticated paired
 Devices may infer; only management Devices may inspect or change model storage
 and settings. Execution links have no voice access.
 
-On macOS, `mise run server` builds the native worker, and `package-server.sh`
+On macOS, `mise run server` builds the native worker. `package-server.sh`
 includes the worker and license notices inside the standalone
 Server jar. The installed Server extracts these to a temporary worker directory;
 it needs no microphone permission, desktop app bundle or developer Xcode tools.
-Building requires command line tools and pinned SDK downloads. Runtime libraries are not shipped: the first voice model download also fetches the pinned sherpa-onnx 1.13.8 macOS universal archive, verifies its SHA-256, and extracts ONNX Runtime and the sherpa C API into `<Server home>/engines/sherpa-onnx-1.13.8-macos-universal2`. Engine bytes are included in the existing model download progress and totals. The worker loads the C API by absolute path; its `@loader_path` resolves ONNX Runtime beside it. Existing selections fetch the engine on first inference if needed. Missing network access produces a download error; installed engines and models need no network. Engines remain cached after model removal. No model is
+Building requires command line tools and a pinned C header download. Runtime libraries are not shipped: the first voice model download also fetches the pinned sherpa-onnx 1.13.8 archive for the Server platform, verifies its SHA-256, and extracts ONNX Runtime and the sherpa C API into `<Server home>/engines/`. Engine bytes are included in the existing model download progress and totals. The worker loads the C API by absolute path; its dependencies resolve ONNX Runtime beside it. Existing selections fetch the engine on first inference if needed. Missing network access produces a download error; installed engines and models need no network. Engines remain cached after model removal. No model is
 included or downloaded automatically. `KINUVO_VOICE_WORKER` can explicitly select
 an alternate worker executable for development.
 
