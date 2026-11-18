@@ -51,7 +51,7 @@ internal fun EndpointContent(s: EndpointState, onEdit: (CustomEndpointParams) ->
                 subtitle = "${s.models.size} found")
             GroupBox {
                 if (s.manual) EndpointField("Model ID", p.model, "e.g. llama-3.1-8b") { onEdit(p.copy(model = it)) }
-                EndpointField("Name", p.id, "e.g. lmstudio", hint = "Shown as the provider in model lists.") { onEdit(p.copy(id = it)) }
+                EndpointField("Provider ID", p.id, "e.g. lmstudio", hint = "Lowercase letters, digits and hyphens. Names it in model lists.") { onEdit(p.copy(id = it)) }
                 s.error?.let { Text(it, style = TextStyles.secondary, color = color(destructiveColor)) }
                 Button(onClick = onSave, modifier = Modifier.fillMaxWidth(), enabled = s.saveable, style = ButtonStyle.Primary) {
                     Icon(Lucide.Plus, Modifier.size(15.dp))

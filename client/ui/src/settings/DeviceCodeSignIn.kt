@@ -9,6 +9,7 @@ import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.composables.icons.lucide.*
 import com.composables.ui.components.*
@@ -44,7 +45,7 @@ internal fun DeviceCodeSignIn(code: DeviceCode, expiry: String? = null) {
         Button(onClick = { copy(); runCatching { uri.openUri(code.url) } }, modifier = Modifier.fillMaxWidth(), style = ButtonStyle.Primary) {
             Icon(Lucide.ExternalLink, Modifier.size(15.dp))
             Spacer(Modifier.width(Spacing.space6))
-            Text("Copy code and open sign-in page", singleLine = true)
+            Text("Copy code and sign in", textAlign = TextAlign.Center)
         }
         expiry?.let { Text(it, style = TextStyles.caption, color = color(mutedColor)) }
     }

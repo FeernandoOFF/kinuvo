@@ -30,6 +30,7 @@ import androidx.compose.ui.use
 import com.composables.ui.theme.*
 import kinuvo.ui.design.color
 import kinuvo.ui.design.Spacing
+import kinuvo.ui.design.LocalForcedInteractionMode
 import kotlinx.coroutines.Dispatchers
 import org.jetbrains.skia.EncodedImageFormat
 import java.io.File
@@ -51,10 +52,8 @@ class PolishScreenshotTest {
         SessionInfo(SessionId("20261025-120000-finance"), AgentId("echo"), "Finance plans", favorite = true),
     )
 
-    @Composable private fun phone(content: @Composable () -> Unit) = KinuvoTheme(dark = true) {
-        CompositionLocalProvider(LocalInteractionMode provides InteractionMode.Touch) {
-            Box(Modifier.fillMaxSize().background(color(backgroundColor))) { content() }
-        }
+    @Composable private fun phone(content: @Composable () -> Unit) = CompositionLocalProvider(LocalForcedInteractionMode provides InteractionMode.Touch) {
+        KinuvoTheme(dark = true) { Box(Modifier.fillMaxSize().background(color(backgroundColor))) { content() } }
     }
 
     @Test fun render() {
