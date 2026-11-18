@@ -13,7 +13,7 @@ sha() {
 entries() { # prints "path<TAB>url<TAB>sha256" for each manifest file
     python3 -I -c 'import json, sys
 for f in json.load(open(sys.argv[1]))["files"]:
-    print("\t".join((f["path"], f["url"], f["sha256"])))' "$1"
+    print("\t".join((f["path"], f["url"], f["sha256"])))' "$1" | tr -d '\r'
 }
 
 up_to_date() { # dir path sha
