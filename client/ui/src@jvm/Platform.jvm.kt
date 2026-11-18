@@ -36,7 +36,11 @@ internal class LoopbackBrowser : OAuthBrowser {
 
     private fun browse(url: String) {
         if (runCatching { Desktop.getDesktop().browse(URI(url)) }.isSuccess) return
-        ProcessBuilder(if (currentPlatform == Platform.MacOS) listOf("open", url) else listOf("xdg-open", url)).start()
+        ProcessBuilder(when (currentPlatform) {
+            Platform.MacOS -> listOf("open", url)
+            Platform.Windows -> listOf("rundll32", "url.dll,FileProtocolHandler", url)
+            else -> listOf("xdg-open", url)
+        }).start()
     }
 }
 

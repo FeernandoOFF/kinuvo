@@ -20,6 +20,8 @@ import kinuvo.server.plugin.BrowserService
 import kinuvo.server.plugin.ScreenGate
 import kinuvo.server.plugin.ScreenSource
 import kinuvo.protocol.*
+import kinuvo.protocol.device.Platform
+import kinuvo.protocol.device.currentPlatform
 import kinuvo.protocol.browser.*
 import kinuvo.protocol.screen.*
 import kinuvo.protocol.agent.AgentId
@@ -82,10 +84,12 @@ class BrowserRuntime(private val home: File) : BrowserService {
         val directory = File(home, "kdriver-profiles/$agent").apply {
             mkdirs(); setReadable(false, false); setReadable(true, true); setWritable(false, false); setWritable(true, true); setExecutable(false, false); setExecutable(true, true)
         }
-        val executable = System.getenv("KINUVO_BROWSER_EXECUTABLE")?.let(::File)
-            ?: defaultBrowserSearchConfig().findChromeExecutable()?.let { File(it.toString()) }
-            ?: error("Set KINUVO_BROWSER_EXECUTABLE to a Chrome or Chromium executable")
-        require(executable.canExecute()) { "Browser executable is unavailable" }
+        val executable = findChromium(fallback = { defaultBrowserSearchConfig().findChromeExecutable()?.toString() })?.let(::File)
+            ?: error(when (currentPlatform) {
+                Platform.Windows -> "Install Microsoft Edge or Google Chrome, or set KINUVO_BROWSER_EXECUTABLE"
+                Platform.Linux -> "Install Chromium or Google Chrome (e.g. sudo apt install chromium), or set KINUVO_BROWSER_EXECUTABLE"
+                else -> "Install Google Chrome or Chromium, or set KINUVO_BROWSER_EXECUTABLE"
+            })
         val presentation = presentations[agent] ?: BrowserPresentation()
         var failure: Exception? = null
         repeat(BROWSER_START_ATTEMPTS) {
