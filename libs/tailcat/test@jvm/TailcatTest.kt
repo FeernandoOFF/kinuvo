@@ -17,6 +17,14 @@ import java.net.SocketTimeoutException
 import java.nio.file.Files
 import kotlin.test.*
 
+class TailcatAbiTest {
+    @Test
+    fun nativeLibraryAcceptsCalls() {
+        if (System.getenv("KINUVO_TAILCAT_CHECK_ABI") != "1") return
+        assertEquals("""{"error":"unknown method"}""", nativeCall()("invalid", "{}"))
+    }
+}
+
 class TailcatTest {
     @Test
     fun nativeBinding() = runBlocking {

@@ -64,6 +64,24 @@ jobs:
           bash -n scripts/package.sh scripts/notarize-macos.sh scripts/libs.sh
           libs/tailcat/stamp.sh check
 
+  tailcat-abi:
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        runner: [ubuntu-24.04, ubuntu-24.04-arm, windows-2025]
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: ./.github/actions/fetch-libs
+      - name: Load the published Tailcat library through FFM
+        shell: bash
+        env:
+          KINUVO_TAILCAT_CHECK_ABI: '1'
+        run: ./kotlin test -m tailcat -p jvm --include-classes=kinuvo.tailcat.TailcatAbiTest
+
   tests:
     needs: changes
     if: needs.changes.outputs.code == 'true'
