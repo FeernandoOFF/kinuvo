@@ -24,6 +24,23 @@ class PackageNativesTest(unittest.TestCase):
             for path in paths.values():
                 self.assertEqual(path == keep, natives.target_native(path, *target), (target, path))
 
+    def test_webrtc_classifiers(self):
+        paths = {
+            ('macos', 'arm64'): 'libwebrtc-java-macos-aarch64.dylib',
+            ('macos', 'x64'): 'libwebrtc-java-macos-x86_64.dylib',
+            ('linux', 'x64'): 'libwebrtc-java-linux-x86_64.so',
+            ('windows', 'x64'): 'webrtc-java-windows-x86_64.dll',
+        }
+        for target in list(paths) + [('linux', 'arm64')]:
+            for platform, name in paths.items():
+                source = io.BytesIO()
+                with zipfile.ZipFile(source, 'w') as jar:
+                    jar.writestr(name, b'native')
+                    jar.writestr('META-INF/licenses/webrtc/LICENSE.md', b'license')
+                with zipfile.ZipFile(io.BytesIO(natives.prune(source.getvalue(), *target))) as jar:
+                    self.assertEqual(name in jar.namelist(), platform == target)
+                    self.assertIn('META-INF/licenses/webrtc/LICENSE.md', jar.namelist())
+
     def test_repack_preserves_classes_and_licenses(self):
         original = io.BytesIO()
         with zipfile.ZipFile(original, 'w') as jar:

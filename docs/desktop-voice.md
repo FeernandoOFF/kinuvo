@@ -1,6 +1,6 @@
 ---
 title: "Desktop speech"
-description: "Native speech recognition and synthesis on macOS and Windows."
+description: "Native speech recognition and synthesis on macOS, Windows and Linux."
 ---
 
 Desktop Dictation and Voice chat default to the operating system’s speech recognition
@@ -53,3 +53,14 @@ The native test exercises command dispatch and an invalid WAV error through the
 loaded library without requesting microphone access. Permission attribution must
 be checked using the bundled app launched by `mise run desktop`; an unbundled test
 JVM does not prove app authorization.
+
+## Linux
+
+On x64 Linux, install `speech-dispatcher` (providing `spd-say`) or `espeak-ng`
+for Device spoken replies. Kinuvo tries speech-dispatcher first and uses the
+system locale for the language. Stop or Pause cancels spoken replies.
+
+Linux has no Device speech recognizer. In Settings → Server → Voice, download
+and select a Whisper dictation model for Dictation and Voice chat. Microphone
+capture and Server voice playback use Java Sound on Windows and Linux; allow
+microphone access and configure a working system input and output device.

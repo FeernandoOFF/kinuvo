@@ -13,14 +13,38 @@ env:
 # Kotlin Toolchain caches are saved by CI on main; tag runs can only restore from there (see .github/actions/restore-kotlin-cache).
 
 jobs:
+  voice-workers:
+    strategy:
+      matrix:
+        runner: [ubuntu-24.04, macos-15, windows-2025]
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: ilammy/msvc-dev-cmd@v1
+        if: runner.os == 'Windows'
+      - run: scripts/build-local-voice.sh
+        shell: bash
+      - uses: actions/upload-artifact@v4
+        with:
+          name: voice-${{ matrix.runner }}
+          path: build/voice-worker/
+
   jar:
+    needs: voice-workers
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v5
       - uses: ./.github/actions/fetch-libs
       - run: scripts/jbr.sh
       - uses: ./.github/actions/restore-kotlin-cache
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: voice-*
+          merge-multiple: true
+          path: build/release-voice/server-voice
       - run: scripts/package.sh jar "$VERSION"
+        env:
+          KINUVO_VOICE_WORKERS: ${{ github.workspace }}/build/release-voice
       - uses: actions/upload-artifact@v4
         with:
           name: jar
@@ -38,6 +62,8 @@ jobs:
         shell: bash
     steps:
       - uses: actions/checkout@v5
+      - uses: ilammy/msvc-dev-cmd@v1
+        if: runner.os == 'Windows'
       - uses: ./.github/actions/fetch-libs
       - run: scripts/jbr.sh
       - uses: actions/download-artifact@v4
@@ -61,6 +87,8 @@ jobs:
         shell: bash
     steps:
       - uses: actions/checkout@v5
+      - uses: ilammy/msvc-dev-cmd@v1
+        if: runner.os == 'Windows'
       - uses: ./.github/actions/fetch-libs
       - name: Prepare macOS signing credentials
         if: runner.os == 'macOS'

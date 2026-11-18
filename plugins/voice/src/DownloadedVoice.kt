@@ -40,7 +40,7 @@ class DownloadedVoice(home: File, private val inference: Inference = Inference(I
     @Volatile private var downloading: String? = null
     @Volatile private var downloaded = 0L
     @Volatile private var error: String? = null
-    override fun state() = VoiceModelsState(store.models.map { it.copy(files = it.files + engine.download.files) }, if (engine.installed) store.installed() else emptySet(), store.selected(VoiceModelKind.Transcription), store.selected(VoiceModelKind.Synthesis), store.language, downloading, downloaded, error, inference.supported)
+    override fun state() = VoiceModelsState(store.models.map { it.copy(files = it.files + engine.download.files) }, if (engine.installed) store.installed() else emptySet(), store.selected(VoiceModelKind.Transcription), store.selected(VoiceModelKind.Synthesis), store.language, downloading, downloaded, error ?: inference.unavailableReason, inference.supported)
     override val providers get() = VoiceProviders(
         transcriber = if (store.selected(VoiceModelKind.Transcription) == null) null else Transcriber { audio ->
             val pcm = when (audio.format) {
@@ -57,7 +57,7 @@ class DownloadedVoice(home: File, private val inference: Inference = Inference(I
     )
     @OptIn(ExperimentalCoroutinesApi::class)
     @Synchronized override fun download(id: String) {
-        check(inference.supported) { "Downloaded models require the packaged macOS Server" }
+        check(inference.supported) { inference.unavailableReason ?: "Voice inference unavailable" }
         check(job?.isCompleted != false) { "A download is already active" }
         val model = store.models.single { it.id == id }
         downloading = id; downloaded = 0; error = null
@@ -86,6 +86,7 @@ class DownloadedVoice(home: File, private val inference: Inference = Inference(I
     }
     override fun language(language: String) { require(language in VOICE_LANGUAGES); store.language = language }
     private suspend fun infer(kind: VoiceModelKind, input: ByteArray): ByteArray {
+        check(inference.supported) { inference.unavailableReason ?: "Voice inference unavailable" }
         val model = store.models.singleOrNull { it.id == store.selected(kind) && it.kind == kind } ?: error("Server voice model is not configured")
         engine.ensure()
         store.acquire(model)

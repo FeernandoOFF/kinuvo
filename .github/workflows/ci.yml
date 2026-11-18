@@ -223,3 +223,20 @@ jobs:
         run: |
           ./build/KinuvoSpeech.exe --self-test
           if ($LASTEXITCODE -ne 0) { throw 'Native speech self-test failed' }
+
+  voice-worker:
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
+    strategy:
+      fail-fast: false
+      matrix:
+        runner: [ubuntu-24.04, macos-15, windows-2025]
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: ilammy/msvc-dev-cmd@v1
+        if: runner.os == 'Windows'
+      - run: scripts/build-local-voice.sh
+        shell: bash
+      - run: python3 scripts/test-voice-worker.py
+        shell: bash

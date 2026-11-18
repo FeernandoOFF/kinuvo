@@ -18,7 +18,7 @@ Global options: `-a, --agent ID` selects an Agent (also `KINUVO_AGENT`; defaults
 
 ## Service
 
-Supported on macOS (launchd) and Linux (systemd user service).
+Supported on macOS (launchd), Linux (systemd user service) and Windows (Task Scheduler at user logon).
 
 | Command | Options |
 | --- | --- |

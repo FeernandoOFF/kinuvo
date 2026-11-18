@@ -1,6 +1,19 @@
 #include "c-api.h"
 #include <stdio.h>
+#ifdef _WIN32
+#include <windows.h>
+#include <fcntl.h>
+#include <io.h>
+#define ENGINE_LIBRARY "sherpa-onnx-c-api.dll"
+#define dlsym(handle, name) ((void *)GetProcAddress(handle, name))
+#else
 #include <dlfcn.h>
+#ifdef __APPLE__
+#define ENGINE_LIBRARY "libsherpa-onnx-c-api.dylib"
+#else
+#define ENGINE_LIBRARY "libsherpa-onnx-c-api.so"
+#endif
+#endif
 static __typeof__(&SherpaOnnxAcceptWaveformOffline) p_SherpaOnnxAcceptWaveformOffline;
 static __typeof__(&SherpaOnnxCreateOfflineRecognizer) p_SherpaOnnxCreateOfflineRecognizer;
 static __typeof__(&SherpaOnnxCreateOfflineStream) p_SherpaOnnxCreateOfflineStream;
@@ -15,9 +28,14 @@ static __typeof__(&SherpaOnnxGetOfflineStreamResult) p_SherpaOnnxGetOfflineStrea
 static __typeof__(&SherpaOnnxOfflineTtsGenerateWithConfig) p_SherpaOnnxOfflineTtsGenerateWithConfig;
 static int load_engine(const char *root) {
   char library[4096];
-  if (snprintf(library, sizeof(library), "%s/libsherpa-onnx-c-api.dylib", root) >= sizeof(library)) return 0;
+  if (snprintf(library, sizeof(library), "%s/" ENGINE_LIBRARY, root) >= sizeof(library)) return 0;
+#ifdef _WIN32
+  HMODULE handle = LoadLibraryExA(library, NULL, LOAD_WITH_ALTERED_SEARCH_PATH);
+  if (!handle) { fprintf(stderr, "Cannot load voice engine: %lu\n", GetLastError()); return 0; }
+#else
   void *handle = dlopen(library, RTLD_NOW | RTLD_LOCAL);
   if (!handle) { fprintf(stderr, "Cannot load voice engine: %s\n", dlerror()); return 0; }
+#endif
   p_SherpaOnnxAcceptWaveformOffline = dlsym(handle, "SherpaOnnxAcceptWaveformOffline");
   if (!p_SherpaOnnxAcceptWaveformOffline) return 0;
   p_SherpaOnnxCreateOfflineRecognizer = dlsym(handle, "SherpaOnnxCreateOfflineRecognizer");
@@ -87,6 +105,10 @@ static char *path(const char *root, const char *name) {
 static void le32(uint32_t x) { for (int i = 0; i < 4; ++i) putchar((x >> (i * 8)) & 255); }
 static void le16(uint16_t x) { putchar(x & 255); putchar(x >> 8); }
 int main(int argc, char **argv) {
+#ifdef _WIN32
+  _setmode(_fileno(stdin), _O_BINARY);
+  _setmode(_fileno(stdout), _O_BINARY);
+#endif
   if (argc < 3 || !load_engine(argv[1])) return 2;
   --argc; ++argv;
   if (!strcmp(argv[1], "probe")) return 0;

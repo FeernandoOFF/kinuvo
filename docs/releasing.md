@@ -83,7 +83,8 @@ and `prebuilt.json`.
 
 Desktop and bundled-runtime CLI packages filter nested jars to the target OS and
 architecture, including LiteRT-LM, zstd and WebRTC. The universal `kinuvo.jar`
-retains all platforms. Nested jars remain uncompressed for the executable jar
+retains all platforms. WebRTC includes macOS arm64 and x64, Windows x64 and
+Linux x64; Linux arm64 does not offer Live voice. Nested jars remain uncompressed for the executable jar
 loader; upstream license notices remain intact. Skiko and Rive resolve host
 artifacts; filtering also removes extra architectures inside those artifacts. Run `python3 scripts/test-package-natives.py` to
 check the packaging filter.
@@ -96,7 +97,9 @@ and sherpa libraries. First model setup downloads pinned upstream artifacts thro
 under `<Server home>/engines/<engine-version-platform>` (`KINUVO_HOME` is respected
 through the Server's home). Setup needs internet access and adds download latency;
 subsequent uses work offline. Android and iOS packaging are unchanged. Building the
-voice worker still fetches the pinned SDK for its C header, but ships no SDK dylibs.
+voice worker fetches only its pinned C header. Packaged macOS, Linux x64 and
+Windows x64 Servers include the worker; Linux arm64 does not support downloaded
+voice. The universal release jar includes all three platform workers.
 
 The macOS worker uses `dlopen` with an absolute verified-store path, checks every
 required inference symbol, and does not depend on `DYLD_*` environment variables.

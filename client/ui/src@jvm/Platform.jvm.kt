@@ -69,7 +69,7 @@ internal class FilePreferences(dir: File) : Preferences {
 private val home get() = System.getenv("KINUVO_HOME")?.let(::File) ?: File(System.getProperty("user.home"), ".kinuvo")
 
 internal actual val platformModule = module {
-    if (currentPlatform == Platform.MacOS || currentPlatform == Platform.Windows) {
+    if (currentPlatform == Platform.MacOS || currentPlatform == Platform.Windows || currentPlatform == Platform.Linux) {
         single<SpeechEngine> { DesktopSpeechEngine() }
     }
     single<DeviceReader> { DesktopDeviceReader() }

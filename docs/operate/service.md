@@ -1,9 +1,9 @@
 ---
 title: "Run a Server service"
-description: "Manage the macOS launchd or Linux systemd user service."
+description: "Manage the macOS, Linux or Windows user service."
 ---
 
-The CLI supports a macOS launchd agent and a Linux systemd user service. Windows service management is not implemented.
+The CLI supports a macOS launchd agent, a Linux systemd user service and a Windows Task Scheduler task.
 
 ## On macOS with the Kinuvo app
 
@@ -28,6 +28,8 @@ kinuvo service logs -n 100
 Installation without the app copies the running jar to `<Server home>/bin/kinuvo.jar` and records its Java executable. Logs go to `<Server home>/logs/server.log`. The service starts at login and restarts on exit.
 
 On macOS the label is `dev.kinuvo.server`; the jar-based agent keeps its plist in `~/Library/LaunchAgents/`. It starts at user login. On Linux the unit is `~/.config/systemd/user/kinuvo.service`; the installer prints a `loginctl enable-linger USER` hint if needed to start before login.
+
+On Windows, `Kinuvo\Server` runs hidden at user logon with limited privileges and no administrator access. It starts immediately on install, has no time limit and retries failures every minute (up to 999 times). Keep the user signed in for Computer use. The task records `KINUVO_HOME`, the listener port and the installed Java path; reinstall after moving Java. Logs use the same Server home, including `logs/service-output.log` for startup output. The Windows task name is shared across homes; install it for only one user and home per machine.
 
 ## Preserve deployment flags
 

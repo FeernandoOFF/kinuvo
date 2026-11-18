@@ -11,7 +11,7 @@ class InferenceTest {
     fun deleteTemporaryDirectories() = temporaryDirectories.close()
 
     @Test fun cancellationKillsAndReapsWorkerBeforeReturning() = runBlocking {
-        if (!System.getProperty("os.name").startsWith("Mac")) return@runBlocking
+        if (!java.io.File("/bin/sh").canExecute() || !Inference(java.io.File("/bin/sh")).supported) return@runBlocking
         val root = temporaryDirectories.create("voice-cancel").toFile()
         val pid = root.resolve("pid")
         val worker = root.resolve("worker").apply {

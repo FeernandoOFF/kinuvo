@@ -25,12 +25,31 @@ class CodexRealtimeTest {
     }
 
     @Test fun unsupportedPlatformsNeverLoadNatives() {
-        for ((os, arch) in listOf("Linux" to "aarch64", "Windows 11" to "amd64", "Mac OS X" to "x86_64")) {
+        for ((os, arch) in listOf("Linux" to "aarch64", "Windows 11" to "aarch64", "Mac OS X" to "x86", "FreeBSD" to "amd64")) {
             assertFalse(realtimeAvailable(os, arch) { error("Must not probe unsupported platforms") })
         }
         assertFalse(realtimeAvailable("Mac OS X", "aarch64") { throw UnsatisfiedLinkError("missing native") })
         assertFalse(realtimeAvailable("Mac OS X", "arm64") { throw ExceptionInInitializerError("native initialization") })
         assertTrue(realtimeAvailable("Mac OS X", "aarch64") {})
+    }
+
+    @Test fun supportedPlatformsProbeNatives() {
+        for (os in listOf("Mac OS X", "Linux", "Windows 10", "Windows 11", "Windows Server 2025")) {
+            for (arch in listOf("x86_64", "amd64") + if (os == "Mac OS X") listOf("arm64", "aarch64") else emptyList()) {
+                var probed = false
+                assertTrue(realtimeAvailable(os, arch) { probed = true })
+                assertTrue(probed)
+                assertFalse(realtimeAvailable(os, arch) { throw UnsatisfiedLinkError("missing native") })
+                assertFalse(realtimeAvailable(os, arch) { throw ExceptionInInitializerError("native initialization") })
+            }
+        }
+    }
+
+    @Test fun hostNativeLoads() {
+        val os = System.getProperty("os.name")
+        val arch = System.getProperty("os.arch")
+        if (!realtimeAvailable(os, arch) {}) return
+        assertTrue(CodexRealtime.available(), "WebRTC native must load on $os/$arch")
     }
 
     @Test fun interruptionDiscardsBufferedAndLateAudioUntilNextAssistantTurn() {

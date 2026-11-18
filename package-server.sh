@@ -15,12 +15,10 @@ cp -R "$web" "$staging/web"
 printf '%s' "${KINUVO_VERSION:-dev}" > "$staging/kinuvo-version"
 jar uf "$jar" -C "$staging" web -C "$staging" kinuvo-version
 
-if [ "$(uname -s)" = Darwin ]; then
+if [ "$(uname -s)" = Darwin ] || [ "$(uname -m)" = x86_64 ]; then
     "$root/scripts/build-local-voice.sh"
     mkdir -p "$staging/server-voice"
-    cp -R "$root/build/voice-worker/MacOS" "$staging/server-voice/"
-    cp -R "$root/build/voice-worker/Frameworks" "$staging/server-voice/"
-    cp -R "$root/build/voice-worker/Resources" "$staging/server-voice/"
+    cp -R "$root/build/voice-worker/." "$staging/server-voice/"
     jar uf "$jar" -C "$staging" server-voice
 fi
 
