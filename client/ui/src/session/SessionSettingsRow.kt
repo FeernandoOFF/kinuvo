@@ -107,10 +107,12 @@ internal fun RowScope.ComposerSettings(
     val attachButton: @Composable () -> Unit = {
         ControlButton(Lucide.Plus, unavailable?.let { files?.reason }?.let { "Attach: $it" } ?: "Attach", enabled = unavailable == null) { attachOpen = true }
     }
-    val approvalOptions = listOf<String?>(null) + APPROVALS.keys
-    fun approvalTitle(option: String?) = if (option == null) "Use ${agent ?: "the Agent"}'s setting" else option.replaceFirstChar { it.uppercase() }
-    fun approvalHint(option: String?) = APPROVALS[option ?: defaults.approvals].orEmpty().let { if (option == null) "${defaults.approvals.replaceFirstChar { c -> c.uppercase() }} · $it" else it }
-    val pickApproval = { option: String? -> approvalsOpen = false; onChange(settings.copy(approvals = option)) }
+    val approvalOptions = APPROVALS.keys.toList()
+    fun approvalTitle(option: String) = option.replaceFirstChar { it.uppercase() }
+    fun approvalHint(option: String) = APPROVALS[option].orEmpty()
+    // The Agent's default is stored as no override, so the Session keeps following later changes to it.
+    val pickApproval = { option: String -> approvalsOpen = false; onChange(settings.copy(approvals = option.takeIf { it != defaults.approvals })) }
+    val defaultTag: @Composable (String) -> Unit = { option -> if (option == defaults.approvals) Pill("Agent default") }
     val approvalsButton: @Composable () -> Unit = { ControlButton(Lucide.Hand, "Ask before acting in this Session: $approvals") { approvalsOpen = true } }
     // Says whose settings these are, and leads to the Agent's defaults that every other Session follows.
     val scope: @Composable (close: () -> Unit) -> Unit = { close ->
@@ -144,13 +146,7 @@ internal fun RowScope.ComposerSettings(
         approvalsButton()
         Popover(approvalsOpen, { approvalsOpen = false }, "Ask before acting") {
             scope { approvalsOpen = false }
-            RowGroup {
-                approvalOptions.forEach { option ->
-                    GroupRow(approvalTitle(option), { pickApproval(option) }, approvalHint(option), selected = settings.approvals == option, chevron = false) {
-                        if (settings.approvals == option) Icon(Lucide.Check, Modifier.size(16.dp), tint = color(accentColor))
-                    }
-                }
-            }
+            ApprovalChoices(approvals, defaults.approvals, pickApproval)
         }
     } else {
         DropdownMenu(
@@ -175,10 +171,13 @@ internal fun RowScope.ComposerSettings(
                     approvalOptions.forEach { option ->
                         DropdownMenuItem(
                             onClick = { pickApproval(option) },
-                            trailing = if (settings.approvals == option) ({ Icon(Lucide.Check, Modifier.size(14.dp)) }) else null,
+                            trailing = if (approvals == option) ({ Icon(Lucide.Check, Modifier.size(14.dp)) }) else null,
                         ) {
                             Column {
-                                Text(approvalTitle(option))
+                                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.space6)) {
+                                    Text(approvalTitle(option))
+                                    defaultTag(option)
+                                }
                                 Text(approvalHint(option), style = TextStyles.caption, color = color(mutedColor))
                             }
                         }
@@ -348,6 +347,17 @@ private fun EffortTrack(levels: List<String>, current: Int, onPick: (Int) -> Uni
                 }
                 Box(Modifier.offset(x.toDp() - 20.dp).size(40.dp).background(onAccent, CircleShape))
             }
+        }
+    }
+}
+
+/** The Session's Risk tolerance choices, with the Agent's [default] tagged. */
+@Composable
+internal fun ApprovalChoices(current: String, default: String, onPick: (String) -> Unit) = RowGroup {
+    APPROVALS.forEach { (option, hint) ->
+        GroupRow(option.replaceFirstChar { it.uppercase() }, { onPick(option) }, hint, selected = current == option, chevron = false,
+            badges = { if (option == default) Pill("Agent default") }) {
+            if (current == option) Icon(Lucide.Check, Modifier.size(16.dp), tint = color(accentColor))
         }
     }
 }

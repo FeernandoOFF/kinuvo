@@ -378,8 +378,8 @@ private fun AgentColumn(state: ShellState, actions: ShellActions, chrome: ShellC
             // A long name gets a second, tight line rather than losing its end.
             Text(state.agent?.name ?: "…", Modifier.weight(1f).padding(horizontal = Spacing.space8), fontWeight = FontWeight.Bold, maxLines = 2, overflow = TextOverflow.Ellipsis,
                 style = TextStyles.title.copy(lineHeight = 20.sp))
-            HeaderButton(Lucide.Settings2, "Agent settings", actions.onAgentSettings, enabled = state.agent != null)
-            HeaderButton(Lucide.SquarePen, "New Session ${shortcut("N")}", actions.onNew, enabled = state.agent != null)
+            HeaderButton(Lucide.Settings2, "Agent settings", actions.onAgentSettings, enabled = state.agent != null, plain = true)
+            HeaderButton(Lucide.SquarePen, "New Session ${shortcut("N")}", actions.onNew, enabled = state.agent != null, plain = true)
         }
         HorizontalSeparator()
         SessionSearch(chrome.query, state.agent?.name, Modifier.padding(start = Spacing.space8, top = Spacing.space8, end = Spacing.space8))

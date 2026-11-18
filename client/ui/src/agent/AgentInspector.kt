@@ -17,6 +17,7 @@ import androidx.compose.foundation.text.input.TextFieldState
 import androidx.compose.foundation.text.input.rememberTextFieldState
 import androidx.compose.foundation.text.input.setTextAndPlaceCursorAtEnd
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.ui.Alignment
@@ -172,12 +173,10 @@ private fun AgentPage(state: InspectorState, draft: AgentDraft, details: AgentDe
     val agentId = details.info.id
     AvatarPicker(agent, draft, actions)
     // Labelled fields in grouped rows, like every other Settings form.
-    RowGroup("Identity") {
-        FieldRow("Name") {
-            Input(draftField(agentId, "name", draft.name) { v -> actions.onEdit { it.copy(name = v) } }, "Name", capitalize = true)
-            draft.problems(agentId, host.agents).filter { it.contains("Name", true) || it.contains("called") }.forEach {
-                Text(it, style = TextStyles.caption, color = color(destructiveColor))
-            }
+    Group("Name", card = false) {
+        Input(draftField(agentId, "name", draft.name) { v -> actions.onEdit { it.copy(name = v) } }, "Name", capitalize = true)
+        draft.problems(agentId, host.agents).filter { it.contains("Name", true) || it.contains("called") }.forEach {
+            Text(it, style = TextStyles.caption, color = color(destructiveColor))
         }
     }
     Group("Instructions") {
@@ -221,8 +220,7 @@ private fun ExternalAgentPage(state: InspectorState, draft: AgentDraft, details:
     val machine = agent.host ?: host.server
     val problems = draft.problems(agentId, host.agents)
     AvatarPicker(agent, draft, actions)
-    Group("Identity", card = false) {
-        Label("Name")
+    Group("Name", card = false) {
         Input(draftField(agentId, "name", draft.name) { v -> actions.onEdit { it.copy(name = v) } }, "Name", capitalize = true)
         problems.filter { it.contains("Name", true) || it.contains("called") }.forEach { Text(it, style = TextStyles.caption, color = color(destructiveColor)) }
     }
@@ -258,34 +256,44 @@ private fun ExternalAgentPage(state: InspectorState, draft: AgentDraft, details:
 private fun AvatarPicker(agent: AgentInfo, draft: AgentDraft, actions: InspectorActions) {
     val current = AvatarArtboards.indexOf(draft.avatar).coerceAtLeast(0)
     val step = { delta: Int -> actions.onEdit { it.copy(avatar = AvatarArtboards[(current + delta + AvatarArtboards.size) % AvatarArtboards.size]) } }
-    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(Spacing.space16, Alignment.CenterHorizontally), verticalAlignment = Alignment.CenterVertically) {
-        HeaderButton(Lucide.ChevronLeft, "Previous avatar", { step(-1) })
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(Spacing.space8, Alignment.CenterHorizontally), verticalAlignment = Alignment.CenterVertically) {
+        AvatarStep(Lucide.ChevronLeft, "Previous avatar") { step(-1) }
         AgentAvatar(agent.copy(avatar = draft.avatar.ifEmpty { agent.avatar }), 64.dp)
-        HeaderButton(Lucide.ChevronRight, "Next avatar", { step(1) })
+        AvatarStep(Lucide.ChevronRight, "Next avatar") { step(1) }
+    }
+}
+
+@Composable
+private fun AvatarStep(icon: ImageVector, label: String, onClick: () -> Unit) {
+    IconButton(onClick = onClick, modifier = Modifier.size(32.dp), style = ButtonStyle.Ghost, shape = CircleShape, contentColor = color(mutedColor)) {
+        Icon(icon, Modifier.size(16.dp), contentDescription = label)
     }
 }
 
 @Composable
 private fun ModelPage(state: InspectorState, draft: AgentDraft, actions: InspectorActions) {
     if (state.models.providers.isEmpty()) Text("Loading models…", color = color(mutedColor))
-    state.models.providers.forEach { group ->
-        SectionLabel(group.name)
-        group.chatModels.forEach { model ->
-            val picked = group.id == draft.provider && model.id == draft.model
-            ListRow(picked, {
-                actions.onEdit { it.copy(provider = group.id, model = model.id, reasoning = model.reasoningFor(it.reasoning)) }
-                actions.onBack()
-            }) {
-                Column(Modifier.weight(1f)) {
-                    ModelName(model)
-                    model.state.reason?.let { Text(it, fontSize = 12.sp, color = color(mutedColor)) }
-                }
-                if (picked) Icon(Lucide.Check, Modifier.size(14.dp))
-            }
-        }
-        group.warning?.let { Text(it, style = TextStyles.caption, color = color(mutedColor)) }
-    }
     if (state.models.model(draft.provider, draft.model) == null) SectionLabel("Current: ${draft.model}")
+    // The provider in use comes first; each provider's models share one card.
+    state.models.providers.sortedByDescending { it.id == draft.provider }.forEach { group ->
+        if (group.chatModels.isEmpty() && group.warning == null) return@forEach
+        Group(group.name, hint = "${group.chatModels.size} model${if (group.chatModels.size == 1) "" else "s"}") {
+            group.chatModels.forEach { model ->
+                val picked = group.id == draft.provider && model.id == draft.model
+                ListRow(picked, {
+                    actions.onEdit { it.copy(provider = group.id, model = model.id, reasoning = model.reasoningFor(it.reasoning)) }
+                    actions.onBack()
+                }) {
+                    Column(Modifier.weight(1f)) {
+                        ModelName(model)
+                        model.state.reason?.let { Text(it, fontSize = 12.sp, color = color(mutedColor)) }
+                    }
+                    if (picked) Icon(Lucide.Check, Modifier.size(14.dp), tint = color(accentColor))
+                }
+            }
+            group.warning?.let { Text(it, Modifier.padding(horizontal = Spacing.space10, vertical = Spacing.space4), style = TextStyles.caption, color = color(mutedColor)) }
+        }
+    }
     ListRow(false, { actions.onLoadModels(true) }, leading = { Icon(Lucide.RefreshCw, Modifier.size(14.dp)) }) { Text("Refresh models", Modifier.weight(1f)) }
 }
 

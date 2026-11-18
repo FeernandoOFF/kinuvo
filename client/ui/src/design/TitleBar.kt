@@ -31,7 +31,7 @@ internal fun TitleBarRow(modifier: Modifier = Modifier, leading: Boolean = true,
 }
 
 @Composable
-internal fun HeaderButton(icon: ImageVector, label: String, onClick: () -> Unit, enabled: Boolean = true) {
+internal fun HeaderButton(icon: ImageVector, label: String, onClick: () -> Unit, enabled: Boolean = true, plain: Boolean = false) {
     Hint(label, TooltipSide.Bottom) {
         IconButton(
             onClick = onClick,
@@ -39,7 +39,7 @@ internal fun HeaderButton(icon: ImageVector, label: String, onClick: () -> Unit,
             style = ButtonStyle.Ghost,
             shape = if (LocalInteractionMode.current == InteractionMode.Touch) CircleShape else Theme[shapes][mediumShape],
             contentColor = if (LocalInteractionMode.current == InteractionMode.Touch) color(onBackgroundColor) else color(mutedColor),
-            modifier = if (LocalInteractionMode.current == InteractionMode.Touch) Modifier.size(44.dp).background(color(subtleColor), CircleShape)
+            modifier = if (LocalInteractionMode.current == InteractionMode.Touch) Modifier.size(44.dp).then(if (plain) Modifier else Modifier.background(color(subtleColor), CircleShape))
                 else Modifier.size(32.dp).titleBarControl(),
         ) {
             Icon(icon, Modifier.size(17.dp), contentDescription = label)

@@ -45,7 +45,6 @@ private fun ProviderGroup(provider: ProviderInfo, p: Pane) {
     val account = provider.account
     val apiKey = provider.apiKey
     val code = p.ui.state.deviceCode?.takeIf { it.first == provider.id }?.second
-    val uri = LocalUriHandler.current
     Column(verticalArrangement = Arrangement.spacedBy(Spacing.space6)) {
         RowGroup(provider.name) {
             when {
@@ -58,14 +57,7 @@ private fun ProviderGroup(provider: ProviderInfo, p: Pane) {
                     { p.actions.onCancelModelDownload(provider.id) }, { p.actions.onRemoveModel(provider.id, it) })
                 account == null -> GroupRow(provider.name, subtitle = "No sign-in needed", icon = Lucide.CircleCheck) { Pill("Ready", tone = Tone.Success) }
                 account.signedIn -> GroupRow(account.label ?: "Your account", subtitle = "Signed in", icon = Lucide.CircleUserRound) { Pill("Ready", tone = Tone.Success) }
-                code != null -> GroupBox {
-                    Text("Enter this code on the sign-in page", color = color(mutedColor), style = TextStyles.secondary)
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(code.code, Modifier.weight(1f), style = MonoStyle, fontSize = TextStyles.headline.fontSize)
-                        CopyButton(code.code)
-                    }
-                    Text("It expires in 15 minutes.", color = color(mutedColor), style = TextStyles.caption)
-                }
+                code != null -> DeviceCodeSignIn(code, "It expires in 15 minutes.")
                 else -> GroupRow("Not signed in", subtitle = "Sign in to use its models", icon = Lucide.CircleUserRound) { Pill("Signed out", tone = Tone.Warning) }
             }
             apiKey?.let { key ->
@@ -84,7 +76,7 @@ private fun ProviderGroup(provider: ProviderInfo, p: Pane) {
                     detail = "Its models stop working until you add another.")
             }
             if (account != null) when {
-                code != null -> ActionRow("Open sign-in page", Lucide.ExternalLink, { runCatching { uri.openUri(code.url) } })
+                code != null -> {}
                 account.signedIn -> ConfirmRow("Sign out", Lucide.LogOut, "Sign out of ${provider.name}?", { p.actions.onLogoutProvider(provider.id) },
                     detail = "Agents using its models stop working until you sign in again.")
                 else -> ActionRow("Sign in", Lucide.LogIn, { p.actions.onLoginProvider(provider.id) })
