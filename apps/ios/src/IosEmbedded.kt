@@ -3,6 +3,8 @@ package dev.kinuvo.ios.embedded
 import kinuvo.app.connection.EmbeddedServer
 import kinuvo.app.connection.Endpoint
 import kinuvo.app.connection.OnDeviceSupport
+import kinuvo.client.TailcatForwarder
+import kinuvo.tailcat.Tailcat
 import kinuvo.plugins.apple.AppleSystem
 import kinuvo.plugins.apple.ApplePlugin
 import kinuvo.providers.apple.AppleLanguageModel
@@ -58,6 +60,7 @@ fun startKinuvoWithEmbeddedServer(model: AppleLanguageModel, keychain: NativeKey
     }
     startKinuvo(module {
         single<OnDeviceSupport> { OnDeviceSupport { provider -> provider != "apple" || model.unavailableCode("system") == null } }
+        single<TailcatForwarder> { Tailcat }
         single<EmbeddedServer> { IosEmbeddedServer(model, folders, apple) }
     })
 }

@@ -10,6 +10,8 @@ import kinuvo.server.jvm.JvmServerHost
 import kinuvo.client.KinuvoClient
 import kinuvo.providers.codex.CodexAuth
 import kinuvo.server.plugin.PrivateFile
+import kinuvo.server.plugin.TailcatInvite
+import kinuvo.server.plugin.TailcatTunnel
 import kinuvo.providers.codex.CodexProvider
 import kotlinx.coroutines.runBlocking
 import java.io.File
@@ -59,9 +61,23 @@ class CliTest {
             assertFailsWith<CliktError> { kinuvo("-a", "work", "skills", "remove", "nope") }
             kinuvo("agents", "delete", "work", "--yes")
             assertEquals(listOf("default"), server.harness.store.agents().map { it.id.value })
+            val invite = "kinuvo1:" + "a".repeat(140)
+            server.auth.tailcat(object : TailcatTunnel {
+                override fun invite(code: String, payload: String, ttlSeconds: Int, boundPhones: Set<String>) = object : TailcatInvite {
+                    override val text = invite
+                    override val expiresAt = 0L
+                    override val open = true
+                    override fun close() = Unit
+                }
+                override fun phoneOf(code: String) = null
+                override fun revoke(phone: String) = Unit
+                override fun close() = Unit
+            })
             val pair = kinuvo("pair", "--host", "192.168.1.12", "--refresh")
             assertContains(pair, "kinuvo://pair?server=http%3A%2F%2F192.168.1.12%3A$port&code=")
             assertContains(pair, "/#pair=")
+            assertContains(pair, "kinuvo://pair?tailcat=kinuvo1%3A")
+            server.auth.tailcat(null)
             val phone = KinuvoClient("ws://127.0.0.1:$port/ws", "phone", pairingCode = server.auth.currentPairingCode())
             try {
                 phone.connect()

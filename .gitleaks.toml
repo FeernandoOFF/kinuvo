@@ -2,11 +2,12 @@
 useDefault = true
 
 [allowlist]
-description = "Not credentials: the desktop launcher marker, RFC 8291 test vectors, generated test keys and Web Push key fields"
+description = "Not credentials: the desktop launcher marker, the RFC 6455 sample WebSocket key, RFC 8291 test vectors, generated test keys and Web Push key fields"
 regexTarget = "line"
 regexes = [
   '''token = '--kinuvo-launch-id=' \+ uuid\.uuid4\(\)\.hex''',
   '''let key: P256\.KeyAgreement\.PrivateKey$''',
+  '''Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==''',
 ]
 paths = [
   '''^apps/ios/tests/PushKeysTests\.swift$''',

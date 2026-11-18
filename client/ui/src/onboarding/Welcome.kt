@@ -4,6 +4,7 @@ import kinuvo.app.connection.*
 import kinuvo.ui.agent.*
 import kinuvo.ui.settings.*
 import kinuvo.app.agent.AvatarArtboards
+import kinuvo.protocol.device.Links
 import kinuvo.ui.design.HeaderButton
 
 import androidx.compose.animation.AnimatedContent
@@ -215,8 +216,9 @@ private fun ColumnScope.Manual(options: WelcomeOptions) {
         // An error about the code shows under it; anything else is about reaching the Server.
         val error = options.error
         val codeError = error?.contains("code", ignoreCase = true) == true
-        FieldRow("Server address or pairing link") { Input(options.url, "https://your-server:8787", error = error != null && !codeError); error?.takeUnless { codeError }?.let { FieldError(it) } }
-        FieldRow("Pairing code") {
+        FieldRow("Server address or pairing link") { Input(options.url, "https://your-server:8787 or a pairing link", error = error != null && !codeError); error?.takeUnless { codeError }?.let { FieldError(it) } }
+        val invite = Links.isTailcatInvite(options.url.text.toString().trim())
+        if (!invite) FieldRow("Pairing code") {
             Input(options.code, "Code from the Server", error = codeError)
             error?.takeIf { codeError }?.let {
                 FieldError(it)
@@ -229,7 +231,7 @@ private fun ColumnScope.Manual(options: WelcomeOptions) {
         options.servers.forEach { server -> GroupRow(server.label, { options.onServer(server) }, server.address, Lucide.Server, enabled = !options.busy) }
     }
     Spacer(Modifier.height(Spacing.space4))
-    Cta(OnboardingAction(if (options.busy) "Connecting…" else "Connect", options.url.text.isNotBlank() && options.code.text.isNotBlank(), options.onPair),
+    Cta(OnboardingAction(if (options.busy) "Connecting…" else "Connect", options.url.text.isNotBlank() && (options.code.text.isNotBlank() || Links.isTailcatInvite(options.url.text.toString().trim())), options.onPair),
         options.busy, Modifier.fillMaxWidth())
 }
 

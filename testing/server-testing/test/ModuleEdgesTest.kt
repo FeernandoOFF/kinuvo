@@ -32,6 +32,7 @@ class ModuleEdgesTest {
         Rule("plugins/*", listOf("server/plugin-api", "protocol"), serverTests),
         Rule("gateways/kinuvo-mcp", listOf("server/core", "harness/api", "protocol"), serverTests + "harness/acp"),
         Rule("gateways/*", listOf("client/sdk", "harness/api", "protocol"), serverTests),
+        Rule("libs/tailcat", listOf("client/sdk", "server/plugin-api", "protocol"), serverTests + "server/core"),
         Rule("server/jvm", hostTo, serverTests),
         Rule("server/embedded", hostTo, serverTests),
         Rule("apps/*", listOf("*")),
@@ -123,5 +124,10 @@ class ModuleEdgesTest {
         val reached = modules().filter { it.startsWith("client/") }.flatMap { module -> closure(module).map { "$module -> $it" } }
             .filter { !it.substringAfter(" -> ").let { to -> to == "protocol" || to.startsWith("client/") } }
         assertEquals(emptyList(), reached, "client modules reach Server, harness, plugin or provider modules")
+    }
+
+    @Test fun onlyAppsDependOnNativeBindings() {
+        val users = allEdges().filter { it.to.startsWith("native/") && !it.test && !it.from.startsWith("apps/") && !it.from.startsWith("native/") }
+        assertEquals(emptyList(), users, "Only apps/* may depend on native bindings")
     }
 }

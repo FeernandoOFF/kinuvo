@@ -7,6 +7,10 @@ import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 
 class NormalizeUrlTest {
+    @Test fun tailcatSecretsAreNotConvertedToHostUrls() {
+        assertFailsWith<IllegalArgumentException> { normalizeUrl("kinuvo1:" + "a".repeat(140)) }
+    }
+
     @Test
     fun acceptsBareHostsAndFullUrls() {
         assertEquals("ws://100.82.82.99:8787/ws", normalizeUrl("100.82.82.99"))

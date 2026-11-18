@@ -1,9 +1,11 @@
 package kinuvo.app.connection
 
 import kinuvo.protocol.*
+import kinuvo.protocol.device.Links
 /** `host[:port]` or a full URL → `ws://host:port/ws`; plain http to a public host only with [allowCleartext]. */
 fun normalizeUrl(input: String, allowCleartext: Boolean = false): String {
     val text = input.trim().removeSuffix("/")
+    require(!Links.isTailcatInvite(text)) { "Use Tailcat pairing with this invite" }
     val bare = "://" !in text
     val bareHost = if (text.startsWith('[')) text.substringBefore(']') + "]" else text.substringBefore(':').substringBefore('/')
     val scheme = if (bare) { if (privateNetworkHost(bareHost)) "ws" else "wss" } else text.substringBefore("://").lowercase()

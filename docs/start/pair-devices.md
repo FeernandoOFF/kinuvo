@@ -33,3 +33,17 @@ Replace `DEVICE` with the listed ID or an unambiguous name. Revoking ends that D
 Pairing does not turn on a Device's tools. Choose what to share under **Settings → This Device's tools**; see [Computer use](../guides/computer-use.md).
 
 Next: [set up your first Agent](first-agent.md).
+
+## Pair from any network
+
+On macOS, start your Server with `kinuvo serve --tailcat` (or turn on **Any network**
+in the desktop or Android app), then run `kinuvo pair` to show its additional
+private-tunnel link and QR code. Scan it, or paste the link into the Kinuvo app's
+Server address field, then choose Pair. One scan pairs the tunnel and the Device;
+there is no code to type.
+Desktop, Android and iOS clients support it; web clients do not yet.
+
+Keep the link private for the few minutes it is valid: it admits one Device. The
+tunnel's secret address stays in your Device's secure storage. Revoking a Device
+also removes its access to the tunnel. After resetting a Server's private address,
+every Device pairs again with a new link; the saved Server and its alias are retained.

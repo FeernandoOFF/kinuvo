@@ -1,6 +1,10 @@
 package kinuvo.server
 
+import io.github.oshai.kotlinlogging.KotlinLogging
 import kinuvo.server.devices.*
+import kinuvo.server.plugin.TailcatInvite
+import kinuvo.server.plugin.TailcatTunnel
+import kinuvo.protocol.ProtocolJson
 import kinuvo.protocol.device.*
 import kinuvo.protocol.push.*
 import kinuvo.protocol.session.*
@@ -19,10 +23,13 @@ import kotlin.time.Duration.Companion.days
 
 @Serializable
 data class PairedDevice(val name: String, val tokenSha256: String, val pairedAt: String, val tools: Set<DeviceToolKind> = emptySet(), val lastSeen: String? = null,
-    val id: String, val management: Boolean, val expiresAt: String, val push: PushSubscription? = null)
+    val id: String, val management: Boolean, val expiresAt: String, val push: PushSubscription? = null, val tailcatPhone: String? = null)
 
 @Serializable
 private data class DevicesFile(val devices: List<PairedDevice> = emptyList())
+
+private val log = KotlinLogging.logger {}
+private const val MIN_INVITE_SECONDS = 10
 
 class DeviceAuth(private val file: File, private val now: () -> Instant = { Clock.System.now() }) : PeerRegistry {
     private val random = SecureRandom()
@@ -33,6 +40,12 @@ class DeviceAuth(private val file: File, private val now: () -> Instant = { Cloc
     var onNewCode: ((String) -> Unit)? = null
     var port = 0
     var addresses: () -> List<String> = { emptyList() }
+    private val tailcatLock = Any()
+    private var tunnel: TailcatTunnel? = null
+    private var window: TailcatWindow? = null
+    /** Unpairs a phone from the private tunnel when its Device is revoked while no tunnel is serving. */
+    @Volatile var offlineTailcatRevoke: (String) -> Unit = {}
+    val tailcatActive get() = synchronized(tailcatLock) { tunnel != null }
     var publicUrl: String? = null
     var learnedUrl: () -> String? = { null }
     @Volatile override var pairable = true
@@ -41,8 +54,11 @@ class DeviceAuth(private val file: File, private val now: () -> Instant = { Cloc
     private var codeManagement = false
     private var attempts = 0
 
+    override fun authenticate(device: String, token: String?, pairingCode: String?) =
+        authenticate(device, token, pairingCode, null)
+
     @Synchronized
-    override fun authenticate(device: String, token: String?, pairingCode: String?): String? {
+    override fun authenticate(device: String, token: String?, pairingCode: String?, tailcatPeer: String?): String? {
         if (token != null && token in sessionTokens) return token.also {
             // A reconnect with a new session token replaces the app's earlier one rather than adding another Device.
             sessionDevices.entries.removeIf { (other, own) -> other != it && own.name == device.take(80) }
@@ -54,8 +70,9 @@ class DeviceAuth(private val file: File, private val now: () -> Instant = { Cloc
         if (!MessageDigest.isEqual(pairingCode.toByteArray(), this.pairingCode.toByteArray())) { if (attempts >= 10) closePairing(); return null }
         val newToken = randomToken()
         val time = now()
+        val phone = synchronized(tailcatLock) { tunnel?.phoneOf(this.pairingCode)?.takeIf { it == tailcatPeer } }
         save(devices() + PairedDevice(device.take(80), sha256(newToken), time.toString(), lastSeen = time.toString(),
-            id = identity(sha256(newToken)), management = codeManagement, expiresAt = (time + 90.days).toString()))
+            id = identity(sha256(newToken)), management = codeManagement, expiresAt = (time + 90.days).toString(), tailcatPhone = phone))
         closePairing()
         return newToken
     }
@@ -76,11 +93,39 @@ class DeviceAuth(private val file: File, private val now: () -> Instant = { Cloc
         return pairingCode
     }
 
-    @Synchronized
     override fun pairing(refresh: Boolean, management: Boolean): PairingCode? {
-        if (!pairable) return null
-        if (refresh || pairingCode.isEmpty() || now() >= codeExpires || codeManagement != management) refreshCode(management)
-        return PairingCode(pairingCode, codeExpires.toString(), port, addresses(), publicUrl ?: learnedUrl(), codeManagement)
+        // Opening the invite can wait on Tailcat startup, so it runs outside this monitor.
+        val (current, expires, bound) = synchronized(this) {
+            if (!pairable) return null
+            if (refresh || pairingCode.isEmpty() || now() >= codeExpires || codeManagement != management) refreshCode(management)
+            Triple(PairingCode(pairingCode, codeExpires.toString(), port, addresses(), publicUrl ?: learnedUrl(), codeManagement), codeExpires,
+                devices().mapNotNull { it.tailcatPhone }.toSet())
+        }
+        return current.copy(tailcatInvite = tailcatInvite(current.code, expires, bound))
+    }
+
+    /** Serves pairing through [tunnel] from now on, or stops when null; the caller closes the tunnel it passed earlier. */
+    fun tailcat(tunnel: TailcatTunnel?) = synchronized(tailcatLock) {
+        window?.invite?.let { runCatching { it.close() } }
+        window = null
+        this.tunnel = tunnel
+    }
+
+    internal fun tailcatPeer(port: Int): String? = synchronized(tailcatLock) { tunnel?.peerAt(port) }
+
+    private class TailcatWindow(val code: String, val invite: TailcatInvite)
+
+    private fun tailcatInvite(code: String, expires: Instant, bound: Set<String>): String? = synchronized(tailcatLock) {
+        val tunnel = tunnel ?: return null
+        window?.takeIf { it.code == code && it.invite.open }?.let { return it.invite.text }
+        window?.invite?.let { runCatching { it.close() } }
+        window = null
+        val seconds = (expires - now()).inWholeSeconds.toInt()
+        if (seconds < MIN_INVITE_SECONDS) return null
+        val invite = try { tunnel.invite(code, ProtocolJson.encodeToString(TailcatPayload.serializer(), TailcatPayload(code)), seconds, bound) }
+        catch (e: Exception) { log.warn { "Could not open a Tailcat pairing window: ${e.message}" }; return null }
+        window = TailcatWindow(code, invite)
+        invite.text
     }
 
     @Synchronized
@@ -90,12 +135,18 @@ class DeviceAuth(private val file: File, private val now: () -> Instant = { Cloc
             tools = it.tools, management = it.management, expiresAt = it.expiresAt, push = it.push != null) }
     }
 
-    @Synchronized
     override fun revoke(id: String): Boolean {
-        val devices = devices()
-        val kept = devices.filterNot { it.id == id }
-        if (kept.size == devices.size) return false
-        save(kept)
+        val phone = synchronized(this) {
+            val devices = devices()
+            val kept = devices.filterNot { it.id == id }
+            if (kept.size == devices.size) return false
+            save(kept)
+            devices.first { it.id == id }.tailcatPhone
+        }
+        if (phone != null) synchronized(tailcatLock) {
+            try { tunnel?.revoke(phone) ?: offlineTailcatRevoke(phone) }
+            catch (e: Exception) { log.warn { "Could not revoke a Tailcat phone: ${e.message}" } }
+        }
         return true
     }
 

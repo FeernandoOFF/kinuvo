@@ -9,6 +9,8 @@ import kinuvo.protocol.device.ToolDevice
 interface PeerRegistry {
     val pairable: Boolean get() = false
     fun authenticate(device: String, token: String?, pairingCode: String?): String?
+    fun authenticate(device: String, token: String?, pairingCode: String?, tailcatPeer: String?): String? =
+        authenticate(device, token, pairingCode)
     fun valid(token: String): Boolean = true
     fun management(token: String): Boolean = true
     fun rotate(token: String): String = error("Token rotation is unavailable")

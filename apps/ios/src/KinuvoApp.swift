@@ -18,6 +18,7 @@ struct KinuvoApp: App {
         QrScanner_iosKt.installQrScanner(scanner: AppleQrScanner())
         Speech_iosKt.installSpeechEngine(engine: AppleSpeech())
         Push_iosKt.installPush(native: ApplePush.shared)
+        AppleTailcat.install()
         IosEmbeddedKt.startKinuvoWithEmbeddedServer(model: AppleSystemLanguageModel(), keychain: keychain, folders: folders, runs: AppleBackgroundRuns(), apple: AppleEventKitSystem())
     }
     var body: some Scene {

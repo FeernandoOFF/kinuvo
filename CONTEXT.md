@@ -182,8 +182,12 @@ _Avoid_: Gateway, backend
 A client (desktop app, phone, browser) paired with a Server through a pairing code.
 _Avoid_: Node, client app
 
+**Tunnel invite**:
+The secret text, shown as a QR code or link, that lets a Device pair with a Server's private tunnel and reach it from any network. One scan pairs the tunnel and then the Device with the code the tunnel delivers; the Device still authenticates as usual.
+_Avoid_: Tailcat address
+
 **Pairing link**:
-A link that opens a Device ready to pair with a Server, with its address and pairing code filled in; the user still chooses to pair.
+A link that opens a Device ready to pair with a Server, with its address and pairing code filled in (or, for a tunnel, its invite); the user still chooses to pair.
 
 **Alias**:
 This Device's own name for a remote Server, independent of the names other Devices give it.

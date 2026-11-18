@@ -17,6 +17,7 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v5
+      - uses: ./.github/actions/fetch-libs
       - run: scripts/jbr.sh
       - uses: ./.github/actions/restore-kotlin-cache
       - run: scripts/package.sh jar "$VERSION"
@@ -37,6 +38,7 @@ jobs:
         shell: bash
     steps:
       - uses: actions/checkout@v5
+      - uses: ./.github/actions/fetch-libs
       - run: scripts/jbr.sh
       - uses: actions/download-artifact@v4
         with:
@@ -59,6 +61,7 @@ jobs:
         shell: bash
     steps:
       - uses: actions/checkout@v5
+      - uses: ./.github/actions/fetch-libs
       - name: Prepare macOS signing credentials
         if: runner.os == 'macOS'
         env:
@@ -131,6 +134,7 @@ jobs:
       KEYSTORE: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
     steps:
       - uses: actions/checkout@v5
+      - uses: ./.github/actions/fetch-libs
       - uses: actions/setup-java@v5
         with:
           distribution: temurin

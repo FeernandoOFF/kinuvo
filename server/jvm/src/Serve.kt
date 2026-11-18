@@ -1,5 +1,6 @@
 package kinuvo.server.jvm
 
+import kinuvo.server.plugin.TailcatServing
 import io.github.oshai.kotlinlogging.KotlinLogging
 import kinuvo.server.NetworkSecurity
 import kotlinx.coroutines.NonCancellable
@@ -22,6 +23,7 @@ data class ServeOptions(
     val tailscale: Boolean = false,
     val tailscalePort: Int = 443,
     val behindProxy: Boolean = false,
+    val tailcat: Boolean = false,
 )
 
 private fun env(name: String) = System.getenv(name)?.trim()?.takeIf { it.isNotEmpty() }
@@ -38,7 +40,7 @@ internal fun coolifyOrigin(value: String?): String? = value?.split(',')?.firstNo
 internal fun publicUrl(option: String?, env: (String) -> String? = ::env): String? = option?.trim()?.takeIf { it.isNotEmpty() } ?: env("KINUVO_PUBLIC_URL")
 
 /** Runs the Server until cancelled; [extend] adds to it once it listens and is closed when it stops. */
-suspend fun serve(options: ServeOptions, extend: suspend (server: JvmServerHost, host: String, port: Int) -> AutoCloseable? = { _, _, _ -> null }) {
+suspend fun serve(options: ServeOptions, tailcat: TailcatServing? = null, extend: suspend (server: JvmServerHost, host: String, port: Int) -> AutoCloseable? = { _, _, _ -> null }) {
     require(!options.tailscale || options.publicUrl == null) { "Use --tailscale or --public-url, not both" }
     val route = if (options.tailscale) {
         Tailscale.requireLoopback(options.host)
@@ -48,17 +50,24 @@ suspend fun serve(options: ServeOptions, extend: suspend (server: JvmServerHost,
     val behindProxy = options.behindProxy || env("KINUVO_BEHIND_PROXY")?.lowercase() in listOf("1", "true")
     val trusted = (options.trustedProxy?.trim()?.takeIf { it.isNotEmpty() } ?: env("KINUVO_TRUSTED_PROXIES"))?.split(',')?.map(String::trim)?.toSet()
     val network = NetworkSecurity(route?.url ?: publicUrl(options.publicUrl), trusted, behindProxy, if (behindProxy) coolifyOrigin(env("COOLIFY_URL")) else null)
-    val server = JvmServerHost(JvmAgentRuntime(), network = network)
+    val server = JvmServerHost(JvmAgentRuntime(), network = network, tailcat = tailcat)
     var extension: AutoCloseable? = null
     var ready = false
     val shutdown = Thread { try { server.stop() } finally { extension?.close() } }
     try {
         val bound = server.start(bind, options.port)
+        if (options.tailcat) {
+            try {
+                checkNotNull(tailcat) { "Tailcat is not available in this build" }
+                server.shareTailcat(true)
+            } catch (e: IllegalStateException) { throw ServeException(e.message ?: "Could not start Tailcat") }
+        }
         route?.enable()
         extension = extend(server, bind, bound)
         server.advertise()
         log.info { "Server listening at $bind:$bound${network.publicUrl?.let { "; HTTPS address $it" }.orEmpty()}" }
         if (route != null) log.info { "Tailscale HTTPS: ${route.url} (private to your tailnet; the Serve route persists until disabled)" }
+        if (server.tailcatEnabled) log.info { "Tailcat is active; run kinuvo pair to show its pairing link" }
         log.info { "Pairing is closed. Run `kinuvo pair --manage` for a management Device or `kinuvo pair` for ordinary access." }
         Runtime.getRuntime().addShutdownHook(shutdown)
         ready = true

@@ -19,6 +19,17 @@ object Links {
     /** Opens the app ready to pair with [server]; what pairing QR codes hold. */
     fun pair(server: String, code: String) = "kinuvo://pair?server=${encode(server)}&code=${encode(code)}"
 
+    private const val TAILCAT_INVITE_PREFIX = "kinuvo1:"
+
+    /** True for the text a Server's private-tunnel pairing window shows; it is secret, and carries the pairing code inside the tunnel. */
+    fun isTailcatInvite(text: String) = text.length in TAILCAT_INVITE_PREFIX.length + 16..4096 && text.startsWith(TAILCAT_INVITE_PREFIX) &&
+        text.drop(TAILCAT_INVITE_PREFIX.length).all { it in 'A'..'Z' || it in 'a'..'z' || it in '0'..'9' || it == '_' || it == '-' }
+
+    fun tailcatPair(invite: String): String {
+        require(isTailcatInvite(invite)) { "Invalid Tailcat invite" }
+        return "kinuvo://pair?tailcat=${encode(invite)}"
+    }
+
     /** Opens the web app served by [baseUrl] ready to pair; the code stays in the fragment, so it never reaches the Server. */
     fun webPair(baseUrl: String, code: String) = "${baseUrl.removeSuffix("/")}/#pair=${encode(code)}"
 
@@ -27,6 +38,9 @@ object Links {
         val url = text.trim()
         if (url.startsWith("kinuvo://pair?")) {
             val query = url.substringAfter('?').split('&').associate { it.substringBefore('=') to decode(it.substringAfter('=', "")) }
+            query["tailcat"]?.let { invite ->
+                return if (isTailcatInvite(invite)) PairLink(invite, "") else null
+            }
             val server = query["server"]?.takeIf { it.isNotBlank() } ?: return null
             return PairLink(server, query["code"]?.takeIf(::isCode) ?: return null)
         }

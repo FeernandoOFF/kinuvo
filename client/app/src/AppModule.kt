@@ -21,11 +21,12 @@ import kinuvo.app.session.*
 import kinuvo.app.surface.UiCatalogs
 import kinuvo.app.voice.ServerVoiceViewModel
 import org.koin.core.module.dsl.viewModel
+import kinuvo.client.UnsupportedTailcatForwarder
 import org.koin.dsl.module
 
 /** Repositories and ViewModels shared by every client; hosts add their platform's bindings, e.g. [Preferences] and [Device]. */
 val appModule = module {
-    single { getOrNull<MobileTestMode>()?.servers ?: Servers(get(), getOrNull(), get()) }
+    single { getOrNull<MobileTestMode>()?.servers ?: Servers(get(), getOrNull(), get(), tailcat = getOrNull() ?: UnsupportedTailcatForwarder) }
     single { Notifications(getAll()) }
     single { NotificationActions(get(), get()) }
     single { LiveCalls() }

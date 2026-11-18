@@ -9,6 +9,12 @@ import kotlin.test.assertTrue
 import kotlin.test.assertFalse
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
+import kotlin.test.assertFailsWith
+import kinuvo.client.TailcatForward
+import kinuvo.client.TailcatForwarder
+import kinuvo.client.TailcatPairing
+import kotlinx.coroutines.runBlocking
+import kinuvo.protocol.device.Links
 import kinuvo.protocol.device.PairingCode
 import kinuvo.protocol.agent.AgentId
 import kinuvo.protocol.session.SessionId
@@ -35,6 +41,62 @@ private object FakeEmbedded : EmbeddedServer {
 }
 
 class ServersTest {
+    private var link = "private-link-one"
+    private var code = "111111"
+    private val forwarder = object : TailcatForwarder {
+        override val supported = true
+        override suspend fun pair(invite: String, device: String) = TailcatPairing(link, """{"code":"$code"}""", "Kitchen Mac")
+        override suspend fun open(link: String): TailcatForward = error("Not used")
+    }
+    private val invite = "kinuvo1:" + "a".repeat(140)
+
+    @Test fun tailcatPairingStoresTheLinkInCredentialsAndKeepsTheServerOnRePair() = runBlocking {
+        val prefs = MemoryPreferences()
+        val servers = Servers(prefs, credentials = prefs.credentials, tailcat = forwarder)
+        val pairing = servers.pairTailcat(invite, "Phone")
+        assertEquals("111111", pairing.code)
+        assertEquals(RemoteTransport.Tailcat, pairing.server.transport)
+        assertNull(pairing.server.token)
+        val first = servers.remember(pairing.server, "first", "home", "Kitchen") as Server.Remote
+        servers.select(first)
+        assertEquals("private-link-one", first.tailcatLink)
+        link = "private-link-two"
+        val updated = servers.remember(servers.pairTailcat(invite, "Phone").server, "second", "home", "New name") as Server.Remote
+        assertEquals(first.key, updated.key)
+        assertEquals("Kitchen", updated.name)
+        assertEquals("private-link-two", updated.tailcatLink)
+        assertEquals(updated, servers.current)
+        assertEquals(listOf(updated), servers.all)
+        assertFalse(prefs["servers"]!!.contains(invite))
+        assertFalse(prefs["servers"]!!.contains("private-link"))
+        assertFalse(prefs["servers"]!!.contains("second"))
+        assertFalse(updated.toString().contains("private-link"))
+        assertEquals(updated.tailcatLink, (servers.unpair(updated)).tailcatLink)
+        val unpaired = servers.all.single() as Server.Remote
+        assertNull(unpaired.token)
+        assertEquals(updated.tailcatLink, unpaired.tailcatLink)
+        servers.forget(unpaired)
+        assertNull(prefs.credentials.read("${updated.key}.link"))
+        assertNull(servers.current)
+    }
+
+    @Test fun tailcatPairingNeedsAnInviteAndACodeFromTheServer() = runBlocking {
+        val prefs = MemoryPreferences()
+        val servers = Servers(prefs, credentials = prefs.credentials, tailcat = forwarder)
+        assertFailsWith<IllegalArgumentException> { servers.pairTailcat("tc" + "a".repeat(140), "Phone") }
+        val missing = Servers(prefs, credentials = prefs.credentials, tailcat = object : TailcatForwarder by forwarder {
+            override suspend fun pair(invite: String, device: String) = TailcatPairing("link", "", "Mac")
+        })
+        assertFailsWith<IllegalStateException> { missing.pairTailcat(invite, "Phone") }
+        assertTrue(servers.all.isEmpty())
+    }
+
+    @Test fun tailcatPairingIsAnAdditionalChoice() {
+        val info = pairingInfo("tailcat:opaque", PairingCode("123456", "2026-10-10T04:00:00Z", 8787, tailcatInvite = invite))
+        assertEquals(Links.tailcatPair(invite), info.tailcatLink)
+        assertEquals(emptyList(), info.bases)
+    }
+
     @Test
     fun remembersPairedServersAndUpdatesTokens() {
         val prefs = MemoryPreferences()

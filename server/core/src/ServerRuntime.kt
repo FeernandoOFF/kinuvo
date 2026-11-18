@@ -348,8 +348,8 @@ class ServerRuntime(
         }
     }
 
-    suspend fun serve(connection: FrameConnection) {
-        val serving = scope.async(start = CoroutineStart.UNDISPATCHED) { serveConnection(connection) }
+    suspend fun serve(connection: FrameConnection, tailcatPeer: String? = null) {
+        val serving = scope.async(start = CoroutineStart.UNDISPATCHED) { serveConnection(connection, tailcatPeer) }
         try { serving.await() } finally { withContext(NonCancellable) { serving.cancelAndJoin() } }
     }
 
@@ -359,7 +359,7 @@ class ServerRuntime(
         return replacement
     }
 
-    private suspend fun serveConnection(connection: FrameConnection) {
+    private suspend fun serveConnection(connection: FrameConnection, tailcatPeer: String?) {
         val client = Client(connection)
         val requests = CoroutineScope(currentCoroutineContext() + SupervisorJob(currentCoroutineContext()[Job]))
         client.callScope = requests
@@ -420,7 +420,7 @@ class ServerRuntime(
                         val version = ProtocolVersion.negotiate(p.protocolVersion, p.minProtocolVersion ?: p.protocolVersion) ?: raise(ConnectError.ProtocolMismatch)
                         val supplied = connection.credential ?: p.token
                         client.linked = supplied?.let { remoteLinks.exposure(it) != null } == true
-                        val token = (if (client.linked) supplied else auth.authenticate(p.device, supplied, if (connection.credential == null) p.pairingCode else null))
+                        val token = (if (client.linked) supplied else auth.authenticate(p.device, supplied, if (connection.credential == null) p.pairingCode else null, tailcatPeer))
                             ?: raise(if (p.token != null) ConnectError.Unpaired else ConnectError.InvalidPairing)
                         client.token = token
                         if (!client.linked && p.registerDeviceTools) client.refreshTools(p.deviceTools, initial = true)

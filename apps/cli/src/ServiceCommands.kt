@@ -29,11 +29,12 @@ internal class ServiceCommands : Group(
 )
 
 /** What the service runs: [jar] with this JVM, serving on [host]:[port], logging to [log]. */
-internal data class ServiceSpec(val java: String, val jar: String, val host: String, val port: Int, val log: String, val env: Map<String, String>, val computer: Boolean = false, val tailscale: Boolean = false, val tailscalePort: Int = 443) {
+internal data class ServiceSpec(val java: String, val jar: String, val host: String, val port: Int, val log: String, val env: Map<String, String>, val computer: Boolean = false, val tailscale: Boolean = false, val tailscalePort: Int = 443, val tailcat: Boolean = false) {
     val home get() = File(log).parentFile.parentFile.path
     val outputLog get() = File(File(log).parentFile, "service-output.log").path
     val command get() = listOf(java, "-Dlogback.configurationFile=logback-service.xml", "-Dkinuvo.log.file=$log", "-jar", jar, "serve", "--host", host, "--port", port.toString()) +
         (if (computer) listOf("--computer") else emptyList()) +
+        (if (tailcat) listOf("--tailcat") else emptyList()) +
         (if (tailscale) listOf("--tailscale", "--tailscale-port", tailscalePort.toString()) else emptyList())
 }
 
@@ -93,7 +94,7 @@ internal class AppService(
     override val runsJar = false
 
     override fun render(spec: ServiceSpec): String {
-        val options = ServeOptions(spec.host, spec.port, spec.env["KINUVO_PUBLIC_URL"], spec.env["KINUVO_TRUSTED_PROXIES"], spec.tailscale, spec.tailscalePort)
+        val options = ServeOptions(spec.host, spec.port, spec.env["KINUVO_PUBLIC_URL"], spec.env["KINUVO_TRUSTED_PROXIES"], spec.tailscale, spec.tailscalePort, tailcat = spec.tailcat)
         return Json.encodeToString(LoginServiceSettings.serializer(), LoginServiceSettings(spec.home, options))
     }
 
@@ -286,6 +287,7 @@ private class InstallService : CoreSuspendingCliktCommand("install") {
     private val publicUrl by option("--public-url", help = "HTTPS origin served by a reverse proxy")
     private val computer by option("--computer", help = "Expose this desktop as a Computer through cua-driver").flag()
     private val tailscale by option("--tailscale", help = "Provide private HTTPS through Tailscale Serve and retain it across service restarts").flag()
+    private val tailcat by option("--tailcat", help = "Keep the private Tailcat tunnel running across service restarts").flag()
     private val tailscalePort by option("--tailscale-port", help = "Tailscale HTTPS port").int().default(443)
     private val jar by option("--jar", help = "Executable jar to run (default: the one running this command); copied to <home>/bin/kinuvo.jar")
     private val force by option("--force", help = "Install even while another Server runs on this home; stop it first or both run Routines").flag()
@@ -316,7 +318,7 @@ private class InstallService : CoreSuspendingCliktCommand("install") {
             serveErrors { route?.enable() }
             if (source != null && source.canonicalFile != installed.canonicalFile) Files.copy(source.toPath(), installed.toPath(), StandardCopyOption.REPLACE_EXISTING)
             val serviceEnv = if (tailscale) env - "KINUVO_PUBLIC_URL" else env + publicUrl?.let { mapOf("KINUVO_PUBLIC_URL" to it) }.orEmpty()
-            manager.install(ServiceSpec(java, installed.path, if (tailscale) "127.0.0.1" else host, port, log.path, serviceEnv, computer, tailscale, tailscalePort))
+            manager.install(ServiceSpec(java, installed.path, if (tailscale) "127.0.0.1" else host, port, log.path, serviceEnv, computer, tailscale, tailscalePort, tailcat))
         } catch (e: Throwable) {
             kotlinx.coroutines.withContext(NonCancellable) { runCatching { route?.rollback() }.exceptionOrNull()?.let(e::addSuppressed) }
             throw e

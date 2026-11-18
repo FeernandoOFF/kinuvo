@@ -1,32 +1,44 @@
+[tasks."libs:fetch"]
+description = "Download the prebuilt native libraries pinned by libs/*/prebuilt.json (idempotent)"
+run = "./scripts/libs.sh fetch"
+
 [tasks.server]
+depends = ["libs:fetch"]
 description = "Run the Server (KINUVO_HOME selects its data)"
 run = '[ "$(uname -s)" != Darwin ] || ./scripts/build-local-voice.sh; ./kotlin run -m cli -- serve --host 127.0.0.1'
 
 [tasks.desktop]
+depends = ["libs:fetch"]
 description = "Run the desktop app (KINUVO_HOME selects its data)"
 run = "./scripts/run-desktop.sh"
 
 [tasks."desktop:personal"]
+depends = ["libs:fetch"]
 description = "Run desktop with the personal home (default ~/.kinuvo, port 8787)"
 run = 'KINUVO_HOME="${KINUVO_PERSONAL_HOME:-$HOME/.kinuvo}" KINUVO_EMBEDDED_PORT="${KINUVO_PERSONAL_PORT:-8787}" ./scripts/run-desktop.sh'
 
 [tasks."desktop:test"]
+depends = ["libs:fetch"]
 description = "Run desktop with the test home (default ~/.kinuvo-test, port 8791)"
 run = 'KINUVO_HOME="${KINUVO_TEST_HOME:-$HOME/.kinuvo-test}" KINUVO_EMBEDDED_PORT="${KINUVO_TEST_PORT:-8791}" ./scripts/run-desktop.sh'
 
 [tasks.android]
+depends = ["libs:fetch"]
 description = "Build, install and launch the Android app"
 run = "./kotlin run -m android"
 
 [tasks.ios]
+depends = ["libs:fetch"]
 description = "Build, install and launch the iOS app"
 run = "./kotlin run -m ios"
 
 [tasks.cli]
+depends = ["libs:fetch"]
 description = "Run CLI commands (KINUVO_HOME selects its data)"
 run = "./kotlin run -m cli --"
 
 [tasks.kotlin]
+depends = ["libs:fetch"]
 description = "Run Kotlin Toolchain commands"
 run = "./kotlin"
 

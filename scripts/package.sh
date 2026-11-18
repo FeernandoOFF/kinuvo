@@ -79,10 +79,23 @@ allow_native_access() { # Skiko, QuickJS and Rive load native libraries
   "$java_home/bin/jar" ufm "$1" "$work/native-access.mf"
 }
 
+# The committed Tailcat library for this platform, if one exists; Tailcat reports itself unavailable elsewhere.
+tailcat_library() {
+  local file=libs/tailcat/prebuilt/$os-$arch/libKinuvoTailcat.dylib
+  if [ -f "$file" ]; then printf '%s\n' "$file"; fi
+}
+
 package_jar() {
   KINUVO_VERSION=$version ./package-server.sh
   cp build/tasks/_cli_executableJarJvm/cli-jvm-executable.jar "$dist/kinuvo.jar"
   restore_collisions cli "$dist/kinuvo.jar"
+  # The JAR is portable, so it carries every desktop Tailcat library whatever host packages it.
+  local tailcat=libs/tailcat/prebuilt/macos-arm64/libKinuvoTailcat.dylib
+  [ -f "$tailcat" ] || { echo "Missing $tailcat; run mise run libs:fetch" >&2; exit 1; }
+  mkdir -p "$work/tailcat/BOOT-INF/classes/natives/macos-arm64"
+  cp "$tailcat" "$work/tailcat/BOOT-INF/classes/natives/macos-arm64/"
+  cp libs/tailcat/LICENSE.tailcat libs/tailcat/LICENSE.tailpocket "$work/tailcat/BOOT-INF/classes/natives/"
+  (cd "$work/tailcat" && "$java_home/bin/jar" uf "$dist/kinuvo.jar" BOOT-INF/classes)
   allow_native_access "$dist/kinuvo.jar"
 }
 
@@ -96,6 +109,12 @@ package_cli() {
   mkdir -p "$app/bin" "$app/lib"
   cp "$jar" "$app/lib/kinuvo.jar"
   python3 scripts/package-natives.py "$app/lib/kinuvo.jar" "$os" "$arch"
+  local tailcat
+  tailcat=$(tailcat_library)
+  if [ -n "$tailcat" ]; then
+    cp "$tailcat" "$app/lib/"
+    cp libs/tailcat/LICENSE.tailcat libs/tailcat/LICENSE.tailpocket "$app/lib/"
+  fi
   runtime "$app/runtime" --include-locales en
   rm -rf "$app/runtime/lib/fonts"
   if [ "$os" = windows ]; then
@@ -125,11 +144,18 @@ package_desktop() {
   python3 scripts/package-natives.py "$work/input/kinuvo-desktop.jar" "$os" "$arch"
   modules=$modules,jdk.accessibility runtime "$work/runtime"
   local args=(--name Kinuvo --input "$work/input" --main-jar kinuvo-desktop.jar --runtime-image "$work/runtime" --dest "$work/out"
-    --java-options --enable-native-access=ALL-UNNAMED)
+    --java-options --enable-native-access=ALL-UNNAMED
+    --java-options '-Dcompose.application.resources.dir=$APPDIR')
   # jpackage wants a numeric version, and macOS rejects a leading 0.
   local numeric=${version#v}; numeric=${numeric%%-*}
   if [[ $numeric =~ ^[0-9]+(\.[0-9]+){0,2}$ ]] && { [ "$os" != macos ] || [ "${numeric%%.*}" != 0 ]; }; then
     args+=(--app-version "$numeric")
+  fi
+  local tailcat
+  tailcat=$(tailcat_library)
+  if [ -n "$tailcat" ]; then
+    cp "$tailcat" "$work/input/"
+    cp libs/tailcat/LICENSE.tailcat libs/tailcat/LICENSE.tailpocket "$work/input/"
   fi
   case $os in
     macos)
@@ -142,7 +168,6 @@ package_desktop() {
       ./scripts/build-mac-service.sh >/dev/null
       cp build/libKinuvoService.dylib "$work/input/"
       cp build/libKinuvoApple.dylib "$work/input/"
-      args+=(--java-options '-Dcompose.application.resources.dir=$APPDIR')
       local identity=dev.kinuvo.desktop
       args+=(--mac-package-identifier "$identity")
       "$java_home/bin/jpackage" --type app-image --icon apps/desktop/icons/Kinuvo.icns "${args[@]}"
@@ -188,7 +213,6 @@ package_desktop() {
       cp "$work"/out/*.deb "$dist/Kinuvo-desktop-$os-$arch.deb" ;;
     windows)
       powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build-windows-speech.ps1 -OutputPath "$(cygpath -w "$work/input/KinuvoSpeech.exe")"
-      args+=(--java-options '-Dcompose.application.resources.dir=$APPDIR')
       "$java_home/bin/jpackage" --type app-image --icon apps/desktop/icons/Kinuvo.ico "${args[@]}"
       archive "$work/out/Kinuvo" "Kinuvo-desktop-$os-$arch" ;;
   esac

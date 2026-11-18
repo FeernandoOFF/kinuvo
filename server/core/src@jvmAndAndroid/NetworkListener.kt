@@ -36,7 +36,8 @@ import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.intOrNull
 
 /** Serves [runtime] over WebSockets to Devices on the network, which pair and authenticate through [auth]. */
-class NetworkListener(private val runtime: ServerRuntime, private val auth: DeviceAuth, val network: NetworkSecurity = NetworkSecurity()) {
+class NetworkListener(private val runtime: ServerRuntime, private val auth: DeviceAuth, val network: NetworkSecurity = NetworkSecurity(), private val remoteOnly: Boolean = false) {
+    init { require(!remoteOnly || !network.behindProxy && network.publicUrl == null && !network.secureProxy("127.0.0.1", "https")) }
     private val limits = NetworkLimits()
     private var engine: EmbeddedServer<*, *>? = null
     var boundPort = 0; private set
@@ -49,21 +50,25 @@ class NetworkListener(private val runtime: ServerRuntime, private val auth: Devi
             require(network.behindProxy || InetAddress.getByName(host).isLoopbackAddress) { "Public hosting must listen on loopback behind a trusted HTTPS proxy" }
             require(ports.size == 1 && ports.single() in 1..65535) { "Public hosting requires a single fixed port" }
         }
-        auth.publicUrl = network.publicUrl
-        auth.learnedUrl = { network.learnedOrigin }
+        if (!remoteOnly) {
+            auth.publicUrl = network.publicUrl
+            auth.learnedUrl = { network.learnedOrigin }
+        }
         val server = if (network.publicUrl != null) listen(host, ports.single())
             else ports.filter { free(host, it) }.firstNotNullOfOrNull { port -> runCatching { listen(host, port) }.getOrNull() } ?: listen(host, 0)
         engine = server
         boundHost = host
         boundPort = server.engine.resolvedConnectors().first().port
-        auth.port = boundPort
-        val address = InetAddress.getByName(host)
-        auth.addresses = {
-            when {
-                network.behindProxy -> emptyList()
-                address.isAnyLocalAddress -> lanAddresses()
-                address.isLoopbackAddress -> emptyList()
-                else -> listOf(address.hostAddress)
+        if (!remoteOnly) {
+            auth.port = boundPort
+            val address = InetAddress.getByName(host)
+            auth.addresses = {
+                when {
+                    network.behindProxy -> emptyList()
+                    address.isAnyLocalAddress -> lanAddresses()
+                    address.isLoopbackAddress -> emptyList()
+                    else -> listOf(address.hostAddress)
+                }
             }
         }
         return boundPort
@@ -82,7 +87,7 @@ class NetworkListener(private val runtime: ServerRuntime, private val auth: Devi
                     val peer = call.request.local.remoteAddress
                     val forwarded = call.request.header("X-Forwarded-Proto")
                     val hosts = (lanAddresses() + listOf("127.0.0.1", "localhost", "::1", host)).toSet()
-                    if (call.request.header("Origin") == null || !network.acceptsBrowser(call.request.header("Origin"), call.request.header("Host").orEmpty(), hosts, peer, forwarded, call.request.header("X-Forwarded-Host")) ||
+                    if (remoteOnly || call.request.header("Origin") == null || !network.acceptsBrowser(call.request.header("Origin"), call.request.header("Host").orEmpty(), hosts, peer, forwarded, call.request.header("X-Forwarded-Host")) ||
                         !(network.secureProxy(peer, forwarded) || network.publicUrl == null && InetAddress.getByName(peer).isLoopbackAddress)) {
                         limits.audit(peer, "browser_origin_or_transport")
                         call.respondText("Forbidden", status = HttpStatusCode.Forbidden); return@post
@@ -122,7 +127,7 @@ class NetworkListener(private val runtime: ServerRuntime, private val auth: Devi
                 webSocket("/ws") {
                     val peer = call.request.local.remoteAddress
                     val hosts = (lanAddresses() + listOf("127.0.0.1", "localhost", "::1", host)).toSet()
-                    if (!network.acceptsBrowser(call.request.header("Origin"), call.request.header("Host").orEmpty(), hosts, peer, call.request.header("X-Forwarded-Proto"), call.request.header("X-Forwarded-Host")) ||
+                    if (remoteOnly && call.request.header("Origin") != null || !network.acceptsBrowser(call.request.header("Origin"), call.request.header("Host").orEmpty(), hosts, peer, call.request.header("X-Forwarded-Proto"), call.request.header("X-Forwarded-Host")) ||
                         network.publicUrl != null && call.request.header("Origin") != null && !network.secureProxy(peer, call.request.header("X-Forwarded-Proto"))) { limits.audit(peer, "websocket_origin_or_transport"); close(); return@webSocket }
                     val source = runCatching { network.source(peer, call.request.header("X-Forwarded-For")) }.getOrNull()
                     if (source == null || !limits.open(source)) { limits.audit(peer, "connection_limit"); close(); return@webSocket }
@@ -130,12 +135,14 @@ class NetworkListener(private val runtime: ServerRuntime, private val auth: Devi
                         val browser = call.request.header("Origin") != null
                         val credential = if (browser) call.request.cookies[SESSION_COOKIE]?.takeIf { auth.cookieMaxAge(it) != null } else null
                         if (browser && credential == null) { close(); return@webSocket }
-                        runtime.serve(connection(credential) { frame ->
+                        val tailcatPeer = if (remoteOnly && peer == "127.0.0.1") auth.tailcatPeer(call.request.local.remotePort) else null
+                        val connection = connection(credential) { frame ->
                             val params = (frame as? Frame.Request)?.takeIf { it.method == Api.Connect.name }?.let {
                                 runCatching { ProtocolJson.decodeFromJsonElement(ConnectParams.serializer(), it.params) }.getOrNull()
                             }
                             credential?.let(auth::valid) == true || params?.token?.let(auth::valid) == true || limits.authenticate(source)
-                        })
+                        }
+                        runtime.serve(connection, tailcatPeer)
                     } finally { limits.close(source) }
                 }
                 staticResources("/", "web") {
