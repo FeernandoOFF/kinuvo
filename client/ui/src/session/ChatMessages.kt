@@ -271,10 +271,11 @@ internal fun ChatItemView(item: ChatItem, actions: ChatActions, spoken: Int? = n
         }
         is ChatItem.Assistant -> Column(verticalArrangement = Arrangement.spacedBy(Spacing.space4)) {
             if (spoken != null) SpokenText(item.text, spoken, Modifier.fillMaxWidth()) else if (writing) StreamingMarkdown(item.text, Modifier.fillMaxWidth()) else Markdown(item.text, Modifier.fillMaxWidth())
-            if (finished && item.text.isNotBlank()) Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.space6)) {
-                CopyButton(item.text)
+            // Touch targets abut, so the icons sit close together.
+            if (finished && item.text.isNotBlank()) Row(verticalAlignment = Alignment.CenterVertically) {
+                CopyButton(item.text, Modifier.size(MessageActionSize))
                 ReadAloudButton(reading, { actions.onReadAloud(item.id, item.text) }, actions.onStopReading)
-                item.at?.let { Text(shortTime(it), style = TextStyles.caption, color = color(mutedColor)) }
+                item.at?.let { Text(shortTime(it), Modifier.padding(start = Spacing.space6), style = TextStyles.caption, color = color(mutedColor)) }
             }
         }
         is ChatItem.Reasoning -> StepView(item)
@@ -646,6 +647,8 @@ private fun QueuedBubble(text: String, onCancel: () -> Unit) {
     }
 }
 
+private val MessageActionSize @Composable get() = if (LocalInteractionMode.current == InteractionMode.Touch) 36.dp else 28.dp
+
 /** Reads a reply aloud with the Agent's voice, or stops it while [reading]. */
 @Composable
 private fun ReadAloudButton(reading: Boolean, onRead: () -> Unit, onStop: () -> Unit) {
@@ -653,7 +656,7 @@ private fun ReadAloudButton(reading: Boolean, onRead: () -> Unit, onStop: () -> 
     Hint(label, TooltipSide.Bottom) {
         IconButton(
             onClick = if (reading) onStop else onRead,
-            modifier = Modifier.size(if (LocalInteractionMode.current == InteractionMode.Touch) 44.dp else 28.dp),
+            modifier = Modifier.size(MessageActionSize),
             style = ButtonStyle.Ghost,
             shape = Theme[shapes][mediumShape],
             contentColor = if (reading) color(accentColor) else color(mutedColor),

@@ -1,7 +1,10 @@
 package kinuvo.ui.settings
 
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.foundation.layout.*
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.foundation.text.input.rememberTextFieldState
@@ -24,24 +27,54 @@ internal fun EndpointForm(vm: EndpointViewModel = koinViewModel(), onSaved: (Str
 @Composable
 internal fun EndpointContent(s: EndpointState, onEdit: (CustomEndpointParams) -> Unit, onDiscover: () -> Unit, onSave: () -> Unit) {
     val p = s.params
-    RowGroup("OpenAI-compatible endpoint") {
-        EndpointField("Provider ID", p.id) { onEdit(p.copy(id = it)) }
-        EndpointField("Base URL", p.baseUrl) { onEdit(p.copy(baseUrl = it)) }
-        EndpointField("API key (optional)", p.apiKey, secret = true) { onEdit(p.copy(apiKey = it)) }
-        ActionRow(if (s.busy) "Loading…" else "Discover models", Lucide.RefreshCw, onDiscover, enabled = !s.busy && p.baseUrl.isNotBlank())
-        if (s.models.isNotEmpty()) PickerRow("Model", s.models.map { it.id }, p.model, { it }, { onEdit(p.copy(model = it)) })
-        if (s.manual) EndpointField("Model ID", p.model) { onEdit(p.copy(model = it)) }
-        s.reason?.let { GroupBox { Text(it, style = TextStyles.secondary, color = color(warningColor)) } }
-        s.error?.let { GroupBox { Text(it, color = color(destructiveColor)) } }
-        ActionRow("Save custom provider", Lucide.Plus, onSave, enabled = s.saveable)
+    // Connect first; the model and name only matter once the server answered.
+    Column(verticalArrangement = Arrangement.spacedBy(Spacing.space8)) {
+        Column(Modifier.padding(start = Spacing.space6), verticalArrangement = Arrangement.spacedBy(Spacing.space2)) {
+            SectionLabel("Custom endpoint")
+            Text("LM Studio, Ollama, vLLM or any server with an OpenAI-compatible API.", Modifier.padding(horizontal = Spacing.space10), style = TextStyles.caption, color = color(mutedColor))
+        }
+        RowGroup {
+            GroupBox {
+                EndpointField("Server URL", p.baseUrl, "http://localhost:1234/v1") { onEdit(p.copy(baseUrl = it)) }
+                EndpointField("API key", p.apiKey, "Only if the server needs one", optional = true, secret = true) { onEdit(p.copy(apiKey = it)) }
+                Button(onClick = onDiscover, modifier = Modifier.fillMaxWidth(), enabled = !s.busy && p.baseUrl.isNotBlank(),
+                    style = if (s.discovered) ButtonStyle.Outlined else ButtonStyle.Primary) {
+                    if (s.busy) Spinner(Modifier.size(15.dp)) else Icon(Lucide.RefreshCw, Modifier.size(15.dp))
+                    Spacer(Modifier.width(Spacing.space6))
+                    Text(when { s.busy -> "Connecting…"; s.discovered -> "Find models again"; else -> "Connect and find models" }, singleLine = true)
+                }
+                s.reason?.let { Text(it, style = TextStyles.secondary, color = color(warningColor)) }
+            }
+        }
+        if (s.discovered) RowGroup {
+            if (s.models.isNotEmpty()) PickerRow("Model", s.models.map { it.id }, p.model, { it }, { onEdit(p.copy(model = it)) }, Lucide.Cpu,
+                subtitle = "${s.models.size} found")
+            GroupBox {
+                if (s.manual) EndpointField("Model ID", p.model, "e.g. llama-3.1-8b") { onEdit(p.copy(model = it)) }
+                EndpointField("Provider ID", p.id, "e.g. lmstudio", hint = "Lowercase letters, digits and hyphens. Names it in model lists.") { onEdit(p.copy(id = it)) }
+                s.error?.let { Text(it, style = TextStyles.secondary, color = color(destructiveColor)) }
+                Button(onClick = onSave, modifier = Modifier.fillMaxWidth(), enabled = s.saveable, style = ButtonStyle.Primary) {
+                    Icon(Lucide.Plus, Modifier.size(15.dp))
+                    Spacer(Modifier.width(Spacing.space6))
+                    Text("Add provider", singleLine = true)
+                }
+            }
+        }
     }
 }
 
 @Composable
-private fun EndpointField(label: String, value: String, secret: Boolean = false, onChange: (String) -> Unit) {
+private fun EndpointField(label: String, value: String, placeholder: String, optional: Boolean = false, secret: Boolean = false, hint: String? = null, onChange: (String) -> Unit) {
     val field = rememberTextFieldState(value)
     LaunchedEffect(value) { if (field.text.toString() != value) field.setTextAndPlaceCursorAtEnd(value) }
     val change by rememberUpdatedState(onChange)
     LaunchedEffect(field) { snapshotFlow { field.text.toString() }.collect { change(it) } }
-    FieldRow(label) { Input(field, label, Modifier.semantics { contentDescription = "Endpoint $label" }, secret = secret) }
+    Column(verticalArrangement = Arrangement.spacedBy(Spacing.space4)) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.space6)) {
+            Text(label, style = TextStyles.secondary, color = color(mutedColor))
+            if (optional) Text("Optional", style = TextStyles.caption, color = color(mutedColor))
+        }
+        Input(field, placeholder, Modifier.semantics { contentDescription = "Endpoint $label" }, secret = secret)
+        hint?.let { Text(it, style = TextStyles.caption, color = color(mutedColor)) }
+    }
 }

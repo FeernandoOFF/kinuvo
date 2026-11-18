@@ -46,7 +46,7 @@ class FeedbackTest {
             }
         }).use { scene ->
             scene.settle()
-            var target = scene.nodes().first { it.config.getOrNull(SemanticsProperties.ContentDescription)?.contains("Copy") == true }
+            var target = scene.nodes().first { it.config.getOrNull(SemanticsProperties.Text)?.any { t -> t.text == "Copy" } == true }
             while (target.config.getOrNull(SemanticsActions.OnClick) == null) target = requireNotNull(target.parent)
             target.config[SemanticsActions.OnClick].action!!.invoke()
             assertEquals(code.code, copied?.text)

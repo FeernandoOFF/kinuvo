@@ -739,17 +739,7 @@ internal fun ModelStep(s: OnboardingState, onProvider: (String) -> Unit, onRefre
         account?.apiKey?.let { key ->
             key(s.provider) { DraftRow(if (key.configured) "Replace API key" else "API key", s.apiKey, "API key or secret reference", secret = true) { value -> onEdit { it.copy(apiKey = value) } } }
         }
-        s.deviceCode?.let { code ->
-            val uri = LocalUriHandler.current
-            GroupBox {
-                Text("Enter this code on the sign-in page", style = TextStyles.secondary, color = color(mutedColor))
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.space8)) {
-                    Text(code.code, style = MonoStyle, fontSize = TextStyles.headline.fontSize, fontWeight = FontWeight.Bold)
-                    CopyButton(code.code)
-                }
-            }
-            ActionRow("Open sign-in page", Lucide.ExternalLink, { runCatching { uri.openUri(code.url) } })
-        }
+        s.deviceCode?.let { DeviceCodeSignIn(it) }
     }
     var adding by remember { mutableStateOf(false) }
     AdvancedGroup("More options", summary = "Change the model, or add your own") {
