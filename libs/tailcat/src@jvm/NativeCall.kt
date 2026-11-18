@@ -1,5 +1,9 @@
 package kinuvo.tailcat
 
+import kinuvo.protocol.device.Arch
+import kinuvo.protocol.device.Platform
+import kinuvo.protocol.device.currentArch
+import kinuvo.protocol.device.currentPlatform
 import java.io.File
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
@@ -36,8 +40,8 @@ private fun load(): (String, String) -> String {
 internal actual fun onShutdown(action: () -> Unit) { Runtime.getRuntime().addShutdownHook(Thread(action)) }
 
 private fun library(): File {
-    val mac = System.getProperty("os.name").startsWith("Mac")
-    val arm64 = System.getProperty("os.arch") in setOf("aarch64", "arm64")
+    val mac = currentPlatform == Platform.MacOS
+    val arm64 = currentArch == Arch.Arm64
     if (!mac || !arm64) throw IllegalStateException("Tailcat supports macOS on Apple silicon")
     val name = "libKinuvoTailcat.dylib"
     val root = generateSequence(File(".").canonicalFile) { it.parentFile }.firstOrNull { File(it, "project.yaml").isFile }
