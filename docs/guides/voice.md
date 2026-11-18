@@ -7,7 +7,7 @@ Voice chat lets you talk with an Agent in a Session, with a transcript saved the
 
 ## Live voice
 
-Live voice is an opt-in speech-to-speech mode for Voice chat, using ChatGPT's realtime voice model through the owner's ChatGPT/Codex subscription. Sign in to Codex on the Server, then enable **Live voice** under **Settings → Server → Voice**. The setting appears only when the Server can offer it: currently a JVM Server on macOS arm64 with Codex signed in. Devices on iOS, Android and desktop can join through that Server.
+Live voice is an opt-in speech-to-speech mode for Voice chat, using ChatGPT's realtime voice model through the owner's ChatGPT/Codex subscription. Sign in to Codex on the Server, then enable **Live voice** under **Settings → Server → Voice**. The setting appears only when the Server can offer it: a JVM Server on macOS (Apple silicon or Intel), Windows x64 or Linux x64 with Codex signed in and its Live voice library available. Linux arm64 is not supported. Devices on iOS, Android and desktop can join through that Server.
 
 Start a Voice call from the Session's voice controls. Audio streams continuously from the Device through the Server to OpenAI during the call. Calls count against the ChatGPT plan's usage limits; the call screen shows readable errors, including a reached usage limit and its reset time when available.
 

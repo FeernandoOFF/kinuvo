@@ -376,7 +376,12 @@ internal fun realtimeAvailable(
     arch: String = System.getProperty("os.arch"),
     probe: () -> Unit,
 ): Boolean {
-    if (os != "Mac OS X" || arch !in setOf("aarch64", "arm64")) return false
+    val supported = when {
+        os == "Mac OS X" -> arch in setOf("aarch64", "arm64", "x86_64", "amd64")
+        os == "Linux" || os.startsWith("Windows ") -> arch in setOf("x86_64", "amd64")
+        else -> false
+    }
+    if (!supported) return false
     return try { probe(); true }
     catch (e: LinkageError) { log.warn(e) { UNSUPPORTED_PLATFORM }; false }
     catch (e: Exception) { log.warn(e) { UNSUPPORTED_PLATFORM }; false }
