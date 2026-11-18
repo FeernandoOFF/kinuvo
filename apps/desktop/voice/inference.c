@@ -5,7 +5,7 @@
 #include <fcntl.h>
 #include <io.h>
 #define ENGINE_LIBRARY "sherpa-onnx-c-api.dll"
-#define dlsym(handle, name) GetProcAddress(handle, name)
+#define dlsym(handle, name) ((void *)GetProcAddress(handle, name))
 #else
 #include <dlfcn.h>
 #ifdef __APPLE__
