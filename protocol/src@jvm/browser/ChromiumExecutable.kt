@@ -15,6 +15,7 @@ fun findChromium(
         require(executable(it)) { "KINUVO_BROWSER_EXECUTABLE is not an executable file: $it" }
         return it
     }
+    fallback()?.takeIf(executable)?.let { return it }
     val separator = if (os == Platform.Windows) "\\" else "/"
     fun join(root: String, name: String) = root.trimEnd('/', '\\') + separator + name
     val names = when (os) {
@@ -30,12 +31,13 @@ fun findChromium(
                     "BraveSoftware\\Brave-Browser\\Application\\brave.exe", "Chromium\\Application\\chrome.exe").map { join(root, it) }
             }.orEmpty()
         }
+        Platform.Linux -> listOf("/opt/google/chrome/chrome")
         Platform.MacOS -> listOf("Google Chrome" to "Google Chrome", "Chromium" to "Chromium",
             "Microsoft Edge" to "Microsoft Edge", "Brave Browser" to "Brave Browser")
             .map { (app, binary) -> "/Applications/$app.app/Contents/MacOS/$binary" }
         else -> emptyList()
     }
-    val paths = pathDirs.flatMap { dir -> names.map { join(dir, it) } }
+    val paths = names.flatMap { name -> pathDirs.map { join(it, name) } }
     val extra = if (os == Platform.Linux) listOf("/snap/bin/chromium") else emptyList()
-    return (installed + paths + extra).firstOrNull(executable) ?: fallback()?.takeIf(executable)
+    return (installed + paths + extra).firstOrNull(executable)
 }

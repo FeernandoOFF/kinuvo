@@ -51,6 +51,18 @@ class ChromiumExecutableTest {
         assertNull(findChromium(emptyMap(), Platform.Linux, emptyList(), { false }, { "/missing" }))
     }
 
+    @Test fun existingBrowserChoiceWins() {
+        assertEquals("/existing/chrome", findChromium(emptyMap(), Platform.Linux,
+            listOf("/usr/bin"), { true }, { "/existing/chrome" }))
+    }
+
+    @Test fun chromeBeforeSnapAndOtherPathBrowsers() {
+        assertEquals("/usr/bin/google-chrome", findChromium(emptyMap(), Platform.Linux,
+            listOf("/snap/bin", "/usr/bin"), { it == "/snap/bin/chromium" || it == "/usr/bin/google-chrome" }))
+        assertEquals("/opt/google/chrome/chrome", findChromium(emptyMap(), Platform.Linux,
+            listOf("/snap/bin"), { it == "/snap/bin/chromium" || it == "/opt/google/chrome/chrome" }))
+    }
+
     @Test fun platformPathSeparator() {
         assertEquals("D:\\bin\\msedge.exe", findChromium(
             mapOf("PATH" to "C:\\bin;D:\\bin"), Platform.Windows,
@@ -61,6 +73,6 @@ class ChromiumExecutableTest {
         assertEquals("C:\\Apps\\Google\\Chrome\\Application\\chrome.exe",
             findChromium(mapOf("ProgramFiles" to "C:\\Apps"), Platform.Windows, listOf("C:\\bin"), { true }))
         assertEquals("/first/google-chrome",
-            findChromium(emptyMap(), Platform.Linux, listOf("/first", "/second"), { true }))
+            findChromium(emptyMap(), Platform.Linux, listOf("/first", "/second"), { it.startsWith("/first/") || it.startsWith("/second/") }))
     }
 }
