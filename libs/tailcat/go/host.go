@@ -128,17 +128,21 @@ func startHost(r request) (_ *hostTunnel, err error) {
 	if err != nil {
 		return nil, err
 	}
+	start, done := context.WithTimeout(ctx, 30*time.Second)
+	defer done()
+	identity, region := ipv4Identity(start, st.Identity)
 	h, err := connecthost.New(connecthost.Config{
-		Name: r.Name, Identity: st.Identity, Allowed: st.Allowed,
-		Save: func(s connecthost.State) error { return saveState(r.State, s) },
+		Name: r.Name, Identity: identity, Allowed: st.Allowed,
+		Save: func(s connecthost.State) error {
+			s.Identity = withRegion(s.Identity, region)
+			return saveState(r.State, s)
+		},
 	})
 	if err != nil {
 		return nil, errors.New("invalid saved state")
 	}
 	t.listener = h.Listener()
 	t.closeNative = h.Close
-	start, done := context.WithTimeout(ctx, 30*time.Second)
-	defer done()
 	if err = h.Start(start); err != nil {
 		debugLog("host start failed: %v", err)
 		return nil, startupError(err)

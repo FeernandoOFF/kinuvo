@@ -49,7 +49,7 @@ func pairPhone(r request) response {
 	if timeout <= 0 {
 		timeout = 60_000
 	}
-	link := connectmobile.Pair(r.Op, invite, connectmobile.NewKey(), r.Device, "", timeout)
+	link := connectmobile.Pair(r.Op, ipv4Addressed(invite), connectmobile.NewKey(), r.Device, "", timeout)
 	if message := nativeError(link); message != "" {
 		return response{Error: message}
 	}
@@ -61,7 +61,7 @@ func pairPhone(r request) response {
 }
 
 func forward(r request) (forwardHandle, int, error) {
-	text := connectmobile.Connect(r.Link, "")
+	text := connectmobile.Connect(ipv4Addressed(r.Link), "")
 	if message := nativeError(text); message != "" {
 		return forwardHandle{}, 0, errors.New(message)
 	}

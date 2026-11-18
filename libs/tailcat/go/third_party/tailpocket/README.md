@@ -1,1 +1,0 @@
-TailPocket v0.2.4, vendored under the MIT license. Kinuvo enables IPv4-only DERP dialing on cloned regions because the Frankfurt relay's IPv4 and IPv6 endpoints do not share peer registrations. [TODO(upstream)](https://github.com/jt-wang/tailpocket/issues)
