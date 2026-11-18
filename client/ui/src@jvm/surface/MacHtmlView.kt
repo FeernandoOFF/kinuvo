@@ -3,7 +3,8 @@ package kinuvo.ui.surface
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.toComposeImageBitmap
 import kinuvo.ui.session.speechResources
-import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.*
+import java.awt.event.KeyEvent
 import java.io.File
 import java.lang.foreign.Arena
 import java.lang.foreign.FunctionDescriptor
@@ -19,7 +20,7 @@ import org.jetbrains.skia.ColorType
 import org.jetbrains.skia.Image
 import org.jetbrains.skia.ImageInfo
 
-internal class MacHtmlView : AutoCloseable {
+internal class MacHtmlView : HtmlHost {
     private val symbols = SymbolLookup.libraryLookup(File(speechResources(), "libKinuvoWeb.dylib").toPath(), Arena.global())
     private fun function(name: String, descriptor: FunctionDescriptor) = Linker.nativeLinker().downcallHandle(symbols.find("kinuvo_web_$name").orElseThrow(), descriptor)
     private val create = function("create", FunctionDescriptor.of(ADDRESS))
@@ -30,12 +31,36 @@ internal class MacHtmlView : AutoCloseable {
     private val close = function("close", FunctionDescriptor.ofVoid(ADDRESS))
     private var handle = create.invokeWithArguments() as MemorySegment
 
-    @Synchronized fun send(command: JsonObject) {
+    override fun send(command: JsonObject) {
+        var translated = command
+        val op = command["op"]?.jsonPrimitive?.content
+        val flags = command["modifiers"]?.jsonPrimitive?.int ?: 0
+        val modifiers = (if (flags and KeyEvent.SHIFT_DOWN_MASK != 0) 1 shl 17 else 0) or
+            (if (flags and KeyEvent.CTRL_DOWN_MASK != 0) 1 shl 18 else 0) or
+            (if (flags and KeyEvent.ALT_DOWN_MASK != 0) 1 shl 19 else 0) or
+            (if (flags and KeyEvent.META_DOWN_MASK != 0) 1 shl 20 else 0)
+        if (op == "key") {
+            val code = when (command["code"]?.jsonPrimitive?.int) {
+                KeyEvent.VK_BACK_SPACE -> 51; KeyEvent.VK_DELETE -> 117; KeyEvent.VK_ENTER -> 36
+                KeyEvent.VK_TAB -> 48; KeyEvent.VK_ESCAPE -> 53; KeyEvent.VK_LEFT -> 123
+                KeyEvent.VK_RIGHT -> 124; KeyEvent.VK_DOWN -> 125; KeyEvent.VK_UP -> 126
+                else -> 0
+            }
+            val typed = code == 0 && flags and (KeyEvent.META_DOWN_MASK or KeyEvent.CTRL_DOWN_MASK) == 0 &&
+                command["up"]?.jsonPrimitive?.boolean != true && command["text"]?.jsonPrimitive?.content.orEmpty().isNotEmpty()
+            translated = JsonObject(command + mapOf("code" to JsonPrimitive(code), "op" to JsonPrimitive(if (typed) "text" else "key")))
+        }
+        nativeSend(JsonObject(translated + ("modifiers" to JsonPrimitive(modifiers))))
+    }
+
+    override fun image(): ImageBitmap? = pixels()?.image()
+
+    @Synchronized private fun nativeSend(command: JsonObject) {
         if (handle == MemorySegment.NULL) return
         Arena.ofConfined().use { send.invokeWithArguments(handle, it.allocateFrom(command.toString())) }
     }
 
-    @Synchronized fun poll(): String? {
+    @Synchronized override fun poll(): String? {
         if (handle == MemorySegment.NULL) return null
         val event = poll.invokeWithArguments(handle) as MemorySegment
         if (event == MemorySegment.NULL) return null
