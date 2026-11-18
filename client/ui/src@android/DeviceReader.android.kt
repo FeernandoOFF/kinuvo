@@ -22,6 +22,8 @@ import kinuvo.protocol.device.*
 import kotlinx.serialization.json.*
 import java.util.concurrent.Executors
 import android.content.Intent
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LifecycleEventEffect
 
 internal class AndroidContactsReader(private val context: Context) : DeviceReader {
     override val kinds = listOf("Contacts")
@@ -91,12 +93,16 @@ internal actual fun rememberDeviceAuthorization(reader: DeviceReader): (DeviceTo
         completion?.invoke(if (granted) null else "Contacts access was denied. You can grant it in Android Settings.")
         completion = null
     }
-    // Computer use is turned on in Android's Accessibility settings; this waits for the user to come back with it on.
-    var computer by remember { mutableStateOf<((String?) -> Unit)?>(null) }
-    LaunchedEffect(computer) {
-        val waiting = computer ?: return@LaunchedEffect
-        val until = System.currentTimeMillis() + 120_000
-        while (driver?.ready != true && System.currentTimeMillis() < until) kotlinx.coroutines.delay(500)
+    // Computer use is turned on in Android's Accessibility settings; the answer is read when the user comes back from there.
+    var computer by remember { mutableStateOf<Pair<Int, (String?) -> Unit>?>(null) }
+    var resumes by remember { mutableIntStateOf(0) }
+    LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { resumes++ }
+    LaunchedEffect(computer, resumes) {
+        val (since, waiting) = computer ?: return@LaunchedEffect
+        if (resumes == since) return@LaunchedEffect
+        // The service may bind a moment after the user returns.
+        val until = System.currentTimeMillis() + 3_000
+        while (driver?.ready != true && System.currentTimeMillis() < until) kotlinx.coroutines.delay(200)
         waiting(if (driver?.ready == true) null else "Turn on Kinuvo computer use in Android's Accessibility settings, then allow it again.")
         computer = null
     }
@@ -104,7 +110,7 @@ internal actual fun rememberDeviceAuthorization(reader: DeviceReader): (DeviceTo
         when {
             kind == DeviceToolKind.Computer && driver == null -> callback("Computer use is not included in this app")
             kind == DeviceToolKind.Computer -> if (driver?.ready == true) callback(null) else {
-                computer = callback
+                computer = resumes to callback
                 context.startActivity(Intent(android.provider.Settings.ACTION_ACCESSIBILITY_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
             }
             kind != DeviceToolKind.Contacts -> callback("This Device does not support that tool")

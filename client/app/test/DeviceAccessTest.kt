@@ -64,6 +64,13 @@ class DeviceAccessTest {
     }
 
     @Test
+    fun grantingWithNoServerAttachedStopsRequesting() = runTest {
+        val access = DeviceAccess(Prefs(), Reader())
+        access.authorized(access.authorizing(DeviceToolKind.Contacts), null)
+        assertNull(access.state.value.busy)
+    }
+
+    @Test
     fun disablingDuringAReadWithholdsTheResult() = runTest {
         val reader = Reader()
         val access = DeviceAccess(Prefs(), reader)
