@@ -15,11 +15,17 @@ WebView requirements and limits.
 
 ## JVM engine
 
-The JVM backend uses **kdriver 0.6.1** and an installed Chrome or Chromium
-executable. Chrome is discovered on macOS, Linux and Windows; set
-`KINUVO_BROWSER_EXECUTABLE` to an absolute executable path to override discovery.
-Kinuvo does not download a browser or need a Node driver. If Chrome is missing,
-install it on the Server or configure the executable path and retry.
+The JVM backend uses **kdriver 0.6.1** and an installed Chromium-based browser.
+Kinuvo does not download a browser or need a Node driver.
+
+Install Microsoft Edge or Google Chrome on Windows, or Chromium or Google Chrome
+on Linux (for example, `sudo apt install chromium`). Kinuvo also finds Brave and
+Chromium in standard Windows install locations and common browser commands on
+Linux's PATH, including `/snap/bin/chromium`. On macOS it finds Google Chrome,
+Chromium, Microsoft Edge and Brave Browser in `/Applications`.
+
+To choose a specific browser, set `KINUVO_BROWSER_EXECUTABLE` to its executable
+file before starting the Server. The file must be executable.
 
 Chrome runs headless by default, without a browser window. **Browser options → Show browser window**
 switches the Agent's Chrome process after a confirmation warning that unsaved form
