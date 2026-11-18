@@ -15,7 +15,12 @@ internal interface SpeechTransport : AutoCloseable {
     fun poll(): String?
 }
 
-internal fun desktopSpeechTransport(): SpeechTransport = if (currentPlatform == Platform.MacOS) NativeSpeechTransport() else WindowsSpeechTransport()
+internal fun desktopSpeechTransport(platform: Platform = currentPlatform): SpeechTransport = when (platform) {
+    Platform.MacOS -> NativeSpeechTransport()
+    Platform.Windows -> WindowsSpeechTransport()
+    Platform.Linux -> LinuxSpeechTransport()
+    else -> error("Desktop speech is unavailable on $platform")
+}
 
 internal fun speechResources(): File {
     System.getProperty("compose.application.resources.dir")?.let { return File(it) }

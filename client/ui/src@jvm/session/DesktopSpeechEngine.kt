@@ -12,10 +12,12 @@ import javax.swing.SwingUtilities
 /** Native speech commands and events. Callbacks run on the UI thread. */
 internal class DesktopSpeechEngine(
     live: LiveAudio = JvmLiveAudio(),
-    private val launch: () -> SpeechTransport = ::desktopSpeechTransport,
+    private val platform: Platform = currentPlatform,
+    private val audio: VoiceAudio = JvmVoiceAudio(),
+    private val launch: () -> SpeechTransport = { desktopSpeechTransport(platform) },
 ) : SpeechEngine, VoiceAudio, LiveAudio by live {
     override val halfDuplex = true
-    override val audioSupported get() = currentPlatform == Platform.MacOS
+    override val audioSupported = true
     @Volatile private var transport: SpeechTransport? = null
     private var next = 0
     private var listening = 0
@@ -85,20 +87,23 @@ internal class DesktopSpeechEngine(
     }
 
     override fun authorizeAudio(completion: (String?) -> Unit) {
+        if (platform != Platform.MacOS) return audio.authorizeAudio(completion)
         val id = ++next; authorization = id to completion
         runCatching { command("localAuthorize", id) }.onFailure { failed(it.message ?: "Cannot authorize microphone") }
     }
     override fun record(untilPause: Boolean, onAudio: (ByteArray) -> Unit, onError: (String) -> Unit) {
+        if (platform != Platform.MacOS) return audio.record(untilPause, onAudio, onError)
         recorded = onAudio; error = onError; listening = ++next
         runCatching { command("record", listening, untilPause = untilPause) }.onFailure { failed(it.message ?: "Cannot record") }
     }
-    override fun finishRecording() { runCatching { command("localFinish", listening) }.onFailure { failed(it.message ?: "Cannot finish recording") } }
-    override fun stopRecording() { listening = 0; if (transport != null) runCatching { command("stop") } }
+    override fun finishRecording() { if (platform != Platform.MacOS) return audio.finishRecording(); runCatching { command("localFinish", listening) }.onFailure { failed(it.message ?: "Cannot finish recording") } }
+    override fun stopRecording() { if (platform != Platform.MacOS) return audio.stopRecording(); listening = 0; if (transport != null) runCatching { command("stop") } }
     override fun play(wav: ByteArray, onDone: () -> Unit, onError: (String) -> Unit) {
+        if (platform != Platform.MacOS) return audio.play(wav, onDone, onError)
         val id = ++next; spoken[id] = onDone to onError
         runCatching { command("playClip", id, Base64.encode(wav)) }.onFailure { failed(it.message ?: "Cannot play audio") }
     }
-    override fun stopPlayback() = stopSpeaking()
+    override fun stopPlayback() { if (platform != Platform.MacOS) audio.stopPlayback() else stopSpeaking() }
 
     override fun authorize(completion: (String?) -> Unit) {
         val id = ++next
@@ -134,6 +139,7 @@ internal class DesktopSpeechEngine(
     }
 
     override fun stop() {
+        if (platform != Platform.MacOS) { audio.stopRecording(); audio.stopPlayback() }
         authorization = null
         listening = 0
         if (transport != null) runCatching { command("stop") }.onFailure { failed(it.message ?: "Cannot stop listening") }

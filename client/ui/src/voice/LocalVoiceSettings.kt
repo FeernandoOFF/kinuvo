@@ -73,7 +73,7 @@ private fun VoiceModelGroup(
         Row(Modifier.fillMaxWidth().padding(Spacing.space16), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.space12)) {
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
                 VoiceText("Device speech")
-                VoiceText(if (kind == VoiceModelKind.Transcription) "Use each Device's speech recognition." else "Use each Device's built-in voice.", muted = true)
+                VoiceText(if (kind == VoiceModelKind.Transcription) "Use each Device's speech recognition. Linux requires a Server dictation model." else "Use each Device's voice. Linux requires speech-dispatcher or espeak-ng.", muted = true)
             }
             if (selected == null) VoiceText("In use", size = 12)
             else Button(onClick = { onSelect(kind, null) }, buttonSize = ButtonSize.Small, style = ButtonStyle.Ghost) { VoiceText("Use", size = 13) }
