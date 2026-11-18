@@ -103,8 +103,10 @@ internal class ChromiumHtmlView(executable: String = findChromium() ?: error(
     @Volatile private var closed = false
     private val shutdown = Thread { close() }
     private val ready = CompletableFuture<Unit>()
-    private var mainFrame = ""
-    private var mainContext = -1
+    @Volatile private var mainFrame = ""
+    private val contexts = ConcurrentHashMap<Int, String>()
+    private val loaded = ConcurrentHashMap<String, CompletableFuture<Unit>>()
+    private val failure = AtomicReference<Exception?>()
 
     init {
         Runtime.getRuntime().addShutdownHook(shutdown)
@@ -144,6 +146,7 @@ internal class ChromiumHtmlView(executable: String = findChromium() ?: error(
             override fun onError(webSocket: WebSocket, error: Throwable) { pending.values.forEach { it.completeExceptionally(error) } }
         }).get(10, TimeUnit.SECONDS)
         call("Page.enable")
+        call("Page.setLifecycleEventsEnabled", buildJsonObject { put("enabled", true) })
         mainFrame = call("Page.getFrameTree").getValue("frameTree").jsonObject.getValue("frame").jsonObject.getValue("id").jsonPrimitive.content
         call("Runtime.enable")
         call("Runtime.addBinding", buildJsonObject { put("name", "kinuvoPost") })
@@ -159,11 +162,18 @@ internal class ChromiumHtmlView(executable: String = findChromium() ?: error(
             "Runtime.executionContextCreated" -> {
                 val context = p.getValue("context").jsonObject
                 val aux = context["auxData"]?.jsonObject
-                if (aux?.get("frameId")?.jsonPrimitive?.content == mainFrame && aux["isDefault"]?.jsonPrimitive?.boolean == true)
-                    mainContext = context.getValue("id").jsonPrimitive.int
+                if (aux?.get("isDefault")?.jsonPrimitive?.boolean == true)
+                    contexts[context.getValue("id").jsonPrimitive.int] = aux.getValue("frameId").jsonPrimitive.content
             }
-            "Runtime.executionContextsCleared" -> mainContext = -1
-            "Runtime.bindingCalled" -> if (p["name"]?.jsonPrimitive?.content == "kinuvoPost" && p["executionContextId"]?.jsonPrimitive?.int == mainContext) {
+            "Runtime.executionContextDestroyed" -> contexts.remove(p.getValue("executionContextId").jsonPrimitive.int)
+            "Runtime.executionContextsCleared" -> contexts.clear()
+            "Page.frameNavigated" -> {
+                val navigated = p.getValue("frame").jsonObject
+                if (navigated["parentId"] == null) mainFrame = navigated.getValue("id").jsonPrimitive.content
+            }
+            "Page.lifecycleEvent" -> if (p["name"]?.jsonPrimitive?.content == "load" && p["frameId"]?.jsonPrimitive?.content == mainFrame)
+                loaded.computeIfAbsent(p.getValue("loaderId").jsonPrimitive.content) { CompletableFuture() }.complete(Unit)
+            "Runtime.bindingCalled" -> if (p["name"]?.jsonPrimitive?.content == "kinuvoPost" && contexts[p["executionContextId"]?.jsonPrimitive?.int] == mainFrame) {
                 val value = p.getValue("payload").jsonPrimitive.content
                 if (value.toByteArray().size <= 512 * 1024) messages.offer(value)
             }
@@ -199,16 +209,23 @@ internal class ChromiumHtmlView(executable: String = findChromium() ?: error(
     override fun send(command: JsonObject) {
         if (closed) return
         worker.execute {
-            ready.join()
-            if (command["op"]?.jsonPrimitive?.content == "load") {
-                val tree = call("Page.getFrameTree").getValue("frameTree").jsonObject.getValue("frame").jsonObject
-                val html = command.getValue("html").jsonPrimitive.content.replaceFirst("<head>", "<head><script>window.kinuvoNative={postMessage:raw=>kinuvoPost(raw)};</script>")
-                call("Page.setDocumentContent", buildJsonObject { put("frameId", tree.getValue("id")); put("html", html) })
-            } else chromiumCommand(command).let { call(it.method, it.params) }
+            try {
+                ready.join()
+                if (command["op"]?.jsonPrimitive?.content == "load") {
+                    loaded.clear()
+                    val target = call("Page.navigate", buildJsonObject { put("url", "about:blank") })
+                    val loader = target.getValue("loaderId").jsonPrimitive.content
+                    loaded.computeIfAbsent(loader) { CompletableFuture() }.get(10, TimeUnit.SECONDS)
+                    loaded.clear()
+                    val frameId = target.getValue("frameId")
+                    val html = command.getValue("html").jsonPrimitive.content.replaceFirst("<head>", "<head><script>window.kinuvoNative={postMessage:raw=>kinuvoPost(raw)};</script>")
+                    call("Page.setDocumentContent", buildJsonObject { put("frameId", frameId); put("html", html) })
+                } else chromiumCommand(command).let { call(it.method, it.params) }
+            } catch (e: Exception) { if (!closed) failure.compareAndSet(null, e) }
         }
     }
 
-    override fun poll(): String? { if (ready.isCompletedExceptionally) ready.join(); return messages.poll() }
+    override fun poll(): String? { failure.get()?.let { throw it }; if (ready.isCompletedExceptionally) ready.join(); return messages.poll() }
     override fun image(): ImageBitmap? = frame.getAndSet(null)?.let { Image.makeFromEncoded(it).toComposeImageBitmap() }
 
     @Synchronized override fun close() {
@@ -216,6 +233,7 @@ internal class ChromiumHtmlView(executable: String = findChromium() ?: error(
         closed = true
         socket?.abort()
         pending.values.forEach { it.cancel(false) }
+        loaded.values.forEach { it.cancel(false) }
         process?.let { chrome ->
             val children = chrome.descendants().toList()
             children.forEach { it.destroyForcibly() }

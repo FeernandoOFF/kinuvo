@@ -42,15 +42,20 @@ class ChromiumHtmlViewTest {
                 fail("Missing bridge message: $value")
             }
             host.send(command("size") { put("width", 400); put("height", 300); put("density", 2) })
-            host.send(command("load") { put("html", htmlSurfaceDocument("""
-                <body style="background:red;margin:0"><input style="width:200px;height:40px" oninput="parent.postMessage({jsonrpc:'2.0',method:'typed',value:this.value},'*')"><script>
-                parent.postMessage({jsonrpc:'2.0',method:'ready'},'*');
-                addEventListener('message',e=>parent.postMessage({jsonrpc:'2.0',method:'pong'},'*'));
-                </script></body>
-            """, false)) })
-            awaitMessage("ready")
+            repeat(10) { iteration ->
+                host.send(command("load") { put("html", htmlSurfaceDocument("""
+                    <body style="background:red;margin:0"><input style="width:200px;height:40px" oninput="parent.postMessage({jsonrpc:'2.0',method:'typed',value:this.value},'*')"><script>
+                    parent.postMessage({jsonrpc:'2.0',method:'ready-$iteration'},'*');
+                    requestAnimationFrame(()=>requestAnimationFrame(()=>parent.postMessage({jsonrpc:'2.0',method:'painted-$iteration'},'*')));
+                    addEventListener('message',e=>parent.postMessage({jsonrpc:'2.0',method:'pong'},'*'));
+                    </script></body>
+                """, false)) })
+                awaitMessage("ready-$iteration")
+                awaitMessage("painted-$iteration")
+            }
             host.send(command("eval") { put("js", htmlSurfaceDelivery("""{"jsonrpc":"2.0","method":"ping"}""")) })
             awaitMessage("pong")
+            host.send(command("focus") { put("focused", true) })
             for (kind in listOf("down", "up")) host.send(command("mouse") { put("kind", kind); put("x", 30); put("y", 20); put("clicks", 1) })
             host.send(command("text") { put("text", "hello") })
             awaitMessage("hello")
