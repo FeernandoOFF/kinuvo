@@ -100,6 +100,28 @@ class AgentDefaultsTest {
         DeviceAudio.release(reader, other)
     }
 
+    @Test fun readingReleasesTheDeviceAudioWhenItEnds() = withOwner { owner, _, _ ->
+        connect(owner, Script())
+        val engine = object : SpeechEngine {
+            var done: () -> Unit = {}
+            var stops = 0
+            override fun authorize(completion: (String?) -> Unit) = completion(null)
+            override fun listen(untilPause: Boolean, onPartial: (String) -> Unit, onFinal: (String) -> Unit, onError: (String) -> Unit) {}
+            override fun speak(text: String, onDone: () -> Unit) { done = onDone }
+            override fun stopSpeaking() {}
+            override fun stop() { stops++ }
+        }
+        val vm = SessionViewModel(owner.sessions, Route.Chat(AgentId("agent"), null), reader = engine)
+        vm.state.first { !it.resolving }
+        vm.readAloud("one", "Hello")
+        engine.done()
+        assertNull(vm.state.value.readingAloud)
+        assertEquals(1, engine.stops)
+        vm.readAloud("two", "Again")
+        vm.stopReading()
+        assertEquals(2, engine.stops)
+    }
+
     @Test fun savedDefaultsUpdateOpenAndFutureNewSessionsWithoutBecomingOverrides() = withOwner { owner, _, _ ->
         val script = Script()
         connect(owner, script)

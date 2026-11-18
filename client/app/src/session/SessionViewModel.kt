@@ -360,7 +360,8 @@ class SessionViewModel(private val repo: SessionRepository, route: Route.Chat, p
         readingGeneration++
         if (state.value.readingAloud == null) return
         state.update { it.copy(readingAloud = null) }
-        try { reader?.stopSpeaking() } finally { reader?.let { DeviceAudio.release(it, this) } }
+        // Device speech opens the microphone for echo cancellation, so release the audio, not just the voice.
+        try { reader?.let { if (it is SpeechEngine) it.stop() else it.stopSpeaking() } } finally { reader?.let { DeviceAudio.release(it, this) } }
     }
 
     override fun onCleared() { stopReading() }
