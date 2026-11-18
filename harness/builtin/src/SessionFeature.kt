@@ -146,7 +146,7 @@ internal class RunSession(
     suspend fun closePending(reason: String, unstarted: String, notify: suspend (AgentEvent) -> Unit) = withContext(NonCancellable) {
         val all = store.entries(agent.id, sessionId)
         val answered = all.filterIsInstance<SessionEntry.ToolResult>().map { it.id }.toSet()
-        val pending = all.filterIsInstance<SessionEntry.ToolCall>().filter { it.id !in answered }
+        val pending = all.filterIsInstance<SessionEntry.ToolCall>().filter { it.parent == null && it.id !in answered }
         val results = pending.map {
             SessionEntry.ToolResult(it.id, it.name, if (it.id in startedCalls) reason else unstarted, isError = true, identity = it.identity)
                 .also { append(it) }

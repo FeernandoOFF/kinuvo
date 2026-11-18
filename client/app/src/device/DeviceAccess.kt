@@ -72,7 +72,7 @@ class DeviceAccess(private val prefs: Preferences, val reader: DeviceReader, val
 
     suspend fun setEnabled(kind: DeviceToolKind, enabled: Boolean, error: String? = null) {
         if (error != null) { state.update { it.copy(busy = null, error = error) }; return }
-        val server = server ?: return
+        val server = server ?: run { state.update { it.copy(busy = null) }; return }
         val tools = tools(server).let { if (enabled) it + kind else it - kind }
         saved.update { it + (server to tools) }
         prefs[KEY] = ProtocolJson.encodeToString(serializer, saved.value)

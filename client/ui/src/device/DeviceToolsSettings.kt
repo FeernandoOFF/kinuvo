@@ -62,7 +62,7 @@ internal fun DeviceToolsGroup(title: String? = null, note: String? = null, empty
                                 val attempt = access.authorizing(kind)
                                 authorize(kind) { error -> scope.launch { access.authorized(attempt, error) } }
                             } else scope.launch { access.setEnabled(kind, false) }
-                        }
+                        } else if (state.busy == kind) access.cancelAuthorization()
                     })
                 }
             }

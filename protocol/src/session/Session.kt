@@ -99,7 +99,7 @@ sealed interface SessionEntry {
     data class Reasoning(val text: String, val id: String? = null, val encrypted: String? = null, val messageId: String? = null, override val writtenAt: Long? = null) : SessionEntry
 
     @Serializable @SerialName("tool_call")
-    data class ToolCall(val id: ToolCallId, val name: String, val args: String, val identity: ToolIdentity? = null, override val writtenAt: Long? = null) : SessionEntry
+    data class ToolCall(val id: ToolCallId, val name: String, val args: String, val identity: ToolIdentity? = null, override val writtenAt: Long? = null, val parent: ToolCallId? = null) : SessionEntry
 
     /** The compressed model history; earlier transcript entries remain available to clients. */
     @Serializable @SerialName("compaction")
@@ -133,7 +133,7 @@ sealed interface SessionEntry {
 
     /** [attachments] are files the tool shows the model, e.g. an image from a note. */
     @Serializable @SerialName("tool_result")
-    data class ToolResult(val id: ToolCallId, val name: String, val output: String, val isError: Boolean = false, val attachments: List<Attachment> = emptyList(), val identity: ToolIdentity? = null, override val writtenAt: Long? = null, val app: McpAppRef? = null, val appResult: JsonObject? = null) : SessionEntry
+    data class ToolResult(val id: ToolCallId, val name: String, val output: String, val isError: Boolean = false, val attachments: List<Attachment> = emptyList(), val identity: ToolIdentity? = null, override val writtenAt: Long? = null, val app: McpAppRef? = null, val appResult: JsonObject? = null, val parent: ToolCallId? = null) : SessionEntry
 }
 
 /** Shared by persisted listings and clients; legacy UUIDs carry no creation time. */
