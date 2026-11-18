@@ -84,7 +84,8 @@ report Tailcat as unavailable.
 
 Desktop and bundled-runtime CLI packages filter nested jars to the target OS and
 architecture, including LiteRT-LM, zstd and WebRTC. The universal `kinuvo.jar`
-retains all platforms. Nested jars remain uncompressed for the executable jar
+retains all platforms. WebRTC includes macOS arm64 and x64, Windows x64 and
+Linux x64; Linux arm64 does not offer Live voice. Nested jars remain uncompressed for the executable jar
 loader; upstream license notices remain intact. Skiko and Rive resolve host
 artifacts; filtering also removes extra architectures inside those artifacts. Run `python3 scripts/test-package-natives.py` to
 check the packaging filter.
