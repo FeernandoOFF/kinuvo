@@ -495,8 +495,9 @@ private fun PlanView(item: ChatItem.ToolCall, border: Boolean) {
             else -> null
         }
     }
-    Expandable(Lucide.ListChecks, "Plan", "${steps.count { it.second }} of ${steps.size} done", border = border, initiallyExpanded = true) {
-        Column(verticalArrangement = Arrangement.spacedBy(Spacing.space6)) {
+    Expandable(Lucide.ListChecks, "Plan", steps.takeIf { it.isNotEmpty() }?.let { "${it.count { s -> s.second }} of ${it.size} done" }, border = border, initiallyExpanded = true) {
+        if (steps.isEmpty()) Markdown(item.result.orEmpty())
+        else Column(verticalArrangement = Arrangement.spacedBy(Spacing.space6)) {
             steps.forEach { (text, done) ->
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.space8)) {
                     Icon(if (done) Lucide.CircleCheck else Lucide.Circle, Modifier.size(14.dp), tint = color(if (done) accentColor else mutedColor))
