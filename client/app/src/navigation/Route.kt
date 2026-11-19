@@ -96,13 +96,15 @@ enum class SettingsSection(val title: String, val server: Boolean = false) {
     Harnesses("Harnesses", server = true),
     /** Every Agent's tools and MCP servers, who can use them, and the rules for all Agents. */
     Hub("Tools & MCP", server = true), Tasks("Tasks", server = true), Knowledge("Knowledge", server = true), Secrets("Secrets", server = true),
-    Search("Web search", server = true), Notifications("Notifications", server = true);
+    Search("Web search", server = true), Notifications("Notifications", server = true),
+    /** Third-party notices, listed under About rather than Device or Server. */
+    Licenses("Open source licenses");
 
     /** One Agent's, opened from its [Overview] rather than listed in Settings. */
-    val agent get() = !server && this != DeviceTools && this != LocalVoice && this != Overview
+    val agent get() = !server && this != DeviceTools && this != LocalVoice && this != Overview && this != Licenses
 
     /** Listed under Device or Server; the Agents list opens the [Overview]. */
-    val listed get() = !agent && this != Overview
+    val listed get() = !agent && this != Overview && this != Licenses
 
     /** The Server feature this section manages, if any. */
     val feature get() = when (this) {

@@ -330,6 +330,9 @@ private fun SettingsSections(ui: SettingsUi, selected: SettingsSection?, go: (Ro
                     Icon(Lucide.ExternalLink, Modifier.size(14.dp), tint = color(mutedColor))
                 }
             }
+            ListRow(selected = selected == SettingsSection.Licenses, onClick = { open(SettingsSection.Licenses) }, leading = { Icon(SettingsSection.Licenses.icon(), Modifier.size(16.dp)) }) {
+                Text(SettingsSection.Licenses.title, Modifier.weight(1f), singleLine = true)
+            }
         } else Column(Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(Spacing.space16), verticalArrangement = Arrangement.spacedBy(Spacing.space20)) {
             if (ui.agents.isNotEmpty()) RowGroup("Agents") {
                 ui.agents.forEach { agent -> GroupRow(agent.name, { openAgent(agent) }, leading = { AgentAvatar(agent, 22.dp) }) }
@@ -343,6 +346,7 @@ private fun SettingsSections(ui: SettingsUi, selected: SettingsSection?, go: (Ro
             }
             RowGroup("About") {
                 links.forEach { (label, icon, url) -> ActionRow(label, icon, { runCatching { uri.openUri(url) } }) }
+                GroupRow(SettingsSection.Licenses.title, { open(SettingsSection.Licenses) }, icon = SettingsSection.Licenses.icon())
             }
         }
     }
@@ -370,10 +374,11 @@ internal fun SettingsSection.icon(): ImageVector = when (this) {
     SettingsSection.Notifications -> Lucide.Bell
     SettingsSection.LocalVoice -> Lucide.Mic
     SettingsSection.DeviceTools -> Lucide.Plug
+    SettingsSection.Licenses -> Lucide.Scale
 }
 
 private fun SettingsSection.count(ui: SettingsUi): Int? = when (this) {
-    SettingsSection.Overview, SettingsSection.Agent, SettingsSection.Workspace, SettingsSection.Tools, SettingsSection.DeviceTools, SettingsSection.LocalVoice -> null
+    SettingsSection.Overview, SettingsSection.Agent, SettingsSection.Workspace, SettingsSection.Tools, SettingsSection.DeviceTools, SettingsSection.LocalVoice, SettingsSection.Licenses -> null
     SettingsSection.Routines -> ui.state.routines?.count { it.enabled }
     SettingsSection.Skills -> ui.config.skills?.count { it.active }
     SettingsSection.Mcp -> ui.config.mcp?.count { it.active }
@@ -389,6 +394,7 @@ private fun SectionPane(
     val route = ui.route
     if (section == SettingsSection.LocalVoice) return DetailPane(rootBack, "Voice") { ServerVoiceSettings() }
     if (section == SettingsSection.DeviceTools) return DeviceToolsSettingsPane(Pane(ui, actions, go, rootBack))
+    if (section == SettingsSection.Licenses) return LicensesSettingsPane(route, go, rootBack, actions.onBack.takeIf { LocalInteractionMode.current == InteractionMode.Touch } ?: { go(route.copy(item = null)) })
     if (section == SettingsSection.Overview) return AgentContent(ui, { actions.onNavigate(it, true) }, rootBack, actions.onDeleteAgent)
     if (ui.capabilities != null && !ui.available(section)) return DetailPane(rootBack, section.title) { Text(UNAVAILABLE, color = color(mutedColor)) }
     if (section == SettingsSection.Agent || section == SettingsSection.Workspace || section == SettingsSection.Tools) {
@@ -447,7 +453,7 @@ private fun SettingsSection.noun() = when (this) {
     SettingsSection.Skills -> "a skill"
     SettingsSection.Mcp -> "an MCP server"
     SettingsSection.Hub -> "a set of tools"
-    SettingsSection.Connection, SettingsSection.Images, SettingsSection.Providers, SettingsSection.Harnesses, SettingsSection.Tasks, SettingsSection.Knowledge, SettingsSection.Secrets, SettingsSection.Search, SettingsSection.Notifications, SettingsSection.DeviceTools, SettingsSection.LocalVoice -> "a setting"
+    SettingsSection.Connection, SettingsSection.Images, SettingsSection.Providers, SettingsSection.Harnesses, SettingsSection.Tasks, SettingsSection.Knowledge, SettingsSection.Secrets, SettingsSection.Search, SettingsSection.Notifications, SettingsSection.DeviceTools, SettingsSection.LocalVoice, SettingsSection.Licenses -> "a setting"
 }
 @Composable
 private fun NothingSelected(text: String) {
