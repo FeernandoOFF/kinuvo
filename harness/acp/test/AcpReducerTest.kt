@@ -1,4 +1,8 @@
+@file:OptIn(com.agentclientprotocol.annotations.UnstableApi::class)
+
 package kinuvo.harness.acp
+
+import com.agentclientprotocol.model.v2.SessionUpdate
 
 import java.util.Base64
 
@@ -46,6 +50,32 @@ class AcpReducerTest {
         reducer.submitted()
         reducer.update(raw("""{"sessionUpdate":"agent_message_chunk","messageId":"m","content":{"type":"text","text":"new"}}"""))
         assertEquals("g:2:m", state.live().entries.single().identity()!!.id)
+    }
+
+    @Test fun planUpdatesReplaceTheChecklistWithinEachTurn() = runBlocking {
+        val sink = Recording()
+        val state = ExecutionState(SessionId("s"), sink = sink)
+        val reducer = AcpReducer(state)
+        reducer.submitted()
+        suspend fun plan(entries: String) {
+            val wire = raw("""{"sessionUpdate":"plan_update","plan":{"type":"items","planId":"p","entries":$entries}}""")
+            val update = assertIs<SessionUpdate.PlanUpdate>(ProtocolJson.decodeFromJsonElement(SessionUpdate.serializer(), wire))
+            reducer.update(ProtocolJson.encodeToJsonElement(SessionUpdate.serializer(), update).jsonObject)
+        }
+        plan("""[{"content":"Read","priority":"medium","status":"in_progress"},{"content":"Write","priority":"medium","status":"pending"}]""")
+        val first = assertIs<SessionEntry.ToolResult>(state.live().entries.single())
+        assertEquals("Plan", first.name)
+        assertEquals("- [ ] Read (in progress)\n- [ ] Write", first.output)
+        plan("""[{"content":"Read","priority":"medium","status":"completed"},{"content":"Write","priority":"medium","status":"in_progress"}]""")
+        val updated = assertIs<SessionEntry.ToolResult>(state.live().entries.single())
+        assertEquals(first.id, updated.id)
+        assertEquals("- [x] Read\n- [ ] Write (in progress)", updated.output)
+        reducer.update(raw("""{"sessionUpdate":"state_update","state":"idle","stopReason":"end_turn"}"""))
+        assertEquals(listOf(updated), sink.batches.single())
+        assertTrue(state.live().entries.isEmpty())
+        reducer.submitted()
+        plan("""[{"content":"Verify","priority":"medium","status":"pending"}]""")
+        assertNotEquals(first.id, assertIs<SessionEntry.ToolResult>(state.live().entries.single()).id)
     }
 
     @Test fun cancellationCommitsInterruptedDraftAndLossNeverFinishes() = runBlocking {

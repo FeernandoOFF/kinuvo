@@ -49,6 +49,16 @@ internal class AcpReducer(private val state: ExecutionState,
             return@withLock
         }
         if (kind.startsWith("user_message")) return@withLock // Runtime owns local submission and acceptance binding.
+        if (kind == "plan" || kind == "plan_update") {
+            if (!active) return@withLock
+            val plan = if (kind == "plan_update") raw["plan"] as? JsonObject ?: return@withLock else raw
+            val output = (plan["entries"] as? JsonArray)?.let(::checklist)
+                ?: plan.string("content")?.takeIf { plan.string("type") == "markdown" }
+                ?: return@withLock
+            val source = plan.string("planId") ?: "default"
+            put(SessionEntry.ToolResult(ToolCallId("plan:${runId()}:$source"), "Plan", output))
+            return@withLock
+        }
         val role = when {
             kind.startsWith("agent_message") -> "assistant"
             kind.startsWith("agent_thought") -> "reasoning"
@@ -101,6 +111,15 @@ internal class AcpReducer(private val state: ExecutionState,
             }
         }
     }
+
+    private fun checklist(entries: JsonArray) = entries.filterIsInstance<JsonObject>().mapNotNull { entry ->
+        val content = entry.string("content")?.lineSequence()?.joinToString(" ") ?: return@mapNotNull null
+        when (entry.string("status")) {
+            "completed" -> "- [x] $content"
+            "in_progress" -> "- [ ] $content (in progress)"
+            else -> "- [ ] $content"
+        }
+    }.joinToString("\n")
 
     private suspend fun put(entry: SessionEntry) {
         entries[requireNotNull(entry.identity())] = entry
