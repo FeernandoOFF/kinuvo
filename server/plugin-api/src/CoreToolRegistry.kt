@@ -28,7 +28,7 @@ object CoreToolRegistry {
         CoreToolEntry(ToolNames.AGENT_UPDATE, ToolGroup.Interactive, Risk.High, ToolKind.Standard, false, "Change your own Agent settings after the user's Approval."),
         CoreToolEntry(ToolNames.AGENT_CREATE, ToolGroup.Interactive, Risk.High, ToolKind.Standard, false, "Create a blank Agent after the user's Approval."),
         CoreToolEntry(ToolNames.MCP_LIST, ToolGroup.Interactive, Risk.Low, ToolKind.Standard, true, "List your MCP servers."),
-        CoreToolEntry(ToolNames.MCP_ADD, ToolGroup.Interactive, Risk.High, ToolKind.Standard, false, "Add one of your own MCP servers after the user's Approval."),
+        CoreToolEntry(ToolNames.MCP_ADD, ToolGroup.Interactive, Risk.High, ToolKind.Standard, false, "Add a catalog MCP server under Risk tolerance, or a custom server after the user's Approval."),
         CoreToolEntry(ToolNames.MCP_REMOVE, ToolGroup.Interactive, Risk.High, ToolKind.Standard, false, "Remove one of your own MCP servers after the user's Approval."),
         CoreToolEntry(ToolNames.MCP_TEST, ToolGroup.Interactive, Risk.Low, ToolKind.Standard, true, "Connect to one of your MCP servers and list its tools."),
         CoreToolEntry(ToolNames.MCP_LOGIN, ToolGroup.Interactive, Risk.Medium, ToolKind.Standard, false, "Sign in to one of your MCP servers."),

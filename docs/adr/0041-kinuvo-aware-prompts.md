@@ -15,6 +15,8 @@ Enabled tools that need setup stay enabled in Settings but are hidden from the m
 
 The docs site provides `llms.txt` and plain Markdown copies of owner-facing pages.
 
+The MCP preset catalog lives in `protocol`, shared by Settings and Agent management. `mcp_list` lists unconfigured presets; `mcp_add(preset)` adds catalog OAuth servers under the Session's Risk tolerance. Token and OwnClient presets direct users to Settings. Frontier checks relevant presets, offers once using advertised interaction tools, and remembers declined or ignored offers when Memory is available. Configured connections with sign-in failures can be reconnected with `mcp_login` when advertised.
+
 ## Future work
 
-Separate PRs will add protocol MCP presets with `mcp_add(preset)` following Risk tolerance (amending ADR 0037), and first-session discovery for Frontier. These are not implemented by this decision's initial change.
+First-session discovery for Frontier remains future work. An ACP Session keeps first-turn setup guidance if a Computer is paired mid-session. `aboutKinuvoFor` matches advertised tool names rather than identities, so tool aliases need follow-up.

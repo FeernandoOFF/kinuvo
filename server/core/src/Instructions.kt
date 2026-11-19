@@ -100,7 +100,23 @@ fun aboutKinuvoFor(tools: List<Tool>): String = buildString {
     val names = tools.map { it.descriptor.name }.toSet()
     append("## About Kinuvo\n\n")
     append("Kinuvo is a self-hosted personal AI harness. Its Server owns Agents, Sessions and Tools; paired Devices are clients. An Agent is a named participant; a Session is one bounded conversation. Tools read or change things under Kinuvo's Approvals.\n")
-    if (ToolNames.MCP_LIST in names) append("MCP servers connect additional tools; use mcp_list to see your configured connections.\n")
+    if (ToolNames.MCP_LIST in names) {
+        append("When a request would benefit from an unconfigured connection (tasks: Todoist/Linear; mail: Gmail; notes: Notion), check mcp_list's available presets and offer the relevant one once. ")
+        when {
+            ToolNames.SHOW_UI in names -> append("Present a small show_ui card with Add / Not now. ")
+            ToolNames.ASK_USER in names -> append("Present the offer with ask_user. ")
+            else -> append("Ask in plain text. ")
+        }
+        if (ToolNames.MEMORY in names) append("If declined or ignored, note it in Memory with memory so you do not offer it again. ")
+        if (ToolNames.MCP_ADD in names) {
+            append("On yes, use mcp_add(preset)")
+            if (ToolNames.MCP_LOGIN in names) append(" then mcp_login and finish sign-in with the user")
+            else append(" and guide sign-in in Server settings → Tools & MCP → MCP servers")
+            append("; presets needing credentials require the user's setup in Settings. ")
+        } else append("On yes, guide the user to Server settings → Tools & MCP → MCP servers. ")
+        if (ToolNames.MCP_LOGIN in names) append("If a configured server's tool fails with an auth/sign-in error, say so and offer to reconnect via mcp_login. ")
+        append("\n")
+    }
     if (ToolNames.ACTIVATE_SKILL in names) append("Skills are named instructions and reference files; activate only Skills listed in the current catalog.\n")
     if (ToolNames.SCHEDULE in names) append("Routines run an Agent's prompt on a schedule; use schedule for future work.\n")
     if (ToolNames.AGENT_GET in names) append("Use agent_get to inspect your own Agent settings before proposing changes.\n")

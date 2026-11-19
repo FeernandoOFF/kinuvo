@@ -18,6 +18,29 @@ class InstructionsTest {
         override suspend fun execute(args: JsonObject) = error("Not executed")
     }
 
+    @Test fun connectorOffersFollowAdvertisedTools() = runTest {
+        fun prompt(vararg names: String) = aboutKinuvoFor(names.map(::tool))
+        val card = prompt("mcp_list", "mcp_add", "mcp_login", "show_ui", "ask_user", "memory")
+        assertTrue("available presets" in card && "offer the relevant one once" in card)
+        assertTrue("show_ui card with Add / Not now" in card)
+        assertFalse("Present the offer with ask_user" in card)
+        assertTrue("declined or ignored" in card && "Memory with memory" in card)
+        assertTrue("mcp_add(preset) then mcp_login" in card)
+        assertTrue("auth/sign-in error" in card && "reconnect via mcp_login" in card)
+        val form = prompt("mcp_list", "ask_user")
+        assertTrue("Present the offer with ask_user" in form)
+        assertTrue("Server settings → Tools & MCP → MCP servers" in form)
+        assertFalse("mcp_add(preset)" in form || "mcp_login" in form || "Memory with memory" in form)
+        val text = prompt("mcp_list")
+        assertTrue("Ask in plain text" in text)
+        assertFalse("show_ui" in text || "ask_user" in text)
+        assertFalse("available presets" in prompt("mcp_add", "show_ui", "memory"))
+        val fixture = RuntimeFixture()
+        val tools = listOf("mcp_list", "mcp_add", "mcp_login", "show_ui", "memory").map(::tool)
+        val compact = compactContextFor(fixture.agent, fixture.docs) + capabilitiesFor(fixture.agent, tools, compact = true)
+        assertFalse("available presets" in compact || "offer the relevant one once" in compact)
+    }
+
     @Test fun smallPromptsMatchOriginalBytes() = runTest {
         val fixture = RuntimeFixture()
         val agent = fixture.agent.copy(name = "Ada")

@@ -19,6 +19,65 @@ import kotlin.test.*
 class AgentManageServerTest {
     private fun args(text: String) = ProtocolJson.parseToJsonElement(text).jsonObject
 
+    @Test fun presetsListAddAndFollowRiskTolerance() = runBlocking {
+        lateinit var agent: Agent
+        val entries = mutableListOf(
+            McpCatalog.first { it.id == "linear" }.server(ConfigScope.Shared),
+            McpServerInfo("my-notes", ConfigScope.Agent, url = "https://mcp.notion.com/mcp/"),
+        )
+        val mcp = object : McpManagement by McpManagement.Unavailable {
+            override suspend fun mcpServers(agent: Agent) = entries.toList()
+            override suspend fun saveMcp(p: SaveMcpParams) = p.server.also { entries += it }
+        }
+        val plugin = object : ServerPlugin {
+            override val definition = PluginDefinition("test.mcp", "Test MCP")
+            override val mcp = mcp
+        }
+        TestServer.start(plugins = listOf(plugin), scenario = { agent = agent("work") { it.copy(approvals = "full") } }).use { server ->
+            val session = server.startSession(agent.id)
+            val composed = server.harness.composer.compose(agent, session.id)
+            val requests = mutableListOf<PendingInteraction.Approval>()
+            val turn = ToolTurn(emit = { event -> event.approval?.let { approval ->
+                requests += approval
+                assertFalse(approval.trustable)
+                server.harness.approvals.respond(approval.id, ApprovalDecision.AllowOnce)
+            } })
+            var index = 0
+            suspend fun call(name: String, text: String = "{}") = server.harness.composer.compose(agent, session.id).gate.invoke(
+                SessionEntry.ToolCall(ToolCallId("preset-${index++}"), name, text), turn)
+            val available = call("mcp_list").output.substringAfter("Available presets:")
+            assertTrue("todoist: Todoist (OAuth)" in available)
+            assertTrue("github: GitHub (Token)" in available)
+            assertTrue("gmail: Gmail (OwnClient)" in available)
+            assertFalse("linear:" in available || "notion:" in available)
+            val add = composed.tools.tools.first { it.name == "mcp_add" }
+            assertTrue("preset" in add.schema["properties"]!!.jsonObject)
+            assertFalse(call("mcp_add", """{"preset":"todoist"}""").isError)
+            assertTrue(requests.isEmpty())
+            assertEquals("https://ai.todoist.net/mcp", entries.last().url)
+            assertEquals("todoist", entries.last().name)
+            assertEquals(ConfigScope.Agent, entries.last().scope)
+            assertFalse("todoist:" in call("mcp_list").output.substringAfter("Available presets:"))
+            for (id in listOf("github", "gmail")) {
+                val error = call("mcp_add", """{"preset":"$id"}""")
+                assertTrue(error.isError)
+                assertTrue("Settings → Tools & MCP → MCP servers" in error.output)
+                assertTrue((if (id == "github") "personal access token" else "OAuth client ID") in error.output)
+            }
+            for (text in listOf("""{"preset":"missing"}""", """{"preset":"todoist","url":"https://evil.example"}"""))
+                assertTrue(call("mcp_add", text).isError)
+            assertTrue(requests.isEmpty())
+            for (tolerance in listOf("strict", "default", "relaxed", "full")) {
+                server.harness.configure(agent, session.id, SessionSettings(approvals = tolerance))
+                val before = requests.size
+                assertFalse(call("mcp_add", """{"preset":"atlassian"}""").isError)
+                assertEquals(before + if (tolerance == "full") 0 else 1, requests.size)
+                assertFalse(call("mcp_add", """{"name":"custom","url":"https://example.com/mcp"}""").isError)
+                assertEquals(before + if (tolerance == "full") 1 else 2, requests.size)
+            }
+        }
+    }
+
     @Test fun previewAndAlwaysAskSurviveFullToleranceAndForgedTrust() = runBlocking {
         lateinit var agent: Agent
         TestServer.start(scenario = { agent = agent("work") { it.copy(approvals = "full") } }).use { server ->
