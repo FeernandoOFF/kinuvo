@@ -67,7 +67,7 @@ internal class ServerAssembly(
         { _, id -> if (external.owns(SessionId(id))) external.discard(SessionId(id)) else dispatch.stop(SessionId(id)) })
     private val executionManagement = Mutex()
     val external = ExecutionCoordinator(executions, installedFactory, scope, harness.log, executionStorage,
-        resolve = { harness.attachments.download(it) }, readinessChanged = { catalogChanged() })
+        resolve = { harness.attachments.download(it) }, readinessChanged = { catalogChanged() }, toolCatalog = harness.composer::externalTools)
     suspend fun persistExecutionAttachment(state: ExecutionState, data: AttachmentData): Attachment {
         external.currentStateOwner(state)
         require(attachmentMimeType(data.attachment.name) == data.attachment.mimeType) { "Output filename and MIME differ" }

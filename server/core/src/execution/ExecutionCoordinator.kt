@@ -22,6 +22,8 @@ import kotlinx.serialization.json.*
 import kotlin.time.TimeSource
 import kotlin.uuid.Uuid
 
+fun AgentRegistration.serverToolAgent() = Agent(id, name, AgentConfig(workspace = listOfNotNull(cwd)))
+
 @Serializable
 data class ExternalSession(val agentId: AgentId, val connectionId: String, val snapshot: ExecutionSnapshot)
 
@@ -33,6 +35,7 @@ class ExecutionCoordinator(
     private val recovery: ExecutionRecoveryStore = MemoryExecutionRecovery(),
     private val resolve: (String) -> AttachmentData = { error("Attachments unavailable") },
     private val readinessChanged: suspend () -> Unit = {},
+    private val toolCatalog: suspend (Agent, SessionId?) -> List<ResolvedTool> = { _, _ -> emptyList() },
 ) : ExecutionDispatch {
     private val lock = Mutex()
     private val journal = Mutex()
@@ -101,7 +104,12 @@ class ExecutionCoordinator(
     /** What an external Agent's [sessionId], or a new Session, can do while its connection has [readiness]. */
     suspend fun capabilities(agentId: AgentId, sessionId: SessionId?, readiness: ExecutionReadiness, server: ServerCapabilities, seq: Long): SessionCapabilities {
         val saved = sessionId?.let { session(agentId, it); record(it) }
+        val registration = saved?.registration ?: registry.registration(agentId)
         val support = saved?.support
+        val mcp = support?.mcp ?: registration?.let { agent ->
+            registry.catalog().connections.firstOrNull { it.config.id == agent.connectionId }?.capabilities?.mcp
+        }
+        val tools = if (mcp == true && registration != null) toolCatalog(registration.serverToolAgent(), sessionId) else emptyList()
         val availability = when {
             saved?.archived == true || readiness.reasonCode == "archived" -> CapabilityState.unavailable("Agent registration archived", "archived")
             saved?.failure != null -> CapabilityState.unavailable(saved.failure, "recovery_failed")
@@ -110,7 +118,7 @@ class ExecutionCoordinator(
             !readiness.online -> CapabilityState.unavailable(readiness.reason ?: "Check connection", readiness.reasonCode ?: "checking")
             else -> CapabilityState()
         }
-        return SessionCapabilities(seq, server, availability, attachments = support?.supportedMimeTypes.orEmpty().associateWith { availability }, execution = support)
+        return SessionCapabilities(seq, server, availability, tools = tools, attachments = support?.supportedMimeTypes.orEmpty().associateWith { availability }, execution = support)
     }
 
     suspend fun restore(agentId: AgentId) { lock.withLock { records.values.filter { it.agentId == agentId && it.archived } }.forEach { saved -> mutate(saved.sessionId) { it.copy(archived = false) } } }

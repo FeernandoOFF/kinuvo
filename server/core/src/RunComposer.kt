@@ -173,9 +173,10 @@ class RunComposer internal constructor(
      */
     private class Effective(val agent: Agent, val info: ModelInfo?, val provider: ModelProvider?, val profile: ModelProfile, val memoryCap: Int, val userCap: Int)
 
-    private suspend fun effective(agent: Agent, sessionId: SessionId?, settings: SessionSettings? = null): Effective {
+    private suspend fun effective(agent: Agent, sessionId: SessionId?, settings: SessionSettings? = null, requireModel: Boolean = true): Effective {
         val configured = supported(agent.with(settings ?: sessionId?.let { store.session(agent.id, it).settings } ?: SessionSettings()))
             .let { it.copy(config = it.config.copy(provider = providerId(it.config.provider))) }
+        if (!requireModel) return Effective(configured, null, null, ModelProfile.of(ModelTier.Frontier), memoryCap, userCap)
         val info = modelCatalog().providers.firstOrNull { it.id == configured.config.provider }?.models?.firstOrNull { it.id == configured.config.model }
         val context = info?.context
         val provider = providers[configured.config.provider]
@@ -199,7 +200,7 @@ class RunComposer internal constructor(
     private suspend fun prepare(agent: Agent, sessionId: SessionId?, settings: SessionSettings? = null,
         routine: RoutineTurn? = null, taskId: String? = null, activate: Boolean = false, catalogs: List<UiCatalog> = uiCatalogs.forRun(), scope: ToolScope = ToolScope.All, requireModel: Boolean = true): PreparedRun {
         val privateSession = sessionId?.let { store.session(agent.id, it).hidden } == true
-        val e = effective(agent, sessionId, settings)
+        val e = effective(agent, sessionId, settings, requireModel)
         val chat = if (unmanagedModels) CapabilityState() else e.provider?.availability(e.agent.config.model)
             ?: CapabilityState.unsupported("No model provider '${e.agent.config.provider}'; this model provider is not installed")
         if (activate && requireModel) chat.requireReady()
@@ -209,7 +210,7 @@ class RunComposer internal constructor(
         val aliased = own + contributed.flatMap { it.tools }
         val all = aliased.withModelNames().also { it.indexedTools() }
         val renamed = aliased.zip(all).filter { (a, b) -> a !== b }.associate { (a, b) -> a.descriptor.name to b.descriptor.name }
-        val eligible = usable(e, all, scope)
+        val eligible = if (requireModel) usable(e, all, scope) else all.filter(scope::allows).map { it.descriptor.name }.toSet()
         val descriptors = all.map { it.descriptor.name }.toSet()
         val rules = trustRules.effective(agent.id)
         val catalog = (own.map { ResolvedTool(renamed[it.descriptor.name] ?: it.descriptor.name, it.displayName, identity = it.identity) } +
@@ -218,7 +219,7 @@ class RunComposer internal constructor(
                 e.info?.tools == false || e.info?.toolIds?.let { tool.identity?.localId != "*" && tool.identity?.key !in it } == true ||
                     tool.id in descriptors && tool.id !in eligible -> CapabilityState.unsupported("This model cannot call ${tool.name}")
                 rules.deny.blockedTool(tool.identity) != null -> tool.state.copy(authorization = Authorization.Denied, reason = "Blocked by a Deny rule", reasonCode = "policy")
-                e.info?.tools == null -> tool.state.copy(support = Support.Unknown, reason = tool.state.reason ?: "Model tool support is unknown")
+                requireModel && e.info?.tools == null -> tool.state.copy(support = Support.Unknown, reason = tool.state.reason ?: "Model tool support is unknown")
                 else -> tool.state
             }
             tool.copy(state = state)
@@ -235,6 +236,9 @@ class RunComposer internal constructor(
         val reported = catalog + finders.map { ResolvedTool(it.descriptor.name, it.displayName, identity = it.identity) }
         return PreparedRun(e, usableTools + finders, usableTools - hidden.toSet() + finders, reported, contributed.flatMap { it.warnings }, chat)
     }
+
+    internal suspend fun externalTools(agent: Agent, sessionId: SessionId?) =
+        prepare(agent, sessionId, requireModel = false).catalog
 
     suspend fun capabilities(agent: Agent, sessionId: SessionId?, settings: SessionSettings?, server: ServerCapabilities, revision: Long = 0): SessionCapabilities {
         val prepared = prepare(agent, sessionId, settings)

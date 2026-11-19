@@ -5,6 +5,7 @@ import kinuvo.protocol.approval.*
 import kinuvo.protocol.execution.*
 import kinuvo.protocol.session.*
 import kinuvo.server.AgentRuntime
+import kinuvo.server.execution.serverToolAgent
 import kotlinx.coroutines.*
 import java.util.concurrent.ConcurrentHashMap
 
@@ -52,10 +53,11 @@ class McpExecutionFactory(
         suspend fun revoke() { lease.revoke()?.job?.join() }
         val toolInteractions = ConcurrentHashMap.newKeySet<InteractionId>()
         return object : ExecutionSession by session {
+            override val capabilities = session.capabilities.copy(mcp = true)
             override suspend fun prompt(input: ExecutionInput): ExecutionAcceptance {
                 val revision = lease.revision()
                 // External Agents have Server tool defaults; their private tool configuration stays in the harness.
-                val agent = Agent(registration.id, registration.name, AgentConfig(workspace = listOfNotNull(registration.cwd)))
+                val agent = registration.serverToolAgent()
                 val composed = harness.composer.compose(agent, state.sessionId, requireModel = false)
                 val sink = state.boundSink()
                 val calls = mutableMapOf<ToolCallId, SessionEntry.ToolCall>()

@@ -8,6 +8,7 @@ import kinuvo.protocol.agent.AgentId
 import kinuvo.protocol.agent.AgentRef
 import kinuvo.protocol.agent.UpdateAgentParams
 import kinuvo.protocol.approval.*
+import kinuvo.protocol.capability.*
 import kinuvo.protocol.execution.*
 import kinuvo.protocol.plugin.PluginDefinition
 import kinuvo.server.plugin.*
@@ -128,6 +129,12 @@ class McpAcpTest {
             server.harness.docs.write(agent, AgentDoc.Memory, "MEMORY_SENTINEL")
             server.harness.docs.write(agent, AgentDoc.UserNotes, "USER_NOTES_SENTINEL")
             val session = client.call(Api.CreateSession, AgentRef(agent))
+            val tools = client.call(Api.Capabilities, CapabilitiesParams(agent, session.id)).tools
+            val deploy = tools.single { it.id == "deploy" }
+            assertEquals(Support.Supported, deploy.state.support)
+            client.call(Api.SaveServerRules, TrustRules(deny = DenyRules(tools = listOf(requireNotNull(deploy.identity).key))))
+            assertEquals(Authorization.Denied, client.call(Api.Capabilities, CapabilitiesParams(agent, session.id)).tools.single { it.id == "deploy" }.state.authorization)
+            client.call(Api.SaveServerRules, TrustRules())
             client.call(Api.CatchUp, CatchUpParams(agent, session.id))
             suspend fun phase(expected: ExecutionPhase) = withTimeout(10000) {
                 while (client.call(Api.ExecutionSnapshot, ExecutionRef(session.id.value)).phase != expected) delay(10)
