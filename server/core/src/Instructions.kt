@@ -57,7 +57,7 @@ fun capabilitiesFor(agent: Agent, tools: List<Tool>, catalog: List<ResolvedTool>
     append("Available tools: ${tools.map { it.descriptor.name }.sorted().joinToString()}. Use these tools to establish what is possible; do not assume unlisted integrations exist.\n")
     tools.mapNotNull { it.coreMetadata }.distinct().filter { !compact || it.name !in CONFIGURATION_TOOLS }.forEach { append(if (compact) it.summary else it.hint ?: it.summary); append("\n") }
     append(notSetUpFor(catalog, tools))
-    if (tools.any { it.descriptor.name == ToolNames.WEB_FETCH }) append("Kinuvo documentation: $KINUVO_DOCS_URL. Use web_fetch for questions about Kinuvo or how to set something up.\n")
+    if (tools.any { it.descriptor.name == ToolNames.WEB_FETCH }) append("Kinuvo documentation: $KINUVO_DOCS_URL/llms.txt lists every page; fetch the matching page (add .md for plain text). Use web_fetch for questions about Kinuvo or how to set something up.\n")
     if (!compact) append("Tool calls follow the Session's Risk tolerance and Trust/Deny rules. Background Reflection stages Knowledge and learned Skills for explicit Approval regardless of Risk tolerance.\n")
 }
 
