@@ -52,6 +52,28 @@ class AcpReducerTest {
         assertEquals("g:2:m", state.live().entries.single().identity()!!.id)
     }
 
+    @Test fun kinuvoMcpCallsAndTheirFollowupUpdatesAreOmitted() = runBlocking {
+        val sink = Recording()
+        val reducer = AcpReducer(ExecutionState(SessionId("s"), sink = sink))
+        reducer.submitted()
+        val shapes = listOf(
+            """"title":"Browser open","rawInput":{"server":"kinuvo","tool":"browser_open"}""",
+            """"title":"mcp__kinuvo__browser_open"""",
+            """"title":"mcp.kinuvo.browser_open"""",
+            """"rawInput":{"serverName":"kinuvo","toolName":"browser_open"}""",
+        )
+        for ((index, fields) in shapes.withIndex()) {
+            reducer.update(raw("""{"sessionUpdate":"tool_call","toolCallId":"$index",$fields}"""))
+            reducer.update(raw("""{"sessionUpdate":"tool_call_update","toolCallId":"$index","status":"completed","rawOutput":"echo"}"""))
+        }
+        assertTrue(sink.events.none { it is AgentEvent.ExecutionEntryChanged })
+        reducer.update(raw("""{"sessionUpdate":"tool_call","toolCallId":"private","title":"mcp__other__browser_open"}"""))
+        reducer.update(raw("""{"sessionUpdate":"tool_call_update","toolCallId":"private","status":"completed","rawOutput":"kept"}"""))
+        reducer.update(raw("""{"sessionUpdate":"state_update","state":"idle","stopReason":"end_turn"}"""))
+        assertEquals("mcp__other__browser_open", sink.batches.single().filterIsInstance<SessionEntry.ToolCall>().single().name)
+        assertEquals("kept", sink.batches.single().filterIsInstance<SessionEntry.ToolResult>().single().output)
+    }
+
     @Test fun planUpdatesReplaceTheChecklistWithinEachTurn() = runBlocking {
         val sink = Recording()
         val state = ExecutionState(SessionId("s"), sink = sink)

@@ -20,6 +20,7 @@ internal class AcpReducer(private val state: ExecutionState,
     private var lost = false
     private val entries = linkedMapOf<SessionEntryIdentity, SessionEntry>()
     private val attachments = mutableMapOf<Pair<String, String>, Attachment>()
+    private val serverTools = mutableSetOf<String>()
     private val tools = mutableMapOf<String, JsonObject>()
     private val finalized = mutableMapOf<Pair<String, String>, JsonObject>()
     private val currentSources = mutableMapOf<Pair<String, String>, JsonObject>()
@@ -29,6 +30,7 @@ internal class AcpReducer(private val state: ExecutionState,
     private suspend fun start() {
         if (active) return
         turn++
+        serverTools.clear()
         active = true
         sink.publish(AgentEvent.ExecutionPhaseChanged(ExecutionPhase.Running))
         sink.publish(AgentEvent.RunStarted(RunId(runId())))
@@ -67,6 +69,15 @@ internal class AcpReducer(private val state: ExecutionState,
         }
         val source = raw.string(if (role == "tool") "toolCallId" else "messageId") ?: return@withLock
         val key = role to source
+        if (role == "tool") {
+            if (raw.isKinuvoTool() && serverTools.add(source)) {
+                tools.remove(source)
+                currentSources.remove(key)
+                entries.remove(SessionEntryIdentity("tool_call", id(source)))
+                entries.remove(SessionEntryIdentity("tool_result", id(source)))
+            }
+            if (source in serverTools) return@withLock
+        }
         if (!active && finalized.containsKey(key)) {
             if (finalized[key] != raw) sink.commit(listOf(SessionEntry.Notice(Uuid.random().toString(),
                 "unsupported_history_change", "The harness changed finalized output; saved history was preserved.")))
@@ -110,6 +121,13 @@ internal class AcpReducer(private val state: ExecutionState,
                 put(SessionEntry.ToolResult(ToolCallId(mediaId), "Attachment", "", attachments = combined))
             }
         }
+    }
+
+    private fun JsonObject.isKinuvoTool(): Boolean {
+        val input = this["rawInput"] as? JsonObject
+        val title = string("title").orEmpty()
+        return input?.string("server") == "kinuvo" || input?.string("serverName") == "kinuvo" ||
+            title.startsWith("mcp.kinuvo.") || title.startsWith("mcp__kinuvo__")
     }
 
     private fun checklist(entries: JsonArray) = entries.filterIsInstance<JsonObject>().mapNotNull { entry ->
