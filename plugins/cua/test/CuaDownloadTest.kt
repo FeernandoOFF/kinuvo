@@ -34,8 +34,12 @@ class CuaDownloadTest {
             assertTrue(computer.ready)
             repeat(2) { assertEquals("Downloading cua-driver for Computer use. Try again in a minute.", computer.perform(ComputerRequest()).message) }
             gate.complete(Unit)
-            withTimeout(5000) { while (!source.message.contains("offline")) delay(10) }
-            assertEquals("cua-driver download failed: offline", computer.perform(ComputerRequest()).message)
+            val failed = withTimeout(5000) {
+                var message: String?
+                do { message = computer.perform(ComputerRequest()).message; delay(10) } while (message == "Downloading cua-driver for Computer use. Try again in a minute.")
+                message
+            }
+            assertEquals("cua-driver download failed: offline", failed)
             assertEquals(1, calls)
             assertEquals("Downloading cua-driver for Computer use. Try again in a minute.", computer.perform(ComputerRequest()).message)
             withTimeout(5000) { while (calls < 2) delay(10) }

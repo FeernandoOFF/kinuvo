@@ -76,12 +76,14 @@ class CuaDriverDownload(
     private var job: Job? = null
     private var shown = false
     val ready get() = path != null || engine != null
-    val message get() = failure ?: "Downloading cua-driver for Computer use. Try again in a minute."
+    var message = DOWNLOADING
+        private set
 
     @Synchronized fun resolve(): String? {
         path?.let { return it }
         if (engine == null) return null
-        if (failure != null && !shown) { shown = true; return null }
+        failure?.takeIf { !shown }?.let { shown = true; message = it; return null }
+        message = DOWNLOADING
         if (job?.isActive != true) {
             failure = null; shown = false
             job = scope.launch {
@@ -99,3 +101,5 @@ class CuaDriverDownload(
 
     fun close() { scope.cancel() }
 }
+
+private const val DOWNLOADING = "Downloading cua-driver for Computer use. Try again in a minute."
