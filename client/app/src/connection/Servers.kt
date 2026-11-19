@@ -178,6 +178,11 @@ class Servers(
     fun find(serverId: String): Server? = runCatching { remotes() }.getOrDefault(emptyList()).firstOrNull { it.serverId == serverId }
         ?: Server.Embedded.takeIf { embedded != null && prefs[EMBEDDED_ID] == serverId }
 
+    internal fun idOf(server: Server): String? = when (server) {
+        is Server.Remote -> server.serverId
+        Server.Embedded -> prefs[EMBEDDED_ID]
+    }
+
     /** Sets [server]'s alias; blank clears it. */
     fun rename(server: Server.Remote, name: String): Server.Remote {
         val renamed = server.copy(name = name.trim().ifEmpty { null })

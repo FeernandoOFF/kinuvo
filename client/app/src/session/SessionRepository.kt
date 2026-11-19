@@ -16,6 +16,7 @@ import kinuvo.protocol.skill.*
 import kinuvo.protocol.surface.*
 import kotlin.time.Clock
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.builtins.SetSerializer
 import kotlinx.serialization.json.JsonElement
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
@@ -60,6 +61,7 @@ data class RepositoryState(
     val lists: Map<AgentId, SessionList> = emptyMap(),
     val skills: Map<AgentId, List<SkillInfo>> = emptyMap(),
     val finished: Set<SessionId> = emptySet(),
+    val settled: Set<SessionId> = emptySet(),
 )
 
 /**
@@ -67,13 +69,14 @@ data class RepositoryState(
  * every Agent shown, and the transcripts of the last [MAX_CACHED] Sessions opened, each subscribed so returning to one
  * needs no reload. Work belongs to the connected Server and runs on the main dispatcher.
  */
-class SessionRepository(private val notifications: Notifications, internal val connection: ConnectedServer) : ServerBound {
+class SessionRepository(private val notifications: Notifications, internal val connection: ConnectedServer, private val prefs: Preferences? = null) : ServerBound {
     val state: StateFlow<RepositoryState>
         field = MutableStateFlow(RepositoryState())
 
     private val scope get() = connection.scope
     private val client get() = connection.client
     private var attached: Job? = null
+    private var settledKey: String? = null
     private val statuses = mutableMapOf<SessionId, SessionStatus>()
     /** Cached Sessions, least recently viewed first. */
     private val recent = mutableListOf<SessionId>()
@@ -86,20 +89,47 @@ class SessionRepository(private val notifications: Notifications, internal val c
 
     override fun attach(client: KinuvoClient) {
         attached?.cancel()
+        client.lastConnect?.capabilities?.serverId?.let(::loadSettled)
         attached = scope.launch {
             launch { client.events(Api.Update).collect(::onUpdate) }
             launch { client.events(Api.SessionChanged).collect(::onChanged) }
-            client.state.collect { if (it is ConnectionState.Connected) resync() }
+            client.state.collect {
+                if (it is ConnectionState.Connected) {
+                    client.lastConnect?.capabilities?.serverId?.let(::loadSettled)
+                    resync()
+                }
+            }
         }
     }
 
     override fun detach() { clear() }
 
+    internal fun loadSettled(serverId: String) {
+        val key = "sessions.settled.$serverId"
+        if (settledKey == key) return
+        settledKey = key
+        val settled = runCatching {
+            prefs?.get(key)?.let { ProtocolJson.decodeFromString(SettledSessions, it) }
+        }.getOrNull().orEmpty()
+        state.update { it.copy(settled = settled) }
+    }
+
+    fun settle(sessionId: SessionId, settled: Boolean) {
+        if (client == null) return
+        val before = state.value.settled
+        val after = if (settled) before + sessionId else before - sessionId
+        if (after == before) return
+        settledKey?.let { key ->
+            runCatching { prefs?.set(key, after.takeIf { it.isNotEmpty() }?.let { ProtocolJson.encodeToString(SettledSessions, it) }) }
+        }
+        state.update { it.copy(settled = after) }
+    }
+
     /** Shows what this Device last saw until the Server is reached; reconnecting catches the Sessions up from there. */
     internal fun restore(lists: Map<AgentId, SessionList>, sessions: Map<SessionId, CachedSession>) {
         recent += sessions.keys
-        state.value = RepositoryState(lists = lists,
-            sessions = sessions.mapValues { (_, s) -> SessionData(s.agentId, s.firstSeq, s.entries, loaded = true, receivedAt = s.receivedAt) })
+        state.update { it.copy(lists = lists,
+            sessions = sessions.mapValues { (_, s) -> SessionData(s.agentId, s.firstSeq, s.entries, loaded = true, receivedAt = s.receivedAt) }) }
     }
 
     /** The cached Sessions, each with up to its last [MAX_SAVED] entries. */
@@ -132,7 +162,7 @@ class SessionRepository(private val notifications: Notifications, internal val c
             val page = client.call(Api.Sessions, SessionsParams(agentId, before = list.nextBefore.takeIf { more }))
             currentCoroutineContext().ensureActive()
             val changes = listChanges.remove(agentId).orEmpty()
-            page.sessions.filterNot { it.id in changes }.forEach { statuses[it.id] = it.status }
+            (page.sessions + page.favorites).filterNot { it.id in changes }.forEach { recordStatus(it) }
             val loaded = if (more) state.value.lists[agentId]?.sessions.orEmpty() + page.sessions else page.favorites + page.sessions
             val sessions = (loaded.filterNot { it.id in changes } + changes.values.filter { it.inChats }).distinctBy { it.id.value }.sortedWith(SessionOrder)
             val nextBefore = page.sessions.lastOrNull()?.id.takeIf { page.hasMore }
@@ -166,7 +196,12 @@ class SessionRepository(private val notifications: Notifications, internal val c
     suspend fun createSession(agentId: AgentId): SessionInfo = call { it.call(Api.CreateSession, AgentRef(agentId)) }
 
     suspend fun send(agentId: AgentId, sessionId: SessionId, text: String, attachments: List<String> = emptyList(), voice: Boolean = false, submissionId: String? = null, action: SurfaceAction? = null, delivery: SendDelivery = SendDelivery.Turn) =
-        call { it.call(Api.Send, SendParams(agentId, sessionId, text, attachments, voice, submissionId, action, delivery)) }
+        call {
+            it.call(Api.Send, SendParams(agentId, sessionId, text, attachments, voice, submissionId, action, delivery)).also {
+                currentCoroutineContext().ensureActive()
+                settle(sessionId, settled = false)
+            }
+        }
 
     suspend fun update(agentId: AgentId, sessionId: SessionId, title: String? = null, favorite: Boolean? = null) =
         call { it.call(Api.UpdateSession, UpdateSessionParams(agentId, sessionId, title, favorite)) }.also(::onChanged)
@@ -197,7 +232,7 @@ class SessionRepository(private val notifications: Notifications, internal val c
                 event is AgentEvent.RunError || event is AgentEvent.ExecutionPhaseChanged && event.phase == ExecutionPhase.Lost -> replies -= id
                 event is AgentEvent.RunFinished && replies.remove(id) && data.live.executionPhase != ExecutionPhase.Lost && completions.add("$id:${event.runId}") -> {
                     notifications.post(Notice.RunFinished(update.agentId, id))
-                    if (id.value != viewing?.value) state.update { it.copy(finished = it.finished + id) }
+                    markFinished(id)
                 }
             }
         }
@@ -215,6 +250,7 @@ class SessionRepository(private val notifications: Notifications, internal val c
     }
 
     private fun onChanged(info: SessionInfo) {
+        val before = recordStatus(info)
         // A Routine's Sessions join the chats once they have something for the user; its finished runs are announced as Routine runs.
         listChanges[info.agentId]?.set(info.id, info)
         state.update { s ->
@@ -226,14 +262,12 @@ class SessionRepository(private val notifications: Notifications, internal val c
             s.copy(lists = s.lists + (info.agentId to list.copy(sessions = sessions)))
         }
         if (info.routine != null) {
-            val before = statuses.put(info.id, info.status)
             if (before != SessionStatus.Waiting && info.status == SessionStatus.Waiting) notifications.post(Notice.ApprovalNeeded(info.agentId, info.id))
-            if (before != null && before != SessionStatus.Idle && info.status == SessionStatus.Idle && info.inChats && info.id.value != viewing?.value) {
-                state.update { it.copy(finished = it.finished + info.id) }
+            if (before != null && before != SessionStatus.Idle && info.status == SessionStatus.Idle && info.inChats) {
+                markFinished(info.id)
             }
             return
         }
-        val before = statuses.put(info.id, info.status)
         if (before == info.status || before == null && info.status == SessionStatus.Idle) return
         when (info.status) {
             SessionStatus.Waiting -> notifications.post(Notice.ApprovalNeeded(info.agentId, info.id))
@@ -243,12 +277,24 @@ class SessionRepository(private val notifications: Notifications, internal val c
                     connection.harnesses.state.value.catalog?.agents?.any { it.id == info.agentId } == true
                 if (external) return
                 notifications.post(Notice.RunFinished(info.agentId, info.id))
-                if (info.id.value != viewing?.value) state.update { it.copy(finished = it.finished + info.id) }
+                markFinished(info.id)
                 // A run may have created or edited Skills.
                 if (info.agentId in state.value.skills) loadSkills(info.agentId)
             }
             SessionStatus.Running -> Unit
         }
+    }
+
+    private fun recordStatus(info: SessionInfo): SessionStatus? {
+        val before = statuses.put(info.id, info.status)
+        if (before != info.status && info.status != SessionStatus.Idle) settle(info.id, settled = false)
+        return before
+    }
+
+    private fun markFinished(sessionId: SessionId) {
+        if (sessionId == viewing) return
+        settle(sessionId, settled = false)
+        state.update { it.copy(finished = it.finished + sessionId) }
     }
 
     /** Subscribes to [sessionId] from what's held, or a fresh window when nothing is. */
@@ -289,6 +335,7 @@ class SessionRepository(private val notifications: Notifications, internal val c
         catchingUp.clear()
         loadingLists.clear()
         listChanges.clear()
+        settledKey = null
         state.value = RepositoryState()
     }
 
@@ -299,6 +346,7 @@ class SessionRepository(private val notifications: Notifications, internal val c
     private companion object {
         const val MAX_CACHED = 8
         const val MAX_SAVED = 100
+        val SettledSessions = SetSerializer(SessionId.serializer())
     }
 }
 

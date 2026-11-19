@@ -35,6 +35,54 @@ class ConnectedServerTest {
     private val serverJobs = mutableListOf<Job>()
     private val stores = mutableListOf<ViewModelStore>()
     private fun store() = ViewModelStore().also(stores::add)
+
+    @Test fun settledSessionsPersistPerServerAndReturnOnActivity() {
+        val prefs = MemoryPreferences()
+        val agent = AgentId("agent")
+        val session = SessionId("session")
+        withOwner(prefs) { owner, _, _ ->
+            connect(owner, Script("A"))
+            owner.sessions.settle(session, settled = true)
+            assertEquals(setOf(session), owner.sessions.state.value.settled)
+            owner.sessions.settle(session, settled = false)
+            assertTrue(owner.sessions.state.value.settled.isEmpty())
+            owner.sessions.settle(session, settled = true)
+            connect(owner, Script("B", serverId = "other"))
+            assertTrue(owner.sessions.state.value.settled.isEmpty())
+        }
+        withOwner(prefs) { owner, _, _ ->
+            val script = Script("A")
+            val sessions = owner.sessions
+            val client = KinuvoClient("local:test", "test", connection = { script })
+            owner.open(client, "local:test", serverId = "test")
+            owner.restore(Snapshot(syncedAt = 1))
+            assertEquals(setOf(session), sessions.state.value.settled)
+            serverJobs += owner.scope.coroutineContext.job
+            client.connect()
+            owner.activate()
+            sessions.loadSessions(agent).join()
+            val info = sessions.state.value.lists.getValue(agent).sessions.single()
+            script.event(Api.SessionChanged, info.copy(status = SessionStatus.Running))
+            sessions.state.first { it.lists[agent]?.sessions?.single()?.status == SessionStatus.Running }
+            assertTrue(sessions.state.value.settled.isEmpty())
+
+            sessions.settle(session, settled = true)
+            script.event(Api.SessionChanged, info.copy(status = SessionStatus.Waiting))
+            sessions.state.first { it.lists[agent]?.sessions?.single()?.status == SessionStatus.Waiting }
+            assertTrue(sessions.state.value.settled.isEmpty())
+
+            sessions.settle(session, settled = true)
+            script.event(Api.SessionChanged, info)
+            assertTrue(sessions.state.first { session in it.finished }.settled.isEmpty())
+
+            sessions.settle(session, settled = true)
+            sessions.send(agent, session, "Follow up")
+            assertTrue(sessions.state.value.settled.isEmpty())
+            connect(owner, Script("A"))
+            assertTrue(sessions.state.value.settled.isEmpty())
+        }
+    }
+
     @Test fun mutableTranscriptWindowsPublishAtomicallyAndRetainMessageIds() = withOwner { owner, _, _ ->
         val script = Script("A")
         connect(owner, script)
@@ -434,13 +482,12 @@ class ConnectedServerTest {
         } finally { store.clearAndJoin() }
     }
 
-    private fun withOwner(block: suspend (ConnectedServer, MutableList<Notice>, DeviceAccess) -> Unit) = runBlocking {
+    private fun withOwner(prefs: Preferences = MemoryPreferences(), block: suspend (ConnectedServer, MutableList<Notice>, DeviceAccess) -> Unit) = runBlocking {
         Executors.newSingleThreadExecutor().asCoroutineDispatcher().use { main ->
             Dispatchers.setMain(main)
             try {
                 withContext(main) {
                     withTimeout(15_000) {
-                        val prefs = MemoryPreferences()
                         val reader = object : DeviceReader {
                             override val kinds = emptyList<String>()
                             override fun authorize(kind: String, completion: (String?) -> Unit) = completion(null)
@@ -448,7 +495,7 @@ class ConnectedServerTest {
                         }
                         val notices = mutableListOf<Notice>()
                         val access = DeviceAccess(prefs, reader)
-                        val owner = ConnectedServer(Notifications(listOf(Notifier { notices += it })), access)
+                        val owner = ConnectedServer(Notifications(listOf(Notifier { notices += it })), access, prefs = prefs)
                         try { block(owner, notices, access) } finally {
                             stores.forEach { it.clearAndJoin() }
                             serverJobs += owner.scope.coroutineContext.job
@@ -469,7 +516,7 @@ class ConnectedServerTest {
         owner.activate()
     }
 
-    private class Script(private val name: String, private val capabilities: SessionCapabilities? = null) : FrameConnection {
+    private class Script(private val name: String, private val capabilities: SessionCapabilities? = null, private val serverId: String = "test") : FrameConnection {
         private val frames = Channel<Frame>(Channel.UNLIMITED)
         override val incoming = frames.receiveAsFlow()
         private val held = ConcurrentHashMap<String, Boolean>()
@@ -508,7 +555,7 @@ class ConnectedServerTest {
 
         private suspend fun respond(request: Frame.Request) {
             when (request.method) {
-                Api.Connect.name -> reply(request, Api.Connect, ConnectResult("token", name, capabilities = ServerCapabilities("test"), management = true))
+                Api.Connect.name -> reply(request, Api.Connect, ConnectResult("token", name, capabilities = ServerCapabilities(serverId), management = true))
                 Api.Presence.name -> reply(request, Api.Presence, Unit)
                 Api.Agents.name -> reply(request, Api.Agents, listOf(AgentInfo(AgentId("agent"), name, "none")))
                 Api.Models.name -> { reply(request, Api.Models, ModelsCatalog()); modelsLoaded.send(Unit) }
