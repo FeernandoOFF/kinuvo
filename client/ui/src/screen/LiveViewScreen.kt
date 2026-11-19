@@ -254,10 +254,6 @@ private fun Stage(state: LiveViewState, screen: ScreenInfo, actions: LiveActions
             .border(if (status == Status.Yours) 2.dp else 1.dp, if (status == Status.Watching || status == Status.Offline) color(borderColor) else status.tone.color(), shape)) {
             LiveCanvas(state.frame, state.interactive, actions.input, actions.drawn, actions.decodeFailed,
                 Modifier.fillMaxSize(), state.control.generation, "scroll" in screen.capabilities.inputs, onFocus)
-            if (state.frame == null && state.connected) Row(Modifier.align(Alignment.Center), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.space8)) {
-                Spinner()
-                Text("Loading ${screen.title}", style = TextStyles.secondary, color = color(mutedColor), singleLine = true)
-            }
             if (!state.connected) state.frameReceivedAt?.let { Text("Last frame · $it", Modifier.align(Alignment.BottomStart).padding(Spacing.space8), style = TextStyles.caption, color = color(mutedColor)) }
         }
     }

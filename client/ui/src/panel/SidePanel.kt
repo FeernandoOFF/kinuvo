@@ -95,7 +95,7 @@ fun SidePanel(state: SidePanelState, actions: SidePanelActions, maxWidth: Dp, la
                 actions.onResize(dragged, max)
             }, Orientation.Horizontal, onDragStarted = { dragging = true; dragged = if (current.collapsed) 0f else current.width.coerceAtMost(max) },
                 onDragStopped = { dragging = false }),
-            contentAlignment = Alignment.Center) {
+            contentAlignment = Alignment.CenterEnd) {
             val active = onEdge || dragging
             Box(Modifier.width(if (active) 2.dp else 1.dp).fillMaxHeight().background(color(if (active) accentColor else borderColor)))
             if (active) Box(Modifier.size(5.dp, 32.dp).background(color(accentColor), CircleShape))
@@ -137,7 +137,7 @@ private fun StripTab(tab: PanelTabLabel, selected: Boolean, onSelect: () -> Unit
     val hover = remember { MutableInteractionSource() }
     val hovered by hover.collectIsHoveredAsState()
     Box(Modifier.width(StripWidth).height(36.dp).hoverable(hover)) {
-        if (selected) Box(Modifier.align(Alignment.CenterEnd).width(4.dp).height(24.dp)
+        if (selected && !hovered) Box(Modifier.align(Alignment.CenterEnd).width(4.dp).height(24.dp)
             .background(color(onBackgroundColor), RoundedCornerShape(topStart = Radius.extraSmall, bottomStart = Radius.extraSmall)))
         Box(Modifier.align(Alignment.Center)) { Hint(tab.label, TooltipSide.Start) {
             Box(Modifier.size(32.dp).titleBarControl().clip(Theme[shapes][mediumShape])

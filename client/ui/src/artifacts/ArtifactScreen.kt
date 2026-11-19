@@ -258,7 +258,7 @@ private fun ArtifactMenu(data: ArtifactData, agents: List<AgentInfo>, now: Long,
                     Text("${info.type} · ${agents.name(info.agentId.value)} · ${relative(info.updated, now)}", style = TextStyles.caption, color = color(mutedColor), singleLine = true)
                 }
                 HorizontalSeparator()
-                MenuAction(if (full) Lucide.Minimize2 else Lucide.Maximize2, if (full) "Exit full screen" else "Full screen") { open = false; actions.onFullScreen(!full) }
+                if (actions.onExpand == null) MenuAction(if (full) Lucide.Minimize2 else Lucide.Maximize2, if (full) "Exit full screen" else "Full screen") { open = false; actions.onFullScreen(!full) }
                 MenuAction(Lucide.Copy, "Copy source") { open = false; clipboard.setText(AnnotatedString(data.content)) }
                 HorizontalSeparator()
                 MenuAction(Lucide.Trash2, "Delete", destructive = true) { open = false; asking = true }
