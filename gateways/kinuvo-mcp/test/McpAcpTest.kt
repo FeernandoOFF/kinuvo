@@ -1,9 +1,12 @@
 package kinuvo.gateways.mcp
 
+import kinuvo.harness.Agent
+import kinuvo.harness.AgentDoc
 import kinuvo.harness.acp.AcpExecutionFactory
 import kinuvo.protocol.Api
 import kinuvo.protocol.agent.AgentId
 import kinuvo.protocol.agent.AgentRef
+import kinuvo.protocol.agent.UpdateAgentParams
 import kinuvo.protocol.approval.*
 import kinuvo.protocol.execution.*
 import kinuvo.protocol.plugin.PluginDefinition
@@ -58,6 +61,12 @@ class McpAcpTest {
                     servers=r['params'].get('mcpServers',[])
                     assert len(servers)==1, servers
                     current=servers[0]
+                    status,initialized=http(current,'initialize')
+                    instructions=initialized['result']['instructions']
+                    assert status==200 and 'Server platform:' in instructions, initialized
+                    assert 'IDENTITY_SENTINEL' in instructions and 'SOUL_SENTINEL' in instructions, instructions
+                    assert 'MEMORY_SENTINEL' not in instructions and 'USER_NOTES_SENTINEL' not in instructions, instructions
+                    assert 'PLUGIN_SENTINEL' in instructions and 'Current Skills:' in instructions, instructions
                     if old:
                         assert old['headers']!=current['headers']
                         assert http(old,'tools/list')[0]==401
@@ -93,6 +102,7 @@ class McpAcpTest {
         val server = TestServer.start(
             plugins = listOf(object : ServerPlugin {
                 override val definition = PluginDefinition("test.tools", "Test tools")
+                override suspend fun instructions(agent: Agent) = InstructionSection("Test tools", "PLUGIN_SENTINEL")
                 override suspend fun prepare(run: RunContext, activate: Boolean) = PluginTools(listOf(object : Tool {
                     override val descriptor = toolSpec("deploy", "Fake deploy")
                     override val risk = Risk.High
@@ -111,6 +121,12 @@ class McpAcpTest {
             client.call(Api.SaveHarnessConnection, HarnessConnection("acp", "ACP", ExecutionConnection.Acp(listOf("/usr/bin/env", "python3", script.toString()))))
             val agent = AgentId("external")
             client.call(Api.RegisterExternalAgent, AgentRegistration(agent, "External", "acp", cwd = directory.toString()))
+            client.call(Api.UpdateAgent, UpdateAgentParams(agent, identity = "IDENTITY_SENTINEL", soul = "SOUL_SENTINEL"))
+            val details = client.call(Api.Agent, AgentRef(agent))
+            assertEquals("IDENTITY_SENTINEL", details.identity)
+            assertEquals("SOUL_SENTINEL", details.soul)
+            server.harness.docs.write(agent, AgentDoc.Memory, "MEMORY_SENTINEL")
+            server.harness.docs.write(agent, AgentDoc.UserNotes, "USER_NOTES_SENTINEL")
             val session = client.call(Api.CreateSession, AgentRef(agent))
             client.call(Api.CatchUp, CatchUpParams(agent, session.id))
             suspend fun phase(expected: ExecutionPhase) = withTimeout(10000) {

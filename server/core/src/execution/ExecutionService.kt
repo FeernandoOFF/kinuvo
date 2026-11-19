@@ -1,5 +1,6 @@
 package kinuvo.server.execution
 
+import kinuvo.harness.AgentDoc
 import kinuvo.harness.ExecutionFactory
 import kinuvo.harness.RemoteHarness
 import kinuvo.protocol.agent.*
@@ -143,8 +144,23 @@ class ExecutionService internal constructor(
     context(_: Raise<AgentError>)
     suspend fun agentDetails(id: AgentId): AgentDetails =
         external.registrationOrArchived(id)?.let { a ->
-            AgentDetails(externalInfo(a), AgentSettings("", "", "", "external"), "", "", managed = true, cwd = a.cwd, remoteAgentId = a.remoteAgentId)
+            val acp = a.remoteAgentId == null
+            AgentDetails(externalInfo(a), AgentSettings("", "", "", "external"),
+                if (acp) harness.docs.read(a.id, AgentDoc.Identity) else "",
+                if (acp) harness.docs.read(a.id, AgentDoc.Soul) else "",
+                managed = true, cwd = a.cwd, remoteAgentId = a.remoteAgentId)
         } ?: admin.details(admin.agent(id))
+
+    context(_: Raise<AgentError>)
+    suspend fun updateAgent(p: UpdateAgentParams): AgentDetails = management.withLock {
+        if (external.registrationOrArchived(p.agentId) == null) return@withLock admin.update(p)
+        if (registry.registration(p.agentId) == null) raise(AgentError.NotFound(p.agentId))
+        require(registry.configured(p.agentId).connection is ExecutionConnection.Acp) { "Agent settings belong to the remote Server" }
+        require(p == UpdateAgentParams(p.agentId, identity = p.identity, soul = p.soul)) { "Only Identity and Soul are editable for ACP Agents" }
+        p.identity?.let { harness.docs.write(p.agentId, AgentDoc.Identity, it) }
+        p.soul?.let { harness.docs.write(p.agentId, AgentDoc.Soul, it) }
+        agentDetails(p.agentId)
+    }
 
     context(_: Raise<ExecutionError>, _: Raise<AgentError>)
     suspend fun createAgent(p: CreateAgentParams): AgentInfo {

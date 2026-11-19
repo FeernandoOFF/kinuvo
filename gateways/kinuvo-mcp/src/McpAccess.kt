@@ -26,6 +26,7 @@ class McpAccess {
         val job: Job,
         val maxResultTokens: Int = Int.MAX_VALUE,
         val attachmentBytes: suspend (Attachment) -> ByteArray = { error("Attachments unavailable") },
+        val instructions: String? = null,
     ) {
         val calls = Mutex()
     }

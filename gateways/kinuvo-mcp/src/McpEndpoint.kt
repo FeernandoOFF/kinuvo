@@ -28,6 +28,7 @@ class McpEndpoint(private val access: McpAccess) {
             when (method) {
                 "initialize" -> result(id, buildJsonObject {
                     put("protocolVersion", "2025-06-18")
+                    run.instructions?.let { put("instructions", it) }
                     putJsonObject("capabilities") { putJsonObject("tools") { put("listChanged", false) } }
                     putJsonObject("serverInfo") { put("name", "kinuvo"); put("version", "1") }
                 })

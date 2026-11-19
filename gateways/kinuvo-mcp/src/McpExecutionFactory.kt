@@ -87,7 +87,7 @@ class McpExecutionFactory(
                         }
                     }
                 }
-                val run = McpAccess.Run(composed.tools, gate, turn, SupervisorJob(scope.coroutineContext[Job]), composed.profile.resultLimits.maxTokens, attachmentBytes = harness.attachments::bytes)
+                val run = McpAccess.Run(composed.tools, gate, turn, SupervisorJob(scope.coroutineContext[Job]), composed.profile.resultLimits.maxTokens, attachmentBytes = harness.attachments::bytes, instructions = composed.context)
                 val token = lease.issue(revision, run)
                 try { return session.prompt(input.copy(mcp = McpServerDescriptor(url(), "Bearer $token", composed.tools.tools.map { it.name }.toSet()))) }
                 catch (e: Throwable) { lease.revoke(run)?.job?.join(); throw e }
