@@ -67,6 +67,35 @@ class SidePanelFlowTest {
         screenshot("home-hides-panel")
     }
 
+    @Test fun stripCloseKeepsAnArtifactDraft() = appTest("side-panel-draft", desktop = true, script = {
+        on("Make a report") {
+            toolCall("artifact", """{"action":"create","title":"Weekly report","type":"md","content":"# Weekly report"}""")
+            reply("Saved the weekly report.")
+        }
+    }) {
+        pair()
+        tap("Message")
+        type("Make a report")
+        tap("Send")
+        await("Saved the weekly report.")
+        tap("Open")
+        tap("Edit")
+        await("Cancel")
+        gone("Close artifact")
+        val tab = hasContentDescription("Weekly report") and SemanticsMatcher.expectValue(SemanticsProperties.Role, Role.Tab)
+        await(tab).performMouseInput { moveTo(center) }
+        settle()
+        tap("Close Weekly report")
+        await("Cancel")
+        screenshot("draft-kept")
+        tap("Cancel")
+        await(tab).performMouseInput { moveTo(center) }
+        settle()
+        tap("Close Weekly report")
+        gone("Close Weekly report")
+        until("the tab to close") { ui.onAllNodes(tab).fetchSemanticsNodes().isEmpty() }
+    }
+
     /** Drags the edge of a panel [from] dp wide by [dx] dp in steps, a screenshot at each. */
     private suspend fun AppTest.drag(from: Float, dx: Float, name: String) {
         val d = ui.density.density

@@ -142,13 +142,15 @@ fun KinuvoApp(app: AppViewModel = koinViewModel(), initialRoute: Route? = null, 
     val panel = koinViewModel<SidePanelViewModel>(key = "panel/${app.serverLifetime}")
     val panelState by panel.state.collectAsState()
     val panelStores = rememberPanelStores(app.serverLifetime)
-    // The Screen a tab was last asked to show, and why; Artifact titles as their tabs load them.
+    // The Screen a tab was last asked to show, and why; Artifact titles as their tabs load them, and which hold a draft.
     val screenFocus = remember(app.serverLifetime) { mutableStateMapOf<PanelTab, Pair<ScreenRef, String?>>() }
+    val artifactTitles = remember(app.serverLifetime) { mutableStateMapOf<String, String>() }
+    val editingArtifacts = remember(app.serverLifetime) { mutableStateMapOf<String, Boolean>() }
     LaunchedEffect(panelState.tabs) {
         panelStores.retain(panelState.tabs)
         screenFocus.keys.retainAll(panelState.tabs.toSet())
+        editingArtifacts.keys.retainAll(panelState.tabs.filterIsInstance<PanelTab.Artifact>().map { it.artifact }.toSet())
     }
-    val artifactTitles = remember(app.serverLifetime) { mutableStateMapOf<String, String>() }
     val back = { homeEdits.leave { if (history.canGoBack) history.back() else if (backStack.lastOrNull().let { it is Route.Settings }) history.reset(app.lastView()) } }
     val shell = rememberShellChrome()
     BrowserBackHandler()
@@ -552,7 +554,12 @@ fun KinuvoApp(app: AppViewModel = koinViewModel(), initialRoute: Route? = null, 
                 onSectionBack = if (inspectorPages.isEmpty()) null else ({ inspectorEdits.leave { inspectorPages.removeLastOrNull(); Unit } }),
                 onCloseRequest = { if (inspecting?.dirty == true) inspector?.close() else inspectorEdits.leave { inspector?.close() } })
             val closeTab = { tab: PanelTab ->
-                if (tab == PanelTab.AgentSettings) inspectorHost.onCloseRequest?.invoke() ?: Unit else panel.close(tab)
+                when {
+                    tab == PanelTab.AgentSettings -> inspectorHost.onCloseRequest?.invoke() ?: Unit
+                    // A draft is saved or cancelled first: the tab is shown instead.
+                    tab is PanelTab.Artifact && editingArtifacts[tab.artifact] == true -> panel.open(tab)
+                    else -> panel.close(tab)
+                }
             }
             val expand = { tab: PanelTab, route: Route -> panel.close(tab); history.open(route) }
             val panelLabel = { tab: PanelTab ->
@@ -580,8 +587,11 @@ fun KinuvoApp(app: AppViewModel = koinViewModel(), initialRoute: Route? = null, 
                     }
                     is PanelTab.Artifact -> {
                         val artifacts = koinViewModel<ArtifactsViewModel>(viewModelStoreOwner = panelStores.owner(tab), key = "artifact") { parametersOf(Route.Artifacts(tab.artifact)) }
-                        val title = artifacts.state.collectAsState().value.open?.info?.title
+                        val artifactState by artifacts.state.collectAsState()
+                        val title = artifactState.open?.info?.title
                         LaunchedEffect(title) { title?.let { artifactTitles[tab.artifact] = it } }
+                        val editing = artifactState.draft != null
+                        LaunchedEffect(editing) { editingArtifacts[tab.artifact] = editing }
                         ArtifactsScreen(app, artifacts, ArtifactsActions(
                             onDelete = { id -> artifacts.delete(id); panel.close(tab) },
                             onOpenSession = { agent, session -> history.open(Route.Chat(agent, session)) },
