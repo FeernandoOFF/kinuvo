@@ -371,7 +371,7 @@ class ChatChromeTest {
             assertNotNull(scene.node("Travel details"))
             assertNotNull(scene.node("Another request"))
             assertNotNull(scene.node("Earlier history is unavailable"))
-            assertNull(scene.node("Ask before acting in this Session: default"))
+            assertNotNull(scene.node("Ask before acting in this Session: default"))
             assertNull(scene.node("Waiting"))
             assertTrue(scene.node("Travel details")!!.boundsInRoot.bottom < scene.node("Message")!!.boundsInRoot.top)
             File("build/screens").mkdirs()
