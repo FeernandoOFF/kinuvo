@@ -2,6 +2,7 @@ package kinuvo.plugins.mcp
 
 import kinuvo.harness.Agent
 import kinuvo.harness.AgentConfig
+import kinuvo.server.plugin.requireNewServer
 import kinuvo.server.plugin.McpManagement
 import kinuvo.server.plugin.SecretResolver
 import kinuvo.server.plugin.PluginStorage
@@ -28,9 +29,11 @@ internal class McpServersManagement(private val files: PluginStorage, private va
         return all.map { s -> if (s.url == null) s else s.copy(auth = auth.status(signInId(agent, s))) }
     }
 
-    override suspend fun saveMcp(p: SaveMcpParams): McpServerInfo = lock.withLock {
+    override suspend fun saveMcp(p: SaveMcpParams, createOnly: Boolean): McpServerInfo = lock.withLock {
         require(p.server.command == null || stdioSupported) { "Local (stdio) MCP servers need a desktop Server; use an HTTP one" }
-        mcpFiles(agent(p.agentId), p.server.scope).save(p.server)
+        val agent = agent(p.agentId)
+        if (createOnly) mcpServers(agent).requireNewServer(p)
+        mcpFiles(agent, p.server.scope).save(p.server)
     }
 
     override suspend fun removeMcp(p: McpParams) = lock.withLock {

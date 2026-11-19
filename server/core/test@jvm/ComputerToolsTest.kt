@@ -5,12 +5,14 @@ import kinuvo.harness.builtin.tools.toDescriptor
 import kinuvo.harness.ToolSpec
 import kinuvo.server.plugin.RunContext
 import kinuvo.server.plugin.Tool
+import kinuvo.server.plugin.BrowserService
 import kinuvo.server.plugin.ToolRun
 import kinuvo.server.screens.*
 import kinuvo.harness.builtin.*
 import kinuvo.protocol.*
 import kinuvo.protocol.approval.*
 import kinuvo.protocol.computer.*
+import kinuvo.protocol.browser.*
 import kinuvo.protocol.device.*
 import kinuvo.protocol.plugin.*
 import kinuvo.protocol.screen.*
@@ -65,6 +67,30 @@ class ComputerToolsTest {
     }
 
     private fun args(action: String, values: JsonObjectBuilder.() -> Unit = {}) = buildJsonObject { put("action", action); values() }
+
+    @Test fun browserTakeoverRemainsAvailableWithoutAComputer() = runTest {
+        computers.browserService = { object : BrowserService {
+            override suspend fun tabs(owner: BrowserOwner) = emptyList<BrowserTab>()
+            override suspend fun command(command: BrowserCommand, user: Boolean): BrowserFrame? = null
+        } }
+        val both = agent.copy(config = agent.config.copy(tools = listOf("computer", "browser")))
+        val prepared = computers.prepare(RunContext(both, SessionId("session")), false)
+        assertTrue(prepared.catalog.single { it.id == "request_takeover" }.state.actionable)
+        assertTrue(prepared.catalog.filter { it.id.startsWith("computer_") }.all { !it.state.actionable })
+    }
+
+    @Test fun readinessAndInstructionsFollowAvailableComputers() = runTest {
+        val missing = computers.prepare(RunContext(agent, null), false)
+        assertTrue(missing.catalog.all { !it.state.actionable && it.state.docsPath == "guides/computer-use/" })
+        assertNull(computers.instructions(agent))
+        val context = capabilitiesFor(agent, emptyList(), missing.catalog)
+        assertTrue("Not set up: Computer use (guides/computer-use)" in context)
+        tools()
+        val ready = computers.prepare(RunContext(agent, null), false)
+        assertTrue(ready.catalog.all { it.state.actionable })
+        assertNotNull(computers.instructions(agent))
+        assertFalse("Not set up:" in capabilitiesFor(agent, ready.tools, ready.catalog))
+    }
 
     @Test fun computerSourceAdvertisesRefreshAndPairsImageWithGeometry() = runBlocking {
         tools()

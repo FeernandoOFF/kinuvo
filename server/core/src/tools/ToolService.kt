@@ -61,7 +61,7 @@ class ToolService(
     private suspend fun invoke(call: SessionEntry.ToolCall, approvalId: String, turn: ToolTurn): SessionEntry.ToolResult {
         turn.emit(AgentEvent.ToolCallStart(call.id, call.name, call.args, call.identity))
         val result = perform(call, approvalId, turn)
-        turn.emit(AgentEvent.ToolCallResult(call.id, result.output, result.isError, result.identity))
+        turn.complete(result)
         return result
     }
 

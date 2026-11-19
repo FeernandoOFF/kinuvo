@@ -95,10 +95,17 @@ class ExternalServerTest {
             assertEquals(ExecutionKind.Acp, first.call(Api.Agents, Unit).first { it.id.value == "external" }.executionKind)
             assertTrue(first.call(Api.ProbeHarnessConnection, connection).readiness.online)
             val id = first.call(Api.CreateSession, AgentRef(AgentId("external"))).id
-            val browserError = assertFails { first.call(Api.BrowserTabs, BrowserOwner(AgentId("external"))) }
+            val owner = BrowserOwner(AgentId("external"))
+            assertTrue(first.call(Api.BrowserTabs, owner).isEmpty())
+            assertTrue(first.call(Api.Screens, owner).isEmpty())
+            first.call(Api.SaveHarnessConnection, HarnessConnection("remote", "Remote", ExecutionConnection.Remote("other-server")))
+            val remote = BrowserOwner(AgentId("remote"))
+            first.call(Api.RegisterExternalAgent, AgentRegistration(remote.agentId, "Remote", "remote", remoteAgentId = "source"))
+            val browserError = assertFails { first.call(Api.BrowserTabs, remote) }
             assertTrue(browserError.message.orEmpty().contains("managed by this Agent's harness"))
-            val screensError = assertFails { first.call(Api.Screens, BrowserOwner(AgentId("external"))) }
+            val screensError = assertFails { first.call(Api.Screens, remote) }
             assertTrue(screensError.message.orEmpty().contains("managed by this Agent's harness"))
+            first.call(Api.UnregisterExternalAgent, ExecutionRef(remote.agentId.value))
             first.call(Api.Send, SendParams(AgentId("external"), id, "wait"))
             first.close()
             val second = KinuvoClient("ws://127.0.0.1:$port/ws", "manager", token = token)

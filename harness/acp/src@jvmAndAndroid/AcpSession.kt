@@ -39,20 +39,28 @@ class AcpSession internal constructor(
 ) : ExecutionSession {
     private val commands = Mutex()
     private val sessions = MutableStateFlow(session)
+    private var firstPrompt = previous == null
+    private var mcp: McpServerDescriptor? = null
     private val session get() = requireNotNull(sessions.value)
 
     override suspend fun prompt(input: ExecutionInput): ExecutionAcceptance = coroutineScope {
-        if (sessions.value == null || input.mcp != null && connection.supportsMcp()) {
+        if (sessions.value == null || input.mcp?.let { acceptsMcp && (it.url != mcp?.url || it.authorization != mcp?.authorization) } == true) {
             val id = sessions.value?.sessionId?.toString() ?: previous
             val next = if (id == null) connection.newSession(cwd, operations, input.mcp)
                 else connection.resumeSession(id, cwd, operations, input.mcp)
+            mcp = input.mcp
             sessions.value = next
             state.reference(next.sessionId.toString())
         }
+        if (acceptsMcp) connection.offer(input.mcp)
         val content = input.content(capabilities)
         val response = commands.withLock {
             reducer.submitted()
-            async(start = CoroutineStart.UNDISPATCHED) { connection.prompt(session, content) }
+            val instructions = input.instructions?.takeIf { firstPrompt && it.isNotBlank() }
+            firstPrompt = false
+            val prompt = if (instructions == null) content else
+                listOf(ContentBlock.Text("<kinuvo_context>\n$instructions\n</kinuvo_context>")) + content
+            async(start = CoroutineStart.UNDISPATCHED) { connection.prompt(session, prompt) }
         }.await()
         state.accepted()
         ExecutionAcceptance((response as? JsonObject)?.string("messageId"))
