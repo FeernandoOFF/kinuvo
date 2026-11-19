@@ -32,6 +32,7 @@ class McpAcpTest {
             lock=threading.Lock()
             current=None
             prompts={}
+            first_prompt=False
             cancelled=threading.Event()
             def emit(v):
                 with lock: print(json.dumps(v),flush=True)
@@ -63,6 +64,7 @@ class McpAcpTest {
                     assert len(servers)==1, servers
                     assert current is None, "Already loaded"
                     current=servers[0]
+                    first_prompt=m=='session/new'
                     status,initialized=http(current,'initialize')
                     instructions=initialized['result']['instructions']
                     assert status==200 and 'Server platform:' in instructions, initialized
@@ -71,7 +73,13 @@ class McpAcpTest {
                     assert 'PLUGIN_SENTINEL' in instructions and 'Current Skills:' in instructions, instructions
                     reply(r,{'sessionId':'external'} if m=='session/new' else {})
                 elif m=='session/prompt':
-                    text=r['params']['prompt'][0]['text']
+                    blocks=r['params']['prompt']
+                    if first_prompt:
+                        assert blocks[0]['text']=='<kinuvo_context>\n'+instructions+'\n</kinuvo_context>', blocks
+                        blocks.pop(0)
+                    first_prompt=False
+                    assert len(blocks)==1 and '<kinuvo_context>' not in blocks[0]['text'], blocks
+                    text=blocks[0]['text']
                     if text=='disconnect':
                         with open('previous-mcp.json','w') as f: json.dump(current,f)
                         os._exit(0)
@@ -190,6 +198,8 @@ class McpAcpTest {
             }
             client.call(Api.ConfigureSession, ConfigureSessionParams(agent, session.id, SessionSettings()))
             val history = client.call(Api.History, HistoryParams(agent, session.id, 100)).map { it.entry }
+            val userMessages = history.filterIsInstance<SessionEntry.UserMessage>()
+            assertEquals(listOf("deploy", "deploy", "private", "private", "private always", "questions"), userMessages.map { it.text }.sorted())
             val results = history.filterIsInstance<SessionEntry.ToolResult>().filter { it.output == "deployed" }
             assertEquals(2, results.size)
             results.forEach { assertEquals(listOf("screen.png", "report.txt"), it.attachments.map { attachment -> attachment.name }) }

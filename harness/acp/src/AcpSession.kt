@@ -39,6 +39,7 @@ class AcpSession internal constructor(
 ) : ExecutionSession {
     private val commands = Mutex()
     private val sessions = MutableStateFlow(session)
+    private var firstPrompt = previous == null
     private var mcp: McpServerDescriptor? = null
     private val session get() = requireNotNull(sessions.value)
 
@@ -55,7 +56,11 @@ class AcpSession internal constructor(
         val content = input.content(capabilities)
         val response = commands.withLock {
             reducer.submitted()
-            async(start = CoroutineStart.UNDISPATCHED) { connection.prompt(session, content) }
+            val instructions = input.instructions?.takeIf { firstPrompt && it.isNotBlank() }
+            firstPrompt = false
+            val prompt = if (instructions == null) content else
+                listOf(ContentBlock.Text("<kinuvo_context>\n$instructions\n</kinuvo_context>")) + content
+            async(start = CoroutineStart.UNDISPATCHED) { connection.prompt(session, prompt) }
         }.await()
         state.accepted()
         ExecutionAcceptance((response as? JsonObject)?.string("messageId"))
