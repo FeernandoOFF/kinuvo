@@ -6,6 +6,9 @@ import kinuvo.protocol.agent.AgentId
 import kinuvo.protocol.agent.AgentRef
 import kinuvo.protocol.approval.*
 import kinuvo.protocol.execution.*
+import kinuvo.protocol.plugin.PluginDefinition
+import kinuvo.server.plugin.*
+import kotlinx.serialization.json.JsonObject
 import kinuvo.protocol.session.*
 import kinuvo.testing.server.*
 import kotlinx.coroutines.*
@@ -40,6 +43,12 @@ class McpAcpTest {
                 status,result=http(server,'tools/call','ask_user',{'questions':[{'id':'answer','label':'Your answer','kind':'text'}]}) if questions else http(server,'tools/call')
                 if cancelled.is_set(): return
                 assert status==200 and result['result']['isError']==False, (status,result)
+                if not questions:
+                    assert result['result']['content']==[
+                        {'type':'text','text':'deployed'},
+                        {'type':'image','data':'iVBORw0KGgo=','mimeType':'image/png'},
+                        {'type':'text','text':'Attachment: report.txt (text/plain)'}
+                    ], result
                 update({'sessionUpdate':'agent_message_chunk','messageId':str(r['id']),'content':{'type':'text','text':'deployed'}})
                 update({'sessionUpdate':'state_update','state':'idle','stopReason':'end_turn'})
             for line in sys.stdin:
@@ -82,7 +91,19 @@ class McpAcpTest {
         val listener = McpListener(access)
         listener.start()
         val server = TestServer.start(
-            plugins = listOf(FakeTools(FakeTool("deploy", Risk.High) { "deployed" })),
+            plugins = listOf(object : ServerPlugin {
+                override val definition = PluginDefinition("test.tools", "Test tools")
+                override suspend fun prepare(run: RunContext, activate: Boolean) = PluginTools(listOf(object : Tool {
+                    override val descriptor = toolSpec("deploy", "Fake deploy")
+                    override val risk = Risk.High
+                    override suspend fun execute(args: JsonObject) = "deployed"
+                    override suspend fun execute(args: JsonObject, callId: String, run: ToolRun): String {
+                        run.attach("screen.png", byteArrayOf(-119, 80, 78, 71, 13, 10, 26, 10))
+                        run.attach("report.txt", "report".encodeToByteArray())
+                        return execute(args)
+                    }
+                }))
+            }),
             executionFactory = { harness -> McpExecutionFactory(AcpExecutionFactory(), harness, access, { listener.url }) },
         )
         try {
@@ -132,7 +153,9 @@ class McpAcpTest {
             assertTrue(client.call(Api.Respond, RespondParams(session.id, privateQuestion.id, InteractionAnswer.Harness(buildJsonObject { put("optionId", "yes") }))))
             phase(ExecutionPhase.Idle)
             val history = client.call(Api.History, HistoryParams(agent, session.id, 100)).map { it.entry }
-            assertEquals(2, history.filterIsInstance<SessionEntry.ToolResult>().count { it.output == "deployed" })
+            val results = history.filterIsInstance<SessionEntry.ToolResult>().filter { it.output == "deployed" }
+            assertEquals(2, results.size)
+            results.forEach { assertEquals(listOf("screen.png", "report.txt"), it.attachments.map { attachment -> attachment.name }) }
             client.call(Api.Send, SendParams(agent, session.id, "cancel"))
             val cancelled = pending()
             client.call(Api.Stop, StopParams(session.id))

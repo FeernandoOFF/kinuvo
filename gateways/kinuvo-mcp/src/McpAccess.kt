@@ -4,6 +4,7 @@ import arrow.core.raise.Raise
 import arrow.core.raise.context.raise
 import kinuvo.harness.*
 import kinuvo.protocol.WireErrorCode
+import kinuvo.protocol.session.Attachment
 import kinuvo.server.ServerError
 import kotlinx.coroutines.*
 import kotlinx.coroutines.sync.Mutex
@@ -18,7 +19,14 @@ sealed class McpError(override val code: String, override val message: String) :
 
 /** Only digests are indexed; a credential is returned once to the owning harness. */
 class McpAccess {
-    class Run(val tools: ToolProvider, val gate: ToolGate, val turn: ToolTurn, val job: Job, val maxResultTokens: Int = Int.MAX_VALUE) {
+    class Run(
+        val tools: ToolProvider,
+        val gate: ToolGate,
+        val turn: ToolTurn,
+        val job: Job,
+        val maxResultTokens: Int = Int.MAX_VALUE,
+        val attachmentBytes: suspend (Attachment) -> ByteArray = { error("Attachments unavailable") },
+    ) {
         val calls = Mutex()
     }
     private val runs = mutableMapOf<String, Run>()

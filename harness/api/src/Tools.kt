@@ -40,6 +40,9 @@ class ToolTurn(
     val record: suspend (SessionEntry) -> Unit = {},
     /** Told what to record for a call still waiting, if the run is cancelled meanwhile. */
     val stopped: (String) -> Unit = {},
+    val complete: suspend (SessionEntry.ToolResult) -> Unit = {
+        emit(AgentEvent.ToolCallResult(it.id, it.output, it.isError, it.identity))
+    },
 ) {
     var executedCalls: Int = 0
 }

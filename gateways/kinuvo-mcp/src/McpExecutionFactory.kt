@@ -67,14 +67,12 @@ class McpExecutionFactory(
                             calls[event.toolCallId] = SessionEntry.ToolCall(event.toolCallId, event.toolCallName, event.args, event.identity)
                             sink.publish(event)
                         }
-                        is AgentEvent.ToolCallResult -> {
-                            sink.publish(event)
-                            val call = calls.remove(event.toolCallId)
-                            sink.commit(listOfNotNull(call, SessionEntry.ToolResult(event.toolCallId, call?.name.orEmpty(), event.content, event.isError, identity = event.identity)))
-                        }
                         else -> sink.publish(event)
                     }
-                }, progress = { sink.publish(it) })
+                }, progress = { sink.publish(it) }, complete = { result ->
+                    sink.publish(AgentEvent.ToolCallResult(result.id, result.output, result.isError, result.identity))
+                    sink.commit(listOfNotNull(calls.remove(result.id), result))
+                })
                 val gate = object : ToolGate {
                     override suspend fun invoke(call: SessionEntry.ToolCall, turn: ToolTurn): SessionEntry.ToolResult {
                         try { return composed.gate.invoke(call, turn) }
@@ -82,14 +80,14 @@ class McpExecutionFactory(
                             withContext(NonCancellable) {
                                 toolInteractions.toList().forEach { state.resolve(it); toolInteractions -= it }
                                 calls.values.toList().forEach {
-                                    turn.emit(AgentEvent.ToolCallResult(it.id, "Cancelled by user", true, it.identity))
+                                    turn.complete(SessionEntry.ToolResult(it.id, it.name, "Cancelled by user", true, identity = it.identity))
                                 }
                             }
                             throw e
                         }
                     }
                 }
-                val run = McpAccess.Run(composed.tools, gate, turn, SupervisorJob(scope.coroutineContext[Job]), composed.profile.resultLimits.maxTokens)
+                val run = McpAccess.Run(composed.tools, gate, turn, SupervisorJob(scope.coroutineContext[Job]), composed.profile.resultLimits.maxTokens, attachmentBytes = harness.attachments::bytes)
                 val token = lease.issue(revision, run)
                 try { return session.prompt(input.copy(mcp = McpServerDescriptor(url(), "Bearer $token", composed.tools.tools.map { it.name }.toSet()))) }
                 catch (e: Throwable) { lease.revoke(run)?.job?.join(); throw e }
