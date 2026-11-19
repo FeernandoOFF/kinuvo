@@ -10,7 +10,7 @@ import kinuvo.protocol.execution.*
 val AgentInfo.external get() = executionKind != ExecutionKind.Native
 
 fun sessionBrowserAvailable(agent: AgentInfo?, server: ServerCapabilities?) =
-    agent?.executionKind == ExecutionKind.Native && server.supports(ServerFeature.Browser)
+    agent != null && agent.executionKind != ExecutionKind.Remote && server.supports(ServerFeature.Browser)
 
 val HarnessConnectionStatus.kind get() = when (config.connection) {
     is ExecutionConnection.Acp -> ExecutionKind.Acp
