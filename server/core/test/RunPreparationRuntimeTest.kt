@@ -108,6 +108,20 @@ class RunPreparationRuntimeTest {
         } finally { harness.close() }
     }
 
+    @Test fun deniedComputerToolStillNeedsSetupWhenNoComputerIsPaired() = runBlocking {
+        val fixture = RuntimeFixture(providers = listOf(provider))
+        val capture = ToolIdentity(PluginInstanceId("kinuvo.computer"), "computer_capture")
+        fixture.rules = TrustRules(deny = DenyRules(tools = listOf(capture.key)))
+        val harness = fixture.runtime()
+        try {
+            val agent = agent(harness, listOf("computer"))
+            val session = harness.newSession(agent)
+            val run = harness.composer.compose(agent, session.id)
+            assertFalse(run.tools.advertised.any { it.name.startsWith("computer_") })
+            assertTrue("Not set up: Computer use (guides/computer-use)" in run.context)
+        } finally { harness.close() }
+    }
+
     @Test fun steeringAppearsAfterToolResultsBeforeTheNextModelRequest() = runBlocking {
         var executed = false
         var requests = 0

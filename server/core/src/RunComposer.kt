@@ -219,7 +219,7 @@ class RunComposer internal constructor(
             val state = when {
                 e.info?.tools == false || e.info?.toolIds?.let { tool.identity?.localId != "*" && tool.identity?.key !in it } == true ||
                     tool.id in descriptors && tool.id !in eligible -> if (tool.state.reasonCode == "needs_setup") tool.state.copy(support = Support.Unsupported) else CapabilityState.unsupported("This model cannot call ${tool.name}")
-                rules.deny.blockedTool(tool.identity) != null -> tool.state.copy(authorization = Authorization.Denied, reason = "Blocked by a Deny rule", reasonCode = "policy")
+                tool.state.reasonCode != "needs_setup" && rules.deny.blockedTool(tool.identity) != null -> tool.state.copy(authorization = Authorization.Denied, reason = "Blocked by a Deny rule", reasonCode = "policy")
                 requireModel && e.info?.tools == null -> tool.state.copy(support = Support.Unknown, reason = tool.state.reason ?: "Model tool support is unknown")
                 else -> tool.state
             }
