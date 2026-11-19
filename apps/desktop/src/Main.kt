@@ -24,6 +24,7 @@ import kinuvo.app.connection.SharingOption
 import java.util.prefs.Preferences
 import java.security.MessageDigest
 import kinuvo.app.connection.EmbeddedServer
+import java.io.File
 import kinuvo.plugins.cua.DesktopComputer
 import kinuvo.protocol.computer.ComputerRequest
 import kinuvo.app.connection.Endpoint
@@ -99,7 +100,7 @@ private object HarnessEmbeddedServer : EmbeddedServer {
 }
 
 /** This computer's screen for computer use, offered under This Device's tools like a phone's. */
-private class CuaComputerDriver(private val desktop: DesktopComputer = DesktopComputer()) : ComputerDriver {
+private class CuaComputerDriver(private val desktop: DesktopComputer = DesktopComputer(File(kinuvoHome().toString()))) : ComputerDriver {
     override val ready get() = desktop.ready
     override val requirement = "Needs cua-driver (github.com/trycua/cua) with Accessibility and Screen Recording: run `cua-driver permissions grant`."
     override suspend fun perform(request: ComputerRequest) = desktop.perform(request)
