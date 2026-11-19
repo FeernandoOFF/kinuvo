@@ -117,6 +117,8 @@ class AgentManageServerTest {
             val available = call("mcp_list").output.substringAfter("Available presets:")
             assertTrue("linear: Linear" in available && "unavailable: name already configured" in available)
             assertTrue("notion: Notion" in available)
+            entries += McpServerInfo("templated", ConfigScope.Agent, url = "https://example.com:\${MCP_PORT}/mcp")
+            assertTrue("notion: Notion" in call("mcp_list").output)
             assertFalse(call("mcp_add", """{"preset":"notion"}""").isError)
             assertFalse(call("mcp_add", """{"preset":"todoist"}""").isError)
         }

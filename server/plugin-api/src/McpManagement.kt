@@ -44,7 +44,7 @@ fun List<McpServerInfo>.requireNewServer(p: SaveMcpParams) {
 }
 
 fun String.normalizedMcpEndpoint(): String {
-    val url = Url(this)
+    val url = runCatching { Url(this) }.getOrNull() ?: return trimEnd('/')
     val port = if (url.port == url.protocol.defaultPort) "" else ":${url.port}"
     val suffix = substringAfter("://").dropWhile { it != '/' && it != '?' && it != '#' }
     val path = suffix.takeWhile { it != '?' && it != '#' }
