@@ -12,7 +12,15 @@ import kinuvo.ui.agent.*
 import kinuvo.ui.settings.*
 import kinuvo.ui.board.*
 
+import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.foundation.gestures.Orientation
+import androidx.compose.foundation.gestures.draggable
+import androidx.compose.foundation.gestures.rememberDraggableState
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.unit.IntOffset
+import kotlinx.coroutines.launch
+import kotlin.math.roundToInt
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -90,6 +98,8 @@ data class ShellState(
     val management: Boolean = true,
     val home: Boolean = false,
     val teams: List<Team> = emptyList(),
+    /** Sessions the user settled on this Device, which leave the inbox until there's news. */
+    val settled: Set<SessionId> = emptySet(),
 ) {
     val sessions get() = agent?.let { lists[it.id] }?.sessions.orEmpty()
     val hasMore get() = agent?.let { lists[it.id] }?.hasMore == true
@@ -98,6 +108,10 @@ data class ShellState(
     private val unattached get() = attached.mapNotNull { it.sessionId }.toSet().let { ids -> sessions.filter { it.id !in ids } }
     val favorites get() = unattached.filter { it.favorite }
     val chats get() = unattached.filter { !it.favorite }
+    fun isSettled(session: SessionInfo) = session.id in settled && session.status == SessionStatus.Idle
+    /** The inbox: Sessions still needing a look, and the [settledChats] set aside. */
+    val inbox get() = chats.filter { !isSettled(it) }
+    val settledChats get() = chats.filter(::isSettled)
     val settings get() = view is Route.Settings && !view.home
     private val everySession get() = lists.values.flatMap { it.sessions }.distinctBy { it.id }
     /** Sessions across Agents waiting on an Approval or an answer, and those running, for Home's column. */
@@ -105,7 +119,7 @@ data class ShellState(
     val running get() = everySession.filter { it.status == SessionStatus.Running }
 
     /** An Agent has news when one of its Sessions runs, waits on the user or finished while elsewhere. */
-    fun hasNews(agentId: AgentId) = lists[agentId]?.sessions.orEmpty().any { it.status != SessionStatus.Idle || it.id in finished }
+    fun hasNews(agentId: AgentId) = lists[agentId]?.sessions.orEmpty().any { it.status != SessionStatus.Idle || (it.id in finished && it.id !in settled) }
 
     fun avatarState(agentId: AgentId) = kinuvo.app.agent.avatarState(lists[agentId]?.sessions.orEmpty().map { it.status })
 }
@@ -118,6 +132,8 @@ class ShellActions(
     val onNew: () -> Unit = {},
     val onSelect: (String) -> Unit = {},
     val onLoadMore: () -> Unit = {},
+    /** Settles a Session out of the inbox, or puts it back when false. */
+    val onSettle: (SessionId, Boolean) -> Unit = { _, _ -> },
     val onSettings: () -> Unit = {},
     /** Opens the shown Agent's settings beside the open screen. */
     val onAgentSettings: () -> Unit = {},
@@ -165,8 +181,10 @@ class ShellChrome(open: MutableState<Boolean>, private val prefs: Preferences? =
             collapsedGroups = value
             prefs?.set(COLLAPSED, value.joinToString(",") { it.name })
         }
-    /** Every chat, loading more on scroll, rather than the few most recent. */
+    /** Every open Session, loading more on scroll, rather than the few most recent. */
     var allChats by mutableStateOf(false)
+    /** Whether the column lists the settled Sessions instead of the inbox. */
+    var showSettled by mutableStateOf(false)
 
     private companion object {
         const val COLLAPSED = "shell.collapsed"
@@ -360,13 +378,14 @@ private fun HomeColumn(state: ShellState, actions: ShellActions, bottom: Dp) {
 @Composable
 private fun AgentColumn(state: ShellState, actions: ShellActions, chrome: ShellChrome, bottom: Dp = Spacing.none) {
     val list = rememberLazyListState()
-    val chats = state.chats
+    val inbox = state.inbox
+    val settledChats = state.settledChats
     val favorites = state.favorites
     val attached = state.attached
     val query = chrome.query.text.toString().trim()
     val searching = query.isNotEmpty()
     // Only pages once every chat is listed, or the few recent ones would load them all. Searching pages through the rest.
-    val paging = state.hasMore && (chats.isEmpty() || chrome.allChats || searching)
+    val paging = state.hasMore && (inbox.isEmpty() || chrome.allChats || searching || chrome.showSettled)
     // Restarts per page, since a page of only attached Sessions adds no rows to scroll to.
     LaunchedEffect(list, paging, state.sessions.size, searching) {
         if (searching && paging) actions.onLoadMore()
@@ -383,13 +402,18 @@ private fun AgentColumn(state: ShellState, actions: ShellActions, chrome: ShellC
         }
         HorizontalSeparator()
         SessionSearch(chrome.query, state.agent?.name, Modifier.padding(start = Spacing.space8, top = Spacing.space8, end = Spacing.space8))
+        if (!searching) Segmented(listOf(if (inbox.isEmpty()) "Inbox" else "Inbox ${inbox.size}", "Settled"), if (chrome.showSettled) 1 else 0,
+            Modifier.padding(start = Spacing.space8, top = Spacing.space8), small = true) { chrome.showSettled = it == 1 }
         LazyColumn(Modifier.weight(1f), list, contentPadding = PaddingValues(start = Spacing.space8, top = Spacing.space4, end = Spacing.space8, bottom = Spacing.space8 + bottom), verticalArrangement = Arrangement.spacedBy(1.dp)) {
             val selected = (state.view as? Route.Chat)?.sessionId
+            val attachedIds = attached.mapNotNull { it.sessionId }.toSet()
+            fun settleOf(s: SessionInfo) = if (s.favorite || s.id in attachedIds || s.status != SessionStatus.Idle && !state.isSettled(s)) null
+                else state.isSettled(s).let { settled -> SettleAction(settled) { actions.onSettle(s.id, !settled) } }
             fun LazyListScope.rows(sessions: List<SessionInfo>, prefix: String = "") = items(sessions, key = { prefix + it.id }) { session ->
-                SessionRow(session, session.id == selected, session.id in state.finished) { actions.onSelect(session.id.value) }
+                SessionRow(session, session.id == selected, session.id in state.finished, settleOf(session)) { actions.onSelect(session.id.value) }
             }
             if (searching) {
-                val found = (favorites + chats + state.sessions.filter { s -> attached.any { it.sessionId == s.id } }).distinctBy { it.id }.search(query)
+                val found = (favorites + inbox + settledChats + state.sessions.filter { s -> attached.any { it.sessionId == s.id } }).distinctBy { it.id }.search(query)
                 item(key = "results") { GroupHeader(if (state.hasMore) "Searching older sessions…" else "${found.size} found") }
                 rows(found)
                 if (found.isEmpty() && !state.hasMore) item(key = "none") {
@@ -398,7 +422,7 @@ private fun AgentColumn(state: ShellState, actions: ShellActions, chrome: ShellC
                 return@LazyColumn
             }
             fun needsLook(sessions: List<SessionInfo>) = sessions.filter { it.id == selected || it.status != SessionStatus.Idle || it.id in state.finished }
-            if (favorites.isNotEmpty()) {
+            if (favorites.isNotEmpty() && !chrome.showSettled) {
                 val collapsed = ShellSection.Favorites in chrome.collapsed
                 item(key = ShellSection.Favorites) {
                     GroupHeader(ShellSection.Favorites.title, collapsed) {
@@ -407,34 +431,46 @@ private fun AgentColumn(state: ShellState, actions: ShellActions, chrome: ShellC
                 }
                 rows(if (collapsed) needsLook(favorites) else favorites)
             }
-            if (chats.isNotEmpty()) {
-                val groups = chats.groupRoutineRuns()
-                val more = groups.size > RECENT_CHATS || state.hasMore
-                item(key = "chats") { GroupHeader("Sessions", !chrome.allChats, if (more) ({ chrome.allChats = !chrome.allChats }) else null) }
-                val shown = if (chrome.allChats) groups else groups.take(RECENT_CHATS) + groups.drop(RECENT_CHATS).filter { g -> needsLook(listOf(g.session) + g.earlier).isNotEmpty() }
-                shown.forEach { group ->
-                    val key = group.session.routine?.id
-                    val open = key != null && (key in chrome.expanded || group.earlier.any { it.id == selected })
-                    item(key = group.session.id.value) {
-                        SessionRow(group.session, group.session.id == selected, group.session.id in state.finished) { actions.onSelect(group.session.id.value) }
-                    }
-                    if (key != null && group.earlier.isNotEmpty()) {
-                        item(key = "earlier:$key") {
-                            ListRow(false, { chrome.expanded = if (open) chrome.expanded - key else chrome.expanded + key }, Modifier.padding(start = Spacing.space16),
-                                leading = { Icon(if (open) Lucide.ChevronDown else Lucide.ChevronRight, Modifier.size(14.dp)) }) {
-                                Text("${group.earlier.size} earlier", Modifier.weight(1f), color = color(mutedColor), style = TextStyles.secondary, singleLine = true)
+            if (chrome.showSettled) {
+                if (settledChats.isNotEmpty()) {
+                    item(key = "group:settled") { GroupHeader("Settled") }
+                    rows(settledChats, "settled:")
+                } else item(key = "none-settled") { EmptyNote("Nothing settled yet") }
+            } else {
+                val waiting = inbox.filter { it.status == SessionStatus.Waiting }
+                val working = inbox.filter { it.status == SessionStatus.Running }
+                val idle = inbox.filter { it.status == SessionStatus.Idle }
+                if (waiting.isNotEmpty()) { item(key = "group:needs") { GroupHeader("Needs you") }; rows(waiting) }
+                if (working.isNotEmpty()) { item(key = "group:working") { GroupHeader("Working") }; rows(working) }
+                if (idle.isNotEmpty()) {
+                    val groups = idle.groupRoutineRuns().let { g -> g.filter { it.session.id in state.finished } + g.filter { it.session.id !in state.finished } }
+                    val more = groups.size > RECENT_CHATS || state.hasMore
+                    item(key = "chats") { GroupHeader("Open", !chrome.allChats, if (more) ({ chrome.allChats = !chrome.allChats }) else null) }
+                    val shown = if (chrome.allChats) groups else groups.take(RECENT_CHATS) + groups.drop(RECENT_CHATS).filter { g -> needsLook(listOf(g.session) + g.earlier).isNotEmpty() }
+                    shown.forEach { group ->
+                        val key = group.session.routine?.id
+                        val open = key != null && (key in chrome.expanded || group.earlier.any { it.id == selected })
+                        item(key = group.session.id.value) {
+                            SessionRow(group.session, group.session.id == selected, group.session.id in state.finished, settleOf(group.session)) { actions.onSelect(group.session.id.value) }
+                        }
+                        if (key != null && group.earlier.isNotEmpty()) {
+                            item(key = "earlier:$key") {
+                                ListRow(false, { chrome.expanded = if (open) chrome.expanded - key else chrome.expanded + key }, Modifier.padding(start = Spacing.space16),
+                                    leading = { Icon(if (open) Lucide.ChevronDown else Lucide.ChevronRight, Modifier.size(14.dp)) }) {
+                                    Text("${group.earlier.size} earlier", Modifier.weight(1f), color = color(mutedColor), style = TextStyles.secondary, singleLine = true)
+                                }
+                            }
+                            if (open) items(group.earlier, key = { it.id.value }) { run ->
+                                Box(Modifier.padding(start = Spacing.space16)) { SessionRow(run, run.id == selected, run.id in state.finished, settleOf(run)) { actions.onSelect(run.id.value) } }
                             }
                         }
-                        if (open) items(group.earlier, key = { it.id.value }) { run ->
-                            Box(Modifier.padding(start = Spacing.space16)) { SessionRow(run, run.id == selected, run.id in state.finished) { actions.onSelect(run.id.value) } }
+                    }
+                    if (!chrome.allChats && more) item(key = "allChats") {
+                        ListRow(false, { chrome.allChats = true }, leading = { Icon(Lucide.History, Modifier.size(16.dp), tint = color(mutedColor)) }) {
+                            Text("Older sessions", Modifier.weight(1f), color = color(mutedColor), singleLine = true)
                         }
                     }
-                }
-                if (!chrome.allChats && more) item(key = "allChats") {
-                    ListRow(false, { chrome.allChats = true }, leading = { Icon(Lucide.History, Modifier.size(16.dp), tint = color(mutedColor)) }) {
-                        Text("Older sessions", Modifier.weight(1f), color = color(mutedColor), singleLine = true)
-                    }
-                }
+                } else if (state.sessions.isNotEmpty() && waiting.isEmpty() && working.isEmpty()) item(key = "clear") { EmptyNote("Inbox clear") }
             }
             // Collapsed, it lists only what needs a look: the open Session, runs, waits and unread results.
             if (attached.isNotEmpty()) {
@@ -454,11 +490,14 @@ private fun AgentColumn(state: ShellState, actions: ShellActions, chrome: ShellC
                 }
             }
             if (state.sessions.isEmpty() && state.agent != null) item(key = "empty") {
-                Text("No sessions yet", Modifier.padding(horizontal = Spacing.space10, vertical = Spacing.space12), color = color(mutedColor), style = TextStyles.secondary)
+                EmptyNote("No sessions yet")
             }
         }
     }
 }
+
+@Composable
+private fun EmptyNote(text: String) = Text(text, Modifier.padding(horizontal = Spacing.space10, vertical = Spacing.space12), color = color(mutedColor), style = TextStyles.secondary)
 
 /** Filters the Agent's Sessions by title. */
 @Composable
@@ -507,23 +546,68 @@ private fun GroupHeader(title: String, collapsed: Boolean = false, onToggle: (()
     }
 }
 
+/** What a Session row offers to move it out of, or back into, the inbox. */
+private class SettleAction(val settled: Boolean, val onClick: () -> Unit)
+
 @Composable
-private fun SessionRow(session: SessionInfo, selected: Boolean, finished: Boolean, onClick: () -> Unit) {
+private fun SessionRow(session: SessionInfo, selected: Boolean, finished: Boolean, settle: SettleAction? = null, onClick: () -> Unit) {
     val icon = when {
         session.task != null -> Lucide.SquareKanban
         session.routine != null -> Lucide.AlarmClock
         else -> Lucide.Hash
     }
-    ShellRow(icon, session.title, session.status, selected, finished, onClick)
+    ShellRow(icon, session.title, session.status, selected, finished, settle, onClick)
 }
 
 @Composable
-private fun ShellRow(icon: ImageVector, title: String, status: SessionStatus, selected: Boolean, finished: Boolean, onClick: () -> Unit) {
-    ListRow(selected, onClick, leading = { Icon(icon, Modifier.size(16.dp)) }) {
-        Text(title.trimEnd(), Modifier.weight(1f), style = TextStyles.label, maxLines = 2, overflow = TextOverflow.Ellipsis,
-            // Idle Sessions recede, but stay clearly readable rather than looking disabled.
-            color = color(onBackgroundColor).copy(alpha = if (selected || finished || status != SessionStatus.Idle) 1f else 0.75f))
-        SessionStatusIcon(status, finished)
+private fun ShellRow(icon: ImageVector, title: String, status: SessionStatus, selected: Boolean, finished: Boolean, settle: SettleAction? = null, onClick: () -> Unit) {
+    val source = remember { MutableInteractionSource() }
+    val hovered = source.hovered()
+    val unread = finished && status == SessionStatus.Idle
+    val row = @Composable {
+        ListRow(selected, onClick, Modifier.hoverable(source), leading = { Icon(icon, Modifier.size(16.dp)) }) {
+            Text(title.trimEnd(), Modifier.weight(1f), style = TextStyles.label, maxLines = 2, overflow = TextOverflow.Ellipsis, fontWeight = if (unread) FontWeight.Bold else null,
+                // Idle Sessions recede, but stay clearly readable rather than looking disabled.
+                color = color(onBackgroundColor).copy(alpha = if (selected || finished || status != SessionStatus.Idle) 1f else 0.75f))
+            when {
+                settle != null && hovered -> SettleButton(settle, title.trim())
+                unread -> Box(Modifier.size(8.dp).background(color(accentColor), CircleShape).semantics { contentDescription = "Unread" })
+                else -> SessionStatusIcon(status, finished)
+            }
+        }
+    }
+    if (settle != null && LocalInteractionMode.current == InteractionMode.Touch) SwipeToSettle(settle, row) else row()
+}
+
+@Composable
+private fun SettleButton(settle: SettleAction, title: String) {
+    val label = if (settle.settled) "Unsettle $title" else "Settle $title"
+    Box(Modifier.size(24.dp).clip(CircleShape).clickable(role = Role.Button, onClickLabel = label, onClick = settle.onClick), contentAlignment = Alignment.Center) {
+        Icon(if (settle.settled) Lucide.Undo2 else Lucide.Check, Modifier.size(15.dp), tint = color(mutedColor), contentDescription = label)
+    }
+}
+
+/** Phones settle a row, or put it back, by swiping it toward the end past a third of its width. */
+@Composable
+private fun SwipeToSettle(settle: SettleAction, content: @Composable () -> Unit) {
+    val scope = rememberCoroutineScope()
+    val offset = remember { Animatable(0f) }
+    var width by remember { mutableFloatStateOf(1f) }
+    val shape = Theme[shapes][mediumShape]
+    Box(Modifier.onSizeChanged { width = it.width.toFloat().coerceAtLeast(1f) }) {
+        if (offset.value > 0f) Box(Modifier.matchParentSize().clip(shape).background(color(successColor).copy(alpha = 0.2f)).padding(start = Spacing.space16), contentAlignment = Alignment.CenterStart) {
+            Icon(if (settle.settled) Lucide.Undo2 else Lucide.Check, Modifier.size(18.dp), tint = color(successColor))
+        }
+        Box(
+            Modifier.offset { IntOffset(offset.value.roundToInt(), 0) }.then(if (offset.value > 0f) Modifier.background(color(sidebarColor), shape) else Modifier)
+                .draggable(rememberDraggableState { delta -> scope.launch { offset.snapTo((offset.value + delta).coerceAtLeast(0f)) } }, Orientation.Horizontal,
+                    onDragStopped = {
+                        scope.launch {
+                            if (offset.value > width / 3) { offset.animateTo(width); settle.onClick() }
+                            offset.animateTo(0f)
+                        }
+                    }),
+        ) { content() }
     }
 }
 

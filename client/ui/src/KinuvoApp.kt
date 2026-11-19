@@ -231,7 +231,7 @@ fun KinuvoApp(app: AppViewModel = koinViewModel(), initialRoute: Route? = null, 
             val teams by teamRepository.state.collectAsState()
             val shellState = ShellState(appState.agents, agent, appState.sessions.lists, appState.sessions.finished, top,
                 ServerMenuState(appState.servers, (connection as? Connection.Ready)?.server), appState.capabilities, appState.routines,
-                (connection as? Connection.Ready)?.client?.lastConnect?.management != false, appState.home, teams.values.map { it.team }.sortedBy { it.name.lowercase() })
+                (connection as? Connection.Ready)?.client?.lastConnect?.management != false, appState.home, teams.values.map { it.team }.sortedBy { it.name.lowercase() }, appState.sessions.settled)
             // Home's Routines and Tools open on the shown Agent, or the first that Kinuvo runs itself.
             val homePage = { section: SettingsSection ->
                 (agent?.takeIf { !it.external } ?: appState.agents.firstOrNull { !it.external })?.let { guardLeave { history.switchTo(Route.Settings(it.id, section)) } }
@@ -253,6 +253,7 @@ fun KinuvoApp(app: AppViewModel = koinViewModel(), initialRoute: Route? = null, 
                 onNew = cover { if (top !is Route.Chat || top.sessionId != null || top.agentId != agent?.id) history.switchTo(Route.Chat(agent?.id, compose = true)) },
                 onSelect = { id -> cover { history.switchTo(Route.Chat(agent?.id, SessionId(id))) }() },
                 onLoadMore = { agent?.id?.let(app::loadMoreSessions) },
+                onSettle = app::settle,
                 onSettings = cover { guardLeave { agent?.let { openSettings(Route.Settings(it.id), true) } } },
                 onBoard = cover { history.switchTo(Route.Board) },
                 onTeam = { id -> cover { history.switchTo(Route.Team(id)) }() },
@@ -281,7 +282,7 @@ fun KinuvoApp(app: AppViewModel = koinViewModel(), initialRoute: Route? = null, 
             SideEffect {
                 pick = { i, agents ->
                     if (agents) shellState.agents.getOrNull(i)?.let { shellActions.onSelectAgent(it.id) }
-                    else (shellState.favorites + shellState.chats).getOrNull(i)?.let { shellActions.onSelect(it.id.value) }
+                    else (shellState.favorites + shellState.inbox).getOrNull(i)?.let { shellActions.onSelect(it.id.value) }
                 }
             }
             // Settings keeps the rail on wide layouts, its sections taking the column's place; on phones it covers the screen.
