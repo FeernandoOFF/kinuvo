@@ -20,3 +20,5 @@ Safety is layered: every app needs an Approval until the user trusts that app (a
 ## Consequences
 
 Platform permissions and accessibility support limit which screens can be captured and controlled.
+
+Desktop Computer use prefers an installed cua-driver; otherwise the Server downloads a pinned, verified release into its home on first use. On macOS it preserves Cua’s signed app bundle and opens Cua’s permissions guide.

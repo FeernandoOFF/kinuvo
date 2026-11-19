@@ -37,13 +37,15 @@ interface Driver {
 /**
  * This computer's whole desktop, for the desktop app to offer as its Device's Computer: screenshots of the main display,
  * elements of the frontmost window when its accessibility tree resolves, and input by element token or by screenshot
- * pixels, which cua-driver maps back to the screen. [connect] is null when cua-driver isn't installed.
+ * pixels, which cua-driver maps back to the screen.
  */
-class DesktopComputer(private val connect: (() -> Driver)? = findDriver()?.let { path -> { McpDriver(path) } }) {
+class DesktopComputer(private val source: CuaDriverDownload? = null, private val connect: (() -> Driver)? = findDriver()?.let { path -> { McpDriver(path) } }) {
+    constructor(home: File, discover: () -> String? = ::findDriver) : this(CuaDriverDownload(home, discover), null)
+
     val platform = currentPlatform.displayName
     private var actions = ComputerActionKind.basic
-    /** Whether cua-driver is installed; it also needs Accessibility and Screen Recording (`cua-driver permissions grant`). */
-    val ready get() = connect != null
+    /** Whether cua-driver is installed or available to download; it also needs Accessibility and Screen Recording (`cua-driver permissions grant`). */
+    val ready get() = connect != null || source?.ready == true
 
     private class Element(val token: String?, val pid: Long?, val password: Boolean = false)
     private class Capture(val id: String, val elements: Map<Int, Element>)
@@ -56,10 +58,10 @@ class DesktopComputer(private val connect: (() -> Driver)? = findDriver()?.let {
     private var screenHeight = 0
     private var session = newSession()
 
-    fun close() { driver?.close(); driver = null }
+    fun close() { source?.close(); driver?.close(); driver = null }
 
     suspend fun perform(request: ComputerRequest): ComputerResult = lock.withLock {
-        val connect = connect ?: return ComputerResult(DeviceToolStatus.Unavailable, "Install cua-driver (https://github.com/trycua/cua) and run `cua-driver permissions grant`")
+        val connect = connect ?: source?.resolve()?.let { path -> { McpDriver(path) } } ?: return ComputerResult(DeviceToolStatus.Unavailable, source?.message ?: "Install cua-driver (https://github.com/trycua/cua) and run `cua-driver permissions grant`")
         val d = driver ?: connect().also { driver = it }
         try {
             d.keepAwake(request.keepAwake)
@@ -362,13 +364,13 @@ private fun jpeg(png: ByteArray): Triple<String, Int, Int> {
 }
 
 /** cua-driver on PATH, in ~/.local/bin or in its app bundle. */
-fun findDriver(): String? = (System.getenv("PATH").orEmpty().split(File.pathSeparator).map { File(it, "cua-driver") } +
+fun findDriver(): String? = (System.getenv("PATH").orEmpty().split(File.pathSeparator).map { File(it, if (currentPlatform == Platform.Windows) "cua-driver.exe" else "cua-driver") } +
     File(System.getProperty("user.home"), ".local/bin/cua-driver") + File("/Applications/CuaDriver.app/Contents/MacOS/cua-driver"))
     .firstOrNull { it.canExecute() }?.path
 
 /** `cua-driver mcp`, a stdio MCP server that forwards to its daemon, which holds the OS permissions. */
-internal class McpDriver(path: String) : Driver {
-    private val process = ProcessBuilder(path, "mcp").redirectError(ProcessBuilder.Redirect.DISCARD).start()
+internal class McpDriver(path: String, args: List<String> = emptyList()) : Driver {
+    private val process = ProcessBuilder(listOf(path, "mcp") + args).redirectError(ProcessBuilder.Redirect.DISCARD).start()
     private val client = Client(Implementation("kinuvo", "0.1"))
     private var connected = false
     private var parameters: Map<String, Set<String>> = emptyMap()
@@ -387,6 +389,8 @@ internal class McpDriver(path: String) : Driver {
             connected = true
         }
     }
+
+    internal suspend fun tools(): Set<String> { connect(); return parameters.keys }
 
     override suspend fun parameters(tool: String): Set<String> { connect(); return parameters[tool].orEmpty() }
 

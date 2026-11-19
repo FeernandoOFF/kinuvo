@@ -49,7 +49,6 @@ Agents on that phone until Hand back. The Server checks every two seconds whethe
 The CLI can expose its desktop without the desktop app:
 
 ```sh
-cua-driver permissions grant
 kinuvo serve --computer
 ```
 
@@ -58,7 +57,7 @@ service command; re-run installation without it to turn sharing off. The service
 shell's graphical-session environment on Linux. Enable **Computer use** in the Agent's Tools settings, then ask it to
 list its Computers. The CLI registers **Server desktop** as a local Device; captures, Approvals, Live view and Takeover
 work as they do in the desktop app. Keep an accessible desktop session running under the same user, with
-cua-driver installed and its OS permissions granted. This shares an existing desktop; it doesn't create a virtual display.
+its OS permissions granted. Kinuvo downloads cua-driver automatically on first Computer use unless it is already installed. This shares an existing desktop; it doesn't create a virtual display.
 
 On Android, Computer captures and actions wake the display and keep it awake for 30 seconds after the last request.
 Live view and Takeover wake renewals extend that lease. Waking the display doesn't unlock the phone.
@@ -68,8 +67,9 @@ input continues. Hand back releases the wake assertion immediately; if the clien
 15 seconds. Waking the display doesn't unlock the session.
 
 The desktop app offers its own screen like a phone does: Settings → This Device's tools → Computer, for whichever
-Server it's connected to, including the one it embeds. It needs [cua-driver](https://github.com/trycua/cua) (on PATH,
-in `~/.local/bin` or `/Applications/CuaDriver.app`) with Accessibility and Screen Recording (`cua-driver permissions
-grant`). Locked or sleeping displays may show black screenshots. Keep the desktop session available and unlocked when you expect the Agent to work.
+Server it's connected to, including the one it embeds. Kinuvo uses an installed [cua-driver](https://github.com/trycua/cua) on PATH,
+in `~/.local/bin` or `/Applications/CuaDriver.app`. Otherwise it downloads a verified copy into the Server home
+on first use; try again after the download finishes. On macOS, Cua’s own guide opens to help you grant Accessibility
+and Screen Recording access. On other systems, grant the desktop permissions required by cua-driver. Locked or sleeping displays may show black screenshots. Keep the desktop session available and unlocked when you expect the Agent to work.
 
 During Takeover, use the keyboard and key controls in Live view to type or send shortcuts. Desktop Computers offer modifier keys such as Command, Option, Control and Shift; Android offers Back, Home and Recents. Hand back explicitly when you are ready for the Agent to continue. A disconnected Takeover stays suspended until you recover it or hand back.

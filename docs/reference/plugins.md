@@ -26,7 +26,7 @@ Plugins supply tools, model providers, Knowledge sources, Task providers, search
 | litert | `local` on-device models through LiteRT-LM |
 | voice | Downloaded Server voice models |
 
-Available integrations depend on where your Server runs. Use Settings to see what your selected Server offers. Phone Servers do not offer password-manager Secret reference providers. Apple Reminders and Calendar need the Kinuvo desktop app on a Mac or the iPhone app; a Server run with the `kinuvo` command or as a service cannot reach them. Desktop Computer use requires a separately installed cua-driver; see [Computer use](../guides/computer-use.md).
+Available integrations depend on where your Server runs. Use Settings to see what your selected Server offers. Phone Servers do not offer password-manager Secret reference providers. Apple Reminders and Calendar need the Kinuvo desktop app on a Mac or the iPhone app; a Server run with the `kinuvo` command or as a service cannot reach them. Desktop Computer use downloads cua-driver automatically unless it is already installed; see [Computer use](../guides/computer-use.md).
 
 ## Enable an integration
 
