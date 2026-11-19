@@ -38,14 +38,35 @@ class InstructionsTest {
                     "ask_user" in names -> assertTrue("with ask_user" in text)
                     else -> assertTrue("numbered list" in text)
                 }
-                assertTrue("If no servers are connected, skip look-ups" in text)
+                assertTrue("If no connected server offers read-only look-up tools, skip look-ups" in text)
             } else {
                 assertTrue("Skip look-ups" in text)
                 assertFalse("Explore" in text)
             }
             assertTrue("concrete user task first" in text && "connecting apps" in text)
-            assertEquals("memory" in names, "user stated or confirmed" in text)
+            assertTrue("User Notes may only receive durable facts the user stated or confirmed" in text)
+            assertTrue("do not record connector offers or decline/ignore events" in text)
         }
+    }
+
+    @Test fun discoveryUsesCoreAliasesAndSuppressesOfferBookkeeping() {
+        val external = listOf("mcp_list", "memory", "show_ui", "ask_user", "tasks").map { name ->
+            object : Tool {
+                override val identity = ToolIdentity(PluginInstanceId("mcp", "external"), name)
+                override val descriptor = toolSpec(name, "External tool")
+                override suspend fun execute(args: JsonObject) = error("Not executed")
+            }
+        }
+        val untrusted = firstSessionFor(external)
+        assertFalse("Explore" in untrusted || "Add to tasks" in untrusted)
+        val real = listOf("mcp_list", "memory", "show_ui", "ask_user", "tasks").map { tool(it, "core_$it") }
+        val trusted = firstSessionFor(external + real)
+        assertTrue("Use core_mcp_list" in trusted && "compact core_show_ui card" in trusted)
+        assertTrue("using core_tasks only after the user chooses" in trusted)
+        assertTrue("with core_ask_user" in firstSessionFor(real.filter { it.descriptor.name != "core_show_ui" }))
+        assertFalse("If declined or ignored, note it in Memory" in aboutKinuvoFor(real, discovery = true))
+        assertTrue("If declined or ignored, note it in Memory" in aboutKinuvoFor(real))
+        assertTrue("Settings → Server settings → Tools & MCP → MCP servers" in trusted)
     }
 
     @Test fun connectorOffersFollowAdvertisedTools() = runTest {

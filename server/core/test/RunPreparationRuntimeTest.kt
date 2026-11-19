@@ -2,6 +2,9 @@ package kinuvo.server
 
 import kinuvo.server.rpc.serverRoutes
 import kinuvo.server.routines.RoutineRun
+import kinuvo.protocol.team.TeamId
+import kinuvo.harness.ExecutionInput
+import kinuvo.harness.ModelProfile
 import kinuvo.harness.RunKind
 import kinuvo.harness.ToolSpec
 import kinuvo.harness.requiredNames
@@ -61,11 +64,11 @@ class RunPreparationRuntimeTest {
         try {
             val agent = agent(harness).let { it.copy(config = it.config.copy(tier = ModelTier.Frontier)) }
             val session = harness.newSession(agent)
-            suspend fun context() = harness.composer.compose(agent, session.id).context
+            suspend fun context() = harness.composer.compose(agent, session.id, discovery = true).context
             assertTrue("## First session" in context())
             assertFalse("## First session" in fixture.store.entries(agent.id, session.id).filterIsInstance<SessionEntry.Started>().single().instructions)
             for (tier in listOf(ModelTier.NoTools, ModelTier.Micro, ModelTier.Small, ModelTier.Mid)) {
-                assertFalse("## First session" in harness.composer.compose(agent.copy(config = agent.config.copy(tier = tier)), session.id).context)
+                assertFalse("## First session" in harness.composer.compose(agent.copy(config = agent.config.copy(tier = tier)), session.id, discovery = true).context)
             }
             for (doc in listOf(AgentDoc.Memory, AgentDoc.UserNotes)) {
                 fixture.documents[doc] = "Known fact"
@@ -77,17 +80,69 @@ class RunPreparationRuntimeTest {
             assertTrue("## First session" in context())
             fixture.store.append(agent.id, session.id, SessionEntry.AssistantMessage("Hello"))
             assertFalse("## First session" in context())
+            val core = PluginInstanceId("kinuvo.core")
+            val outputs = listOf(
+                SessionEntry.VoiceCall("voice", listOf(VoiceTurn(false, "Hello")), 0, 100),
+            ) + listOf(ToolNames.SHOW_UI, ToolNames.SHOW_HTML, ToolNames.ASK_USER).map {
+                SessionEntry.ToolResult(ToolCallId(it), "aliased_$it", "Shown", identity = ToolIdentity(core, it))
+            }
+            for (output in outputs) {
+                val prior = harness.newSession(agent)
+                fixture.store.append(agent.id, prior.id, output)
+                assertFalse("## First session" in harness.composer.compose(agent, prior.id, discovery = true).context)
+            }
+            val userOnly = harness.newSession(agent)
+            fixture.store.append(agent.id, userOnly.id, SessionEntry.VoiceCall("user", listOf(VoiceTurn(true, "Hello")), 0, 100))
+            fixture.store.append(agent.id, userOnly.id, SessionEntry.ToolResult(ToolCallId("failed"), ToolNames.SHOW_UI, "Failed", isError = true, identity = ToolIdentity(core, ToolNames.SHOW_UI)))
+            fixture.store.append(agent.id, userOnly.id, SessionEntry.ToolResult(ToolCallId("external"), ToolNames.SHOW_UI, "External", identity = ToolIdentity(PluginInstanceId("mcp", "external"), ToolNames.SHOW_UI)))
+            assertTrue("## First session" in harness.composer.compose(agent, userOnly.id, discovery = true).context)
             val next = harness.newSession(agent)
-            assertTrue("## First session" in harness.composer.compose(agent, next.id).context)
+            assertTrue("## First session" in harness.composer.compose(agent, next.id, discovery = true).context)
             fixture.store.append(agent.id, next.id, SessionEntry.Details(hidden = true))
-            assertFalse("## First session" in harness.composer.compose(agent, next.id).context)
+            assertFalse("## First session" in harness.composer.compose(agent, next.id, discovery = true).context)
             val ref = RoutineRef("r", "Routine")
             val scheduled = fixture.store.createSession(agent.id, "", ref)
-            assertFalse("## First session" in harness.composer.compose(agent, scheduled.id).context)
+            assertFalse("## First session" in harness.composer.compose(agent, scheduled.id, discovery = true).context)
+            val team = harness.newSession(agent)
+            fixture.store.append(agent.id, team.id, SessionEntry.Details(teamId = TeamId("team")))
+            assertFalse("## First session" in harness.composer.compose(agent, team.id, discovery = true).context)
             val normal = harness.newSession(agent)
+            assertFalse("## First session" in harness.composer.compose(agent, normal.id).context)
+            assertFalse("## First session" in harness.composer.compose(agent, normal.id, taskId = "task", discovery = true).context)
+            assertFalse("## First session" in harness.composer.compose(agent, normal.id, requireModel = false, discovery = true).context)
             val routine = RoutineRun(Routine("r", agent.id, "Routine", "Check", Trigger.Every(60), "UTC")) {}
-            assertFalse("## First session" in harness.composer.compose(agent, normal.id, routine = routine).context)
+            assertFalse("## First session" in harness.composer.compose(agent, normal.id, routine = routine, discovery = true).context)
             assertFalse("## First session" in harness.composer.compose(agent).context)
+        } finally { harness.close() }
+    }
+
+    @Test fun sharedRunPathsRequireInteractiveDiscoveryOptIn() = runBlocking {
+        val frontier = object : ModelProvider by provider {
+            override fun profile(model: String, base: ModelProfile) = ModelProfile.of(ModelTier.Frontier)
+        }
+        val fixture = RuntimeFixture(providers = listOf(frontier))
+        val prompts = mutableListOf<String>()
+        val harness = fixture.runtime(scriptedModel { prompt, _ ->
+            prompts += prompt.messages.joinToString("\n") { it.toString() }
+            flowOf(StreamFrame.End())
+        })
+        try {
+            val agent = fixture.agent
+            val session = harness.newSession(agent)
+            suspend fun context(kind: RunKind) = harness.composer.run(agent.id, session.id, ExecutionInput("Hello", kind = kind)).context
+            assertTrue("## First session" in context(RunKind.Chat(discovery = true)))
+            assertFalse("If declined or ignored, note it in Memory" in context(RunKind.Chat(discovery = true)))
+            // Workflow Agent turns use the default ExecutionInput kind.
+            assertFalse("## First session" in harness.composer.run(agent.id, session.id, ExecutionInput("Workflow")).context)
+            assertFalse("## First session" in context(RunKind.Chat(taskId = "task")))
+            assertFalse("## First session" in context(RunKind.Chat(report = SessionEntry.ToolReport("tool", null, "Done"))))
+            assertFalse("## First session" in context(RunKind.Chat(discovery = true, report = SessionEntry.ToolReport("tool", null, "Done"))))
+            val routine = RoutineRun(Routine("r", agent.id, "Routine", "Check", Trigger.Every(60), "UTC")) {}
+            assertFalse("## First session" in context(RunKind.Routine(routine)))
+            assertFalse("## First session" in harness.composer.completion(agent, null, null).context)
+            harness.composer.runner(agent, session.id).run(session.id, "Background").toList()
+            assertTrue(prompts.isNotEmpty())
+            assertTrue(prompts.none { "## First session" in it })
         } finally { harness.close() }
     }
 

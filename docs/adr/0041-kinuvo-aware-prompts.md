@@ -17,8 +17,8 @@ The docs site provides `llms.txt` and plain Markdown copies of owner-facing page
 
 The MCP preset catalog lives in `protocol`, shared by Settings and Agent management. `mcp_list` lists unconfigured presets; `mcp_add(preset)` adds catalog OAuth servers under the Session's Risk tolerance. Token and OwnClient presets direct users to Settings. Frontier checks relevant presets, offers once using advertised interaction tools, and remembers declined or ignored offers when Memory is available. Configured connections with sign-in failures can be reconnected with `mcp_login` when advertised.
 
-Frontier adds first-session discovery to late context for a normal, non-Routine Session with no assistant reply and blank Memory and User Notes. It explores connected apps read-only, summarizes discoveries and offers next steps using advertised tools. Only facts the user states or confirms may become User Notes. A concrete request takes priority; without connected apps it introduces itself and offers connection guidance. Later turns omit the block; another new Session qualifies while both documents remain blank.
+Frontier adds first-session discovery to late context only for an interactive user chat send in a normal, non-Routine, non-Team Session with no saved assistant text, voice reply or successful reply card and blank Memory and User Notes. It explores connected apps read-only, summarizes discoveries and offers next steps using advertised tools. Connector offers and decline/ignore events are not recorded during discovery. Only facts the user states or confirms may become User Notes. A concrete request takes priority; without connected apps it introduces itself and offers connection guidance. Later turns omit the block; another new Session qualifies while both documents remain blank.
 
 ## Future work
 
-An ACP Session keeps first-turn setup guidance if a Computer is paired mid-session. `aboutKinuvoFor` matches advertised tool names rather than identities, so tool aliases need follow-up.
+An ACP Session keeps first-turn setup guidance if a Computer is paired mid-session.

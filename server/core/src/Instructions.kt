@@ -65,30 +65,34 @@ fun skillCatalogFor(skills: List<Skill>): String =
     skills.filter { it.modelInvocable }.sortedBy { it.name }.joinToString("\n") { "- ${it.name}: ${it.description.replace('\n', ' ')}" }
 
 /** Personal documents are refreshed in late context, leaving the instruction prefix stable. */
-suspend fun personalContextFor(agent: Agent, docs: AgentDocs): String = buildString {
+suspend fun personalContextFor(agent: Agent, docs: AgentDocs): String =
+    personalContextFor(docs.read(agent.id, AgentDoc.Memory), docs.read(agent.id, AgentDoc.UserNotes))
+
+fun personalContextFor(memory: String, userNotes: String): String = buildString {
     append("## Current personal context\n\nThese Memory and User Notes supersede earlier snapshots in this Session.\n\n")
-    append("### Memory\n\n${docs.read(agent.id, AgentDoc.Memory).trim()}\n\n")
-    append("### User Notes\n\n${docs.read(agent.id, AgentDoc.UserNotes).trim()}\n")
+    append("### Memory\n\n${memory.trim()}\n\n")
+    append("### User Notes\n\n${userNotes.trim()}\n")
 }
 
 fun firstSessionFor(tools: List<Tool>): String = buildString {
-    val names = tools.map { it.descriptor.name }.toSet()
+    fun name(id: String) = tools.coreName(id)
     append("## First session\n\n")
     append("Do a concrete user task first; offer discovery afterwards. Otherwise introduce yourself, say in one short sentence what you will inspect, then act without asking permission.\n")
-    if (ToolNames.MCP_LIST in names) {
-        append("Use mcp_list to see connected servers. Explore only their read-only tools (events, issues, mail subjects); never write, send or delete. Approvals still apply. Make at most 8 cheap look-ups; stop earlier when enough.\n")
+    if (name(ToolNames.MCP_LIST) != null) {
+        append("Use ${name(ToolNames.MCP_LIST)} to see connected servers. Explore only their read-only tools (events, issues, mail subjects); never write, send or delete. Approvals still apply. Make at most 8 cheap look-ups; stop earlier when enough.\n")
         append("Briefly summarize what you learned in plain language; invite corrections. Propose 3–5 concrete next steps")
         when {
-            ToolNames.SHOW_UI in names -> append(" in a compact show_ui card")
-            ToolNames.ASK_USER in names -> append(" with ask_user")
+            name(ToolNames.SHOW_UI) != null -> append(" in a compact ${name(ToolNames.SHOW_UI)} card")
+            name(ToolNames.ASK_USER) != null -> append(" with ${name(ToolNames.ASK_USER)}")
             else -> append(" as a numbered list")
         }
         append(".")
-        if (ToolNames.TASKS in names) append(" Offer Add to tasks actions using tasks only after the user chooses.")
-        append("\nIf no servers are connected, skip look-ups: ")
+        if (name(ToolNames.TASKS) != null) append(" Offer Add to tasks actions using ${name(ToolNames.TASKS)} only after the user chooses.")
+        append("\nIf no connected server offers read-only look-up tools, skip look-ups and do the no-apps introduction: ")
     } else append("Skip look-ups: ")
     append("introduce yourself in 1–2 sentences, ask what the user wants help with, and mention connecting apps following the connector guidance.\n")
-    if (ToolNames.MEMORY in names) append("Use memory for User Notes only for durable facts the user stated or confirmed, as declarative facts; never guesses or silence.\n")
+    append("During discovery, do not record connector offers or decline/ignore events in Memory or User Notes. User Notes may only receive durable facts the user stated or confirmed, never guesses or silence.\n")
+    if (name(ToolNames.MCP_ADD) == null || name(ToolNames.MCP_LOGIN) == null) append("For adding apps or sign-in, point to Settings → Server settings → Tools & MCP → MCP servers.\n")
 }
 
 private const val IDENTITY_CHARS = 600
@@ -116,7 +120,7 @@ suspend fun compactContextFor(agent: Agent, docs: AgentDocs): String =
         "Ask only when a missing decision materially changes the work.\n" +
         "Keep replies short.\n\n" + personalContextFor(agent, docs)
 
-fun aboutKinuvoFor(tools: List<Tool>): String = buildString {
+fun aboutKinuvoFor(tools: List<Tool>, discovery: Boolean = false): String = buildString {
     val names = tools.mapNotNull { it.coreMetadata?.name }.toSet()
     fun name(id: String) = tools.coreName(id)
     val canLogin = ToolNames.MCP_LOGIN in names && ToolNames.ASK_USER in names
@@ -129,7 +133,7 @@ fun aboutKinuvoFor(tools: List<Tool>): String = buildString {
             ToolNames.ASK_USER in names -> append("Present the offer with ${name(ToolNames.ASK_USER)}. ")
             else -> append("Ask in plain text. ")
         }
-        if (ToolNames.MEMORY in names) append("If declined or ignored, note it in Memory with ${name(ToolNames.MEMORY)} so you do not offer it again. ")
+        if (!discovery && ToolNames.MEMORY in names) append("If declined or ignored, note it in Memory with ${name(ToolNames.MEMORY)} so you do not offer it again. ")
         if (ToolNames.MCP_ADD in names) {
             append("On yes, use ${name(ToolNames.MCP_ADD)}(preset)")
             if (canLogin) append(" then ${name(ToolNames.MCP_LOGIN)} and finish sign-in with the user")

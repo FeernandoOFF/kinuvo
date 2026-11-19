@@ -150,7 +150,7 @@ class NativeExecution(
         effective.chat.requireReady()
         attachments.forEach { attachment -> effective.attachment(attachment.mimeType).requireReady() }
         val (activation, message) = (if (ServerFeature.Skills in capabilities().features) harness.slashActivation(agent, p.text) else null) ?: (null to p.text)
-        val kind = RunKind.Chat(activation, attachments, p.voice, catalogs = catalogs, reports = toolReports(agent, sessionId, catalogs))
+        val kind = RunKind.Chat(activation, attachments, p.voice, discovery = true, catalogs = catalogs, reports = toolReports(agent, sessionId, catalogs))
         return deliveryLock.withLock {
             val id = RunId(Uuid.random().toString())
             val pending = Pending(agent, sessionId, ExecutionInput(message, action = p.action, kind = kind, runId = id), QueuedMessage(id.value, message, attachments), onEvent)

@@ -139,7 +139,7 @@ class RunComposer internal constructor(
     override suspend fun run(agentId: AgentId, sessionId: SessionId, input: ExecutionInput): NativeRun {
         val agent = store.agents().firstOrNull { it.id == agentId } ?: throw ServerException(AgentError.NotFound(agentId))
         return when (val kind = input.kind) {
-            is RunKind.Chat -> compose(agent, sessionId, taskId = kind.taskId, catalogs = kind.catalogs ?: uiCatalogs.forRun(), reports = kind.reports)
+            is RunKind.Chat -> compose(agent, sessionId, taskId = kind.taskId, catalogs = kind.catalogs ?: uiCatalogs.forRun(), reports = kind.reports, discovery = kind.discovery && kind.report == null)
             is RunKind.Routine -> compose(agent, sessionId, routine = kind.turn)
             is RunKind.Reflection -> error("A Reflection has no chat run")
         }
@@ -274,7 +274,7 @@ class RunComposer internal constructor(
         native.runner(compose(agent, sessionId, routine, taskId, catalogs, scope, reports))
 
     suspend fun compose(agent: Agent, sessionId: SessionId? = null, routine: RoutineTurn? = null, taskId: String? = null, catalogs: List<UiCatalog> = uiCatalogs.forRun(),
-        scope: ToolScope = ToolScope.All, reports: ToolReports? = null, requireModel: Boolean = true): NativeRun {
+        scope: ToolScope = ToolScope.All, reports: ToolReports? = null, requireModel: Boolean = true, discovery: Boolean = false): NativeRun {
         if (sessionId != null && store.session(agent.id, sessionId).hidden) requireOnDevice(agent, sessionId)
         val prepared = prepare(agent, sessionId, routine = routine, taskId = taskId, activate = true, catalogs = catalogs, scope = scope, requireModel = requireModel)
         val e = prepared.effective
@@ -286,16 +286,22 @@ class RunComposer internal constructor(
         }.mapNotNull { it.instructions(agent) }
         val today = "${Clock.System.todayIn(timeZone)} ($timeZone)"
         val style = if (requireModel) e.profile.prompt else PromptStyle.Full
-        val firstSession = if (e.profile.tier == ModelTier.Frontier && style == PromptStyle.Full && routine == null && sessionId != null &&
-            store.session(agent.id, sessionId).let { !it.hidden && it.routine == null } &&
-            store.entries(agent.id, sessionId).none { it is SessionEntry.AssistantMessage } &&
-            docs.read(agent.id, AgentDoc.Memory).isBlank() && docs.read(agent.id, AgentDoc.UserNotes).isBlank()) firstSessionFor(advertised) else ""
+        val memory = if (style == PromptStyle.Full && requireModel) docs.read(agent.id, AgentDoc.Memory) else ""
+        val userNotes = if (style == PromptStyle.Full && requireModel) docs.read(agent.id, AgentDoc.UserNotes) else ""
+        val firstSession = e.profile.tier == ModelTier.Frontier && discovery && requireModel && routine == null && taskId == null && sessionId != null &&
+            store.session(agent.id, sessionId).let { !it.hidden && it.routine == null && it.teamId == null } &&
+            memory.isBlank() && userNotes.isBlank() &&
+            store.entries(agent.id, sessionId).none {
+                it is SessionEntry.AssistantMessage || it is SessionEntry.VoiceCall && it.turns.any { turn -> !turn.user } ||
+                    it is SessionEntry.ToolResult && !it.isError && it.identity?.instance == PluginInstanceId("kinuvo.core") &&
+                    it.identity?.localId in setOf(ToolNames.SHOW_UI, ToolNames.SHOW_HTML, ToolNames.ASK_USER)
+            }
         val context = when (style) {
             PromptStyle.Basic, PromptStyle.BasicWithIdentity -> basicContextFor(agent, docs, advertised, today, identity = style == PromptStyle.BasicWithIdentity)
             PromptStyle.Compact, PromptStyle.Full -> {
                 val personal = if (style == PromptStyle.Compact) compactContextFor(agent, docs)
-                    else (if (requireModel) personalContextFor(agent, docs) else instructionsFor(agent, docs)) + "\n" + aboutKinuvoFor(advertised)
-                personal + "\n" + firstSession + capabilitiesFor(agent, advertised, prepared.catalog, compact = style == PromptStyle.Compact) +
+                    else (if (requireModel) personalContextFor(memory, userNotes) else instructionsFor(agent, docs)) + "\n" + aboutKinuvoFor(advertised, discovery = firstSession)
+                personal + "\n" + (if (firstSession) firstSessionFor(advertised) else "") + capabilitiesFor(agent, advertised, prepared.catalog, compact = style == PromptStyle.Compact) +
                     "\nServer platform: $platformDescription. Today is $today.\n" +
                     sections.joinToString("\n\n") { "## ${it.title}\n\n${it.body}" } +
                     if (advertised.any { it.descriptor.name == ToolNames.ACTIVATE_SKILL }) "\n\nCurrent Skills:\n" + skillCatalogFor(skills.load(agent)) else ""
