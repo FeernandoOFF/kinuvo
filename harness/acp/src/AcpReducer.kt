@@ -70,13 +70,8 @@ internal class AcpReducer(private val state: ExecutionState,
         val source = raw.string(if (role == "tool") "toolCallId" else "messageId") ?: return@withLock
         val key = role to source
         if (role == "tool") {
-            if (raw.isKinuvoTool() && serverTools.add(source)) {
-                tools.remove(source)
-                currentSources.remove(key)
-                entries.remove(SessionEntryIdentity("tool_call", id(source)))
-                entries.remove(SessionEntryIdentity("tool_result", id(source)))
-            }
-            if (source in serverTools) return@withLock
+            // Kinuvo records its own tool calls; a call first reported without its server stays as reported.
+            if (source in serverTools || raw.isKinuvoTool() && source !in tools) { serverTools += source; return@withLock }
         }
         if (!active && finalized.containsKey(key)) {
             if (finalized[key] != raw) sink.commit(listOf(SessionEntry.Notice(Uuid.random().toString(),

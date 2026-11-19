@@ -75,10 +75,11 @@ class McpExecutionFactory(
                 val composed = harness.composer.compose(agent, state.sessionId, routine = (input.kind as? RunKind.Routine)?.turn, requireModel = false)
                 val sink = state.boundSink()
                 val calls = mutableMapOf<ToolCallId, SessionEntry.ToolCall>()
+                val owned = ConcurrentHashMap.newKeySet<InteractionId>()
                 val turn = ToolTurn(emit = { event ->
                     when (event) {
-                        is AgentEvent.InteractionRequested -> { toolInteractions += event.interaction.id; state.request(event.interaction) }
-                        is AgentEvent.InteractionResolved -> { toolInteractions -= event.id; state.resolve(event.id) }
+                        is AgentEvent.InteractionRequested -> { owned += event.interaction.id; toolInteractions += event.interaction.id; state.request(event.interaction) }
+                        is AgentEvent.InteractionResolved -> { owned -= event.id; toolInteractions -= event.id; state.resolve(event.id) }
                         is AgentEvent.ToolCallStart -> {
                             calls[event.toolCallId] = SessionEntry.ToolCall(event.toolCallId, event.toolCallName, event.args, event.identity)
                             sink.publish(event)
@@ -94,7 +95,7 @@ class McpExecutionFactory(
                         try { return composed.gate.invoke(call, turn) }
                         catch (e: CancellationException) {
                             withContext(NonCancellable) {
-                                toolInteractions.toList().forEach { state.resolve(it); toolInteractions -= it }
+                                owned.toList().forEach { state.resolve(it); owned -= it; toolInteractions -= it }
                                 calls.values.toList().forEach {
                                     turn.complete(SessionEntry.ToolResult(it.id, it.name, "Cancelled by user", true, identity = it.identity))
                                 }
