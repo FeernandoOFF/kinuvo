@@ -151,6 +151,8 @@ internal fun SettingsPageHeader(title: String, back: (() -> Unit)? = null, subti
         Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.TopCenter) {
             TitleBarRow(contentWidth?.let { Modifier.widthIn(max = it) } ?: Modifier, leading = up != null) {
                 if (up != null) HeaderButton(Lucide.ArrowLeft, "Back", up)
+                val leading = LocalLeadingActions.current
+                if (leading) trailing()
                 Column(Modifier.weight(1f).padding(start = Spacing.space6)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(title, Modifier.weight(1f, fill = false), fontWeight = FontWeight.Normal, singleLine = true, overflow = TextOverflow.Ellipsis)
@@ -158,7 +160,7 @@ internal fun SettingsPageHeader(title: String, back: (() -> Unit)? = null, subti
                     }
                     subtitle?.let { Text(it, style = TextStyles.caption, color = color(mutedColor), singleLine = true) }
                 }
-                trailing()
+                if (!leading) trailing()
             }
         }
         HorizontalSeparator()

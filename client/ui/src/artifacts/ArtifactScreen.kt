@@ -168,7 +168,8 @@ private fun ArtifactPane(state: ArtifactsState, agents: List<AgentInfo>, now: Lo
             verticalAlignment = Alignment.CenterVertically,
         ) {
             if (back != null) FloatingBar { FloatingButton(Lucide.ArrowLeft, "Back", back) }
-            Spacer(Modifier.weight(1f))
+            val leading = LocalLeadingActions.current
+            if (!leading) Spacer(Modifier.weight(1f))
             if (data != null) {
                 if (editing) FloatingBar {
                     Text("Cancel", Modifier.clip(CircleShape).clickable(onClick = actions.onCancel).padding(horizontal = Spacing.space10, vertical = Spacing.space8), style = TextStyles.secondary)

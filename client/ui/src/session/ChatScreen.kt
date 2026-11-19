@@ -100,7 +100,7 @@ fun ChatScreen(
     onNavigate: (Route) -> Unit = {},
     onToggleShell: (() -> Unit)? = null,
     onBack: (() -> Unit)? = null,
-    dock: BrowserDock? = null,
+    dock: PanelDock? = null,
 ) {
     val appState by app.state.collectAsState()
     val current by session.state.collectAsState()
@@ -194,16 +194,16 @@ fun ChatScreen(
                 onReviewReflection = session::reviewReflection,
                 onAnswer = session::answer,
                 onEditAnswer = session::editAnswer,
-                onOpenArtifact = { onNavigate(Route.Artifacts(it)) },
+                onOpenArtifact = { dock?.openArtifact?.invoke(it) ?: onNavigate(Route.Artifacts(it)) },
                 onWatch = { onNavigate(Route.Computers()) },
                 onScreen = { screen, reason ->
                     val owner = screen.owner
-                    if (owner != null && dock != null) dock.show(screen, reason)
+                    if (dock != null) dock.showScreen(screen, reason)
                     else onNavigate(if (owner == null) Route.Computers(screen.id, reason) else Route.Browser(owner.agentId, route.sessionId, screen, reason))
                 },
                 onBrowser = if (sessionBrowserAvailable(agent, current.capabilities?.server) && route.agentId != null)
-                    ({ dock?.toggle?.invoke() ?: onNavigate(Route.Browser(requireNotNull(route.agentId), route.sessionId)) }) else null,
-                browserOpen = dock?.open == true,
+                    ({ dock?.toggleBrowser?.invoke() ?: onNavigate(Route.Browser(requireNotNull(route.agentId), route.sessionId)) }) else null,
+                browserOpen = dock?.browserOpen == true,
                 onLoadOlder = session::loadOlder,
                 onSettings = { route.agentId?.let(onSettings) },
                 onRename = session::rename,
@@ -290,8 +290,8 @@ class ChatActions(
     val onOpenSession: (AgentId, SessionId) -> Unit = { _, _ -> },
 )
 
-/** The Browser panel beside a wide chat: [toggle] shows or hides it; [show] opens it on the Screen a card points at. */
-class BrowserDock(val open: Boolean, val toggle: () -> Unit, val show: (ScreenRef, String?) -> Unit)
+/** Where a chat shows its Browser, Screens and Artifacts beside it, in the window's Side panel. */
+class PanelDock(val browserOpen: Boolean, val toggleBrowser: () -> Unit, val showScreen: (ScreenRef, String?) -> Unit, val openArtifact: (String) -> Unit)
 
 /** The Servers saved on this Device, for the shell's menu; [active] is the connected one. */
 data class ServerMenuState(

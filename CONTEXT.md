@@ -166,6 +166,10 @@ _Avoid_: Host, sandbox, VM
 Watching a Screen while an Agent uses it, from any Device with management access.
 _Avoid_: Screen sharing, mirror, stream
 
+**Side panel**:
+The tabs beside a desktop window's screens, one window's own: the Agent's settings, an Agent's Browser, a Computer or an Artifact. Dragged wider or narrower, or collapsed to its tab strip; hidden on Home.
+_Avoid_: Inspector, dock, right bar
+
 **Takeover**:
 The user controlling a Screen themselves, from Live view or the phone's own overlay, while Agents wait; an Agent can ask for one for sign-ins, codes, payments or permission dialogs. It ends when the user explicitly hands the Screen back; a disconnected Takeover remains suspended.
 _Avoid_: Handoff, manual mode
