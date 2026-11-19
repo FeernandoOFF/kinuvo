@@ -218,7 +218,9 @@ class SessionLog(private val store: Store, private val clock: () -> Long = { Clo
                 runReplies.remove(sessionId)
             else -> null
         }
-        val unread = event is AgentEvent.RunFinished && (reply == RunReply.Chat || reply == RunReply.Report)
+        // A reply someone is watching in the foreground is read already.
+        val unread = event is AgentEvent.RunFinished && (reply == RunReply.Chat || reply == RunReply.Report) &&
+            subscribers[sessionId].orEmpty().none { it.watching }
         val unsettle = started || state.status == SessionStatus.Waiting && previous.status != SessionStatus.Waiting
         val inboxChanged = if (unread || unsettle) {
             val details = store.sessionDetails(agentId, sessionId)

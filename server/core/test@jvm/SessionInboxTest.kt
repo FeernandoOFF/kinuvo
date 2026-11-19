@@ -4,6 +4,7 @@ import kinuvo.protocol.Api
 import kinuvo.protocol.agent.AgentId
 import kinuvo.protocol.agent.AgentRef
 import kinuvo.protocol.capability.ServerFeature
+import kinuvo.protocol.session.CatchUpParams
 import kinuvo.protocol.session.SendParams
 import kinuvo.protocol.session.SessionStatus
 import kinuvo.protocol.session.SessionsParams
@@ -46,6 +47,23 @@ class SessionInboxTest {
                 }
                 phone.call(Api.UpdateSession, UpdateSessionParams(agent, id, seen = true))
                 assertFalse(read.await().unread)
+                assertFalse(desktop.call(Api.Sessions, SessionsParams(agent)).sessions.single().unread)
+            }
+        }
+    }
+
+    @Test fun aReplyWatchedInTheForegroundIsRead() = runBlocking {
+        val agent = AgentId("inbox")
+        TestServer.start(script = { reply("Finished") }, scenario = { agent("inbox") }).use { server ->
+            withTimeout(15_000) {
+                val desktop = server.client("desktop", server.pairDevice("desktop")).also { it.connect() }
+                val id = desktop.call(Api.CreateSession, AgentRef(agent)).id
+                desktop.call(Api.CatchUp, CatchUpParams(agent, id))
+                val idle = async(start = CoroutineStart.UNDISPATCHED) {
+                    desktop.events(Api.SessionChanged).first { it.id == id && it.status == SessionStatus.Idle && it.title != null }
+                }
+                desktop.call(Api.Send, SendParams(agent, id, "Start"))
+                idle.await()
                 assertFalse(desktop.call(Api.Sessions, SessionsParams(agent)).sessions.single().unread)
             }
         }
