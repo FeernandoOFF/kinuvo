@@ -9,6 +9,9 @@ import kinuvo.client.KinuvoClient
 import kinuvo.protocol.*
 import kinuvo.protocol.agent.*
 import kinuvo.protocol.approval.*
+import kinuvo.protocol.capability.ServerCapabilities
+import kinuvo.protocol.capability.ServerFeature
+import kinuvo.protocol.capability.supports
 import kinuvo.protocol.execution.*
 import kinuvo.protocol.routine.*
 import kinuvo.protocol.session.*
@@ -26,6 +29,8 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 
 /**
  * One Session as held on this Device: a window of its entries starting at [firstSeq], the live turn and run notes.
@@ -55,7 +60,7 @@ data class SessionList(
     val nextBefore: SessionId? = null,
 )
 
-/** [finished] holds Sessions whose run ended while they weren't on screen. */
+/** [finished] holds unread Sessions. */
 data class RepositoryState(
     val sessions: Map<SessionId, SessionData> = emptyMap(),
     val lists: Map<AgentId, SessionList> = emptyMap(),
@@ -77,6 +82,11 @@ class SessionRepository(private val notifications: Notifications, internal val c
     private val client get() = connection.client
     private var attached: Job? = null
     private var settledKey: String? = null
+    private var serverInbox = false
+    private val inboxInfo = mutableMapOf<SessionId, SessionInfo>()
+    private val pendingSettles = mutableMapOf<SessionId, UpdateSessionParams>()
+    private val pendingSeen = mutableSetOf<SessionId>()
+    private var settleWrites = Mutex()
     private val statuses = mutableMapOf<SessionId, SessionStatus>()
     /** Cached Sessions, least recently viewed first. */
     private val recent = mutableListOf<SessionId>()
@@ -89,14 +99,22 @@ class SessionRepository(private val notifications: Notifications, internal val c
 
     override fun attach(client: KinuvoClient) {
         attached?.cancel()
-        client.lastConnect?.capabilities?.serverId?.let(::loadSettled)
+        client.lastConnect?.capabilities?.let(::configureInbox)
         attached = scope.launch {
             launch { client.events(Api.Update).collect(::onUpdate) }
             launch { client.events(Api.SessionChanged).collect(::onChanged) }
+            launch {
+                client.foreground.collect { inboxInfo[viewing]?.let(::recordInbox) }
+            }
+            var migration: Job? = null
             client.state.collect {
+                migration?.cancel()
                 if (it is ConnectionState.Connected) {
-                    client.lastConnect?.capabilities?.serverId?.let(::loadSettled)
+                    val capabilities = client.lastConnect?.capabilities
+                    capabilities?.let(::configureInbox)
                     resync()
+                    if (serverInbox && capabilities != null)
+                        migration = launch { catching { migrateSettled(client, "sessions.settled.${capabilities.serverId}") } }
                 }
             }
         }
@@ -108,21 +126,87 @@ class SessionRepository(private val notifications: Notifications, internal val c
         val key = "sessions.settled.$serverId"
         if (settledKey == key) return
         settledKey = key
-        val settled = runCatching {
-            prefs?.get(key)?.let { ProtocolJson.decodeFromString(SettledSessions, it) }
-        }.getOrNull().orEmpty()
-        state.update { it.copy(settled = settled) }
+        state.update { it.copy(settled = storedSettled(key)) }
+    }
+
+    private fun storedSettled(key: String): Set<SessionId> = runCatching {
+        prefs?.get(key)?.let { ProtocolJson.decodeFromString(SettledSessions, it) }
+    }.getOrNull().orEmpty()
+
+    private fun saveSettled(key: String, sessions: Set<SessionId>) =
+        runCatching { prefs?.set(key, sessions.takeIf { it.isNotEmpty() }?.let { ProtocolJson.encodeToString(SettledSessions, it) }) }
+
+    private fun configureInbox(capabilities: ServerCapabilities) {
+        val supported = capabilities.supports(ServerFeature.SessionInbox)
+        if (supported != serverInbox) {
+            serverInbox = supported
+            settledKey = null
+            inboxInfo.clear()
+            state.update { it.copy(settled = emptySet(), finished = emptySet()) }
+            if (supported) state.value.lists.values.flatMap { it.sessions }.forEach(::recordInbox)
+        }
+        if (!supported) loadSettled(capabilities.serverId)
     }
 
     fun settle(sessionId: SessionId, settled: Boolean) {
-        if (client == null) return
+        val client = client ?: return
         val before = state.value.settled
         val after = if (settled) before + sessionId else before - sessionId
         if (after == before) return
-        settledKey?.let { key ->
-            runCatching { prefs?.set(key, after.takeIf { it.isNotEmpty() }?.let { ProtocolJson.encodeToString(SettledSessions, it) }) }
+        if (serverInbox) {
+            val info = inboxInfo[sessionId] ?: return
+            val params = UpdateSessionParams(info.agentId, sessionId, settled = settled)
+            pendingSettles[sessionId] = params
+            state.update { it.copy(settled = after) }
+            scope.launch {
+                settleWrites.withLock {
+                    if (!serverInbox || pendingSettles[sessionId] !== params) return@withLock
+                    val original = inboxInfo[sessionId]
+                    val saved = catching { client.call(Api.UpdateSession, params) }.getOrNull()
+                    if (saved != null) {
+                        client.lastConnect?.capabilities?.serverId?.let { runCatching { forgetMigrated("sessions.settled.$it", sessionId) } }
+                        if (inboxInfo[sessionId] === original) inboxInfo[sessionId] = saved
+                    }
+                    if (pendingSettles[sessionId] === params) pendingSettles -= sessionId
+                    inboxInfo[sessionId]?.let(::recordInbox)
+                }
+            }
+        } else {
+            settledKey?.let { saveSettled(it, after) }
+            state.update { it.copy(settled = after) }
         }
-        state.update { it.copy(settled = after) }
+    }
+
+    private fun forgetMigrated(key: String, id: SessionId) {
+        val stored = storedSettled(key)
+        if (id in stored) saveSettled(key, stored - id).getOrThrow()
+    }
+
+    private suspend fun migrateSettled(client: KinuvoClient, key: String) {
+        val remaining = storedSettled(key).toMutableSet()
+        if (remaining.isEmpty()) return
+        for (agent in client.call(Api.Agents, Unit)) {
+            var before: SessionId? = null
+            do {
+                val page = client.call(Api.Sessions, SessionsParams(agent.id, before = before))
+                for (info in page.sessions + page.favorites) {
+                    if (!remaining.remove(info.id)) continue
+                    settleWrites.withLock {
+                        if (info.id in storedSettled(key)) {
+                            val original = inboxInfo[info.id]
+                            val saved = client.call(Api.UpdateSession, UpdateSessionParams(agent.id, info.id, settled = true))
+                            currentCoroutineContext().ensureActive()
+                            forgetMigrated(key, info.id)
+                            if (inboxInfo[info.id] === original) recordInbox(saved)
+                        }
+                    }
+                }
+                if (remaining.isEmpty()) return
+                before = page.sessions.lastOrNull()?.id.takeIf { page.hasMore }
+            } while (before != null)
+        }
+        // IDs whose Sessions have since been deleted have no owner to migrate.
+        prefs?.set(key, null)
     }
 
     /** Shows what this Device last saw until the Server is reached; reconnecting catches the Sessions up from there. */
@@ -140,7 +224,9 @@ class SessionRepository(private val notifications: Notifications, internal val c
 
     /** [sessionId] is on screen (null: a new Session): keeps it cached and subscribed, and clears its finished mark. */
     fun view(agentId: AgentId, sessionId: SessionId?) = scope.launch {
+        val previous = viewing
         viewing = sessionId
+        if (serverInbox && previous != sessionId) inboxInfo[previous]?.let(::recordInbox)
         if (sessionId == null) return@launch
         state.update { it.copy(finished = it.finished - sessionId) }
         recent -= sessionId
@@ -150,6 +236,23 @@ class SessionRepository(private val notifications: Notifications, internal val c
             catchUp(sessionId)
         }
         while (recent.size > MAX_CACHED) evict(SessionId(recent.first().value))
+        if (serverInbox && viewing == sessionId) refreshViewed(agentId, sessionId)
+    }
+
+    internal fun leaveView() {
+        if (!serverInbox) return
+        val previous = viewing
+        viewing = null
+        inboxInfo[previous]?.let(::recordInbox)
+    }
+
+    private suspend fun refreshViewed(agentId: AgentId, id: SessionId, refresh: Boolean = false) {
+        val known = inboxInfo[id]
+        if (known != null && !refresh) recordInbox(known)
+        else {
+            val info = catching { client?.call(Api.Session, SessionParams(agentId, id)) }.getOrNull() ?: return
+            if (serverInbox && inboxInfo[id] === known) recordInbox(info)
+        }
     }
 
     /** Loads the first page of [agentId]'s Sessions, or with [more] the next one. */
@@ -199,12 +302,18 @@ class SessionRepository(private val notifications: Notifications, internal val c
         call {
             it.call(Api.Send, SendParams(agentId, sessionId, text, attachments, voice, submissionId, action, delivery)).also {
                 currentCoroutineContext().ensureActive()
-                settle(sessionId, settled = false)
+                if (!serverInbox) settle(sessionId, settled = false)
             }
         }
 
-    suspend fun update(agentId: AgentId, sessionId: SessionId, title: String? = null, favorite: Boolean? = null) =
-        call { it.call(Api.UpdateSession, UpdateSessionParams(agentId, sessionId, title, favorite)) }.also(::onChanged)
+    suspend fun update(agentId: AgentId, sessionId: SessionId, title: String? = null, favorite: Boolean? = null): SessionInfo =
+        call {
+            val before = inboxInfo[sessionId]
+            it.call(Api.UpdateSession, UpdateSessionParams(agentId, sessionId, title, favorite)).also { info ->
+                currentCoroutineContext().ensureActive()
+                if (!serverInbox || inboxInfo[sessionId] === before) onChanged(info)
+            }
+        }
 
     suspend fun resume(sessionId: SessionId) = call { it.call(Api.ResumeExecution, ExecutionRef(sessionId.value)) }
 
@@ -232,7 +341,7 @@ class SessionRepository(private val notifications: Notifications, internal val c
                 event is AgentEvent.RunError || event is AgentEvent.ExecutionPhaseChanged && event.phase == ExecutionPhase.Lost -> replies -= id
                 event is AgentEvent.RunFinished && replies.remove(id) && data.live.executionPhase != ExecutionPhase.Lost && completions.add("$id:${event.runId}") -> {
                     notifications.post(Notice.RunFinished(update.agentId, id))
-                    markFinished(id)
+                    if (!serverInbox || statuses[id] != SessionStatus.Idle) markFinished(id)
                 }
             }
         }
@@ -264,7 +373,7 @@ class SessionRepository(private val notifications: Notifications, internal val c
         if (info.routine != null) {
             if (before != SessionStatus.Waiting && info.status == SessionStatus.Waiting) notifications.post(Notice.ApprovalNeeded(info.agentId, info.id))
             if (before != null && before != SessionStatus.Idle && info.status == SessionStatus.Idle && info.inChats) {
-                markFinished(info.id)
+                if (!serverInbox) markFinished(info.id)
             }
             return
         }
@@ -277,7 +386,7 @@ class SessionRepository(private val notifications: Notifications, internal val c
                     connection.harnesses.state.value.catalog?.agents?.any { it.id == info.agentId } == true
                 if (external) return
                 notifications.post(Notice.RunFinished(info.agentId, info.id))
-                markFinished(info.id)
+                if (!serverInbox) markFinished(info.id)
                 // A run may have created or edited Skills.
                 if (info.agentId in state.value.skills) loadSkills(info.agentId)
             }
@@ -287,13 +396,38 @@ class SessionRepository(private val notifications: Notifications, internal val c
 
     private fun recordStatus(info: SessionInfo): SessionStatus? {
         val before = statuses.put(info.id, info.status)
-        if (before != info.status && info.status != SessionStatus.Idle) settle(info.id, settled = false)
+        if (serverInbox) recordInbox(info)
+        else if (before != info.status && info.status != SessionStatus.Idle) settle(info.id, settled = false)
         return before
     }
 
+    private fun recordInbox(info: SessionInfo) {
+        val id = info.id
+        inboxInfo[id] = info
+        val viewingNow = viewing == id && client?.foreground?.value == true
+        val settled = pendingSettles[id]?.settled ?: info.settled
+        state.update {
+            it.copy(
+                settled = if (settled) it.settled + id else it.settled - id,
+                finished = if (info.unread && !viewingNow) it.finished + id else it.finished - id,
+            )
+        }
+        if (info.unread && viewingNow) markSeen(info)
+    }
+
+    private fun markSeen(info: SessionInfo) {
+        val client = client ?: return
+        if (client.state.value !is ConnectionState.Connected || !pendingSeen.add(info.id)) return
+        scope.launch {
+            val saved = catching { client.call(Api.UpdateSession, UpdateSessionParams(info.agentId, info.id, seen = true)) }.getOrNull()
+            pendingSeen -= info.id
+            if (serverInbox && saved != null) recordInbox(inboxInfo[info.id]?.takeUnless { it === info } ?: saved)
+        }
+    }
+
     private fun markFinished(sessionId: SessionId) {
-        if (sessionId == viewing) return
-        settle(sessionId, settled = false)
+        if (sessionId == viewing && (!serverInbox || client?.foreground?.value == true)) return
+        if (!serverInbox) settle(sessionId, settled = false)
         state.update { it.copy(finished = it.finished + sessionId) }
     }
 
@@ -316,6 +450,7 @@ class SessionRepository(private val notifications: Notifications, internal val c
         state.value.sessions.keys.forEach { scope.launch { catchUp(it) } }
         state.value.lists.keys.forEach { loadSessions(it) }
         state.value.skills.keys.forEach { loadSkills(it) }
+        if (serverInbox) viewing?.let { id -> state.value.sessions[id]?.let { scope.launch { refreshViewed(it.agentId, id, refresh = true) } } }
     }
 
     private fun evict(sessionId: SessionId) {
@@ -336,6 +471,11 @@ class SessionRepository(private val notifications: Notifications, internal val c
         loadingLists.clear()
         listChanges.clear()
         settledKey = null
+        serverInbox = false
+        inboxInfo.clear()
+        pendingSettles.clear()
+        pendingSeen.clear()
+        settleWrites = Mutex()
         state.value = RepositoryState()
     }
 

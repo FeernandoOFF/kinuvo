@@ -35,6 +35,10 @@ data class SessionInfo(
     val parent: SessionParent? = null,
     val hidden: Boolean = false,
     val teamId: TeamId? = null,
+    /** The user has set this Session aside in the inbox. */
+    val settled: Boolean = false,
+    /** The Session has a reply the user has yet to see. */
+    val unread: Boolean = false,
 ) {
     /** The user's own Sessions, and a Routine's once it has something for the user or waits on them. */
     val inChats: Boolean get() = !hidden && teamId == null && (routine == null || answered || status == SessionStatus.Waiting)
@@ -125,7 +129,7 @@ sealed interface SessionEntry {
 
     /** The user's name for the Session (null: from its first message) and whether it's a favorite, from here on; the model doesn't see it. */
     @Serializable @SerialName("details")
-    data class Details(val title: String? = null, val favorite: Boolean = false, override val writtenAt: Long? = null, val parent: SessionParent? = null, val hidden: Boolean = false, val teamId: TeamId? = null) : SessionEntry
+    data class Details(val title: String? = null, val favorite: Boolean = false, override val writtenAt: Long? = null, val parent: SessionParent? = null, val hidden: Boolean = false, val teamId: TeamId? = null, val settled: Boolean = false, val unread: Boolean = false) : SessionEntry
 
     /** How a Routine's run ended: [report] when it has [summary] for the user, else nothing was new; the model doesn't see it. */
     @Serializable @SerialName("outcome")

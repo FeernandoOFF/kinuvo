@@ -83,6 +83,57 @@ class ConnectedServerTest {
         }
     }
 
+    @Test fun serverInboxSyncsSettledAndUnread() = withOwner { owner, _, _ ->
+        val script = Script("A", serverFeatures = setOf(ServerFeature.SessionInbox))
+        connect(owner, script)
+        val sessions = owner.sessions
+        val agent = script.sessionInfo.agentId
+        val id = script.sessionInfo.id
+        script.sessionInfo = script.sessionInfo.copy(unread = true)
+        sessions.loadSessions(agent).join()
+        assertEquals(setOf(id), sessions.state.value.finished)
+
+        sessions.settle(id, settled = true)
+        assertEquals(setOf(id), sessions.state.value.settled)
+        assertEquals(UpdateSessionParams(agent, id, settled = true), script.inboxUpdates.receive())
+        sessions.state.first { it.lists[agent]?.sessions?.single()?.settled == true }
+
+        sessions.view(agent, id).join()
+        assertEquals(UpdateSessionParams(agent, id, seen = true), script.inboxUpdates.receive())
+        sessions.state.first { it.lists[agent]?.sessions?.single()?.unread == false }
+        assertTrue(sessions.state.value.finished.isEmpty())
+
+        requireNotNull(owner.client).setActive(false)
+        script.sessionInfo = script.sessionInfo.copy(settled = false, unread = true)
+        script.event(Api.SessionChanged, script.sessionInfo)
+        sessions.state.first { id in it.finished && id !in it.settled }
+        assertTrue(script.inboxUpdates.tryReceive().isFailure)
+        requireNotNull(owner.client).setActive(true)
+        assertEquals(UpdateSessionParams(agent, id, seen = true), script.inboxUpdates.receive())
+        sessions.state.first { it.lists[agent]?.sessions?.single()?.unread == false }
+        assertTrue(sessions.state.value.finished.isEmpty())
+    }
+
+    @Test fun serverInboxMigratesLocallySettledSessionsOnce() {
+        val prefs = MemoryPreferences()
+        val key = "sessions.settled.test"
+        prefs.set(key, """["session","deleted"]""")
+        prefs.set("sessions.settled.other", """["other-session"]""")
+        withOwner(prefs) { owner, _, _ ->
+            val script = Script("A", serverFeatures = setOf(ServerFeature.SessionInbox))
+            connect(owner, script)
+            val info = script.sessionInfo
+            assertEquals(UpdateSessionParams(info.agentId, info.id, settled = true), script.inboxUpdates.receive())
+            owner.sessions.state.first { info.id in it.settled }
+            withTimeout(5_000) { while (prefs.get(key) != null) yield() }
+            assertEquals("""["other-session"]""", prefs.get("sessions.settled.other"))
+            val otherConnection = Script("B", serverFeatures = setOf(ServerFeature.SessionInbox))
+            connect(owner, otherConnection)
+            owner.sessions.loadSessions(info.agentId).join()
+            assertTrue(otherConnection.inboxUpdates.tryReceive().isFailure)
+        }
+    }
+
     @Test fun mutableTranscriptWindowsPublishAtomicallyAndRetainMessageIds() = withOwner { owner, _, _ ->
         val script = Script("A")
         connect(owner, script)
@@ -516,7 +567,12 @@ class ConnectedServerTest {
         owner.activate()
     }
 
-    private class Script(private val name: String, private val capabilities: SessionCapabilities? = null, private val serverId: String = "test") : FrameConnection {
+    private class Script(
+        private val name: String,
+        private val capabilities: SessionCapabilities? = null,
+        private val serverId: String = "test",
+        private val serverFeatures: Set<ServerFeature> = emptySet(),
+    ) : FrameConnection {
         private val frames = Channel<Frame>(Channel.UNLIMITED)
         override val incoming = frames.receiveAsFlow()
         private val held = ConcurrentHashMap<String, Boolean>()
@@ -529,6 +585,8 @@ class ConnectedServerTest {
         val finished = CompletableDeferred<Unit>()
         val closed = CompletableDeferred<Boolean>()
         val caughtUp = CompletableDeferred<Unit>()
+        val inboxUpdates = Channel<UpdateSessionParams>(Channel.UNLIMITED)
+        var sessionInfo = SessionInfo(SessionId("session"), AgentId("agent"), name)
         var after: Int? = null
         fun hold(method: String, error: Boolean = false) { held[method] = error }
         fun ignore(method: String) { ignored += method }
@@ -555,7 +613,7 @@ class ConnectedServerTest {
 
         private suspend fun respond(request: Frame.Request) {
             when (request.method) {
-                Api.Connect.name -> reply(request, Api.Connect, ConnectResult("token", name, capabilities = ServerCapabilities(serverId), management = true))
+                Api.Connect.name -> reply(request, Api.Connect, ConnectResult("token", name, capabilities = ServerCapabilities(serverId, serverFeatures), management = true))
                 Api.Presence.name -> reply(request, Api.Presence, Unit)
                 Api.Agents.name -> reply(request, Api.Agents, listOf(AgentInfo(AgentId("agent"), name, "none")))
                 Api.Models.name -> { reply(request, Api.Models, ModelsCatalog()); modelsLoaded.send(Unit) }
@@ -566,7 +624,20 @@ class ConnectedServerTest {
                 Api.Tasks.name -> reply(request, Api.Tasks, listOf(TaskInfo("task", "list", "List", name)))
                 Api.CreateTask.name -> reply(request, Api.CreateTask, TaskInfo("new", "list", "List", name))
                 Api.UpdateTask.name -> reply(request, Api.UpdateTask, TaskInfo("task", "list", "List", name))
-                Api.Sessions.name -> reply(request, Api.Sessions, SessionPage(listOf(SessionInfo(SessionId("session"), AgentId("agent"), name)), true))
+                Api.Sessions.name -> {
+                    val params = ProtocolJson.decodeFromJsonElement(Api.Sessions.params, request.params)
+                    val page = if (params.before == null) SessionPage(listOf(sessionInfo), true) else SessionPage(emptyList(), false)
+                    reply(request, Api.Sessions, page)
+                }
+                Api.Session.name -> if (ServerFeature.SessionInbox in serverFeatures) reply(request, Api.Session, sessionInfo)
+                    else frames.send(Frame.Response(request.id, false, error = WireError(WireErrorCode.Internal, "Unsupported in test: ${request.method}")))
+                Api.UpdateSession.name -> {
+                    val params = ProtocolJson.decodeFromJsonElement(Api.UpdateSession.params, request.params)
+                    sessionInfo = sessionInfo.copy(settled = params.settled ?: sessionInfo.settled, unread = sessionInfo.unread && params.seen != true)
+                    event(Api.SessionChanged, sessionInfo)
+                    reply(request, Api.UpdateSession, sessionInfo)
+                    inboxUpdates.send(params)
+                }
                 Api.Send.name -> reply(request, Api.Send, SendResult(SessionId("new"), RunId("run"), "message"))
                 Api.CreateSession.name -> reply(request, Api.CreateSession, SessionInfo(SessionId("new"), AgentId("agent"), name))
                 Api.Agent.name -> reply(request, Api.Agent, details())

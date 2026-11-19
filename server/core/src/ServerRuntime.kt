@@ -103,7 +103,7 @@ class ServerRuntime(
     private var closed = false
     private val lifecycle = Mutex()
 
-    val capabilities: ServerCapabilities get() = ServerCapabilities(harness.serverId, harness.features + setOf(ServerFeature.Screens) + (if (auth.pairable) setOf(ServerFeature.Pairing) else emptySet()) + (if (assembly.devicePush != null) setOf(ServerFeature.Push) else emptySet()),
+    val capabilities: ServerCapabilities get() = ServerCapabilities(harness.serverId, harness.features + setOf(ServerFeature.Screens, ServerFeature.SessionInbox) + (if (auth.pairable) setOf(ServerFeature.Pairing) else emptySet()) + (if (assembly.devicePush != null) setOf(ServerFeature.Push) else emptySet()),
         if (foregroundOnly) ExecutionLifetime.Foreground else ExecutionLifetime.Continuous,
         if (scheduling) WakeSupport.Scheduled else WakeSupport.None, integrations = (harness.integrations + (if (executionFactory != null) mapOf(Integration.Harness to setOf("acp", "remote")) else mapOf(Integration.Harness to setOf("remote")))).mapKeys { it.key.name }, platform = harness.platform, voice = assembly.voice.providers.setup)
     /** Runs going and the events they've produced; a foreground-only host keeps them alive while it can. */

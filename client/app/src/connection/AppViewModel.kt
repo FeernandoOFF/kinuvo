@@ -354,6 +354,7 @@ class AppViewModel(
     fun showView(route: Route) {
         selecting?.cancel()
         selection++
+        if (route !is Route.Chat) repo.leaveView()
         if (route is Route.Chat && !state.value.onboarding) notificationPermission.request()
         if (route is Route.Chat) route.agentId?.let { id ->
             servers.lastView = LastView(id, route.sessionId)

@@ -215,6 +215,12 @@ _Avoid_: Takeover, transfer
 
 **Session**:
 One bounded conversation with an Agent, including one per member of a Team; its transcript does not carry into the next Session, only Memory does.
+
+**Settled**:
+A Session the user has set aside from the open inbox.
+
+**Unread**:
+A Session with a reply or Routine report the user has yet to see.
 _Avoid_: Conversation, context
 
 **Session settings**:

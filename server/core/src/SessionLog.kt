@@ -4,6 +4,7 @@ import kinuvo.server.store.Store
 import kinuvo.protocol.session.AgentEvent
 import kinuvo.protocol.session.LiveState
 import kinuvo.protocol.approval.PendingInteraction
+import kinuvo.protocol.execution.ExecutionPhase
 import kinuvo.protocol.routine.RoutineRef
 import kinuvo.protocol.session.SessionChange
 import kinuvo.protocol.session.SessionEntry
@@ -47,6 +48,8 @@ class SessionLog(private val store: Store, private val clock: () -> Long = { Clo
     private val counts = HashMap<SessionId, Int>()
     private val live = HashMap<SessionId, LiveState>()
     private val completions = HashMap<SessionId, AgentEvent>()
+    private enum class RunReply { None, Chat, Routine, Report }
+    private val runReplies = HashMap<SessionId, RunReply>()
     suspend fun completion(sessionId: SessionId): AgentEvent? = lock.withLock { completions[sessionId] }
     private val subscribers = HashMap<SessionId, MutableSet<Subscriber>>()
     private val changeListeners = AtomicReference(emptySet<(SessionInfo) -> Unit>())
@@ -102,6 +105,7 @@ class SessionLog(private val store: Store, private val clock: () -> Long = { Clo
         counts -= sessionId
         live -= sessionId
         completions -= sessionId
+        runReplies -= sessionId
         subscribers -= sessionId
         Unit
         }
@@ -130,13 +134,30 @@ class SessionLog(private val store: Store, private val clock: () -> Long = { Clo
         changed(store.session(agentId, sessionId).copy(status = statusOf(sessionId)))
     }
 
-    suspend fun updateDetails(agentId: AgentId, sessionId: SessionId, title: String?, favorite: Boolean?): SessionInfo = lock.withLock {
-        val previous = store.entries(agentId, sessionId).filterIsInstance<SessionEntry.Details>().lastOrNull() ?: SessionEntry.Details()
-        val next = previous.copy(writtenAt = clock(), title = if (title == null) previous.title else title.trim().take(MAX_SESSION_TITLE).ifEmpty { null }, favorite = favorite ?: previous.favorite)
+    suspend fun updateDetails(
+        agentId: AgentId, sessionId: SessionId, title: String? = null, favorite: Boolean? = null,
+        settled: Boolean? = null, seen: Boolean? = null,
+    ): SessionInfo = updateDetails(agentId, sessionId) { previous ->
+        previous.copy(
+            title = if (title == null) previous.title else title.trim().take(MAX_SESSION_TITLE).ifEmpty { null },
+            favorite = favorite ?: previous.favorite,
+            settled = settled ?: previous.settled,
+            unread = previous.unread && seen != true,
+        )
+    }
+
+    internal suspend fun updateDetails(agentId: AgentId, sessionId: SessionId, edit: (SessionEntry.Details) -> SessionEntry.Details): SessionInfo = lock.withLock {
+        val previous = store.sessionDetails(agentId, sessionId)
+        val next = edit(previous)
+        if (next != previous) saveDetails(agentId, sessionId, next)
+        store.session(agentId, sessionId).copy(status = statusOf(sessionId)).also { if (next != previous) changed(it) }
+    }
+
+    private suspend fun saveDetails(agentId: AgentId, sessionId: SessionId, details: SessionEntry.Details) {
         val seq = count(agentId, sessionId)
+        val next = details.copy(writtenAt = clock())
         store.append(agentId, sessionId, next)
         saved(agentId, sessionId, seq, next)
-        store.session(agentId, sessionId).copy(status = statusOf(sessionId)).also { changed(it) }
     }
 
     override suspend fun append(agentId: AgentId, sessionId: SessionId, entry: SessionEntry) = lock.withLock {
@@ -157,6 +178,14 @@ class SessionLog(private val store: Store, private val clock: () -> Long = { Clo
 
     private fun saved(agentId: AgentId, sessionId: SessionId, seq: Int, entry: SessionEntry) {
         counts[sessionId] = seq + 1
+        runReplies[sessionId]?.let { reply ->
+            runReplies[sessionId] = when {
+                entry is SessionEntry.UserMessage && entry.routine != null -> RunReply.Routine
+                entry is SessionEntry.Outcome -> if (entry.report) RunReply.Report else RunReply.Routine
+                entry is SessionEntry.AssistantMessage && entry.text.isNotBlank() && reply == RunReply.None -> RunReply.Chat
+                else -> reply
+            }
+        }
         live[sessionId]?.let {
             val state = it.on(entry)
             if (state.queued.isNotEmpty() || state.running || state.reflectionId != null || state.executionPhase != null || state.entries.isNotEmpty() || state.pending.isNotEmpty() || state.children.isNotEmpty())
@@ -177,13 +206,30 @@ class SessionLog(private val store: Store, private val clock: () -> Long = { Clo
             is AgentEvent.RunFinished, is AgentEvent.RunError -> completions[sessionId] = event
             else -> Unit
         }
-        val before = statusOf(sessionId)
-        val state = (live[sessionId] ?: LiveState()).on(event)
+        val previous = live[sessionId] ?: LiveState()
+        val state = previous.on(event)
+        val started = event is AgentEvent.RunStarted || event is AgentEvent.ExecutionPhaseChanged &&
+            event.phase == ExecutionPhase.Running && previous.executionPhase != ExecutionPhase.Running &&
+            previous.executionPhase != ExecutionPhase.RequiresAction
+        if (started) runReplies[sessionId] = RunReply.None
+        val reply = when {
+            event is AgentEvent.RunFinished || event is AgentEvent.RunError ||
+                event is AgentEvent.ExecutionPhaseChanged && event.phase in setOf(ExecutionPhase.Idle, ExecutionPhase.Lost) ->
+                runReplies.remove(sessionId)
+            else -> null
+        }
+        val unread = event is AgentEvent.RunFinished && (reply == RunReply.Chat || reply == RunReply.Report)
+        val unsettle = started || state.status == SessionStatus.Waiting && previous.status != SessionStatus.Waiting
+        val inboxChanged = if (unread || unsettle) {
+            val details = store.sessionDetails(agentId, sessionId)
+            val next = details.copy(settled = details.settled && !unsettle, unread = details.unread || unread)
+            (next != details).also { if (it) saveDetails(agentId, sessionId, next) }
+        } else false
         if (state.queued.isNotEmpty() || state.running || state.reflectionId != null || state.executionPhase != null || state.entries.isNotEmpty() || state.pending.isNotEmpty() || state.children.isNotEmpty())
                 live[sessionId] = state else live.remove(sessionId)
         if (event.isLive) deliver(SessionUpdate(agentId, sessionId, SessionChange.Event(event)))
         eventListeners.load().forEach { it(agentId, sessionId, event) }
-        if (state.status != before) changed(store.session(agentId, sessionId).copy(status = state.status))
+        if (inboxChanged || state.status != previous.status) changed(store.session(agentId, sessionId).copy(status = state.status))
     }
 
     /**

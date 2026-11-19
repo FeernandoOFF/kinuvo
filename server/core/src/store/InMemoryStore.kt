@@ -53,13 +53,21 @@ class InMemoryStore(private val clock: () -> Long = { Clock.System.now().toEpoch
         info(agentId, sessionId)
     }
 
+    override suspend fun sessionDetails(agentId: AgentId, sessionId: SessionId) = lock.withLock {
+        validate(agentId, sessionId)
+        details(sessionId)
+    }
+
+    private fun details(sessionId: SessionId) =
+        sessions[sessionId].orEmpty().filterIsInstance<SessionEntry.Details>().lastOrNull() ?: SessionEntry.Details()
+
     private fun info(agentId: AgentId, sessionId: SessionId): SessionInfo {
         val entries = sessions[sessionId].orEmpty()
-        val details = entries.filterIsInstance<SessionEntry.Details>().lastOrNull()
+        val details = details(sessionId)
         val routine = entries.filterIsInstance<SessionEntry.Started>().firstOrNull()?.routine
-        return SessionInfo(sessionId, agentId, details?.title ?: routine?.name ?: entries.filterIsInstance<SessionEntry.UserMessage>().firstOrNull()?.text?.take(60) ?: FileStore.NEW_TITLE,
+        return SessionInfo(sessionId, agentId, details.title ?: routine?.name ?: entries.filterIsInstance<SessionEntry.UserMessage>().firstOrNull()?.text?.take(60) ?: FileStore.NEW_TITLE,
             routine = routine, settings = entries.filterIsInstance<SessionEntry.Settings>().lastOrNull()?.settings ?: SessionSettings(),
-            answered = entries.any { it is SessionEntry.UserMessage && it.routine == null || it is SessionEntry.Outcome && it.report }, favorite = details?.favorite ?: false, createdAt = created[sessionId], parent = details?.parent, teamId = details?.teamId, hidden = details?.hidden ?: false)
+            answered = entries.any { it is SessionEntry.UserMessage && it.routine == null || it is SessionEntry.Outcome && it.report }, favorite = details.favorite, createdAt = created[sessionId], parent = details.parent, teamId = details.teamId, hidden = details.hidden, settled = details.settled, unread = details.unread)
     }
 
     override suspend fun createSession(agentId: AgentId, instructions: String, routine: RoutineRef?): SessionInfo = lock.withLock {

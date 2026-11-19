@@ -149,15 +149,8 @@ open class AgentRuntime(
     }
 
     /** Renames [sessionId] (blank: back to its first message) or marks it a favorite. */
-    suspend fun update(agent: Agent, sessionId: SessionId, title: String?, favorite: Boolean?): SessionInfo {
-        val before = store.entries(agent.id, sessionId).filterIsInstance<SessionEntry.Details>().lastOrNull() ?: SessionEntry.Details()
-        val details = before.copy(
-            title = if (title == null) before.title else title.trim().take(MAX_SESSION_TITLE).ifEmpty { null },
-            favorite = favorite ?: before.favorite,
-        )
-        if (details != before) store.append(agent.id, sessionId, details)
-        return store.session(agent.id, sessionId)
-    }
+    suspend fun update(agent: Agent, sessionId: SessionId, title: String?, favorite: Boolean?): SessionInfo =
+        log.updateDetails(agent.id, sessionId, title, favorite)
 
     /** `/name rest` activates a user-invocable Skill; returns null when [text] isn't a Skill command. */
     suspend fun slashActivation(agent: Agent, text: String) = skills.slashActivation(agent, text)
