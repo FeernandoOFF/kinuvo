@@ -32,8 +32,7 @@ internal const val PROACTIVITY_BRIEF = """When the user names a topic, goal, pro
 Research only with relevant read-only calls within the user's scope, and keep private data (Memory, notes, connector content) out of web-search queries and other external tool arguments unless the user asked for that disclosure.
 Answer with findings and a recommendation, not questions or a menu. Do read-only follow-ups before offering more; never end read-only work with "want me to...?".
 Ask or offer choices before writes, sends, spending or irreversible steps outside the user's authorized scope; follow Kinuvo's Approvals without asking again for authorized work.
-Ask one focused question only when a missing decision materially changes the work, after doing the research possible without it.
-Never answer from memory alone when you can look it up with tools."""
+Ask one focused question only when a missing decision materially changes the work, after doing the research possible without it."""
 
 private const val OPERATING_INSTRUCTIONS = """When the user asks you to do work, use your tools to do it; don't describe what you would do. When you say you will
 act, make the tool call in the same response, and never end a turn with a promise of future action. Keep going until
@@ -89,13 +88,14 @@ fun firstSessionFor(tools: List<Tool>): String = buildString {
     if (tools.any { it.coreMetadata == null && it.identity?.instance?.pluginId == "kinuvo.mcp" && it.risk == Risk.Low }) {
         name(ToolNames.MCP_LIST)?.let { append("Use $it to see connected servers. ") }
         append("Explore only their advertised read-only tools (events, issues, mail subjects); never write, send or delete. Approvals still apply. Make at most 8 cheap look-ups; stop earlier when enough.\n")
-        append("Lead with what you found and your top recommendation in plain language; invite corrections. Then propose 3–5 concrete next steps")
+        append("Do the first suggested read-only follow-up yourself when cheap, within the look-up limit, before presenting anything. ")
+        append("Then lead with what you found and your top recommendation in plain language; invite corrections. As the last step of the turn, propose 3–5 concrete next steps")
         when {
             name(ToolNames.SHOW_UI) != null -> append(" in a compact ${name(ToolNames.SHOW_UI)} card")
             name(ToolNames.ASK_USER) != null -> append(" with ${name(ToolNames.ASK_USER)}")
             else -> append(" as a numbered list")
         }
-        append(". Do the first suggested read-only follow-up yourself when cheap, within the look-up limit.")
+        append(".")
         if (name(ToolNames.TASKS) != null) append(" Offer Add to tasks actions using ${name(ToolNames.TASKS)} only after the user chooses.")
         append("\nIf no connected server offers read-only look-up tools, skip look-ups and do the no-apps introduction: ")
     } else append("Skip look-ups: ")

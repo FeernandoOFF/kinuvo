@@ -50,9 +50,9 @@ class InstructionsTest {
             assertEquals("tasks" in names, "Add to tasks" in text)
             assertTrue("read-only" in text && "at most 8" in text && "Approvals still apply" in text)
             assertTrue("invite corrections" in text && "3–5" in text)
-            val recommendation = text.indexOf("Lead with what you found and your top recommendation")
-            assertTrue(recommendation >= 0 && recommendation < text.indexOf("Then propose 3–5"))
-            assertTrue("Do the first suggested read-only follow-up yourself when cheap, within the look-up limit" in text)
+            val followUp = text.indexOf("Do the first suggested read-only follow-up yourself when cheap, within the look-up limit, before presenting anything")
+            val recommendation = text.indexOf("lead with what you found and your top recommendation")
+            assertTrue(followUp >= 0 && followUp < recommendation && recommendation < text.indexOf("As the last step of the turn, propose 3–5"))
             when {
                 "show_ui" in names -> assertTrue("compact show_ui card" in text)
                 "ask_user" in names -> assertTrue("with ask_user" in text)
@@ -189,7 +189,7 @@ class InstructionsTest {
             harness.composer.compose(fixture.agent, requireModel = false).context
         } finally { harness.close() }
         val brief = compact.substringAfter("future action.\n").substringBefore("\nKeep replies short.")
-        assertEquals(6, brief.lines().size)
+        assertEquals(5, brief.lines().size)
         assertTrue(brief.startsWith("When the user names a topic, goal, problem or open-ended request, research first"))
         assertTrue("web search, connected apps, notes and Memory" in brief)
         assertTrue("Research only with relevant read-only calls within the user's scope" in brief)
@@ -199,7 +199,7 @@ class InstructionsTest {
         assertTrue("writes, sends, spending or irreversible steps outside the user's authorized scope" in brief)
         assertTrue("follow Kinuvo's Approvals without asking again for authorized work" in brief)
         assertTrue("Ask one focused question" in brief && "after doing the research possible without it" in brief)
-        assertTrue("Never answer from memory alone when you can look it up with tools" in brief)
+        assertFalse("Never answer from memory alone" in brief)
         assertEquals(1, full.windowed(brief.length).count { it == brief })
         assertEquals(1, full.split("When the user names a topic").size - 1)
         val frozen = instructionsFor(fixture.agent, fixture.docs)
