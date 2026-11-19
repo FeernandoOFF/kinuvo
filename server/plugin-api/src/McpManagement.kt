@@ -1,5 +1,6 @@
 package kinuvo.server.plugin
 
+import io.ktor.http.Url
 import kinuvo.harness.Agent
 import kinuvo.protocol.mcp.*
 import kinuvo.protocol.routine.*
@@ -38,6 +39,14 @@ fun List<McpServerInfo>.effectiveFor(id: AgentId) = filter {
 
 fun List<McpServerInfo>.requireNewServer(p: SaveMcpParams) {
     require(none { it.name == p.server.name } && effectiveFor(p.agentId).none {
-        p.server.url != null && it.url?.trimEnd('/') == p.server.url?.trimEnd('/')
+        p.server.url != null && it.url?.normalizedMcpEndpoint() == p.server.url?.normalizedMcpEndpoint()
     }) { "MCP server is already configured or its name is reserved; use mcp_list, mcp_test or mcp_login. Intentional replacement requires custom mcp_add with Approval." }
+}
+
+fun String.normalizedMcpEndpoint(): String {
+    val url = Url(this)
+    val port = if (url.port == url.protocol.defaultPort) "" else ":${url.port}"
+    val suffix = substringAfter("://").dropWhile { it != '/' && it != '?' && it != '#' }
+    val path = suffix.takeWhile { it != '?' && it != '#' }
+    return "${url.protocol.name.lowercase()}://${url.host.lowercase()}$port${path.trimEnd('/')}${suffix.drop(path.length)}"
 }

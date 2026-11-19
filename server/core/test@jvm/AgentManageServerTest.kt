@@ -103,6 +103,10 @@ class AgentManageServerTest {
             }
             reject(todoist)
             reject(todoist.copy(name = "signed-in-alias", url = todoist.url + "/"))
+            for (url in listOf("https://AI.TODOIST.NET/mcp", "https://ai.todoist.net:443/mcp", "HTTPS://AI.TODOIST.NET:443/mcp/")) {
+                reject(todoist.copy(name = "alias", url = url))
+                assertFalse("todoist:" in call("mcp_list").output.substringAfter("Available presets:"))
+            }
             reject(todoist.copy(url = "https://other.example/mcp"))
             reject(todoist.copy(scope = ConfigScope.Shared, url = "https://other.example/mcp", agents = listOf(AgentId("other"))))
             reject(todoist.copy(scope = ConfigScope.Shared, name = "shared-alias"))
@@ -115,6 +119,19 @@ class AgentManageServerTest {
             assertTrue("notion: Notion" in available)
             assertFalse(call("mcp_add", """{"preset":"notion"}""").isError)
             assertFalse(call("mcp_add", """{"preset":"todoist"}""").isError)
+        }
+    }
+
+    @Test fun noPresetsWithoutMcpBackend() = runBlocking {
+        lateinit var agent: Agent
+        TestServer.start(scenario = { agent = agent("work") }).use { server ->
+            val session = server.startSession(agent.id)
+            val composed = server.harness.composer.compose(agent, session.id)
+            val result = composed.gate.invoke(
+                SessionEntry.ToolCall(ToolCallId("list"), "mcp_list", "{}"),
+                ToolTurn(emit = { assertFalse(it is AgentEvent.InteractionRequested) }))
+            assertFalse(result.isError, result.output)
+            assertEquals("None.", result.output.substringAfter("Available presets:").trim())
         }
     }
 

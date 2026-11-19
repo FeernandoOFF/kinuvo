@@ -15,6 +15,7 @@ import kotlinx.serialization.json.*
 
 /** What the management tools read and change; the Server supplies it from the same handlers as Settings. */
 class AgentManagement(private val harness: AgentRuntime, private val admin: Admin) {
+    val mcpAvailable get() = harness.mcp !== McpManagement.Unavailable
     val toolGroups get() = harness.integrations[Integration.Tools].orEmpty().toSet()
     suspend fun agents() = admin.agents()
     suspend fun details(id: AgentId) = throwing<AgentError, AgentDetails> { admin.details(admin.agent(id)) }
@@ -227,7 +228,9 @@ private class McpList(management: AgentManagement, scope: AgentManageScope) : Ma
     override suspend fun execute(args: JsonObject): String {
         val servers = management.mcpServers(scope.agentId)
         val effective = servers.effectiveFor(scope.agentId)
-        val available = McpCatalog.filter { preset -> effective.none { it.url?.trimEnd('/') == preset.url.trimEnd('/') } }
+        val available = if (management.mcpAvailable) McpCatalog.filter { preset ->
+            effective.none { it.url?.normalizedMcpEndpoint() == preset.url.normalizedMcpEndpoint() }
+        } else emptyList()
         return buildString {
             appendLine("Configured MCP servers:")
             appendLine(servers.joinToString("\n") { s ->
@@ -242,7 +245,7 @@ private class McpList(management: AgentManagement, scope: AgentManageScope) : Ma
 }
 
 private class McpAdd(management: AgentManagement, scope: AgentManageScope) : ManageTool(management, scope) {
-    override val descriptor = ToolSpec(ToolNames.MCP_ADD, "Add or replace your own MCP server. Give preset (an id from mcp_list), or name and url/command. OAuth presets need mcp_login next; Token and OwnClient presets need setup in Settings. Secret env and headers values are hidden from Approval previews.", buildJsonObject {
+    override val descriptor = ToolSpec(ToolNames.MCP_ADD, "Add or replace your own MCP server. Give preset (an id from mcp_list), or name and url/command. OAuth presets need the user to sign in after they are added; Token and OwnClient presets need setup in Settings. Secret env and headers values are hidden from Approval previews.", buildJsonObject {
         put("type", "object")
         putJsonObject("properties") {
             listOf("preset", "name", "url", "command").forEach { key -> putJsonObject(key) { put("type", "string") } }
