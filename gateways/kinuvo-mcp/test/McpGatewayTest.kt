@@ -26,12 +26,13 @@ class McpGatewayTest {
                 val composed = server.harness.composer.compose(who, session.id, scope = ToolScope.only("agent_manage"))
                 val access = McpAccess()
                 val run = McpAccess.Run(composed.tools, composed.gate, ToolTurn(emit = {}), SupervisorJob())
-                val token = access.issue(run)
+                val credential = McpAccess.Session().also { it.run = run }
+                val token = access.issue(credential)
                 try {
                     val response = McpEndpoint(access).handle("Bearer $token", """{"jsonrpc":"2.0","id":1,"method":"tools/list"}""")
                     return Json.parseToJsonElement(response.body!!).jsonObject.getValue("result").jsonObject.getValue("tools").jsonArray
                         .map { it.jsonObject.getValue("name").jsonPrimitive.content }.toSet()
-                } finally { access.revoke(run) }
+                } finally { access.revoke(credential); run.job.cancel() }
             }
             assertEquals(setOf("agent_get", "agent_update", "agent_create", "mcp_list", "mcp_add", "mcp_remove", "mcp_test", "mcp_login", "session_configure"), names(agent))
             assertTrue(names(caller).isEmpty())
@@ -51,7 +52,8 @@ class McpGatewayTest {
             val access = McpAccess()
             val endpoint = McpEndpoint(access)
             val run = McpAccess.Run(composed.tools, composed.gate, ToolTurn(emit = { server.harness.log.publish(caller.id, session.id, it) }), SupervisorJob())
-            val token = access.issue(run)
+            val credential = McpAccess.Session().also { it.run = run }
+            val token = access.issue(credential)
             suspend fun call(name: String, args: JsonObject): String {
                 val response = endpoint.handle("Bearer $token", buildJsonObject {
                     put("jsonrpc", "2.0"); put("id", 1); put("method", "tools/call")
@@ -77,7 +79,7 @@ class McpGatewayTest {
             val result = Json.parseToJsonElement(waiting.await()).jsonArray.single().jsonObject
             assertEquals(id, result.getValue("sessionId").jsonPrimitive.content)
             assertEquals("child answer", result.getValue("result").jsonPrimitive.content)
-            access.revoke(run)
+            access.revoke(credential); run.job.cancel()
         }
     }
 
@@ -95,7 +97,8 @@ class McpGatewayTest {
             val run = McpAccess.Run(composed.tools, composed.gate, ToolTurn(emit = { event ->
                 server.harness.log.publish(agent.id, session.id, event)
             }), SupervisorJob(), maxResultTokens = 100)
-            val token = access.issue(run)
+            val credential = McpAccess.Session().also { it.run = run }
+            val token = access.issue(credential)
             fun request(method: String, params: JsonObject = JsonObject(emptyMap())) = buildJsonObject {
                 put("jsonrpc", "2.0"); put("id", 1); put("method", method); put("params", params)
             }.toString()
@@ -118,7 +121,7 @@ class McpGatewayTest {
             assertTrue(response.contains("chars omitted"))
             assertTrue(response.length < 2000)
             assertTrue(server.harness.log.pending(session.id).isEmpty())
-            access.revoke(run)
+            access.revoke(credential); run.job.cancel()
             assertEquals(McpError.InvalidCredential, either { access.resolve("Bearer $token") }.leftOrNull())
             assertEquals(401, endpoint.handle("Bearer $token", request("tools/list")).status)
         }

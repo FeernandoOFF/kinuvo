@@ -122,7 +122,7 @@ The tools an Agent can find, describe and call on demand instead of each being s
 _Avoid_: Tool registry, toolbox
 
 **KinuvoMCP**:
-The Server's tools offered over HTTP MCP to external harnesses running Kinuvo Agents, with per-run credentials and the same Tool scope and Approvals.
+The Server's tools offered over HTTP MCP to external harnesses running Kinuvo Agents, with per-Session credentials and the same per-turn Tool scope and Approvals.
 _Avoid_: Kinuvo plugin, tool bridge
 
 **Script**:

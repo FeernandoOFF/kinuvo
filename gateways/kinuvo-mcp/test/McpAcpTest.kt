@@ -24,14 +24,13 @@ import kotlin.test.*
 
 /** A real subprocess speaks ACP and calls the real Server's HTTP endpoint. */
 class McpAcpTest {
-    @Test fun twoTurnsRenewCredentialsAndCancelThenResume() = runBlocking {
+    @Test fun twoTurnsReuseCredentialsAndCancelThenResume() = runBlocking {
         val directory = Files.createTempDirectory("kinuvo-mcp-acp")
         val script = directory.resolve("agent.py")
         Files.writeString(script, """
             import sys,json,threading,urllib.request,urllib.error,os
             lock=threading.Lock()
             current=None
-            old=None
             prompts={}
             cancelled=threading.Event()
             def emit(v):
@@ -62,6 +61,7 @@ class McpAcpTest {
                 elif m in ('session/new','session/resume'):
                     servers=r['params'].get('mcpServers',[])
                     assert len(servers)==1, servers
+                    assert current is None, "Already loaded"
                     current=servers[0]
                     status,initialized=http(current,'initialize')
                     instructions=initialized['result']['instructions']
@@ -69,14 +69,15 @@ class McpAcpTest {
                     assert 'IDENTITY_SENTINEL' in instructions and 'SOUL_SENTINEL' in instructions, instructions
                     assert 'MEMORY_SENTINEL' not in instructions and 'USER_NOTES_SENTINEL' not in instructions, instructions
                     assert 'PLUGIN_SENTINEL' in instructions and 'Current Skills:' in instructions, instructions
-                    if old:
-                        assert old['headers']!=current['headers']
-                        assert http(old,'tools/list')[0]==401
-                    old=current
                     reply(r,{'sessionId':'external'} if m=='session/new' else {})
                 elif m=='session/prompt':
                     text=r['params']['prompt'][0]['text']
-                    if text=='disconnect': os._exit(0)
+                    if text=='disconnect':
+                        with open('previous-mcp.json','w') as f: json.dump(current,f)
+                        os._exit(0)
+                    if text=='resume':
+                        with open('previous-mcp.json') as f: previous=json.load(f)
+                        assert http(previous,'tools/list')[0]==401
                     if text.startswith('private'):
                         reply(r,{})
                         emit({'jsonrpc':'2.0','id':'private-question','method':'session/request_permission','params':{'sessionId':'external','title':'Private tool','toolCall':{'rawInput':{'serverName':'private','toolName':'deploy'}},'options':([{'optionId':'yes','name':'Always allow','kind':'allow_always'}] if text.endswith('always') else [
@@ -98,7 +99,8 @@ class McpAcpTest {
                     update({'sessionUpdate':'state_update','state':'idle','stopReason':'end_turn'})
                 elif m=='session/cancel':
                     cancelled.set()
-                    assert http(current,'tools/list')[0]==401
+                    status,result=http(current,'tools/call')
+                    assert status==200 and result['error']['message']=='No turn is active'
                     update({'sessionUpdate':'state_update','state':'idle','stopReason':'cancelled'})
         """.trimIndent())
         val access = McpAccess()
@@ -207,7 +209,7 @@ class McpAcpTest {
             phase(ExecutionPhase.Idle)
         } finally {
             server.stop(); listener.stop()
-            Files.deleteIfExists(script); Files.deleteIfExists(directory)
+            Files.deleteIfExists(directory.resolve("previous-mcp.json")); Files.deleteIfExists(script); Files.deleteIfExists(directory)
         }
     }
 }

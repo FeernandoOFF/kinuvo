@@ -14,16 +14,19 @@ import kotlin.uuid.Uuid
 
 class McpReply(val status: Int, val body: String? = null)
 
-/** Stateless Streamable HTTP, with JSON responses. Credentials bind every request to one run. */
+/** Stateless Streamable HTTP, with JSON responses. Credentials bind requests to an execution Session. */
 class McpEndpoint(private val access: McpAccess) {
     suspend fun handle(authorization: String?, body: String): McpReply {
         val authenticated = either { access.resolve(authorization) }
-        val run = authenticated.getOrNull() ?: return McpReply(401, ProtocolJson.encodeToString(authenticated.leftOrNull()!!.toWireError()))
+        val session = authenticated.getOrNull() ?: return McpReply(401, ProtocolJson.encodeToString(authenticated.leftOrNull()!!.toWireError()))
         val message = try { ProtocolJson.parseToJsonElement(body).jsonObject }
         catch (_: IllegalArgumentException) { return error(JsonNull, -32700, "Invalid JSON") }
         val id = message["id"] ?: return McpReply(202)
         val method = (message["method"] as? JsonPrimitive)?.content
         val params = message["params"] as? JsonObject ?: JsonObject(emptyMap())
+        if (method == "ping") return result(id, JsonObject(emptyMap()))
+        if (method !in setOf("initialize", "tools/list", "tools/call")) return error(id, -32601, "Unknown method")
+        val run = session.run?.takeIf { it.job.isActive } ?: return error(id, -32001, "No turn is active")
         return try {
             when (method) {
                 "initialize" -> result(id, buildJsonObject {
@@ -32,7 +35,6 @@ class McpEndpoint(private val access: McpAccess) {
                     putJsonObject("capabilities") { putJsonObject("tools") { put("listChanged", false) } }
                     putJsonObject("serverInfo") { put("name", "kinuvo"); put("version", "1") }
                 })
-                "ping" -> result(id, JsonObject(emptyMap()))
                 "tools/list" -> result(id, buildJsonObject {
                     put("tools", JsonArray(run.tools.advertised.map { tool -> buildJsonObject {
                         put("name", tool.name); put("description", tool.description); put("inputSchema", tool.schema)
@@ -58,7 +60,11 @@ class McpEndpoint(private val access: McpAccess) {
                 }
                 else -> error(id, -32601, "Unknown method")
             }
-        } catch (e: CancellationException) { throw e }
+        } catch (e: CancellationException) {
+            currentCoroutineContext().ensureActive()
+            if (run.job.isActive) throw e
+            error(id, -32001, "No turn is active")
+        }
         catch (_: IllegalArgumentException) { error(id, -32602, "Invalid params") }
         catch (_: Exception) { error(id, -32603, "Tool request failed") }
     }

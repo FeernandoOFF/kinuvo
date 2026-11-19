@@ -26,7 +26,7 @@ data class ExecutionInput(
 /** Source insertion identity; null means unavailable, never rejection or foreground completion. */
 data class ExecutionAcceptance(val messageId: String? = null)
 
-/** HTTP MCP access for this run only. Never include credentials in diagnostics. */
+/** HTTP MCP access for this execution Session. Never include credentials in diagnostics. */
 class McpServerDescriptor(val url: String, val authorization: String, val toolNames: Set<String> = emptySet()) {
     override fun toString() = "McpServerDescriptor($url)"
 }

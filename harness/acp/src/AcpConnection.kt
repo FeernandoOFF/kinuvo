@@ -29,7 +29,9 @@ class AcpConnection private constructor(
     private val protocol: Protocol,
     val client: Client,
 ) {
-    private var offered: McpServerDescriptor? = null
+    @Volatile private var offered: McpServerDescriptor? = null
+
+    internal fun offer(tools: McpServerDescriptor?) { offered = tools }
 
     suspend fun login(methodId: String) = client.login(AuthMethodId(methodId))
 
