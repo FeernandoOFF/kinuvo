@@ -6,6 +6,8 @@ import kinuvo.server.store.InMemoryStore
 import kinuvo.server.execution.*
 import kinuvo.protocol.*
 import kinuvo.protocol.approval.*
+import kinuvo.protocol.capability.CapabilityState
+import kinuvo.protocol.capability.ServerCapabilities
 import kinuvo.protocol.execution.*
 import kinuvo.protocol.session.*
 import kinuvo.protocol.agent.AgentId
@@ -16,6 +18,20 @@ import kotlin.test.*
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class ExecutionCoordinatorTest {
+    @Test fun newSessionUsesLastNegotiatedAttachmentTypes() = runTest {
+        val registry = registry()
+        val coordinator = ExecutionCoordinator(registry, null, backgroundScope, SessionLog(InMemoryStore()))
+        val agent = AgentId("a")
+        val readiness = ExecutionReadiness(true, true)
+        val server = ServerCapabilities("server")
+        assertEquals(emptyMap(), coordinator.capabilities(agent, null, readiness, server, 0).attachments)
+        registry.negotiated("c", ExecutionCapabilities(supportedMimeTypes = setOf("image/png", "text/plain")))
+        assertEquals(
+            mapOf("image/png" to CapabilityState(), "text/plain" to CapabilityState()),
+            coordinator.capabilities(agent, null, readiness, server, 0).attachments,
+        )
+    }
+
     @Test fun durableOutputPrecedesTerminalAndSubmissionRetryDoesNotResend() = runTest {
         val registry = registry()
         val log = SessionLog(InMemoryStore())

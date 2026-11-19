@@ -11,7 +11,7 @@ The `agent_manage` Toolset holds `agent_get`, `agent_update`, `agent_create`, `m
 
 A tool's `preview(args)` builds the Approval's `ChangePreview` on the Server; Approvals shown outside Kinuvo use its text. A preview that fails refuses the call before anyone is asked, as do arguments a tool doesn't declare. An Approval with a preview carries no raw arguments. Environment and header values never appear in it.
 
-`agent_update`, `agent_create`, `mcp_add` and `mcp_remove` mark their Action `alwaysAsk` and not trustable: they ask at every Risk tolerance and never save a Trust rule. `session_configure` and `mcp_login` follow the Risk tolerance.
+`agent_update`, `agent_create`, custom URL/command calls to `mcp_add` and `mcp_remove` mark their Action `alwaysAsk` and not trustable: they ask at every Risk tolerance and never save a Trust rule. `session_configure`, `mcp_login` and catalog `mcp_add(preset)` follow the Session's Risk tolerance. Preset additions are not trustable; only catalog arguments are accepted, and Token or OwnClient presets require user setup in Settings.
 
 Chat never loosens safety. Agent Risk tolerance, Trust and Deny rules, Exec backend, Workspace and tool groups the Server lacks are not parameters; naming them fails with a pointer to Settings. A Session's Risk tolerance may only be lowered. `agent_create` makes a blank Agent from defaults, never a clone. MCP changes touch only the Agent's own servers. `mcp_login` shows its sign-in link through the `ask_user` form and completes with the address the user pastes back.
 

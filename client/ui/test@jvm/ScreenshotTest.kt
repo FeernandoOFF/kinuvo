@@ -8,6 +8,7 @@ import kinuvo.app.connection.*
 import kinuvo.app.session.*
 import kinuvo.app.agent.*
 import kinuvo.app.settings.*
+import kinuvo.app.settings.McpCatalog
 import kinuvo.ui.agent.*
 import kinuvo.ui.settings.*
 import kinuvo.app.board.*

@@ -1,6 +1,7 @@
 package kinuvo.server
 
 import kinuvo.harness.Agent
+import kinuvo.harness.AgentDoc
 import kinuvo.server.plugin.PluginTools
 import kinuvo.server.plugin.RunContext
 import kinuvo.server.plugin.instance
@@ -69,6 +70,7 @@ import kinuvo.protocol.capability.ExecutionLocation
 import kinuvo.protocol.capability.ServerFeature
 import kinuvo.protocol.capability.Integration
 import kinuvo.protocol.capability.CapabilityState
+import kinuvo.protocol.capability.Availability
 import kinuvo.protocol.capability.Support
 import kinuvo.protocol.capability.Authorization
 import kinuvo.protocol.capability.ResolvedTool
@@ -137,7 +139,7 @@ class RunComposer internal constructor(
     override suspend fun run(agentId: AgentId, sessionId: SessionId, input: ExecutionInput): NativeRun {
         val agent = store.agents().firstOrNull { it.id == agentId } ?: throw ServerException(AgentError.NotFound(agentId))
         return when (val kind = input.kind) {
-            is RunKind.Chat -> compose(agent, sessionId, taskId = kind.taskId, catalogs = kind.catalogs ?: uiCatalogs.forRun(), reports = kind.reports)
+            is RunKind.Chat -> compose(agent, sessionId, taskId = kind.taskId, catalogs = kind.catalogs ?: uiCatalogs.forRun(), reports = kind.reports, discovery = kind.discovery && kind.report == null)
             is RunKind.Routine -> compose(agent, sessionId, routine = kind.turn)
             is RunKind.Reflection -> error("A Reflection has no chat run")
         }
@@ -173,9 +175,10 @@ class RunComposer internal constructor(
      */
     private class Effective(val agent: Agent, val info: ModelInfo?, val provider: ModelProvider?, val profile: ModelProfile, val memoryCap: Int, val userCap: Int)
 
-    private suspend fun effective(agent: Agent, sessionId: SessionId?, settings: SessionSettings? = null): Effective {
+    private suspend fun effective(agent: Agent, sessionId: SessionId?, settings: SessionSettings? = null, requireModel: Boolean = true): Effective {
         val configured = supported(agent.with(settings ?: sessionId?.let { store.session(agent.id, it).settings } ?: SessionSettings()))
             .let { it.copy(config = it.config.copy(provider = providerId(it.config.provider))) }
+        if (!requireModel) return Effective(configured, null, null, ModelProfile.of(ModelTier.Frontier), memoryCap, userCap)
         val info = modelCatalog().providers.firstOrNull { it.id == configured.config.provider }?.models?.firstOrNull { it.id == configured.config.model }
         val context = info?.context
         val provider = providers[configured.config.provider]
@@ -199,7 +202,7 @@ class RunComposer internal constructor(
     private suspend fun prepare(agent: Agent, sessionId: SessionId?, settings: SessionSettings? = null,
         routine: RoutineTurn? = null, taskId: String? = null, activate: Boolean = false, catalogs: List<UiCatalog> = uiCatalogs.forRun(), scope: ToolScope = ToolScope.All, requireModel: Boolean = true): PreparedRun {
         val privateSession = sessionId?.let { store.session(agent.id, it).hidden } == true
-        val e = effective(agent, sessionId, settings)
+        val e = effective(agent, sessionId, settings, requireModel)
         val chat = if (unmanagedModels) CapabilityState() else e.provider?.availability(e.agent.config.model)
             ?: CapabilityState.unsupported("No model provider '${e.agent.config.provider}'; this model provider is not installed")
         if (activate && requireModel) chat.requireReady()
@@ -209,21 +212,21 @@ class RunComposer internal constructor(
         val aliased = own + contributed.flatMap { it.tools }
         val all = aliased.withModelNames().also { it.indexedTools() }
         val renamed = aliased.zip(all).filter { (a, b) -> a !== b }.associate { (a, b) -> a.descriptor.name to b.descriptor.name }
-        val eligible = usable(e, all, scope)
+        val eligible = if (requireModel) usable(e, all, scope) else all.filter(scope::allows).map { it.descriptor.name }.toSet()
         val descriptors = all.map { it.descriptor.name }.toSet()
         val rules = trustRules.effective(agent.id)
         val catalog = (own.map { ResolvedTool(renamed[it.descriptor.name] ?: it.descriptor.name, it.displayName, identity = it.identity) } +
             contributed.flatMap { it.catalog }.map { it.copy(id = renamed[it.id] ?: it.id) }).distinctBy { (it.identity?.key ?: it.id) to it.target }.map { tool ->
             val state = when {
                 e.info?.tools == false || e.info?.toolIds?.let { tool.identity?.localId != "*" && tool.identity?.key !in it } == true ||
-                    tool.id in descriptors && tool.id !in eligible -> CapabilityState.unsupported("This model cannot call ${tool.name}")
-                rules.deny.blockedTool(tool.identity) != null -> tool.state.copy(authorization = Authorization.Denied, reason = "Blocked by a Deny rule", reasonCode = "policy")
-                e.info?.tools == null -> tool.state.copy(support = Support.Unknown, reason = tool.state.reason ?: "Model tool support is unknown")
+                    tool.id in descriptors && tool.id !in eligible -> if (tool.state.reasonCode == "needs_setup") tool.state.copy(support = Support.Unsupported) else CapabilityState.unsupported("This model cannot call ${tool.name}")
+                tool.state.reasonCode != "needs_setup" && rules.deny.blockedTool(tool.identity) != null -> tool.state.copy(authorization = Authorization.Denied, reason = "Blocked by a Deny rule", reasonCode = "policy")
+                requireModel && e.info?.tools == null -> tool.state.copy(support = Support.Unknown, reason = tool.state.reason ?: "Model tool support is unknown")
                 else -> tool.state
             }
             tool.copy(state = state)
         }
-        val usableTools = all.filter { it.descriptor.name in eligible }
+        val usableTools = all.filter { tool -> tool.descriptor.name in eligible && catalog.none { it.id == tool.descriptor.name && it.state.reasonCode == "needs_setup" } }
         val cataloguedNames = plugins.zip(contributed).filter { it.first.catalogued }.flatMap { it.second.tools }.map { renamed[it.descriptor.name] ?: it.descriptor.name }.toSet()
         val candidates = usableTools.filter { it.descriptor.name in cataloguedNames }.takeIf {
             if (e.profile.tools.catalogExternal) it.size > ToolCatalog.DIRECT_LIMIT else usableTools.size > ToolCatalog.LIMIT
@@ -235,6 +238,9 @@ class RunComposer internal constructor(
         val reported = catalog + finders.map { ResolvedTool(it.descriptor.name, it.displayName, identity = it.identity) }
         return PreparedRun(e, usableTools + finders, usableTools - hidden.toSet() + finders, reported, contributed.flatMap { it.warnings }, chat)
     }
+
+    internal suspend fun externalTools(agent: Agent, sessionId: SessionId?) =
+        prepare(agent, sessionId, requireModel = false).catalog
 
     suspend fun capabilities(agent: Agent, sessionId: SessionId?, settings: SessionSettings?, server: ServerCapabilities, revision: Long = 0): SessionCapabilities {
         val prepared = prepare(agent, sessionId, settings)
@@ -268,18 +274,38 @@ class RunComposer internal constructor(
         native.runner(compose(agent, sessionId, routine, taskId, catalogs, scope, reports))
 
     suspend fun compose(agent: Agent, sessionId: SessionId? = null, routine: RoutineTurn? = null, taskId: String? = null, catalogs: List<UiCatalog> = uiCatalogs.forRun(),
-        scope: ToolScope = ToolScope.All, reports: ToolReports? = null, requireModel: Boolean = true): NativeRun {
+        scope: ToolScope = ToolScope.All, reports: ToolReports? = null, requireModel: Boolean = true, discovery: Boolean = false): NativeRun {
         if (sessionId != null && store.session(agent.id, sessionId).hidden) requireOnDevice(agent, sessionId)
         val prepared = prepare(agent, sessionId, routine = routine, taskId = taskId, activate = true, catalogs = catalogs, scope = scope, requireModel = requireModel)
         val e = prepared.effective
         val agent = e.agent
         val tools = prepared.tools.map(secrets::redacting)
         val advertised = prepared.advertised.map { it.descriptor.name }.toSet().let { names -> tools.filter { it.descriptor.name in names } }
-        val sections = plugins.mapNotNull { it.instructions(agent) }
+        val sections = plugins.filter { plugin ->
+            plugin.definition.id !in setOf("kinuvo.browser", "kinuvo.computer") || prepared.tools.any { it.identity?.instance == plugin.instance }
+        }.mapNotNull { it.instructions(agent) }
         val today = "${Clock.System.todayIn(timeZone)} ($timeZone)"
-        val context = if (e.profile.prompt != PromptStyle.Full) basicContextFor(agent, docs, advertised, today, identity = e.profile.prompt == PromptStyle.BasicWithIdentity)
-        else personalContextFor(agent, docs) + "\n" + capabilitiesFor(agent, advertised) + "\nServer platform: $platformDescription. Today is ${Clock.System.todayIn(timeZone)} ($timeZone).\n" + sections.joinToString("\n\n") { "## ${it.title}\n\n${it.body}" } +
-            if (advertised.any { it.descriptor.name == ToolNames.ACTIVATE_SKILL }) "\n\nCurrent Skills:\n" + skillCatalogFor(skills.load(agent)) else ""
+        val style = if (requireModel) e.profile.prompt else PromptStyle.Full
+        val memory = if (style == PromptStyle.Full && requireModel) docs.read(agent.id, AgentDoc.Memory) else ""
+        val userNotes = if (style == PromptStyle.Full && requireModel) docs.read(agent.id, AgentDoc.UserNotes) else ""
+        val firstSession = e.profile.tier == ModelTier.Frontier && discovery && requireModel && routine == null && taskId == null && sessionId != null &&
+            store.session(agent.id, sessionId).let { !it.hidden && it.routine == null && it.teamId == null } &&
+            memory.isBlank() && userNotes.isBlank() &&
+            // The current user message is appended by the runner after composition.
+            store.entries(agent.id, sessionId).all {
+                it is SessionEntry.Started || it is SessionEntry.Settings || it is SessionEntry.Details || it is SessionEntry.Activation
+            }
+        val context = when (style) {
+            PromptStyle.Basic, PromptStyle.BasicWithIdentity -> basicContextFor(agent, docs, advertised, today, identity = style == PromptStyle.BasicWithIdentity)
+            PromptStyle.Compact, PromptStyle.Full -> {
+                val personal = if (style == PromptStyle.Compact) compactContextFor(agent, docs)
+                    else (if (requireModel) personalContextFor(memory, userNotes) else instructionsFor(agent, docs)) + "\n$PROACTIVITY_BRIEF\n\n" + aboutKinuvoFor(advertised, discovery = firstSession)
+                personal + "\n" + (if (firstSession) firstSessionFor(advertised) else "") + capabilitiesFor(agent, advertised, prepared.catalog, compact = style == PromptStyle.Compact) +
+                    "\nServer platform: $platformDescription. Today is $today.\n" +
+                    sections.joinToString("\n\n") { "## ${it.title}\n\n${it.body}" } +
+                    if (advertised.any { it.descriptor.name == ToolNames.ACTIVATE_SKILL }) "\n\nCurrent Skills:\n" + skillCatalogFor(skills.load(agent)) else ""
+            }
+        }
         val service = ToolService(
             tools = tools,
             advertisedTools = advertised.mapNotNull { it.descriptor.simplified(e.profile.tools.schema) },
@@ -320,6 +346,13 @@ class RunComposer internal constructor(
             ?: CapabilityState.unsupported("No model provider '${e.agent.config.provider}'; this model provider is not installed")).requireReady()
         val none = ToolService(emptyList())
         return NativeRun(e.agent, ScratchStorage(), selection(e), none, none, context = secrets.redact(system.orEmpty()), contextTokens = e.info?.context, profile = e.profile)
+    }
+
+    suspend fun autoApproveHarness(agent: Agent, sessionId: SessionId, kind: RunKind): Boolean {
+        val configured = agent.with(store.session(agent.id, sessionId).settings)
+        val routine = (kind as? RunKind.Routine)?.turn
+        return if (routine == null) Tolerance.of(configured.config.approvals) == Tolerance.Full
+        else routine.routine.approvals == RoutineApprovals.Auto || routineTolerance(configured) == Tolerance.Full
     }
 
     /** Routines run Relaxed, so only High-risk calls wait or are denied, unless the Agent never asks. */

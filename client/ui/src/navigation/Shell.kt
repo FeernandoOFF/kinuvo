@@ -216,7 +216,7 @@ fun Shell(state: ShellState, actions: ShellActions, chrome: ShellChrome, modifie
     }
 }
 
-private val ColumnWidth = 248.dp
+internal val ColumnWidth = 248.dp
 internal val RailWidth = 72.dp
 
 /** The column sits in the rail with a rounded corner, Discord-style, instead of a straight seam. */

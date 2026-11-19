@@ -122,7 +122,7 @@ The tools an Agent can find, describe and call on demand instead of each being s
 _Avoid_: Tool registry, toolbox
 
 **KinuvoMCP**:
-The Server's tools offered over HTTP MCP to external harnesses running Kinuvo Agents, with per-run credentials and the same Tool scope and Approvals.
+The Server's tools offered over HTTP MCP to external harnesses running Kinuvo Agents, with per-Session credentials and the same per-turn Tool scope and Approvals.
 _Avoid_: Kinuvo plugin, tool bridge
 
 **Script**:
@@ -165,6 +165,10 @@ _Avoid_: Host, sandbox, VM
 **Live view**:
 Watching a Screen while an Agent uses it, from any Device with management access.
 _Avoid_: Screen sharing, mirror, stream
+
+**Side panel**:
+The tabs beside a desktop window's screens, one window's own: the Agent's settings, an Agent's Browser, a Computer or an Artifact. Dragged wider or narrower, or collapsed to its tab strip; hidden on Home.
+_Avoid_: Inspector, dock, right bar
 
 **Takeover**:
 The user controlling a Screen themselves, from Live view or the phone's own overlay, while Agents wait; an Agent can ask for one for sign-ins, codes, payments or permission dialogs. It ends when the user explicitly hands the Screen back; a disconnected Takeover remains suspended.

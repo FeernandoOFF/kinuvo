@@ -17,6 +17,7 @@ import java.nio.file.StandardCopyOption
 import java.util.UUID
 import java.util.concurrent.TimeUnit
 import kinuvo.server.plugin.BrowserService
+import kinuvo.protocol.capability.CapabilityState
 import kinuvo.server.plugin.ScreenGate
 import kinuvo.server.plugin.ScreenSource
 import kinuvo.protocol.*
@@ -40,6 +41,13 @@ private const val BROWSER_START_TIMEOUT_MILLIS = 30_000L
 private const val BROWSER_START_ATTEMPTS = 2
 
 class BrowserRuntime(private val home: File) : BrowserService {
+    override fun availability(): CapabilityState = try {
+        if (findChromium(fallback = { defaultBrowserSearchConfig().findChromeExecutable()?.toString() }) != null) CapabilityState()
+        else CapabilityState.needsSetup("Install Chrome or Chromium on the Server, or set KINUVO_BROWSER_EXECUTABLE", "guides/browser-access/")
+    } catch (e: IllegalArgumentException) {
+        CapabilityState.needsSetup(e.message ?: "Check KINUVO_BROWSER_EXECUTABLE", "guides/browser-access/")
+    }
+
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val mutex = Mutex()
     private var closed = false

@@ -17,6 +17,7 @@ import kinuvo.app.home.HomeViewModel
 import kinuvo.app.knowledge.KnowledgeViewModel
 import kinuvo.app.navigation.Route
 import kinuvo.app.screen.LiveViewModel
+import kinuvo.app.panel.SidePanelViewModel
 import kinuvo.app.session.*
 import kinuvo.app.surface.UiCatalogs
 import kinuvo.app.voice.ServerVoiceViewModel
@@ -57,6 +58,7 @@ val appModule = module {
     viewModel { (route: Route.Settings) -> SettingsViewModel(get(), get(), get(), route) }
     viewModel { BoardViewModel(get()) }
     viewModel { AgentInspectorViewModel(get()) }
+    viewModel { SidePanelViewModel() }
     viewModel { (app: AppViewModel) -> HomeViewModel(app.state, get()) }
     viewModel { (route: Route.Knowledge) -> KnowledgeViewModel(get(), route) }
     viewModel { (route: Route.Artifacts) -> ArtifactsViewModel(route, get()) }

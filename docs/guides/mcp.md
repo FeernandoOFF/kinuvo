@@ -3,7 +3,9 @@ title: "Connect MCP servers"
 description: "Add stdio and HTTP tools, share them across Agents and sign in with OAuth."
 ---
 
-MCP servers add tools to an Agent. Configure them in **Settings → MCP** or with the CLI. A shared entry is available to every Agent; an Agent entry with the same name replaces it for that Agent.
+MCP servers add tools to an Agent. Configure them in **Settings → Tools & MCP → MCP servers** or with the CLI. A shared entry is available to every Agent; an Agent entry with the same name replaces it for that Agent.
+
+You can ask your Agent to add a catalog server such as Notion, Linear or Todoist and help you sign in. Adding a catalog server follows your Session's Risk tolerance; custom servers always ask for Approval. GitHub needs your personal access token, and Google services need your own OAuth client: provide these in Settings → Tools & MCP → MCP servers.
 
 ## Add and test
 

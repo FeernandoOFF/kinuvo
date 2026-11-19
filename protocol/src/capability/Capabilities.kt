@@ -29,10 +29,12 @@ data class CapabilityState(
     val authorization: Authorization = Authorization.Allowed,
     val reason: String? = null,
     val reasonCode: String? = null,
+    val docsPath: String? = null,
 ) {
     val actionable get() = support != Support.Unsupported && availability == Availability.Ready && authorization == Authorization.Allowed
     fun requireReady() { check(actionable) { reason ?: "This operation is unavailable" } }
     companion object {
+        fun needsSetup(reason: String, docsPath: String) = unavailable(reason, "needs_setup").copy(docsPath = docsPath)
         fun unsupported(reason: String) = CapabilityState(Support.Unsupported, reason = reason, reasonCode = "unsupported")
         fun unknown(reason: String = "Checking support") = CapabilityState(Support.Unknown, reason = reason, reasonCode = "unknown")
         fun unavailable(reason: String, code: String = "unavailable") = CapabilityState(availability = Availability.Unavailable, reason = reason, reasonCode = code)

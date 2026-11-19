@@ -55,6 +55,7 @@ import androidx.compose.foundation.verticalScroll
 import kinuvo.protocol.device.PairLink
 import kinuvo.protocol.device.Links
 import kinuvo.protocol.agent.AgentId
+import kinuvo.protocol.execution.ExecutionKind
 import kinuvo.protocol.session.SessionId
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
@@ -107,7 +108,19 @@ import com.composeunstyled.theme.Theme
 import com.composeunstyled.TooltipHost
 import kinuvo.ui.design.*
 import kinuvo.app.screen.LiveViewModel
-import kinuvo.ui.screen.BrowserDockHost
+import kinuvo.app.panel.MinPanelWidth
+import kinuvo.app.panel.PanelTab
+import kinuvo.app.panel.SidePanelViewModel
+import kinuvo.protocol.screen.ScreenRef
+import kinuvo.ui.panel.*
+import kinuvo.ui.navigation.PageAction
+import kinuvo.ui.navigation.RailWidth
+import kinuvo.ui.navigation.ColumnWidth
+import com.composables.icons.lucide.Maximize2
+import com.composables.icons.lucide.Monitor
+import com.composables.icons.lucide.Shapes
+import com.composables.icons.lucide.SlidersHorizontal
+import com.composables.icons.lucide.X
 import kinuvo.ui.screen.ComputersScreen
 import kinuvo.ui.screen.LiveViewScreen
 
@@ -126,7 +139,19 @@ fun KinuvoApp(app: AppViewModel = koinViewModel(), initialRoute: Route? = null, 
     val ahead = rememberSerializable(serializer = SnapshotStateListSerializer(Route.serializer())) { mutableStateListOf() }
     val history = remember(backStack, ahead) { History(backStack, ahead) }
     val homeEdits = remember { SettingsEdits() }
-    val browserDocks = kinuvo.ui.screen.rememberBrowserDocks(app.serverLifetime)
+    // The window's Side panel: its tabs outlive the screens beside them, so a Browser stays live across Sessions.
+    val panel = koinViewModel<SidePanelViewModel>(key = "panel/${app.serverLifetime}")
+    val panelState by panel.state.collectAsState()
+    val panelStores = rememberPanelStores(app.serverLifetime)
+    // The Screen a tab was last asked to show, and why; Artifact titles as their tabs load them, and which hold a draft.
+    val screenFocus = remember(app.serverLifetime) { mutableStateMapOf<PanelTab, Pair<ScreenRef, String?>>() }
+    val artifactTitles = remember(app.serverLifetime) { mutableStateMapOf<String, String>() }
+    val editingArtifacts = remember(app.serverLifetime) { mutableStateMapOf<String, Boolean>() }
+    LaunchedEffect(panelState.tabs) {
+        panelStores.retain(panelState.tabs)
+        screenFocus.keys.retainAll(panelState.tabs.toSet())
+        editingArtifacts.keys.retainAll(panelState.tabs.filterIsInstance<PanelTab.Artifact>().map { it.artifact }.toSet())
+    }
     val back = { homeEdits.leave { if (history.canGoBack) history.back() else if (backStack.lastOrNull().let { it is Route.Settings }) history.reset(app.lastView()) } }
     val shell = rememberShellChrome()
     BrowserBackHandler()
@@ -158,6 +183,7 @@ fun KinuvoApp(app: AppViewModel = koinViewModel(), initialRoute: Route? = null, 
         appState.agents.firstOrNull()?.let { guardLeave { openSettings(Route.Settings(it.id, section), true) } }
     }
     LaunchedEffect(inspecting?.agentId) { inspectorPages.clear() }
+    LaunchedEffect(inspecting?.open) { if (inspecting?.open == true) panel.open(PanelTab.AgentSettings) else panel.close(PanelTab.AgentSettings) }
     LaunchedEffect(app.serverLifetime) { settingsPages.clear(); inspectorPages.clear() }
     LaunchedEffect(inspecting?.left) {
         if (inspecting?.left == true) {
@@ -236,7 +262,11 @@ fun KinuvoApp(app: AppViewModel = koinViewModel(), initialRoute: Route? = null, 
             val homePage = { section: SettingsSection ->
                 (agent?.takeIf { !it.external } ?: appState.agents.firstOrNull { !it.external })?.let { guardLeave { history.switchTo(Route.Settings(it.id, section)) } }
             }
-            val inspect = { id: AgentId -> if (inspector == null) openSettings(Route.Settings(id), true) else { inspector.inspect(id); Unit } }
+            // Home shows no Side panel, so its Agent settings open in Settings.
+            val inspect = { id: AgentId ->
+                if (inspector == null || !compact && top is Route.Home) openSettings(Route.Settings(id), true)
+                else { inspector.inspect(id); panel.open(PanelTab.AgentSettings) }
+            }
             // Phones slide the screens aside to reveal the shell; anything picked there covers it again.
             fun cover(action: () -> Unit) = { homeEdits.leave { action(); shell.revealed = false } }
             val consent = koinInject<AiConsent>()
@@ -287,10 +317,13 @@ fun KinuvoApp(app: AppViewModel = koinViewModel(), initialRoute: Route? = null, 
             }
             // Settings keeps the rail on wide layouts, its sections taking the column's place; on phones it covers the screen.
             val withShell = (top !is Route.Settings || !compact || top.home) && top != Route.Connect && top != Route.NewAgent && (top as? Route.Artifacts)?.fullScreen != true
-            val inspectorBeside = !compact && inspecting?.open == true
-            // Narrow windows fold the column while the inspector is open, keeping the rail and room for the screen.
-            val foldColumn = inspectorBeside && maxWidth < 1100.dp
+            val panelShown = !compact && withShell && top !is Route.Home && panelState.tabs.isNotEmpty()
             val beside = !compact && (shell.open || top is Route.Settings && !top.home) && withShell
+            val room = maxWidth - (if (beside) RailWidth else 0.dp) - ChatMinWidth - StripWidth - 8.dp
+            // Narrow windows fold the column while the Side panel is expanded, keeping the rail and room for the screen.
+            val foldColumn = panelShown && !panelState.collapsed && beside && room - ColumnWidth < MinPanelWidth.dp
+            // The chat gives up its minimum before the panel narrows past its own.
+            val panelMax = (room - if (beside && !foldColumn) ColumnWidth else 0.dp).coerceAtLeast(MinPanelWidth.dp)
             val windowChrome = LocalWindowChrome.current
             val content = @Composable {
                 NavDisplay(
@@ -342,11 +375,19 @@ fun KinuvoApp(app: AppViewModel = koinViewModel(), initialRoute: Route? = null, 
                                     val update = if (active?.slot != route.slot) resolved.route else app.resolveView(route, resolved.route)
                                     update?.let(backStack::update)
                                 }
-                                val browser = route.agentId?.let { agent -> Route.Browser(agent, route.sessionId) }
-                                BrowserDockHost(browser.takeIf { !compact && sessionBrowserAvailable(appState.agents.firstOrNull { it.id == route.agentId }, resolved.capabilities?.server) }, browserDocks, onExpand = history::open) { dock ->
-                                    ChatScreen(app, session, !compact, shell, onOpen = history::open, onSettings = inspect, onNavigate = history::open,
-                                        onBack = back.takeIf { backStack.getOrNull(backStack.lastIndex - 1)?.home == true }, dock = dock)
-                                }
+                                val browser = route.agentId?.let { PanelTab.Browser(it, route.sessionId) }
+                                val dock = if (compact) null else PanelDock(
+                                    browserOpen = browser != null && panelState.showing(browser),
+                                    toggleBrowser = { browser?.let(panel::toggle) },
+                                    showScreen = { ref, reason ->
+                                        val tab = ref.owner?.let { PanelTab.Browser(it.agentId, route.sessionId) } ?: PanelTab.Computer(ref.id)
+                                        screenFocus[tab] = ref to reason
+                                        panel.open(tab)
+                                    },
+                                    openArtifact = { panel.open(PanelTab.Artifact(it)) },
+                                )
+                                ChatScreen(app, session, !compact, shell, onOpen = history::open, onSettings = inspect, onNavigate = history::open,
+                                    onBack = back.takeIf { backStack.getOrNull(backStack.lastIndex - 1)?.home == true }, dock = dock)
                             }
                         }
                         entry<Route.Settings>(metadata = { if (it.home) emptyMap() else SettingsTransitions(compact) }) { route ->
@@ -442,11 +483,11 @@ fun KinuvoApp(app: AppViewModel = koinViewModel(), initialRoute: Route? = null, 
                         entry<Route.Browser> { route ->
                             val client = (connection as? Connection.Ready)?.client
                             if (client == null) Loading(connection)
-                            else if (appState.agents.firstOrNull { it.id == route.agentId }?.external == true) {
+                            else if (appState.agents.firstOrNull { it.id == route.agentId }?.executionKind == ExecutionKind.Remote) {
                                 Column(Modifier.fillMaxSize()) {
                                     PageHeader(Lucide.Globe, "Browser", back = { back() })
                                     Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
-                                        Text("Browser is managed by this Agent's harness and isn't available in Kinuvo.")
+                                        Text("This Agent's Server manages its own Browser.")
                                     }
                                 }
                             } else {
@@ -454,6 +495,7 @@ fun KinuvoApp(app: AppViewModel = koinViewModel(), initialRoute: Route? = null, 
                                 val showChat = !compact && maxWidth >= 1200.dp
                                 val chat = Route.Chat(route.agentId, route.sessionId)
                                 val dock = PageAction(Lucide.Minimize2, "Dock beside chat") {
+                                    panel.open(PanelTab.Browser(route.agentId, route.sessionId))
                                     val previous = backStack.getOrNull(backStack.lastIndex - 1) as? Route.Chat
                                     if (previous?.agentId == route.agentId && previous.sessionId == route.sessionId) back() else history.open(chat)
                                 }
@@ -462,11 +504,11 @@ fun KinuvoApp(app: AppViewModel = koinViewModel(), initialRoute: Route? = null, 
                                         val session = koinViewModel<SessionViewModel>(key = "live-chat/${app.serverLifetime}/${route.agentId}/${route.sessionId}") { parametersOf(chat) }
                                         Box(Modifier.width(360.dp).fillMaxHeight()) {
                                             ChatScreen(app, session, false, shell, onOpen = history::open, onSettings = inspect, onNavigate = history::open,
-                                                dock = BrowserDock(true, {
-                                                    browserDocks.open[route.agentId.value] = false
+                                                dock = PanelDock(true, {
+                                                    panel.close(PanelTab.Browser(route.agentId))
                                                     val previous = backStack.getOrNull(backStack.lastIndex - 1) as? Route.Chat
                                                     if (previous?.agentId == route.agentId && previous.sessionId == route.sessionId) back() else history.open(chat)
-                                                }, live::focus))
+                                                }, live::focus, { panel.open(PanelTab.Artifact(it)) }))
                                         }
                                         VerticalSeparator()
                                     }
@@ -513,6 +555,61 @@ fun KinuvoApp(app: AppViewModel = koinViewModel(), initialRoute: Route? = null, 
                 section = inspectorSection,
                 onSectionBack = if (inspectorPages.isEmpty()) null else ({ inspectorEdits.leave { inspectorPages.removeLastOrNull(); Unit } }),
                 onCloseRequest = { if (inspecting?.dirty == true) inspector?.close() else inspectorEdits.leave { inspector?.close() } })
+            val closeTab = { tab: PanelTab ->
+                when {
+                    tab == PanelTab.AgentSettings -> inspectorHost.onCloseRequest?.invoke() ?: Unit
+                    // A draft is saved or cancelled first: the tab is shown instead.
+                    tab is PanelTab.Artifact && editingArtifacts[tab.artifact] == true -> panel.open(tab)
+                    else -> panel.close(tab)
+                }
+            }
+            val expand = { tab: PanelTab, route: Route -> panel.close(tab); history.open(route) }
+            val panelLabel = { tab: PanelTab ->
+                when (tab) {
+                    PanelTab.AgentSettings -> PanelTabLabel(Lucide.SlidersHorizontal, "Agent settings")
+                    is PanelTab.Browser -> PanelTabLabel(Lucide.Globe, "Browser · ${appState.agents.firstOrNull { it.id == tab.agentId }?.name ?: tab.agentId.value}")
+                    is PanelTab.Computer -> PanelTabLabel(Lucide.Monitor, "Computer")
+                    is PanelTab.Artifact -> PanelTabLabel(Lucide.Shapes, artifactTitles[tab.artifact] ?: "Artifact")
+                }
+            }
+            val panelTab: @Composable (PanelTab) -> Unit = { tab ->
+                when (tab) {
+                    PanelTab.AgentSettings -> inspector?.let { AgentInspector(it, inspectorHost, sheet = false, Modifier.fillMaxWidth(), showGuard = false) }
+                    is PanelTab.Browser, is PanelTab.Computer -> {
+                        val route = requireNotNull(tab.route)
+                        val live = koinViewModel<LiveViewModel>(viewModelStoreOwner = panelStores.owner(tab), key = "live") { parametersOf(route) }
+                        val focus = screenFocus[tab]
+                        LaunchedEffect(live, focus) { focus?.let { live.focus(it.first, it.second) } }
+                        LiveViewScreen(live, null, docked = true, extra = listOf(
+                            PageAction(Lucide.Maximize2, if (tab is PanelTab.Browser) "Expand Browser" else "Expand Computer") {
+                                expand(tab, if (route is Route.Browser) route.copy(screen = live.state.value.selected) else Route.Computers(live.state.value.selected?.id))
+                            },
+                            PageAction(Lucide.X, if (tab is PanelTab.Browser) "Close Browser" else "Close Computer") { panel.close(tab) },
+                        ))
+                    }
+                    is PanelTab.Artifact -> {
+                        val artifacts = koinViewModel<ArtifactsViewModel>(viewModelStoreOwner = panelStores.owner(tab), key = "artifact") { parametersOf(Route.Artifacts(tab.artifact)) }
+                        val artifactState by artifacts.state.collectAsState()
+                        val title = artifactState.open?.info?.title
+                        LaunchedEffect(title) { title?.let { artifactTitles[tab.artifact] = it } }
+                        val editing = artifactState.draft != null
+                        LaunchedEffect(editing) { editingArtifacts[tab.artifact] = editing }
+                        ArtifactsScreen(app, artifacts, ArtifactsActions(
+                            onDelete = { id -> artifacts.delete(id); panel.close(tab) },
+                            onOpenSession = { agent, session -> history.open(Route.Chat(agent, session)) },
+                            onEdit = artifacts::edit,
+                            onChange = artifacts::change,
+                            onSave = artifacts::save,
+                            onCancel = artifacts::cancel,
+                            onKeepMine = artifacts::keepMine,
+                            onSaveDesign = artifacts::saveDesign,
+                            onFullScreen = { expand(tab, Route.Artifacts(tab.artifact, fullScreen = it)) },
+                            onClose = { panel.close(tab) },
+                            onExpand = { expand(tab, Route.Artifacts(tab.artifact)) },
+                        ))
+                    }
+                }
+            }
             val homeChrome = HomeChrome({ if (compact) shell.revealed = true else shell.open = !shell.open }, !compact)
             val strips = remember { Strips() }
             CompositionLocalProvider(LocalHistory provides history, LocalPopovers provides popovers, LocalHomeChrome provides homeChrome, LocalStrips provides strips) {
@@ -538,11 +635,15 @@ fun KinuvoApp(app: AppViewModel = koinViewModel(), initialRoute: Route? = null, 
                         Row { Shell(shellState, shellActions, shell, column = !foldColumn); VerticalSeparator() }
                     }
                     Box(Modifier.weight(1f)) {
-                        CompositionLocalProvider(LocalWindowChrome provides windowChrome?.let { if (beside) it.trailingOnly else it }) { screens() }
+                        CompositionLocalProvider(LocalWindowChrome provides windowChrome?.let { if (panelShown) (if (beside) it.inner else it.leadingOnly) else if (beside) it.trailingOnly else it }) { screens() }
                     }
-                    AnimatedVisibility(inspectorBeside, enter = expandHorizontally(expandFrom = Alignment.Start), exit = shrinkHorizontally(shrinkTowards = Alignment.Start)) {
-                        // Clear of the window's leading edge, so its title bar keeps no room for the window buttons there.
-                        Row { VerticalSeparator(); inspector?.let { CompositionLocalProvider(LocalWindowChrome provides windowChrome?.trailingOnly) { AgentInspector(it, inspectorHost, sheet = false, showGuard = false) } } }
+                    AnimatedVisibility(panelShown, enter = expandHorizontally(expandFrom = Alignment.Start), exit = shrinkHorizontally(shrinkTowards = Alignment.Start)) {
+                        // The strip takes the window's trailing edge; tabs beside it keep no room for window buttons.
+                        CompositionLocalProvider(LocalWindowChrome provides windowChrome?.trailingOnly) {
+                            SidePanel(panelState, panel.actions(onClose = closeTab), panelMax, panelLabel) { tab ->
+                                CompositionLocalProvider(LocalWindowChrome provides windowChrome?.inner) { panelTab(tab) }
+                            }
+                        }
                     }
                 } }
                 if (settingsPages.isNotEmpty()) SettingsSheet(app, settingsPages, history::open)
@@ -616,3 +717,6 @@ private fun Loading(connection: Connection) = Box(Modifier.fillMaxSize(), conten
         Text(server?.let { "Connecting to ${it.label}…" } ?: "Connecting…", color = color(mutedColor), style = TextStyles.secondary)
     }
 }
+
+/** The chat beside the Side panel keeps room for its messages and composer. */
+private val ChatMinWidth = 560.dp

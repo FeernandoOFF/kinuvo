@@ -15,6 +15,15 @@ import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 import kotlin.test.assertNotEquals
 import kinuvo.protocol.agent.AgentId
+import kinuvo.protocol.agent.ConfigScope
+import kinuvo.protocol.mcp.McpCatalog
+import kinuvo.protocol.mcp.SaveMcpParams
+import kinuvo.harness.Agent
+import kinuvo.harness.AgentConfig
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
+import kotlin.test.assertFailsWith
 
 class McpConfigTest {
     private val temporaryDirectories = TemporaryDirectories()
@@ -90,6 +99,28 @@ class McpConfigTest {
         assertEquals(listOf("work", "all"), McpConfig.load(listOf(shared), agentId = AgentId("main")).first.map { it.name })
         assertEquals(listOf("all"), McpConfig.load(listOf(shared), agentId = AgentId("other")).first.map { it.name })
         assertEquals(listOf(AgentId("main")), McpConfig.load(listOf(shared)).first.first().agents)
+    }
+
+    @Test fun createOnlyPreservesRestrictionsAndSerializesDuplicateAdds() = runBlocking {
+        val files = TestStorage(Path(dir.path))
+        val management = McpPlugin(files).mcp
+        val id = AgentId("main")
+        val preset = McpCatalog.first { it.id == "todoist" }.server()
+        val restricted = preset.copy(includeTools = listOf("read"), excludeTools = listOf("delete"))
+        management.saveMcp(SaveMcpParams(id, restricted))
+        val before = File(files.mcp(id).toString()).readText()
+        assertFailsWith<IllegalArgumentException> { management.saveMcp(SaveMcpParams(id, preset), createOnly = true) }
+        assertEquals(before, File(files.mcp(id).toString()).readText())
+        assertFailsWith<IllegalArgumentException> { management.saveMcp(SaveMcpParams(id, preset.copy(name = "alias")), createOnly = true) }
+        val shared = McpCatalog.first { it.id == "linear" }.server(ConfigScope.Shared)
+        management.saveMcp(SaveMcpParams(id, shared))
+        assertFailsWith<IllegalArgumentException> { management.saveMcp(SaveMcpParams(id, shared.copy(scope = ConfigScope.Agent)), createOnly = true) }
+        val new = McpCatalog.first { it.id == "notion" }.server()
+        val results = coroutineScope {
+            List(2) { async { runCatching { management.saveMcp(SaveMcpParams(id, new), createOnly = true) } } }.awaitAll()
+        }
+        assertEquals(1, results.count { it.isSuccess })
+        assertEquals(1, management.mcpServers(Agent(id, "Main", AgentConfig())).count { it.name == new.name })
     }
 
     @Test fun removingAnAgentDropsItFromSharedServers() = runBlocking {

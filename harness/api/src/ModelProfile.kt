@@ -9,6 +9,7 @@ enum class PromptStyle {
     Basic,
     /** [Basic] plus a short Identity. */
     BasicWithIdentity,
+    Compact,
     Full,
 }
 
@@ -59,7 +60,7 @@ data class ModelProfile(
                 excluded = setOf(ToolNames.WEB_FETCH)), HistoryPolicy(latestTurnOnly = true, earlierQuestions = 4), maxSteps = 4)
             ModelTier.Small -> ModelProfile(tier, PromptStyle.BasicWithIdentity, ToolPolicy(setOf(ToolGroup.Core, ToolGroup.Data), cap = 8, callsPerTurn = 4, schema = SchemaLevel.OneLevel, parallelCalls = false),
                 maxSteps = 10)
-            ModelTier.Mid -> ModelProfile(tier, PromptStyle.Full, ToolPolicy(ALL - ToolGroup.Automation, catalogExternal = true), maxSteps = 50)
+            ModelTier.Mid -> ModelProfile(tier, PromptStyle.Compact, ToolPolicy(ALL - ToolGroup.Automation, catalogExternal = true), maxSteps = 50)
             ModelTier.Frontier -> ModelProfile(tier, PromptStyle.Full, ToolPolicy(ALL), maxSteps = 66)
         }
     }
