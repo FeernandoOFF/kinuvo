@@ -55,6 +55,7 @@ class ExecutionRegistry(initial: ExecutionCatalog = ExecutionCatalog(emptyList()
     suspend fun negotiated(id: String, capabilities: ExecutionCapabilities) = lock.withLock {
         val status = requireNotNull(connections[id])
         connections[id] = status.copy(readiness = ExecutionReadiness(true, true), capabilities = capabilities)
+        if (status.capabilities != capabilities) save()
     }
 
     suspend fun online(id: String) = lock.withLock {
