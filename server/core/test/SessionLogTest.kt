@@ -80,6 +80,26 @@ class SessionLogTest {
         }
     }
 
+    @Test fun firstChatPageCountsSettledSessionsAcrossPages() = runBlocking {
+        val log = SessionLog(RuntimeFixture().store)
+        val agent = AgentId("test")
+        val routine = RoutineRef("routine", "Routine")
+        repeat(2) {
+            val id = log.createSession(agent, "").id
+            log.updateDetails(agent, id, settled = true)
+        }
+        val routineOnly = log.createSession(agent, "", routine).id
+        log.updateDetails(agent, routineOnly, settled = true)
+        val hidden = log.createSession(agent, "").id
+        log.append(agent, hidden, SessionEntry.Details(hidden = true, settled = true))
+
+        val first = log.page(agent, null, 1)
+        assertEquals(2, first.settledCount)
+        assertTrue(first.hasMore)
+        assertEquals(0, log.page(agent, first.sessions.single().id.value, 1).settledCount)
+        assertEquals(2, log.page(agent, null, 1, routine.id).settledCount)
+    }
+
     @Test fun queuedMessagesReachLiveSubscribersAndReconnectWhileIdle() = runBlocking {
         val fixture = RuntimeFixture()
         val log = SessionLog(fixture.store)

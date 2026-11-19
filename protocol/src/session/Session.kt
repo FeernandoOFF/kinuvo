@@ -61,9 +61,9 @@ data class SessionSettings(val model: String? = null, val reasoning: String? = n
 @Serializable
 enum class SessionStatus { Idle, Running, Waiting }
 
-/** One page of an Agent's Sessions, newest first; the first page of chats also has every favorite in [favorites]. */
+/** One page of an Agent's Sessions, newest first. The first page includes the total [settledCount] in chats and, for chat listings, all [favorites]. */
 @Serializable
-data class SessionPage(val sessions: List<SessionInfo>, val hasMore: Boolean, val favorites: List<SessionInfo> = emptyList())
+data class SessionPage(val sessions: List<SessionInfo>, val hasMore: Boolean, val favorites: List<SessionInfo> = emptyList(), val settledCount: Int = 0)
 
 @Serializable
 data class VoiceTurn(val user: Boolean, val text: String)

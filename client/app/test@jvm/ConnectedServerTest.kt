@@ -62,9 +62,11 @@ class ConnectedServerTest {
             owner.activate()
             sessions.loadSessions(agent).join()
             val info = sessions.state.value.lists.getValue(agent).sessions.single()
+            assertEquals(1, sessions.state.value.lists.getValue(agent).settledCount)
             script.event(Api.SessionChanged, info.copy(status = SessionStatus.Running))
             sessions.state.first { it.lists[agent]?.sessions?.single()?.status == SessionStatus.Running }
             assertTrue(sessions.state.value.settled.isEmpty())
+            assertEquals(0, sessions.state.value.lists.getValue(agent).settledCount)
 
             sessions.settle(session, settled = true)
             script.event(Api.SessionChanged, info.copy(status = SessionStatus.Waiting))
@@ -89,14 +91,18 @@ class ConnectedServerTest {
         val sessions = owner.sessions
         val agent = script.sessionInfo.agentId
         val id = script.sessionInfo.id
+        script.olderSession = SessionInfo(SessionId("older"), agent, "Older", settled = true)
         script.sessionInfo = script.sessionInfo.copy(unread = true)
         sessions.loadSessions(agent).join()
         assertEquals(setOf(id), sessions.state.value.finished)
+        assertEquals(1, sessions.state.value.lists.getValue(agent).settledCount)
 
         sessions.settle(id, settled = true)
         assertEquals(setOf(id), sessions.state.value.settled)
+        assertEquals(2, sessions.state.value.lists.getValue(agent).settledCount)
         assertEquals(UpdateSessionParams(agent, id, settled = true), script.inboxUpdates.receive())
         sessions.state.first { it.lists[agent]?.sessions?.single()?.settled == true }
+        assertEquals(2, sessions.state.value.lists.getValue(agent).settledCount)
 
         sessions.view(agent, id).join()
         assertEquals(UpdateSessionParams(agent, id, seen = true), script.inboxUpdates.receive())
@@ -107,11 +113,46 @@ class ConnectedServerTest {
         script.sessionInfo = script.sessionInfo.copy(settled = false, unread = true)
         script.event(Api.SessionChanged, script.sessionInfo)
         sessions.state.first { id in it.finished && id !in it.settled }
+        assertEquals(1, sessions.state.value.lists.getValue(agent).settledCount)
         assertTrue(script.inboxUpdates.tryReceive().isFailure)
         requireNotNull(owner.client).setActive(true)
         assertEquals(UpdateSessionParams(agent, id, seen = true), script.inboxUpdates.receive())
         sessions.state.first { it.lists[agent]?.sessions?.single()?.unread == false }
         assertTrue(sessions.state.value.finished.isEmpty())
+    }
+
+    @Test fun settledCountTracksOlderSessionsAcrossPagination() = withOwner { owner, _, _ ->
+        val script = Script("A", serverFeatures = setOf(ServerFeature.SessionInbox))
+        val agent = script.sessionInfo.agentId
+        val older = SessionInfo(SessionId("older"), agent, "Older", settled = true)
+        script.olderSession = older
+        connect(owner, script)
+        val sessions = owner.sessions
+        sessions.loadSessions(agent).join()
+        assertEquals(1, sessions.state.value.lists.getValue(agent).settledCount)
+
+        val unsettled = older.copy(settled = false)
+        script.olderSession = unsettled
+        script.event(Api.SessionChanged, unsettled)
+        sessions.state.first { it.lists[agent]?.settledCount == 0 }
+
+        script.olderSession = older
+        script.event(Api.SessionChanged, older)
+        sessions.state.first { it.lists[agent]?.settledCount == 1 }
+        sessions.loadSessions(agent, more = true).join()
+        val list = sessions.state.value.lists.getValue(agent)
+        assertFalse(list.hasMore)
+        assertEquals(2, list.sessions.size)
+        assertEquals(1, list.settledCount)
+    }
+
+    @Test fun restoresTheServerSettledCountBeforeConnecting() = withOwner { owner, _, _ ->
+        val script = Script("A")
+        val agent = script.sessionInfo.agentId
+        owner.open(KinuvoClient("local:test", "test", connection = { script }), "local:test", serverId = "test")
+        owner.restore(Snapshot(syncedAt = 1, capabilities = ServerCapabilities("test", setOf(ServerFeature.SessionInbox)),
+            lists = mapOf(agent to SessionList(listOf(script.sessionInfo), hasMore = true, settledCount = 1))))
+        assertEquals(1, owner.sessions.state.value.lists.getValue(agent).settledCount)
     }
 
     @Test fun presenceFollowsViewedSessionAndForeground() = withOwner { owner, _, _ ->
@@ -608,6 +649,7 @@ class ConnectedServerTest {
         val inboxUpdates = Channel<UpdateSessionParams>(Channel.UNLIMITED)
         val presences = Channel<PresenceParams>(Channel.UNLIMITED)
         var sessionInfo = SessionInfo(SessionId("session"), AgentId("agent"), name)
+        var olderSession: SessionInfo? = null
         var after: Int? = null
         fun hold(method: String, error: Boolean = false) { held[method] = error }
         fun ignore(method: String) { ignored += method }
@@ -650,7 +692,9 @@ class ConnectedServerTest {
                 Api.UpdateTask.name -> reply(request, Api.UpdateTask, TaskInfo("task", "list", "List", name))
                 Api.Sessions.name -> {
                     val params = ProtocolJson.decodeFromJsonElement(Api.Sessions.params, request.params)
-                    val page = if (params.before == null) SessionPage(listOf(sessionInfo), true) else SessionPage(emptyList(), false)
+                    val page = if (params.before == null)
+                        SessionPage(listOf(sessionInfo), true, settledCount = listOfNotNull(sessionInfo, olderSession).count { it.settled })
+                    else SessionPage(listOfNotNull(olderSession), false)
                     reply(request, Api.Sessions, page)
                 }
                 Api.Session.name -> if (ServerFeature.SessionInbox in serverFeatures) reply(request, Api.Session, sessionInfo)

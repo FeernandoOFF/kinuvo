@@ -84,12 +84,14 @@ class SessionLog(private val store: Store, private val clock: () -> Long = { Clo
 
     /** [before] is the last Session ID of the previous page; [routineId] picks that Routine's Sessions instead of the chats. */
     suspend fun page(agentId: AgentId, before: String?, limit: Int, routineId: String? = null): SessionPage {
-        val all = lock.withLock { store.sessions(agentId).map { executionMetadata(it).copy(status = statusOf(it.id)) } }
+        val sessions = lock.withLock { store.sessions(agentId).map { executionMetadata(it).copy(status = statusOf(it.id)) } }
             .sortedWith(SessionOrder)
-            .filter { !it.hidden }.filter { if (routineId == null) it.inChats else it.routine?.id == routineId }
+        val all = sessions.filter { if (routineId == null) it.inChats else !it.hidden && it.routine?.id == routineId }
         val from = before?.let { id -> all.indexOfFirst { it.id.value == id } + 1 } ?: 0
         val page = all.drop(from).take(limit)
-        return SessionPage(page, from + page.size < all.size, if (before == null && routineId == null) all.filter { it.favorite } else emptyList())
+        val firstChats = before == null && routineId == null
+        return SessionPage(page, from + page.size < all.size, if (firstChats) all.filter { it.favorite } else emptyList(),
+            if (before == null) sessions.count { it.inChats && it.settled } else 0)
     }
 
     override suspend fun createSession(agentId: AgentId, instructions: String, routine: RoutineRef?): SessionInfo =
