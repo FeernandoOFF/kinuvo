@@ -5,6 +5,7 @@ import kinuvo.harness.AgentDoc
 import kinuvo.harness.AgentDocs
 import kinuvo.server.skills.Skill
 import kinuvo.server.plugin.Tool
+import kinuvo.protocol.approval.Risk
 import kinuvo.protocol.tool.ToolNames
 import kinuvo.protocol.capability.ResolvedTool
 
@@ -78,8 +79,9 @@ fun firstSessionFor(tools: List<Tool>): String = buildString {
     fun name(id: String) = tools.coreName(id)
     append("## First session\n\n")
     append("Do a concrete user task first; offer discovery afterwards. Otherwise introduce yourself, say in one short sentence what you will inspect, then act without asking permission.\n")
-    if (name(ToolNames.MCP_LIST) != null) {
-        append("Use ${name(ToolNames.MCP_LIST)} to see connected servers. Explore only their read-only tools (events, issues, mail subjects); never write, send or delete. Approvals still apply. Make at most 8 cheap look-ups; stop earlier when enough.\n")
+    if (tools.any { it.coreMetadata == null && it.identity?.instance?.pluginId == "kinuvo.mcp" && it.risk == Risk.Low }) {
+        name(ToolNames.MCP_LIST)?.let { append("Use $it to see connected servers. ") }
+        append("Explore only their advertised read-only tools (events, issues, mail subjects); never write, send or delete. Approvals still apply. Make at most 8 cheap look-ups; stop earlier when enough.\n")
         append("Briefly summarize what you learned in plain language; invite corrections. Propose 3–5 concrete next steps")
         when {
             name(ToolNames.SHOW_UI) != null -> append(" in a compact ${name(ToolNames.SHOW_UI)} card")
@@ -133,7 +135,7 @@ fun aboutKinuvoFor(tools: List<Tool>, discovery: Boolean = false): String = buil
             ToolNames.ASK_USER in names -> append("Present the offer with ${name(ToolNames.ASK_USER)}. ")
             else -> append("Ask in plain text. ")
         }
-        if (!discovery && ToolNames.MEMORY in names) append("If declined or ignored, note it in Memory with ${name(ToolNames.MEMORY)} so you do not offer it again. ")
+        if (!discovery && ToolNames.MEMORY in names) append("Only after an explicit decline (the user says no or chooses Not now), note it in Memory with ${name(ToolNames.MEMORY)} so you do not offer it again; never record silence. ")
         if (ToolNames.MCP_ADD in names) {
             append("On yes, use ${name(ToolNames.MCP_ADD)}(preset)")
             if (canLogin) append(" then ${name(ToolNames.MCP_LOGIN)} and finish sign-in with the user")

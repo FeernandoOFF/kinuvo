@@ -12,6 +12,7 @@ import kinuvo.server.plugin.CoreTool
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.JsonObject
 import kotlin.test.*
+import kinuvo.protocol.approval.Risk
 import kinuvo.protocol.agent.AgentId
 import kinuvo.protocol.capability.CapabilityState
 import kinuvo.protocol.capability.ResolvedTool
@@ -23,26 +24,38 @@ class InstructionsTest {
         override suspend fun execute(args: JsonObject) = error("Not executed")
     }
 
+    private fun external(readOnly: Boolean = true) = object : Tool {
+        override val identity = ToolIdentity(PluginInstanceId("kinuvo.mcp", "external"), "lookup")
+        override val descriptor = toolSpec("lookup", "External tool")
+        override val risk = if (readOnly) Risk.Low else Risk.Medium
+        override suspend fun execute(args: JsonObject) = error("Not executed")
+    }
+
+    @Test fun discoveryUsesExternalReadToolsWithoutManagement() {
+        val prompt = firstSessionFor(listOf(external()))
+        assertTrue("Explore" in prompt && "at most 8" in prompt)
+        assertFalse("mcp_list" in prompt)
+        for (tools in listOf(emptyList(), listOf(tool("mcp_list")), listOf(external(false)))) {
+            assertTrue("Skip look-ups" in firstSessionFor(tools))
+            assertFalse("Explore" in firstSessionFor(tools))
+        }
+    }
+
     @Test fun firstSessionGuidanceFollowsAdvertisedTools() {
         val optional = listOf("mcp_list", "show_ui", "ask_user", "tasks", "memory", "mcp_add", "mcp_login")
         for (mask in 0 until (1 shl optional.size)) {
             val names = optional.filterIndexed { index, _ -> mask and (1 shl index) != 0 }
-            val text = firstSessionFor(names.map(::tool))
+            val text = firstSessionFor(names.map(::tool) + external())
             optional.filter { it !in names }.forEach { assertFalse(it in text, "$it in $names") }
-            assertEquals("mcp_list" in names && "tasks" in names, "Add to tasks" in text)
-            if ("mcp_list" in names) {
-                assertTrue("read-only" in text && "at most 8" in text && "Approvals still apply" in text)
-                assertTrue("invite corrections" in text && "3–5" in text)
-                when {
-                    "show_ui" in names -> assertTrue("compact show_ui card" in text)
-                    "ask_user" in names -> assertTrue("with ask_user" in text)
-                    else -> assertTrue("numbered list" in text)
-                }
-                assertTrue("If no connected server offers read-only look-up tools, skip look-ups" in text)
-            } else {
-                assertTrue("Skip look-ups" in text)
-                assertFalse("Explore" in text)
+            assertEquals("tasks" in names, "Add to tasks" in text)
+            assertTrue("read-only" in text && "at most 8" in text && "Approvals still apply" in text)
+            assertTrue("invite corrections" in text && "3–5" in text)
+            when {
+                "show_ui" in names -> assertTrue("compact show_ui card" in text)
+                "ask_user" in names -> assertTrue("with ask_user" in text)
+                else -> assertTrue("numbered list" in text)
             }
+            assertTrue("If no connected server offers read-only look-up tools, skip look-ups" in text)
             assertTrue("concrete user task first" in text && "connecting apps" in text)
             assertTrue("User Notes may only receive durable facts the user stated or confirmed" in text)
             assertTrue("do not record connector offers or decline/ignore events" in text)
@@ -60,12 +73,12 @@ class InstructionsTest {
         val untrusted = firstSessionFor(external)
         assertFalse("Explore" in untrusted || "Add to tasks" in untrusted)
         val real = listOf("mcp_list", "memory", "show_ui", "ask_user", "tasks").map { tool(it, "core_$it") }
-        val trusted = firstSessionFor(external + real)
+        val trusted = firstSessionFor(external + real + external())
         assertTrue("Use core_mcp_list" in trusted && "compact core_show_ui card" in trusted)
         assertTrue("using core_tasks only after the user chooses" in trusted)
-        assertTrue("with core_ask_user" in firstSessionFor(real.filter { it.descriptor.name != "core_show_ui" }))
-        assertFalse("If declined or ignored, note it in Memory" in aboutKinuvoFor(real, discovery = true))
-        assertTrue("If declined or ignored, note it in Memory" in aboutKinuvoFor(real))
+        assertTrue("with core_ask_user" in firstSessionFor(real.filter { it.descriptor.name != "core_show_ui" } + external()))
+        assertFalse("Only after an explicit decline" in aboutKinuvoFor(real, discovery = true))
+        assertTrue("Only after an explicit decline" in aboutKinuvoFor(real))
         assertTrue("Settings → Server settings → Tools & MCP → MCP servers" in trusted)
     }
 
@@ -75,7 +88,7 @@ class InstructionsTest {
         assertTrue("available presets" in card && "offer the relevant one once" in card)
         assertTrue("show_ui card with Add / Not now" in card)
         assertFalse("Present the offer with ask_user" in card)
-        assertTrue("declined or ignored" in card && "Memory with memory" in card)
+        assertTrue("Only after an explicit decline" in card && "never record silence" in card && "Memory with memory" in card)
         assertTrue("mcp_add(preset) then mcp_login" in card)
         assertTrue("auth/sign-in error" in card && "reconnect via mcp_login" in card)
         val form = prompt("mcp_list", "ask_user")

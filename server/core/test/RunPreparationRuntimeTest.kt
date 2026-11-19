@@ -1,5 +1,6 @@
 package kinuvo.server
 
+import kinuvo.server.execution.NativeExecution
 import kinuvo.server.rpc.serverRoutes
 import kinuvo.server.routines.RoutineRun
 import kinuvo.protocol.team.TeamId
@@ -77,11 +78,16 @@ class RunPreparationRuntimeTest {
                 assertTrue("## First session" in context())
             }
             fixture.store.append(agent.id, session.id, SessionEntry.UserMessage("Hello"))
-            assertTrue("## First session" in context())
+            assertFalse("## First session" in context())
             fixture.store.append(agent.id, session.id, SessionEntry.AssistantMessage("Hello"))
             assertFalse("## First session" in context())
             val core = PluginInstanceId("kinuvo.core")
             val outputs = listOf(
+                SessionEntry.UserMessage("Earlier failed or queued turn"),
+                SessionEntry.VoiceCall("user", listOf(VoiceTurn(true, "Hello")), 0, 100),
+                SessionEntry.ToolResult(ToolCallId("failed"), ToolNames.SHOW_UI, "Failed", isError = true),
+                SessionEntry.ToolResult(ToolCallId("image"), "generate_image", "Image", attachments = listOf(Attachment("image", "image.png", "image/png", 8))),
+                SessionEntry.ToolResult(ToolCallId("app"), "mcp_app", "Shown", identity = ToolIdentity(PluginInstanceId("kinuvo.mcp", "app"), "show")),
                 SessionEntry.VoiceCall("voice", listOf(VoiceTurn(false, "Hello")), 0, 100),
             ) + listOf(ToolNames.SHOW_UI, ToolNames.SHOW_HTML, ToolNames.ASK_USER).map {
                 SessionEntry.ToolResult(ToolCallId(it), "aliased_$it", "Shown", identity = ToolIdentity(core, it))
@@ -91,11 +97,6 @@ class RunPreparationRuntimeTest {
                 fixture.store.append(agent.id, prior.id, output)
                 assertFalse("## First session" in harness.composer.compose(agent, prior.id, discovery = true).context)
             }
-            val userOnly = harness.newSession(agent)
-            fixture.store.append(agent.id, userOnly.id, SessionEntry.VoiceCall("user", listOf(VoiceTurn(true, "Hello")), 0, 100))
-            fixture.store.append(agent.id, userOnly.id, SessionEntry.ToolResult(ToolCallId("failed"), ToolNames.SHOW_UI, "Failed", isError = true, identity = ToolIdentity(core, ToolNames.SHOW_UI)))
-            fixture.store.append(agent.id, userOnly.id, SessionEntry.ToolResult(ToolCallId("external"), ToolNames.SHOW_UI, "External", identity = ToolIdentity(PluginInstanceId("mcp", "external"), ToolNames.SHOW_UI)))
-            assertTrue("## First session" in harness.composer.compose(agent, userOnly.id, discovery = true).context)
             val next = harness.newSession(agent)
             assertTrue("## First session" in harness.composer.compose(agent, next.id, discovery = true).context)
             fixture.store.append(agent.id, next.id, SessionEntry.Details(hidden = true))
@@ -131,7 +132,7 @@ class RunPreparationRuntimeTest {
             val session = harness.newSession(agent)
             suspend fun context(kind: RunKind) = harness.composer.run(agent.id, session.id, ExecutionInput("Hello", kind = kind)).context
             assertTrue("## First session" in context(RunKind.Chat(discovery = true)))
-            assertFalse("If declined or ignored, note it in Memory" in context(RunKind.Chat(discovery = true)))
+            assertFalse("Only after an explicit decline" in context(RunKind.Chat(discovery = true)))
             // Workflow Agent turns use the default ExecutionInput kind.
             assertFalse("## First session" in harness.composer.run(agent.id, session.id, ExecutionInput("Workflow")).context)
             assertFalse("## First session" in context(RunKind.Chat(taskId = "task")))
@@ -144,6 +145,38 @@ class RunPreparationRuntimeTest {
             assertTrue(prompts.isNotEmpty())
             assertTrue(prompts.none { "## First session" in it })
         } finally { harness.close() }
+    }
+
+    @Test fun nativeDispatchDiscoversOnlyOptedInInteractiveChat() = runBlocking {
+        val frontier = object : ModelProvider by provider {
+            override fun profile(model: String, base: ModelProfile) = ModelProfile.of(ModelTier.Frontier)
+        }
+        val fixture = RuntimeFixture(providers = listOf(frontier))
+        val prompts = mutableListOf<String>()
+        val harness = fixture.runtime(scriptedModel { prompt, _ ->
+            prompts += prompt.messages.joinToString("\n") { it.toString() }
+            flowOf(StreamFrame.End())
+        })
+        val scope = CoroutineScope(coroutineContext + SupervisorJob())
+        val runs = Runs(harness.log, scope, harness.native)
+        val native = NativeExecution(harness, runs, scope, { fixture.agent }, { ServerCapabilities("test") }, { _, _ -> }, { _, _ -> })
+        try {
+            val agent = fixture.agent
+            for (source in listOf("remote grant", "ACP gateway", "automated paired client", "Live voice delegation", "interactive chat")) {
+                val session = harness.newSession(agent)
+                val params = SendParams(agent.id, session.id, source, voice = source == "Live voice delegation", discovery = source == "interactive chat")
+                prompts.clear()
+                native.send(params)
+                runs.join(session.id)
+                assertTrue(prompts.isNotEmpty(), source)
+                assertEquals(source == "interactive chat", prompts.any { "## First session" in it }, source)
+                assertEquals(1, fixture.store.entries(agent.id, session.id).filterIsInstance<SessionEntry.UserMessage>().size)
+                prompts.clear()
+                native.send(params.copy(text = "next", discovery = true))
+                runs.join(session.id)
+                assertTrue(prompts.none { "## First session" in it }, source)
+            }
+        } finally { scope.cancel(); scope.coroutineContext.job.join(); harness.close() }
     }
 
     @Test fun offlineDeviceToolsStayOfferedWhileComputerNeedsSetup() = runBlocking {

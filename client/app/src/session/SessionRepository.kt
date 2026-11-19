@@ -165,8 +165,8 @@ class SessionRepository(private val notifications: Notifications, internal val c
 
     suspend fun createSession(agentId: AgentId): SessionInfo = call { it.call(Api.CreateSession, AgentRef(agentId)) }
 
-    suspend fun send(agentId: AgentId, sessionId: SessionId, text: String, attachments: List<String> = emptyList(), voice: Boolean = false, submissionId: String? = null, action: SurfaceAction? = null, delivery: SendDelivery = SendDelivery.Turn) =
-        call { it.call(Api.Send, SendParams(agentId, sessionId, text, attachments, voice, submissionId, action, delivery)) }
+    suspend fun send(agentId: AgentId, sessionId: SessionId, text: String, attachments: List<String> = emptyList(), voice: Boolean = false, submissionId: String? = null, action: SurfaceAction? = null, delivery: SendDelivery = SendDelivery.Turn, discovery: Boolean = false) =
+        call { it.call(Api.Send, SendParams(agentId, sessionId, text, attachments, voice, submissionId, action, delivery, discovery)) }
 
     suspend fun update(agentId: AgentId, sessionId: SessionId, title: String? = null, favorite: Boolean? = null) =
         call { it.call(Api.UpdateSession, UpdateSessionParams(agentId, sessionId, title, favorite)) }.also(::onChanged)

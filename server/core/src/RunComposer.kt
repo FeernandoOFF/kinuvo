@@ -291,10 +291,9 @@ class RunComposer internal constructor(
         val firstSession = e.profile.tier == ModelTier.Frontier && discovery && requireModel && routine == null && taskId == null && sessionId != null &&
             store.session(agent.id, sessionId).let { !it.hidden && it.routine == null && it.teamId == null } &&
             memory.isBlank() && userNotes.isBlank() &&
-            store.entries(agent.id, sessionId).none {
-                it is SessionEntry.AssistantMessage || it is SessionEntry.VoiceCall && it.turns.any { turn -> !turn.user } ||
-                    it is SessionEntry.ToolResult && !it.isError && it.identity?.instance == PluginInstanceId("kinuvo.core") &&
-                    it.identity?.localId in setOf(ToolNames.SHOW_UI, ToolNames.SHOW_HTML, ToolNames.ASK_USER)
+            // The current user message is appended by the runner after composition.
+            store.entries(agent.id, sessionId).all {
+                it is SessionEntry.Started || it is SessionEntry.Settings || it is SessionEntry.Details || it is SessionEntry.Activation
             }
         val context = when (style) {
             PromptStyle.Basic, PromptStyle.BasicWithIdentity -> basicContextFor(agent, docs, advertised, today, identity = style == PromptStyle.BasicWithIdentity)
