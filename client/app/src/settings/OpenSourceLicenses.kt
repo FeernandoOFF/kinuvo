@@ -1,6 +1,6 @@
 package kinuvo.app.settings
 
-/** A third-party component the apps ship. [maven] lists coordinate prefixes ("group:artifact") of the module dependencies it covers. */
+/** A third-party component the apps ship. [maven] lists coordinate prefixes ("group:artifact") of the module dependencies it covers; [files] lists name prefixes of bundled native libraries and fonts. */
 data class OpenSourceLicense(
     val name: String,
     val url: String,
@@ -8,14 +8,20 @@ data class OpenSourceLicense(
     val copyright: String? = null,
     val source: String? = null,
     val maven: List<String> = emptyList(),
+    val files: List<String> = emptyList(),
 ) {
-    /** The bundled license texts under `files/licenses`, without the SPDX "-only" / "-or-later" suffix; the LGPL builds on the GPL. */
-    val texts: List<String> get() = license.removeSuffix("-or-later").removeSuffix("-only").let { if (it == "LGPL-3.0") listOf(it, "GPL-3.0") else listOf(it) }
+    /** The bundled license texts under `files/licenses` for each id of the SPDX expression, without the "-only" / "-or-later" suffix; the LGPL builds on the GPL. */
+    val texts: List<String>
+        get() = license.split(Regex(" (?:AND|WITH) ")).flatMap {
+            val id = it.removeSuffix("-or-later").removeSuffix("-only")
+            if (id == "LGPL-3.0") listOf(id, "GPL-3.0") else listOf(id)
+        }.distinct()
 }
 
 private const val JB = "JetBrains s.r.o. and contributors"
 private const val AOSP = "The Android Open Source Project"
-private const val TERMUX = "Termux"
+private const val GO = "The Go Authors"
+private const val TAILSCALE = "Tailscale Inc."
 
 val openSourceLicenses = listOf(
     OpenSourceLicense("Kotlin, kotlinx and Compose Multiplatform", "https://kotlinlang.org", "Apache-2.0", JB, maven = listOf("org.jetbrains.kotlinx:", "org.jetbrains:markdown", "org.jetbrains.androidx.", "org.jetbrains.compose")),
@@ -24,7 +30,7 @@ val openSourceLicenses = listOf(
     OpenSourceLicense("Ktor", "https://ktor.io", "Apache-2.0", JB, maven = listOf("io.ktor:")),
     OpenSourceLicense("Koin", "https://insert-koin.io", "Apache-2.0", "Koin contributors", maven = listOf("io.insert-koin:")),
     OpenSourceLicense("OkHttp", "https://square.github.io/okhttp/", "Apache-2.0", "Square, Inc.", maven = listOf("com.squareup.okhttp3:")),
-    OpenSourceLicense("Model Context Protocol Kotlin SDK", "https://github.com/modelcontextprotocol/kotlin-sdk", "MIT", "Anthropic, PBC and contributors", maven = listOf("io.modelcontextprotocol:")),
+    OpenSourceLicense("Model Context Protocol Kotlin SDK", "https://github.com/modelcontextprotocol/kotlin-sdk", "Apache-2.0 AND MIT", "Model Context Protocol contributors; MIT portions Model Context Protocol a Series of LF Projects, LLC.", maven = listOf("io.modelcontextprotocol:")),
     OpenSourceLicense("Agent Client Protocol Kotlin SDK", "https://github.com/agentclientprotocol/kotlin-sdk", "Apache-2.0", "Agent Client Protocol contributors", maven = listOf("com.agentclientprotocol:")),
     OpenSourceLicense("OpenTelemetry Java", "https://opentelemetry.io", "Apache-2.0", "The OpenTelemetry Authors", maven = listOf("io.opentelemetry:")),
     OpenSourceLicense("Arrow", "https://arrow-kt.io", "Apache-2.0", "The Arrow Authors", maven = listOf("io.arrow-kt:")),
@@ -54,11 +60,35 @@ val openSourceLicenses = listOf(
     OpenSourceLicense("Rive Compose Multiplatform", "https://github.com/MuazKadan/rive-cmp", "Apache-2.0", "Muaz Kadan", maven = listOf("dev.muazkadan:")),
     OpenSourceLicense("Rive runtime", "https://github.com/rive-app/rive-runtime", "MIT", "Rive, Inc."),
     OpenSourceLicense("Drawflow", "https://github.com/jerosoler/Drawflow", "MIT", "Jero Soler"),
-    OpenSourceLicense("Inter", "https://github.com/rsms/inter", "OFL-1.1", "The Inter Project Authors"),
-    OpenSourceLicense("Libron, Readerly and Newsreader", "https://github.com/nicoverbruggen/libron", "OFL-1.1", "Nico Verbruggen; The Newsreader Project Authors"),
-    OpenSourceLicense("Tailscale", "https://github.com/tailscale/tailscale", "BSD-3-Clause", "Tailscale Inc & contributors; the Go libraries it builds on are under BSD-3-Clause, MIT or Apache-2.0"),
+    OpenSourceLicense("Inter", "https://github.com/rsms/inter", "OFL-1.1", "The Inter Project Authors", files = listOf("inter_")),
+    OpenSourceLicense("Libron, Readerly and Newsreader", "https://github.com/nicoverbruggen/libron", "OFL-1.1", "Nico Verbruggen; The Newsreader Project Authors", files = listOf("libron_")),
+    OpenSourceLicense("Skia", "https://skia.org", "BSD-3-Clause", "Google Inc.; bundled via Skiko in Compose Multiplatform"),
+    OpenSourceLicense("JetBrains Runtime (desktop and CLI only)", "https://github.com/JetBrains/JetBrainsRuntime", "GPL-2.0-only WITH Classpath-exception-2.0", "Oracle and/or its affiliates; JetBrains s.r.o.", source = "https://github.com/JetBrains/JetBrainsRuntime/tree/jbr-release-25.0.4.1b635.72"),
+    OpenSourceLicense("Tailscale (tailscale.com and tailcat)", "https://github.com/tailscale/tailscale", "BSD-3-Clause", "Tailscale Inc & contributors"),
+    OpenSourceLicense("Tailscale hujson, peercred and web-client-prebuilt", "https://github.com/tailscale", "BSD-3-Clause", TAILSCALE),
+    OpenSourceLicense("Tailscale wireguard-go", "https://github.com/tailscale/wireguard-go", "MIT", "WireGuard LLC"),
+    OpenSourceLicense("Tailscale gliderssh", "https://github.com/tailscale/gliderssh", "BSD-3-Clause", "Glider Labs"),
+    OpenSourceLicense("Tailscale certstore", "https://github.com/tailscale/certstore", "MIT", "Ben Toews"),
     OpenSourceLicense("TailPocket", "https://github.com/jt-wang/tailpocket", "MIT", "the tailpocket authors"),
-    OpenSourceLicense("PRoot", "https://github.com/termux/proot", "GPL-2.0-or-later", "STMicroelectronics and contributors; Termux build", source = "https://github.com/termux/proot"),
-    OpenSourceLicense("talloc", "https://talloc.samba.org", "LGPL-3.0-or-later", "Andrew Tridgell, Samba Team", source = "https://www.samba.org/ftp/talloc/"),
-    OpenSourceLicense("libandroid-shmem", "https://github.com/termux/libandroid-shmem", "BSD-3-Clause", "Sergii Pylypenko, Fredrik Fornwall", source = "https://github.com/termux/libandroid-shmem"),
+    OpenSourceLicense("Go standard library and Go Authors modules (golang.org/x, edwards25519, json, kr/fs)", "https://go.dev", "BSD-3-Clause", GO),
+    OpenSourceLicense("ed25519consensus", "https://github.com/hdevalence/ed25519consensus", "BSD-3-Clause", "$GO; Henry de Valence"),
+    OpenSourceLicense("klauspost/compress", "https://github.com/klauspost/compress", "BSD-3-Clause", "$GO; Klaus Post"),
+    OpenSourceLicense("netipx", "https://github.com/go4org/netipx", "BSD-3-Clause", "The Inet.af AUTHORS"),
+    OpenSourceLicense("u-root", "https://github.com/u-root/u-root", "BSD-3-Clause", "u-root Authors"),
+    OpenSourceLicense("msync", "https://github.com/creachadair/msync", "BSD-3-Clause", "Michael J. Fromberger"),
+    OpenSourceLicense("pkg/sftp", "https://github.com/pkg/sftp", "BSD-2-Clause", "Dave Cheney"),
+    OpenSourceLicense("coder/websocket", "https://github.com/coder/websocket", "ISC", "Coder"),
+    OpenSourceLicense("go-shlex", "https://github.com/anmitsu/go-shlex", "MIT", "anmitsu"),
+    OpenSourceLicense("creack/pty", "https://github.com/creack/pty", "MIT", "Keith Rarick"),
+    OpenSourceLicense("fxamacker/cbor", "https://github.com/fxamacker/cbor", "MIT", "Faye Amacker"),
+    OpenSourceLicense("float16", "https://github.com/x448/float16", "MIT", "Montgomery Edwards⁴⁴⁸ and Faye Amacker"),
+    OpenSourceLicense("bart", "https://github.com/gaissmai/bart", "MIT", "Karl Gaissmaier"),
+    OpenSourceLicense("go-ps", "https://github.com/mitchellh/go-ps", "MIT", "Mitchell Hashimoto"),
+    OpenSourceLicense("groupcache and btree", "https://github.com/golang/groupcache", "Apache-2.0", "Google Inc."),
+    OpenSourceLicense("go4.org/mem", "https://github.com/go4org/mem", "Apache-2.0", "The Go4 AUTHORS"),
+    OpenSourceLicense("gVisor", "https://gvisor.dev", "Apache-2.0", "The gVisor Authors"),
+    OpenSourceLicense("go-proxyproto", "https://github.com/pires/go-proxyproto", "Apache-2.0", "the go-proxyproto authors"),
+    OpenSourceLicense("PRoot", "https://github.com/termux/proot", "GPL-2.0-or-later", "STMicroelectronics and contributors; unmodified Termux package proot 5.1.107.102", source = "https://github.com/termux/proot/tree/52d65a4dc140ca554d241a1438ddd4f6b00c9813", files = listOf("libproot")),
+    OpenSourceLicense("talloc", "https://talloc.samba.org", "LGPL-3.0-or-later", "Andrew Tridgell, Samba Team; unmodified Termux package libtalloc 2.5.0", source = "https://www.samba.org/ftp/talloc/talloc-2.5.0.tar.gz", files = listOf("libtalloc")),
+    OpenSourceLicense("libandroid-shmem", "https://github.com/termux/libandroid-shmem", "BSD-3-Clause", "Sergii Pylypenko, Fredrik Fornwall; unmodified Termux package libandroid-shmem 0.7", source = "https://github.com/termux/libandroid-shmem/tree/v0.7", files = listOf("libandroid-shmem")),
 )
