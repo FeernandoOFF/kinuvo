@@ -18,6 +18,7 @@ sealed interface RunKind {
         val catalogs: List<UiCatalog>? = null,
         val reports: ToolReports? = null,
         val taskId: String? = null,
+        val discovery: Boolean = false,
     ) : RunKind
 
     /** An unattended Routine run; the prompt's text is the Routine's own. */

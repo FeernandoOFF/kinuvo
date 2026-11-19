@@ -17,6 +17,12 @@ class KinuvoMcpPermissionTest {
         assertFalse(recognisesKinuvoCall(request("kinuvo", "private"), offered))
         assertFalse(recognisesKinuvoCall(request("kinuvo", "deploy"), null))
         assertFalse(recognisesKinuvoCall(buildJsonObject { put("title", "kinuvo deploy") }, offered))
+        fun titled(title: String) = buildJsonObject { putJsonObject("toolCall") { put("title", title); putJsonObject("rawInput") { put("text", "x") } } }
+        assertTrue(recognisesKinuvoCall(titled("mcp__kinuvo__deploy"), offered))
+        assertFalse(recognisesKinuvoCall(titled("mcp__other__deploy"), offered))
+        assertFalse(recognisesKinuvoCall(titled("deploy"), offered))
+        assertFalse(recognisesKinuvoCall(buildJsonObject { putJsonObject("toolCall") { put("title", "mcp__kinuvo__deploy"); putJsonObject("rawInput") { put("server", "private") } } }, offered))
+        assertTrue(recognisesKinuvoCall(buildJsonObject { putJsonObject("toolCall") { putJsonObject("rawInput") { put("server", "kinuvo"); put("tool", "deploy") } } }, offered))
         assertFalse(offered.toString().contains("Bearer"))
     }
 }

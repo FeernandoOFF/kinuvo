@@ -23,7 +23,7 @@ class HarnessTest {
         val server = ServerCapabilities("server", setOf(ServerFeature.Browser))
         val native = acpAgent.copy(executionKind = ExecutionKind.Native)
         assertTrue(sessionBrowserAvailable(native, server))
-        assertFalse(sessionBrowserAvailable(acpAgent, server))
+        assertTrue(sessionBrowserAvailable(acpAgent, server))
         assertFalse(sessionBrowserAvailable(acpAgent.copy(executionKind = ExecutionKind.Remote), server))
         assertFalse(sessionBrowserAvailable(native, server.copy(features = emptySet())))
         assertFalse(sessionBrowserAvailable(null, server))

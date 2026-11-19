@@ -128,6 +128,7 @@ private fun InspectorHeader(state: InspectorState, host: InspectorHost, actions:
         if (state.pages.isEmpty()) agent?.name ?: "…" else state.page.title(),
         back = actions.onBack.takeIf { state.pages.isNotEmpty() },
         subtitle = if (state.pages.isEmpty()) "Agent settings for every Session" else "${agent?.name ?: "Agent"} · every Session",
+        icon = Lucide.SlidersHorizontal,
     ) {
         if (state.dirty) SaveButton(actions.onSave, enabled = !state.saving && state.agentId?.let { id -> state.draft?.problems(id, host.agents)?.isEmpty() } == true)
         else if (state.pages.isEmpty()) HeaderButton(Lucide.X, "Close", actions.onClose)
@@ -241,12 +242,19 @@ private fun ExternalAgentPage(state: InspectorState, draft: AgentDraft, details:
         }
         details.remoteAgentId?.let { Text("Remote Agent: $it", Modifier.padding(horizontal = Spacing.space10), style = TextStyles.secondary) }
     }
+    if (agent.executionKind == ExecutionKind.Acp) Group("Instructions") {
+        NavRow(Lucide.ScrollText, "Personality and Soul", draft.identity.lineSequence().map { it.trim().trimStart('#', ' ') }.firstOrNull { it.isNotEmpty() }) {
+            actions.onPush(InspectorPage.Instructions)
+        }
+    }
     Group("Approvals") {
-        Text("Kinuvo's Risk tolerance and Trust rules don't apply. $harness decides when to ask before acting; answer from any Device with access.",
+        Text(if (agent.executionKind == ExecutionKind.Acp) "Kinuvo's tools follow its Risk tolerance and Trust rules. $harness decides when to ask before its own actions, unless a Session's Risk tolerance is Full; answer from any Device with access."
+            else "Kinuvo's Risk tolerance and Trust rules don't apply. $harness decides when to ask before acting; answer from any Device with access.",
             Modifier.padding(Spacing.space4), style = TextStyles.secondary)
     }
     Group("Managed by $harness") {
-        Text("Instructions, Memory, Skills and tools are set in $harness on $machine.", Modifier.padding(Spacing.space4), style = TextStyles.secondary, color = color(mutedColor))
+        Text(if (agent.executionKind == ExecutionKind.Acp) "$harness also gets its Personality, Soul and Kinuvo's tools. Memory, Skills and its own tools are set in $harness on $machine."
+            else "Instructions, Memory, Skills and tools are set in $harness on $machine.", Modifier.padding(Spacing.space4), style = TextStyles.secondary, color = color(mutedColor))
     }
     Text("Changes apply to ${agent.name}'s new Sessions.", style = TextStyles.caption, color = color(mutedColor))
 }

@@ -28,7 +28,9 @@ class AcpConnection private constructor(
     private val protocol: Protocol,
     val client: Client,
 ) {
-    private var offered: McpServerDescriptor? = null
+    @Volatile private var offered: McpServerDescriptor? = null
+
+    internal fun offer(tools: McpServerDescriptor?) { offered = tools }
 
     suspend fun login(methodId: String) = client.login(AuthMethodId(methodId))
 
@@ -130,6 +132,13 @@ class AcpConnection private constructor(
 internal fun recognisesKinuvoCall(raw: JsonObject, offered: McpServerDescriptor?): Boolean {
     val tool = ((raw["subject"] as? JsonObject)?.get("toolCall") ?: raw["toolCall"]) as? JsonObject
     val input = tool?.get("rawInput") as? JsonObject
-    val name = (input?.get("toolName") as? JsonPrimitive)?.content
-    return offered != null && (input?.get("serverName") as? JsonPrimitive)?.content == "kinuvo" && name in offered.toolNames
+    fun field(key: String) = (input?.get(key) as? JsonPrimitive)?.content
+    // Linked Servers name serverName/toolName, Codex server/tool, Claude Code only the title.
+    val name = when {
+        field("serverName") == "kinuvo" -> field("toolName")
+        field("server") == "kinuvo" -> field("tool")
+        input?.containsKey("server") == true || input?.containsKey("serverName") == true -> null
+        else -> (tool?.get("title") as? JsonPrimitive)?.content?.takeIf { it.startsWith("mcp__kinuvo__") }?.removePrefix("mcp__kinuvo__")
+    }
+    return offered != null && name in offered.toolNames
 }

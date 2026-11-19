@@ -15,6 +15,7 @@ import kotlinx.serialization.json.*
 
 /** What the management tools read and change; the Server supplies it from the same handlers as Settings. */
 class AgentManagement(private val harness: AgentRuntime, private val admin: Admin) {
+    val mcpAvailable get() = harness.mcp !== McpManagement.Unavailable
     val toolGroups get() = harness.integrations[Integration.Tools].orEmpty().toSet()
     suspend fun agents() = admin.agents()
     suspend fun details(id: AgentId) = throwing<AgentError, AgentDetails> { admin.details(admin.agent(id)) }
@@ -27,7 +28,7 @@ class AgentManagement(private val harness: AgentRuntime, private val admin: Admi
     suspend fun configure(agent: AgentId, session: SessionId, settings: SessionSettings) =
         harness.configure(harness.store.agents().first { it.id == agent }, session, settings)
     suspend fun mcpServers(id: AgentId) = harness.mcp.mcpServers(harness.store.agents().first { it.id == id })
-    suspend fun saveMcp(p: SaveMcpParams) = harness.mcp.saveMcp(p)
+    suspend fun saveMcp(p: SaveMcpParams, createOnly: Boolean) = harness.mcp.saveMcp(p, createOnly)
     suspend fun removeMcp(p: McpParams) = harness.mcp.removeMcp(p)
     suspend fun testMcp(p: McpParams) = harness.mcp.testMcp(p)
     suspend fun loginMcp(p: McpLoginParams) = harness.mcp.loginMcp(p).url
@@ -222,26 +223,46 @@ private class AgentCreate(management: AgentManagement, scope: AgentManageScope) 
 }
 
 private class McpList(management: AgentManagement, scope: AgentManageScope) : ManageTool(management, scope) {
-    override val descriptor = toolSpec(ToolNames.MCP_LIST, "Your MCP servers: name, how it connects, whether you're signed in and which are shared with other Agents.")
+    override val descriptor = toolSpec(ToolNames.MCP_LIST, "Your MCP servers: name, how it connects, whether you're signed in and which are shared with other Agents; plus available catalog presets.")
 
-    override suspend fun execute(args: JsonObject): String = management.mcpServers(scope.agentId).joinToString("\n") { s ->
-        val auth = when (s.auth) { McpAuthStatus.Required -> ", sign-in needed"; McpAuthStatus.SignedIn -> ", signed in"; McpAuthStatus.None -> "" }
-        "- ${s.name} [${s.url ?: "${s.command} ${s.args.joinToString(" ")}".trim()}] ${s.scope.name.lowercase()}$auth${if (!s.active) ", replaced by your own" else ""}"
-    }.ifEmpty { "No MCP servers." }
+    override suspend fun execute(args: JsonObject): String {
+        val servers = management.mcpServers(scope.agentId)
+        val effective = servers.effectiveFor(scope.agentId)
+        val available = if (management.mcpAvailable) McpCatalog.filter { preset ->
+            effective.none { it.url?.normalizedMcpEndpoint() == preset.url.normalizedMcpEndpoint() }
+        } else emptyList()
+        return buildString {
+            appendLine("Configured MCP servers:")
+            appendLine(servers.joinToString("\n") { s ->
+                val auth = when (s.auth) { McpAuthStatus.Required -> ", sign-in needed"; McpAuthStatus.SignedIn -> ", signed in"; McpAuthStatus.None -> "" }
+                "- ${s.name} [${s.url ?: "${s.command} ${s.args.joinToString(" ")}".trim()}] ${s.scope.name.lowercase()}$auth${if (!s.active) ", replaced by your own" else ""}"
+            }.ifEmpty { "No MCP servers." })
+            appendLine("Available presets:")
+            append(available.joinToString("\n") { "- ${it.id}: ${it.name} (${it.auth}) — ${it.description}" +
+                if (servers.any { s -> s.name == it.id }) " (unavailable: name already configured; inspect mcp_list)" else "" }.ifEmpty { "None." })
+        }
+    }
 }
 
 private class McpAdd(management: AgentManagement, scope: AgentManageScope) : ManageTool(management, scope) {
-    override val descriptor = ToolSpec(ToolNames.MCP_ADD, "Add or replace your own MCP server. Give url or command, not both. Secret env and headers values are hidden from Approval previews.", buildJsonObject {
+    override val descriptor = ToolSpec(ToolNames.MCP_ADD, "Add or replace your own MCP server. Give preset (an id from mcp_list), or name and url/command. OAuth presets need the user to sign in after they are added; Token and OwnClient presets need setup in Settings. Secret env and headers values are hidden from Approval previews.", buildJsonObject {
         put("type", "object")
         putJsonObject("properties") {
-            listOf("name", "url", "command").forEach { key -> putJsonObject(key) { put("type", "string") } }
+            listOf("preset", "name", "url", "command").forEach { key -> putJsonObject(key) { put("type", "string") } }
             putJsonObject("args") { put("type", "array"); putJsonObject("items") { put("type", "string") } }
             listOf("env", "headers").forEach { key -> putJsonObject(key) { put("type", "object"); putJsonObject("additionalProperties") { put("type", "string") } } }
         }
-        put("required", JsonArray(listOf(JsonPrimitive("name"))))
     })
 
-    override fun assess(args: JsonObject) = asks("Adds an MCP server, which can run code on the Server or send data to a service")
+    override fun assess(args: JsonObject) = if ((args["preset"] as? JsonPrimitive)?.content?.isNotBlank() == true)
+        Assessment(listOf(Action(risk, listOf(descriptor.name), "Adds a catalog MCP server", trustable = false)))
+    else asks("Adds an MCP server, which can run code on the Server or send data to a service")
+
+    override suspend fun bind(args: JsonObject): suspend () -> Unit {
+        val binding = super.bind(args)
+        server(args)
+        return binding
+    }
 
     override suspend fun preview(args: JsonObject): ChangePreview {
         val s = server(args)
@@ -254,12 +275,21 @@ private class McpAdd(management: AgentManagement, scope: AgentManageScope) : Man
     }
 
     override suspend fun execute(args: JsonObject): String {
-        val saved = management.saveMcp(SaveMcpParams(scope.agentId, server(args)))
+        val saved = management.saveMcp(SaveMcpParams(scope.agentId, server(args)), createOnly = args.clean().string("preset") != null)
         return "Added '${saved.name}'. Try it with mcp_test."
     }
 
     private fun server(args: JsonObject): McpServerInfo {
         val a = args.clean()
+        a.string("preset")?.let { id ->
+            require(a.keys == setOf("preset")) { "Give preset alone, without custom server arguments" }
+            val preset = McpCatalog.firstOrNull { it.id == id } ?: error("Unknown MCP preset '$id'; use mcp_list")
+            require(preset.auth == McpPresetAuth.OAuth) {
+                val needs = if (preset.auth == McpPresetAuth.Token) "a personal access token" else "your own OAuth client ID and scopes"
+                "${preset.name} needs $needs. Ask the user to provide it in Settings → Tools & MCP → MCP servers; see $KINUVO_DOCS_URL/guides/mcp/."
+            }
+            return preset.server()
+        }
         val url = a.string("url")
         val command = a.string("command")
         require((url == null) != (command == null)) { "Give either a url or a command" }
