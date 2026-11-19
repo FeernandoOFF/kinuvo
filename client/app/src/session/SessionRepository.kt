@@ -278,9 +278,9 @@ class SessionRepository(private val notifications: Notifications, internal val c
             val nextBefore = page.sessions.lastOrNull()?.id.takeIf { page.hasMore }
             state.update { s ->
                 val count = when {
-                    !serverInbox -> sessions.count { it.id in s.settled }
-                    more || staleCount -> s.lists[agentId]?.settledCount ?: page.settledCount
-                    else -> settledCount(agentId, page)
+                    !serverInbox -> sessions.localSettledCount(s.settled)
+                    more || staleCount -> s.lists[agentId]?.settledCount ?: 0
+                    else -> page.settledCount
                 }
                 s.copy(lists = s.lists + (agentId to SessionList(sessions, page.hasMore, nextBefore, count)))
             }
@@ -293,15 +293,6 @@ class SessionRepository(private val notifications: Notifications, internal val c
                 loadingLists -= agentId
             }
         }
-    }
-
-    private fun settledCount(agentId: AgentId, page: SessionPage): Int {
-        val listed = (page.sessions + page.favorites).associateBy { it.id }
-        val pending = pendingSettles.values.filter { it.agentId == agentId }.sumOf { params ->
-            val info = listed[params.sessionId] ?: inboxInfo[params.sessionId]
-            if (info?.inChats == true) (params.settled == true).compareTo(info.settled) else 0
-        }
-        return (page.settledCount + pending).coerceAtLeast(0)
     }
 
     fun loadSkills(agentId: AgentId) = scope.launch {
@@ -383,7 +374,6 @@ class SessionRepository(private val notifications: Notifications, internal val c
     }
 
     private fun onChanged(info: SessionInfo) {
-        val known = info.id in inboxInfo
         val before = recordStatus(info)
         // A Routine's Sessions join the chats once they have something for the user; its finished runs are announced as Routine runs.
         listChanges[info.agentId]?.set(info.id, info)
@@ -393,11 +383,9 @@ class SessionRepository(private val notifications: Notifications, internal val c
             val sessions = if (!info.inChats) others
                 else if (others.size < list.sessions.size) list.sessions.map { if (it.id == info.id) info else it }
                 else (others + info).sortedWith(SessionOrder)
-            val count = if (serverInbox) list.settledCount else sessions.count { it.id in s.settled }
+            val count = if (serverInbox) list.settledCount else sessions.localSettledCount(s.settled)
             s.copy(lists = s.lists + (info.agentId to list.copy(sessions = sessions, settledCount = count)))
         }
-        // An off-page Session may already contribute to the total.
-        if (serverInbox && !known && state.value.lists[info.agentId]?.hasMore == true) refreshSettledCount(info.agentId)
         if (info.routine != null) {
             if (before != SessionStatus.Waiting && info.status == SessionStatus.Waiting) notifications.post(Notice.ApprovalNeeded(info.agentId, info.id))
             if (before != null && before != SessionStatus.Idle && info.status == SessionStatus.Idle && info.inChats) {
@@ -436,21 +424,16 @@ class SessionRepository(private val notifications: Notifications, internal val c
         val viewingNow = viewing == id && client?.foreground?.value == true
         val settled = pendingSettles[id]?.settled ?: info.settled
         state.update { s ->
-            val list = s.lists[agent]
-            val lists = if (list == null || previous == null && (fromPage || list.hasMore)) s.lists else {
-                val wasCounted = previous?.inChats == true && id in s.settled
-                val counted = info.inChats && settled
-                val delta = counted.compareTo(wasCounted)
-                if (delta == 0) s.lists else s.lists + (agent to list.copy(settledCount = (list.settledCount + delta).coerceAtLeast(0)))
-            }
             s.copy(
-                lists = lists,
                 settled = if (settled) s.settled + id else s.settled - id,
                 finished = if (info.unread && !viewingNow) s.finished + id else s.finished - id,
             )
         }
-        if (!fromPage && (previous == null || (previous.inChats && previous.settled) != (info.inChats && info.settled)))
+        if (!fromPage && (agent in state.value.lists || agent in loadingLists) &&
+            (previous == null || previous.settled != info.settled || previous.favorite != info.favorite || previous.inChats != info.inChats)) {
             countRevisions[agent] = (countRevisions[agent] ?: 0) + 1
+            refreshSettledCount(agent)
+        }
         if (info.unread && viewingNow) markSeen(info)
     }
 
@@ -467,7 +450,7 @@ class SessionRepository(private val notifications: Notifications, internal val c
             } while (revision != countRevisions[agentId])
             if (serverInbox) state.update { s ->
                 val list = s.lists[agentId] ?: return@update s
-                s.copy(lists = s.lists + (agentId to list.copy(settledCount = settledCount(agentId, page))))
+                s.copy(lists = s.lists + (agentId to list.copy(settledCount = page.settledCount)))
             }
         } finally {
             if (connection.isCurrent()) refreshingCounts -= agentId
@@ -552,8 +535,10 @@ class SessionRepository(private val notifications: Notifications, internal val c
 }
 
 private fun RepositoryState.withLocalSettled(settled: Set<SessionId>) = copy(settled = settled, lists = lists.mapValues { (_, list) ->
-    list.copy(settledCount = list.sessions.count { it.id in settled })
+    list.copy(settledCount = list.sessions.localSettledCount(settled))
 })
+
+private fun List<SessionInfo>.localSettledCount(settled: Set<SessionId>) = count { it.id in settled && !it.favorite && it.inChats }
 
 private fun note(event: AgentEvent): String? = when (event) {
     is AgentEvent.RunError -> event.message

@@ -92,9 +92,13 @@ class SessionLogTest {
         log.updateDetails(agent, routineOnly, settled = true)
         val hidden = log.createSession(agent, "").id
         log.append(agent, hidden, SessionEntry.Details(hidden = true, settled = true))
+        val favorite = log.createSession(agent, "").id
+        log.updateDetails(agent, favorite, settled = true)
+        log.updateDetails(agent, favorite, favorite = true)
 
         val first = log.page(agent, null, 1)
         assertEquals(2, first.settledCount)
+        assertTrue(first.favorites.single().settled)
         assertTrue(first.hasMore)
         assertEquals(0, log.page(agent, first.sessions.single().id.value, 1).settledCount)
         assertEquals(2, log.page(agent, null, 1, routine.id).settledCount)

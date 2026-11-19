@@ -91,7 +91,7 @@ class SessionLog(private val store: Store, private val clock: () -> Long = { Clo
         val page = all.drop(from).take(limit)
         val firstChats = before == null && routineId == null
         return SessionPage(page, from + page.size < all.size, if (firstChats) all.filter { it.favorite } else emptyList(),
-            if (before == null) sessions.count { it.inChats && it.settled } else 0)
+            if (before == null) sessions.count { it.inChats && it.settled && !it.favorite } else 0)
     }
 
     override suspend fun createSession(agentId: AgentId, instructions: String, routine: RoutineRef?): SessionInfo =

@@ -99,10 +99,8 @@ class ConnectedServerTest {
 
         sessions.settle(id, settled = true)
         assertEquals(setOf(id), sessions.state.value.settled)
-        assertEquals(2, sessions.state.value.lists.getValue(agent).settledCount)
         assertEquals(UpdateSessionParams(agent, id, settled = true), script.inboxUpdates.receive())
-        sessions.state.first { it.lists[agent]?.sessions?.single()?.settled == true }
-        assertEquals(2, sessions.state.value.lists.getValue(agent).settledCount)
+        sessions.state.first { it.lists[agent]?.settledCount == 2 && it.lists[agent]?.sessions?.single()?.settled == true }
 
         sessions.view(agent, id).join()
         assertEquals(UpdateSessionParams(agent, id, seen = true), script.inboxUpdates.receive())
@@ -112,8 +110,7 @@ class ConnectedServerTest {
         requireNotNull(owner.client).setActive(false)
         script.sessionInfo = script.sessionInfo.copy(settled = false, unread = true)
         script.event(Api.SessionChanged, script.sessionInfo)
-        sessions.state.first { id in it.finished && id !in it.settled }
-        assertEquals(1, sessions.state.value.lists.getValue(agent).settledCount)
+        sessions.state.first { id in it.finished && id !in it.settled && it.lists[agent]?.settledCount == 1 }
         assertTrue(script.inboxUpdates.tryReceive().isFailure)
         requireNotNull(owner.client).setActive(true)
         assertEquals(UpdateSessionParams(agent, id, seen = true), script.inboxUpdates.receive())
@@ -121,29 +118,65 @@ class ConnectedServerTest {
         assertTrue(sessions.state.value.finished.isEmpty())
     }
 
-    @Test fun settledCountTracksOlderSessionsAcrossPagination() = withOwner { owner, _, _ ->
-        val script = Script("A", serverFeatures = setOf(ServerFeature.SessionInbox))
-        val agent = script.sessionInfo.agentId
-        val older = SessionInfo(SessionId("older"), agent, "Older", settled = true)
-        script.olderSession = older
-        connect(owner, script)
+    @Test fun olderPageDoesNotDoubleCountASettleAlreadyIncludedOnReconnect() = withOwner { owner, _, _ ->
+        val features = setOf(ServerFeature.SessionInbox)
+        val first = Script("A", serverFeatures = features)
+        val second = Script("Reconnected", serverFeatures = features)
+        val agent = first.sessionInfo.agentId
+        val older = SessionInfo(SessionId("older"), agent, "Older")
+        val settled = older.copy(settled = true)
+        first.olderSession = older
+        second.olderSession = settled
+        val sockets = Channel<Script>(Channel.UNLIMITED)
+        sockets.send(first); sockets.send(second)
+        val client = KinuvoClient("local:test", "test", connection = { sockets.receive() })
+        owner.open(client, "local:test")
+        client.connect()
+        owner.activate()
         val sessions = owner.sessions
         sessions.loadSessions(agent).join()
-        assertEquals(1, sessions.state.value.lists.getValue(agent).settledCount)
+        sessions.loadSessions(agent, more = true).join()
+        assertEquals(0, sessions.state.value.lists.getValue(agent).settledCount)
+        assertTrue(older in sessions.state.value.lists.getValue(agent).sessions)
 
-        val unsettled = older.copy(settled = false)
-        script.olderSession = unsettled
-        script.event(Api.SessionChanged, unsettled)
-        sessions.state.first { it.lists[agent]?.settledCount == 0 }
-
-        script.olderSession = older
-        script.event(Api.SessionChanged, older)
-        sessions.state.first { it.lists[agent]?.settledCount == 1 }
+        first.disconnect()
+        sessions.state.first {
+            val list = it.lists[agent]
+            list?.settledCount == 1 && list.sessions == listOf(second.sessionInfo)
+        }
         sessions.loadSessions(agent, more = true).join()
         val list = sessions.state.value.lists.getValue(agent)
         assertFalse(list.hasMore)
-        assertEquals(2, list.sessions.size)
+        assertTrue(settled in list.sessions)
         assertEquals(1, list.settledCount)
+
+        val favorite = settled.copy(favorite = true)
+        second.olderSession = favorite
+        second.event(Api.SessionChanged, favorite)
+        sessions.state.first { it.lists[agent]?.settledCount == 0 }
+        assertTrue(older.id in sessions.state.value.settled)
+    }
+
+    @Test fun settlingRefreshesOnlyTheTotalFromTheFirstPage() = withOwner { owner, _, _ ->
+        val script = Script("A", serverFeatures = setOf(ServerFeature.SessionInbox), broadcastSessionUpdates = false)
+        val agent = script.sessionInfo.agentId
+        val id = script.sessionInfo.id
+        script.olderSession = SessionInfo(SessionId("older"), agent, "Older")
+        connect(owner, script)
+        val sessions = owner.sessions
+        sessions.loadSessions(agent).join()
+        sessions.loadSessions(agent, more = true).join()
+        val loaded = sessions.state.value.lists.getValue(agent)
+        script.hold(Api.Sessions.name)
+
+        sessions.settle(id, settled = true)
+        assertTrue(id in sessions.state.value.settled)
+        val request = script.blocked.receive()
+        assertEquals(SessionsParams(agent, limit = 1), ProtocolJson.decodeFromJsonElement(Api.Sessions.params, request.params))
+        assertEquals(loaded, sessions.state.value.lists.getValue(agent))
+        script.release.complete(Unit)
+        val refreshed = sessions.state.first { it.lists[agent]?.settledCount == 1 }.lists.getValue(agent)
+        assertEquals(loaded.copy(settledCount = 1), refreshed)
     }
 
     @Test fun restoresTheServerSettledCountBeforeConnecting() = withOwner { owner, _, _ ->
@@ -633,6 +666,7 @@ class ConnectedServerTest {
         private val capabilities: SessionCapabilities? = null,
         private val serverId: String = "test",
         private val serverFeatures: Set<ServerFeature> = emptySet(),
+        private val broadcastSessionUpdates: Boolean = true,
     ) : FrameConnection {
         private val frames = Channel<Frame>(Channel.UNLIMITED)
         override val incoming = frames.receiveAsFlow()
@@ -693,7 +727,7 @@ class ConnectedServerTest {
                 Api.Sessions.name -> {
                     val params = ProtocolJson.decodeFromJsonElement(Api.Sessions.params, request.params)
                     val page = if (params.before == null)
-                        SessionPage(listOf(sessionInfo), true, settledCount = listOfNotNull(sessionInfo, olderSession).count { it.settled })
+                        SessionPage(listOf(sessionInfo), true, settledCount = listOfNotNull(sessionInfo, olderSession).count { it.settled && !it.favorite && it.inChats })
                     else SessionPage(listOfNotNull(olderSession), false)
                     reply(request, Api.Sessions, page)
                 }
@@ -702,7 +736,7 @@ class ConnectedServerTest {
                 Api.UpdateSession.name -> {
                     val params = ProtocolJson.decodeFromJsonElement(Api.UpdateSession.params, request.params)
                     sessionInfo = sessionInfo.copy(settled = params.settled ?: sessionInfo.settled, unread = sessionInfo.unread && params.seen != true)
-                    event(Api.SessionChanged, sessionInfo)
+                    if (broadcastSessionUpdates) event(Api.SessionChanged, sessionInfo)
                     reply(request, Api.UpdateSession, sessionInfo)
                     inboxUpdates.send(params)
                 }
