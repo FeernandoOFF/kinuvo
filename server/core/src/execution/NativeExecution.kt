@@ -158,6 +158,7 @@ class NativeExecution(
                 p.delivery == SendDelivery.Steer && runs.isActive(sessionId) -> {
                     val inbox = steering[sessionId] ?: error("This run cannot take steering input")
                     require(activation == null) { "Skill commands cannot steer a running turn" }
+                    harness.log.updateDetails(agent.id, sessionId, settled = false)
                     inbox += pending
                 }
                 p.delivery == SendDelivery.Queue -> {

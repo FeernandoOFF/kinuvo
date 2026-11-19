@@ -131,7 +131,7 @@ class SchedulerTest {
         val entries = harness.store.entries(agent.id, beat.lastSessionId!!)
         val sent = entries.filterIsInstance<SessionEntry.UserMessage>().single().text
         assertTrue("## HEARTBEAT.md" in sent && "- anything overdue?" in sent && "routine_report" in sent, sent)
-        assertEquals(SessionEntry.Outcome(true, "The invoice is overdue"), entries.last().withWrittenAt(null))
+        assertEquals(SessionEntry.Outcome(true, "The invoice is overdue"), entries.last { it !is SessionEntry.Details }.withWrittenAt(null))
         assertEquals("The invoice is overdue", ran.single().summary)
     }
 

@@ -354,6 +354,7 @@ class AppViewModel(
     fun showView(route: Route) {
         selecting?.cancel()
         selection++
+        if (route !is Route.Chat) repo.leaveView()
         if (route is Route.Chat && !state.value.onboarding) notificationPermission.request()
         if (route is Route.Chat) route.agentId?.let { id ->
             servers.lastView = LastView(id, route.sessionId)
@@ -401,6 +402,8 @@ class AppViewModel(
 
     fun loadMoreSessions(agentId: AgentId) = repo.loadSessions(agentId, more = true)
 
+    fun settle(sessionId: SessionId, settled: Boolean) = repo.settle(sessionId, settled)
+
     /** The model provider [agentId] uses, empty until its settings load. */
     fun provider(agentId: AgentId): String = owner.config.state.value[agentId]?.details?.settings?.provider.orEmpty()
 
@@ -431,7 +434,7 @@ class AppViewModel(
             client = KinuvoClient(endpoint.url, device.name, token = endpoint.token, pairingCode = code, timeZone = device.timeZone,
                 deviceTools = { deviceAccess.tools(accessKey) }, uiCatalogs = uiCatalogs, deviceRead = { deviceAccess.read(accessKey, it) },
                 computer = { deviceAccess.act(accessKey, it) }, connection = endpoint.connection)
-            owner.open(client, endpoint.url)
+            owner.open(client, endpoint.url, servers.idOf(server))
             snapshot = if (code == null) cacheFor(server).read(server.key) else null
             currentCoroutineContext().ensureActive()
             if (snapshot != null) {

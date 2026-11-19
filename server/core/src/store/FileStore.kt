@@ -125,8 +125,12 @@ class FileStore(
     override suspend fun session(agentId: AgentId, sessionId: SessionId): SessionInfo {
         val d = (summary(agentId, sessionId)?.digest ?: Digest())
         return SessionInfo(sessionId, agentId, d.details.title ?: d.routine?.name ?: d.title ?: NEW_TITLE, routine = d.routine, settings = d.settings,
-            answered = d.answered, task = d.task, favorite = d.details.favorite, createdAt = createdAt(sessionId), parent = d.details.parent, hidden = d.details.hidden, teamId = d.details.teamId)
+            answered = d.answered, task = d.task, favorite = d.details.favorite, createdAt = createdAt(sessionId), parent = d.details.parent, hidden = d.details.hidden,
+            teamId = d.details.teamId, settled = d.details.settled, unread = d.details.unread)
     }
+
+    override suspend fun sessionDetails(agentId: AgentId, sessionId: SessionId): SessionEntry.Details =
+        summary(agentId, sessionId)?.digest?.details ?: SessionEntry.Details()
 
     override suspend fun entryCount(agentId: AgentId, sessionId: SessionId): Int = summary(agentId, sessionId)?.digest?.count ?: 0
 

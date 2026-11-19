@@ -50,8 +50,6 @@ class ShowcaseFlowTest {
         await("Release notes review for the 2.0 launch.*")
         await("Find a cheaper flight to Lisbon")
         screenshot("sessions")
-        tap("Older sessions")
-        screenshot("older-sessions")
         tap("Research Assistant for Long-Running Investigations")
         await("Survey of on-device speech models")
         screenshot("long-agent-name")

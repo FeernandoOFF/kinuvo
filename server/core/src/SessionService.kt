@@ -33,6 +33,6 @@ class SessionService internal constructor(private val harness: AgentRuntime, pri
     context(_: Raise<SessionError>)
     suspend fun update(p: UpdateSessionParams) = run {
         requireSession(p.agentId, p.sessionId)
-        harness.log.updateDetails(p.agentId, p.sessionId, p.title, p.favorite)
+        harness.log.updateDetails(p.agentId, p.sessionId, p.title, p.favorite, p.settled, p.seen)
     }
 }

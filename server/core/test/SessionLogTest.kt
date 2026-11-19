@@ -17,6 +17,9 @@ import kinuvo.protocol.session.SessionSettings
 import kinuvo.protocol.agent.AgentId
 import kinuvo.protocol.session.SessionId
 import kinuvo.protocol.session.RunId
+import kinuvo.protocol.approval.InteractionId
+import kinuvo.protocol.approval.PendingInteraction
+import kinuvo.protocol.routine.RoutineRef
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.async
@@ -31,6 +34,76 @@ import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 
 class SessionLogTest {
+    @Test fun inboxDetailsSurviveReopeningTheStore() = runBlocking {
+        val home = TestHome()
+        val agent = home.agent.id
+        val log = SessionLog(home.store)
+        val id = log.createSession(agent, "").id
+        log.updateDetails(agent, id, title = "Saved", favorite = true, settled = true)
+        assertTrue(SessionLog(FileStore(home.files)).page(agent, null, 10).sessions.single().settled)
+
+        val run = RunId("run")
+        log.publish(agent, id, AgentEvent.RunStarted(run))
+        assertFalse(log.session(agent, id).settled)
+        log.updateDetails(agent, id, settled = true)
+        val interaction = PendingInteraction.Unsupported(InteractionId("question"), "Waiting")
+        log.publish(agent, id, AgentEvent.InteractionRequested(interaction))
+        assertFalse(log.session(agent, id).settled)
+        log.updateDetails(agent, id, settled = true)
+        log.append(agent, id, SessionEntry.AssistantMessage("Finished"))
+        log.publish(agent, id, AgentEvent.RunFinished(run))
+
+        val reopened = SessionLog(FileStore(home.files))
+        val unread = reopened.page(agent, null, 10).sessions.single()
+        assertTrue(unread.unread)
+        assertTrue(unread.settled)
+        assertTrue(unread.favorite)
+        assertEquals("Saved", unread.title)
+        reopened.updateDetails(agent, id, seen = true)
+        assertFalse(SessionLog(FileStore(home.files)).page(agent, null, 10).sessions.single().unread)
+    }
+
+    @Test fun onlyReportingRoutineRunsMarkTheSessionUnread() = runBlocking {
+        val log = SessionLog(RuntimeFixture().store)
+        val agent = AgentId("test")
+        val routine = RoutineRef("routine", "Routine")
+        val id = log.createSession(agent, "", routine).id
+        for (reports in listOf(true, false)) {
+            val run = RunId("run-$reports")
+            log.publish(agent, id, AgentEvent.RunStarted(run))
+            log.append(agent, id, SessionEntry.UserMessage("Run", routine))
+            log.append(agent, id, SessionEntry.AssistantMessage("Interim text"))
+            log.append(agent, id, SessionEntry.Outcome(reports, ""))
+            log.publish(agent, id, AgentEvent.RunFinished(run))
+            assertEquals(reports, log.page(agent, null, 10, routine.id).sessions.single().unread)
+            log.updateDetails(agent, id, seen = true)
+        }
+    }
+
+    @Test fun firstChatPageCountsSettledSessionsAcrossPages() = runBlocking {
+        val log = SessionLog(RuntimeFixture().store)
+        val agent = AgentId("test")
+        val routine = RoutineRef("routine", "Routine")
+        repeat(2) {
+            val id = log.createSession(agent, "").id
+            log.updateDetails(agent, id, settled = true)
+        }
+        val routineOnly = log.createSession(agent, "", routine).id
+        log.updateDetails(agent, routineOnly, settled = true)
+        val hidden = log.createSession(agent, "").id
+        log.append(agent, hidden, SessionEntry.Details(hidden = true, settled = true))
+        val favorite = log.createSession(agent, "").id
+        log.updateDetails(agent, favorite, settled = true)
+        log.updateDetails(agent, favorite, favorite = true)
+
+        val first = log.page(agent, null, 1)
+        assertEquals(2, first.settledCount)
+        assertTrue(first.favorites.single().settled)
+        assertTrue(first.hasMore)
+        assertEquals(0, log.page(agent, first.sessions.single().id.value, 1).settledCount)
+        assertEquals(2, log.page(agent, null, 1, routine.id).settledCount)
+    }
+
     @Test fun queuedMessagesReachLiveSubscribersAndReconnectWhileIdle() = runBlocking {
         val fixture = RuntimeFixture()
         val log = SessionLog(fixture.store)
@@ -79,12 +152,11 @@ class SessionLogTest {
         assertEquals(listOf(reply), log.appendAll(AgentId("external"), session, listOf(reply)).map { it.withWrittenAt(null) })
         assertEquals(emptyList(), log.appendAll(AgentId("external"), session, listOf(reply)).map { it.withWrittenAt(null) })
         log.publish(AgentId("external"), session, AgentEvent.RunFinished(RunId("run")))
-        assertEquals(1, updates.count { it.change is SessionChange.Entry })
-        val committed = (updates.single { it.change is SessionChange.Entry }.change as SessionChange.Entry).entry
+        val committed = updates.mapNotNull { (it.change as? SessionChange.Entry)?.entry as? SessionEntry.AssistantMessage }.single()
         assertEquals(123L, committed.writtenAt)
-        assertEquals(committed, log.history(AgentId("external"), session, 100, 100).last().entry)
-        assertEquals(committed, log.entries(AgentId("external"), session).last())
-        val entryIndex = updates.indexOfFirst { it.change is SessionChange.Entry }
+        assertEquals(committed, log.history(AgentId("external"), session, 100, 100).map { it.entry }.filterIsInstance<SessionEntry.AssistantMessage>().single())
+        assertEquals(committed, log.entries(AgentId("external"), session).filterIsInstance<SessionEntry.AssistantMessage>().single())
+        val entryIndex = updates.indexOfFirst { (it.change as? SessionChange.Entry)?.entry == committed }
         val finishedIndex = updates.indexOfFirst { (it.change as? SessionChange.Event)?.event is AgentEvent.RunFinished }
         assertTrue(entryIndex in 0 until finishedIndex)
         assertFailsWith<SessionCommitConflict> { log.appendAll(AgentId("external"), session, listOf(reply.copy(text = "conflict"))) }

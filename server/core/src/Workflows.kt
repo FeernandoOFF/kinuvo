@@ -354,7 +354,7 @@ class Workflows internal constructor(
         // A Workflow from before it had a Session of its own adopts the one its step last asked in.
         val known = lock.withLock { data.sessions[run.workflowId] }?.takeIf { it in existing }
         val session = known ?: (earlier?.takeIf { it in existing } ?: harness.newSession(agent).id).also { adopted ->
-            harness.log.append(agent.id, adopted, SessionEntry.Details(title = run.workflow.name))
+            harness.log.updateDetails(agent.id, adopted) { it.copy(title = run.workflow.name) }
             lock.withLock { data = data.copy(sessions = data.sessions + (run.workflowId to adopted)); persist() }
         }
         if (announced.put(run.id, agent.id to session) == null) note(agent, session, if (run.retryOf != null) "Run retried" else "Run started")

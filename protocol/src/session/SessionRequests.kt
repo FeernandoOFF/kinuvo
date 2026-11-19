@@ -29,7 +29,15 @@ data class ConfigureSessionParams(val agentId: AgentId, val sessionId: SessionId
 
 /** Renames the Session (blank: back to its first message) or marks it a favorite; null fields stay as they are. */
 @Serializable
-data class UpdateSessionParams(val agentId: AgentId, val sessionId: SessionId, val title: String? = null, val favorite: Boolean? = null)
+data class UpdateSessionParams(
+    val agentId: AgentId,
+    val sessionId: SessionId,
+    val title: String? = null,
+    val favorite: Boolean? = null,
+    val settled: Boolean? = null,
+    /** True marks the Session read. */
+    val seen: Boolean? = null,
+)
 
 @Serializable
 data class StopParams(val sessionId: SessionId)
