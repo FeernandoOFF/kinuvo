@@ -313,9 +313,9 @@ class SessionRepository(private val notifications: Notifications, internal val c
 
     suspend fun createSession(agentId: AgentId): SessionInfo = call { it.call(Api.CreateSession, AgentRef(agentId)) }
 
-    suspend fun send(agentId: AgentId, sessionId: SessionId, text: String, attachments: List<String> = emptyList(), voice: Boolean = false, submissionId: String? = null, action: SurfaceAction? = null, delivery: SendDelivery = SendDelivery.Turn) =
+    suspend fun send(agentId: AgentId, sessionId: SessionId, text: String, attachments: List<String> = emptyList(), voice: Boolean = false, submissionId: String? = null, action: SurfaceAction? = null, delivery: SendDelivery = SendDelivery.Turn, discovery: Boolean = false) =
         call {
-            it.call(Api.Send, SendParams(agentId, sessionId, text, attachments, voice, submissionId, action, delivery)).also {
+            it.call(Api.Send, SendParams(agentId, sessionId, text, attachments, voice, submissionId, action, delivery, discovery)).also {
                 currentCoroutineContext().ensureActive()
                 if (!serverInbox) settle(sessionId, settled = false)
             }
