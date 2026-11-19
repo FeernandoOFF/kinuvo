@@ -69,6 +69,7 @@ import kinuvo.protocol.capability.ExecutionLocation
 import kinuvo.protocol.capability.ServerFeature
 import kinuvo.protocol.capability.Integration
 import kinuvo.protocol.capability.CapabilityState
+import kinuvo.protocol.capability.Availability
 import kinuvo.protocol.capability.Support
 import kinuvo.protocol.capability.Authorization
 import kinuvo.protocol.capability.ResolvedTool
@@ -217,14 +218,14 @@ class RunComposer internal constructor(
             contributed.flatMap { it.catalog }.map { it.copy(id = renamed[it.id] ?: it.id) }).distinctBy { (it.identity?.key ?: it.id) to it.target }.map { tool ->
             val state = when {
                 e.info?.tools == false || e.info?.toolIds?.let { tool.identity?.localId != "*" && tool.identity?.key !in it } == true ||
-                    tool.id in descriptors && tool.id !in eligible -> CapabilityState.unsupported("This model cannot call ${tool.name}")
+                    tool.id in descriptors && tool.id !in eligible -> if (tool.state.reasonCode == "needs_setup") tool.state.copy(support = Support.Unsupported) else CapabilityState.unsupported("This model cannot call ${tool.name}")
                 rules.deny.blockedTool(tool.identity) != null -> tool.state.copy(authorization = Authorization.Denied, reason = "Blocked by a Deny rule", reasonCode = "policy")
                 requireModel && e.info?.tools == null -> tool.state.copy(support = Support.Unknown, reason = tool.state.reason ?: "Model tool support is unknown")
                 else -> tool.state
             }
             tool.copy(state = state)
         }
-        val usableTools = all.filter { it.descriptor.name in eligible }
+        val usableTools = all.filter { tool -> tool.descriptor.name in eligible && catalog.any { it.id == tool.descriptor.name && it.state.availability == Availability.Ready } }
         val cataloguedNames = plugins.zip(contributed).filter { it.first.catalogued }.flatMap { it.second.tools }.map { renamed[it.descriptor.name] ?: it.descriptor.name }.toSet()
         val candidates = usableTools.filter { it.descriptor.name in cataloguedNames }.takeIf {
             if (e.profile.tools.catalogExternal) it.size > ToolCatalog.DIRECT_LIMIT else usableTools.size > ToolCatalog.LIMIT
@@ -279,11 +280,20 @@ class RunComposer internal constructor(
         val agent = e.agent
         val tools = prepared.tools.map(secrets::redacting)
         val advertised = prepared.advertised.map { it.descriptor.name }.toSet().let { names -> tools.filter { it.descriptor.name in names } }
-        val sections = plugins.mapNotNull { it.instructions(agent) }
+        val sections = plugins.filter { plugin -> prepared.tools.any { it.identity?.instance == plugin.instance } }.mapNotNull { it.instructions(agent) }
         val today = "${Clock.System.todayIn(timeZone)} ($timeZone)"
-        val context = if (requireModel && e.profile.prompt != PromptStyle.Full) basicContextFor(agent, docs, advertised, today, identity = e.profile.prompt == PromptStyle.BasicWithIdentity)
-        else (if (requireModel) personalContextFor(agent, docs) else instructionsFor(agent, docs)) + "\n" + capabilitiesFor(agent, advertised) + "\nServer platform: $platformDescription. Today is ${Clock.System.todayIn(timeZone)} ($timeZone).\n" + sections.joinToString("\n\n") { "## ${it.title}\n\n${it.body}" } +
-            if (advertised.any { it.descriptor.name == ToolNames.ACTIVATE_SKILL }) "\n\nCurrent Skills:\n" + skillCatalogFor(skills.load(agent)) else ""
+        val style = if (requireModel) e.profile.prompt else PromptStyle.Full
+        val context = when (style) {
+            PromptStyle.Basic, PromptStyle.BasicWithIdentity -> basicContextFor(agent, docs, advertised, today, identity = style == PromptStyle.BasicWithIdentity)
+            PromptStyle.Compact, PromptStyle.Full -> {
+                val personal = if (style == PromptStyle.Compact) compactContextFor(agent, docs)
+                    else (if (requireModel) personalContextFor(agent, docs) else instructionsFor(agent, docs)) + "\n" + aboutKinuvoFor(advertised)
+                personal + "\n" + capabilitiesFor(agent, advertised, prepared.catalog, compact = style == PromptStyle.Compact) +
+                    "\nServer platform: $platformDescription. Today is $today.\n" +
+                    sections.joinToString("\n\n") { "## ${it.title}\n\n${it.body}" } +
+                    if (advertised.any { it.descriptor.name == ToolNames.ACTIVATE_SKILL }) "\n\nCurrent Skills:\n" + skillCatalogFor(skills.load(agent)) else ""
+            }
+        }
         val service = ToolService(
             tools = tools,
             advertisedTools = advertised.mapNotNull { it.descriptor.simplified(e.profile.tools.schema) },

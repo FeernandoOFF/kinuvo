@@ -15,9 +15,11 @@ The Server advertises the providers and capabilities it actually has. An embedde
 
 A self-hosted Server can use a cloud model. An on-device model does not imply that every tool is local: web search, MCP and Device tools may reach other systems. Choose all three parts to match the work.
 
-Each model has a tier (Micro, Small, Mid or Frontier) that sets its prompt, tools and step limit. Small models (Apple on-device, LiteRT) get a short basic prompt and a capped tool list, with no Skills, Skill catalog or `show_ui`: Apple's on-device model and Qwen3 0.6B offer 5 tools in 4 steps, Gemma 4 E2B 8 and E4B 10 in 10 steps, Memory and web first. Mid models take up to 50 steps and Frontier models 66, and Mid models reach MCP tools through the tool catalog. Use the model picker for availability and [models](../reference/models.md) for provider details.
+Each model has a tier (Micro, Small, Mid or Frontier) that sets its prompt, tools and step limit. Small models (Apple on-device, LiteRT) get a short basic prompt and a capped tool list, with no Skills, Skill catalog or `show_ui`: Apple's on-device model and Qwen3 0.6B offer 5 tools in 4 steps, Gemma 4 E2B 8 and E4B 10 in 10 steps, Memory and web first. Mid models use a Compact prompt with a short operating brief, Memory, User Notes and available tools. Frontier models get fuller instructions explaining Kinuvo and the configuration tools available in that Session. Mid models take up to 50 steps and Frontier models 66, and Mid models reach MCP tools through the tool catalog. Use the model picker for availability and [models](../reference/models.md) for provider details.
 
 See [plugins](../reference/plugins.md), [MCP](../guides/mcp.md), [Workspaces](../guides/workspaces.md) and [Computer use](../guides/computer-use.md).
+
+For Mid and Frontier, tools that need setup appear as “Not set up” with a guide instead of being offered for use. They stay enabled in Settings. Computer use needs an available paired Computer; Browser needs a working browser installation on the Server. When web fetching is available, Agents consult the Kinuvo docs for questions about Kinuvo and setup. Otherwise they point you to Settings or the docs.
 
 ### Toolsets and run scopes
 

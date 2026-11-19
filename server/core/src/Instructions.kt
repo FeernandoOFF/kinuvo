@@ -6,6 +6,7 @@ import kinuvo.harness.AgentDocs
 import kinuvo.server.skills.Skill
 import kinuvo.server.plugin.Tool
 import kinuvo.protocol.tool.ToolNames
+import kinuvo.protocol.capability.ResolvedTool
 
 /** Builds the instructions snapshot frozen into a new Session. */
 suspend fun instructionsFor(
@@ -48,14 +49,16 @@ prefers short replies"), not instructions to yourself. Current requests take pre
 Suggestions and silence are not agreement. Background Knowledge changes and learned Skills need the user's Approval."""
 
 /** Derived from the tools of this run, rather than remembered product documentation. */
-fun capabilitiesFor(agent: Agent, tools: List<Tool>): String = buildString {
+fun capabilitiesFor(agent: Agent, tools: List<Tool>, catalog: List<ResolvedTool> = emptyList(), compact: Boolean = false): String = buildString {
     append("## Kinuvo capabilities for this run\n\n")
     append("This current capability summary, Workspace and Conventions supersede older snapshots in this Session.\n")
     append("You run in Kinuvo, a self-hosted personal AI harness. The Server owns Agents, Sessions and tools; paired Devices are clients.\n")
     append("Model provider: ${agent.config.provider}. Exec backend: ${agent.config.exec}.\n")
     append("Available tools: ${tools.map { it.descriptor.name }.sorted().joinToString()}. Use these tools to establish what is possible; do not assume unlisted integrations exist.\n")
-    tools.mapNotNull { it.coreMetadata }.distinct().forEach { append(it.hint ?: it.summary); append("\n") }
-    append("Tool calls follow the Session's Risk tolerance and Trust/Deny rules. Background Reflection stages Knowledge and learned Skills for explicit Approval regardless of Risk tolerance.\n")
+    tools.mapNotNull { it.coreMetadata }.distinct().filter { !compact || it.name !in CONFIGURATION_TOOLS }.forEach { append(if (compact) it.summary else it.hint ?: it.summary); append("\n") }
+    append(notSetUpFor(catalog, tools))
+    if (tools.any { it.descriptor.name == ToolNames.WEB_FETCH }) append("Kinuvo documentation: $KINUVO_DOCS_URL. Use web_fetch for questions about Kinuvo or how to set something up.\n")
+    if (!compact) append("Tool calls follow the Session's Risk tolerance and Trust/Deny rules. Background Reflection stages Knowledge and learned Skills for explicit Approval regardless of Risk tolerance.\n")
 }
 
 fun skillCatalogFor(skills: List<Skill>): String =
@@ -80,4 +83,54 @@ suspend fun basicContextFor(agent: Agent, docs: AgentDocs, tools: List<Tool>, to
     append("Use a tool when the user asks you to do something, and only say it's done after the tool succeeds.")
     if (tools.any { it.identity?.localId == ToolNames.MEMORY }) append(" To remember something about the user, use the memory tool.")
     append("\nToday is $today.\n")
+}
+
+private val CONFIGURATION_TOOLS = setOf(ToolNames.AGENT_GET, ToolNames.AGENT_UPDATE, ToolNames.AGENT_CREATE,
+    ToolNames.MCP_LIST, ToolNames.MCP_ADD, ToolNames.MCP_REMOVE, ToolNames.MCP_TEST, ToolNames.MCP_LOGIN, ToolNames.SESSION_CONFIGURE)
+
+const val KINUVO_DOCS_URL = "https://kinuvo.feernandooff.com"
+
+suspend fun compactContextFor(agent: Agent, docs: AgentDocs): String =
+    "You are ${agent.name}, the user's personal assistant.\n\n" +
+        "When asked to act, use tools. Never claim success without a tool result.\n" +
+        "Ask only when a missing decision materially changes the work.\n" +
+        "Keep replies short.\n\n" + personalContextFor(agent, docs)
+
+fun aboutKinuvoFor(tools: List<Tool>): String = buildString {
+    val names = tools.map { it.descriptor.name }.toSet()
+    append("## About Kinuvo\n\n")
+    append("Kinuvo is a self-hosted personal AI harness. Its Server owns Agents, Sessions and Tools; paired Devices are clients. An Agent is a named participant; a Session is one bounded conversation. Tools read or change things under Kinuvo's Approvals.\n")
+    if (ToolNames.MCP_LIST in names) append("MCP servers connect additional tools; use mcp_list to see your configured connections.\n")
+    if (ToolNames.ACTIVATE_SKILL in names) append("Skills are named instructions and reference files; activate only Skills listed in the current catalog.\n")
+    if (ToolNames.SCHEDULE in names) append("Routines run an Agent's prompt on a schedule; use schedule for future work.\n")
+    if (ToolNames.AGENT_GET in names) append("Use agent_get to inspect your own Agent settings before proposing changes.\n")
+    if (ToolNames.AGENT_UPDATE in names) append("Use agent_update to change your own Identity, Soul, model or enabled tools.\n")
+    if (ToolNames.AGENT_CREATE in names) append("Use agent_create to create a blank Agent.\n")
+    if (ToolNames.MCP_ADD in names) append("Use mcp_add to connect an MCP server for your Agent.\n")
+    if (ToolNames.SESSION_CONFIGURE in names) append("Use session_configure for this Session's model, reasoning or stricter Risk tolerance.\n")
+    if (names.any { it in setOf(ToolNames.AGENT_UPDATE, ToolNames.AGENT_CREATE, ToolNames.MCP_ADD, ToolNames.MCP_REMOVE, ToolNames.SESSION_CONFIGURE) })
+        append("Say what you will change before calling a configuration tool; required Approvals show the change. Chat never loosens safety.\n")
+    if (ToolNames.AGENT_UPDATE !in names) append("For Agent changes, guide the user to Settings → Agent → Model or Settings → Agent → Tools & MCP.\n")
+    if (ToolNames.MCP_ADD !in names) append("For MCP connections, guide the user to Settings → MCP.\n")
+    append("Never answer questions about Kinuvo from memory: consult the docs.")
+    if (ToolNames.WEB_FETCH !in names) append(" Point the user to Settings or the documentation at $KINUVO_DOCS_URL when you cannot consult it here.")
+    append("\n")
+}
+
+private fun notSetUpFor(catalog: List<ResolvedTool>, tools: List<Tool>): String {
+    val paths = catalog.filter { it.state.reasonCode == "needs_setup" && it.state.docsPath != null }
+        .map { it.state.docsPath!! }.distinct()
+    if (paths.isEmpty()) return ""
+    val missing = paths.joinToString { path ->
+        val name = when (path) {
+            "guides/computer-use/" -> "Computer use"
+            "guides/browser-access/" -> "Browser"
+            else -> catalog.first { it.state.docsPath == path }.name
+        }
+        "$name (${path.trimEnd('/')})"
+    }
+    val guidance = if (tools.any { it.descriptor.name == ToolNames.WEB_FETCH })
+        "If the user asks for one, fetch its page from the docs and guide them; do not try the tool."
+    else "If the user asks for one, point them to Settings/docs; do not try the tool."
+    return "Not set up: $missing. $guidance\n"
 }

@@ -29,6 +29,7 @@ import kinuvo.protocol.*
 import kinuvo.protocol.approval.*
 import kinuvo.protocol.capability.*
 import kinuvo.protocol.device.*
+import kinuvo.protocol.computer.*
 import kinuvo.protocol.model.*
 import kinuvo.protocol.plugin.*
 import kinuvo.protocol.routine.*
@@ -50,6 +51,30 @@ import kotlin.test.*
 import kinuvo.server.providers.ModelProvider
 
 class RunPreparationRuntimeTest {
+    @Test fun computerReadinessControlsToolsAndPromptInTheSameRun() = runBlocking {
+        val harness = harness()
+        try {
+            val agent = agent(harness, listOf("computer"))
+            val session = harness.newSession(agent)
+            val missing = harness.composer.compose(agent, session.id)
+            assertFalse(missing.tools.advertised.any { it.name.startsWith("computer_") })
+            assertFalse("## Computer use" in missing.context)
+            assertTrue("Not set up: Computer use (guides/computer-use)" in missing.context)
+            assertFalse("fetch its page" in missing.context)
+            val missingMid = harness.composer.compose(agent.copy(config = agent.config.copy(tier = ModelTier.Mid)), session.id)
+            assertTrue("Not set up: Computer use (guides/computer-use)" in missingMid.context)
+            harness.computers.paired = { listOf(ToolDevice("mac", "Mac", setOf(DeviceToolKind.Computer))) }
+            harness.computers.connect("mac") { ComputerResult(DeviceToolStatus.Ready) }
+            val ready = harness.composer.compose(agent, session.id)
+            assertTrue(ready.tools.advertised.any { it.name == "computer_capture" })
+            assertTrue("## Computer use" in ready.context)
+            assertFalse("Not set up:" in ready.context)
+            val mid = harness.composer.compose(agent.copy(config = agent.config.copy(tier = ModelTier.Mid)), session.id)
+            assertFalse("## About Kinuvo" in mid.context)
+            assertTrue("Never claim success without a tool result" in mid.context)
+        } finally { harness.close() }
+    }
+
     @Test fun steeringAppearsAfterToolResultsBeforeTheNextModelRequest() = runBlocking {
         var executed = false
         var requests = 0
