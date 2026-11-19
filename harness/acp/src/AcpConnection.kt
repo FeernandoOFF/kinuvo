@@ -138,6 +138,7 @@ internal fun recognisesKinuvoCall(raw: JsonObject, offered: McpServerDescriptor?
     val name = when {
         field("serverName") == "kinuvo" -> field("toolName")
         field("server") == "kinuvo" -> field("tool")
+        input?.containsKey("server") == true || input?.containsKey("serverName") == true -> null
         else -> (tool?.get("title") as? JsonPrimitive)?.content?.takeIf { it.startsWith("mcp__kinuvo__") }?.removePrefix("mcp__kinuvo__")
     }
     return offered != null && name in offered.toolNames

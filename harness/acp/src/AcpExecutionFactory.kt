@@ -59,7 +59,6 @@ class AcpExecutionFactory(private val probeTimeoutMillis: Long = 15_000,
                             ExternalApprovalOption(it.optionId.toString(), it.name, ProtocolJson.encodeToJsonElement(PermissionOptionKind.serializer(), it.kind).jsonPrimitive.content)
                         })
                     val allow = request.options.firstOrNull { it.kind == PermissionOptionKind.AllowOnce }
-                        ?: request.options.firstOrNull { it.kind == PermissionOptionKind.AllowAlways }
                     val active = state.snapshot().phase in setOf(ExecutionPhase.Running, ExecutionPhase.RequiresAction)
                     val answer = if (allow != null && active && kind.value?.let { autoApprove(registration, state.sessionId, it) } == true)
                         buildJsonObject { put("optionId", allow.optionId.toString()) }

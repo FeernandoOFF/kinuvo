@@ -192,10 +192,19 @@ class McpAcpTest {
             assertTrue(client.call(Api.Respond, RespondParams(session.id, privateQuestion.id, InteractionAnswer.Harness(buildJsonObject { put("optionId", "yes") }))))
             phase(ExecutionPhase.Idle)
             client.call(Api.ConfigureSession, ConfigureSessionParams(agent, session.id, SessionSettings(approvals = "full")))
-            for (prompt in listOf("private", "private always")) {
-                client.call(Api.Send, SendParams(agent, session.id, prompt))
-                phase(ExecutionPhase.Idle)
+            client.call(Api.Send, SendParams(agent, session.id, "private"))
+            phase(ExecutionPhase.Idle)
+            // Full tolerance never grants a lasting permission; a harness offering only that still asks.
+            client.call(Api.Send, SendParams(agent, session.id, "private always"))
+            val always = withTimeout(10000) {
+                while (true) {
+                    client.call(Api.ExecutionSnapshot, ExecutionRef(session.id.value)).pending.filterIsInstance<PendingInteraction.HarnessApproval>().firstOrNull()?.let { return@withTimeout it }
+                    delay(10)
+                }
+                error("unreachable")
             }
+            assertTrue(client.call(Api.Respond, RespondParams(session.id, always.id, InteractionAnswer.Harness(buildJsonObject { put("optionId", "yes") }))))
+            phase(ExecutionPhase.Idle)
             client.call(Api.ConfigureSession, ConfigureSessionParams(agent, session.id, SessionSettings()))
             val history = client.call(Api.History, HistoryParams(agent, session.id, 100)).map { it.entry }
             val userMessages = history.filterIsInstance<SessionEntry.UserMessage>()
