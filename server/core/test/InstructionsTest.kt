@@ -23,6 +23,31 @@ class InstructionsTest {
         override suspend fun execute(args: JsonObject) = error("Not executed")
     }
 
+    @Test fun firstSessionGuidanceFollowsAdvertisedTools() {
+        val optional = listOf("mcp_list", "show_ui", "ask_user", "tasks", "memory", "mcp_add", "mcp_login")
+        for (mask in 0 until (1 shl optional.size)) {
+            val names = optional.filterIndexed { index, _ -> mask and (1 shl index) != 0 }
+            val text = firstSessionFor(names.map(::tool))
+            optional.filter { it !in names }.forEach { assertFalse(it in text, "$it in $names") }
+            assertEquals("mcp_list" in names && "tasks" in names, "Add to tasks" in text)
+            if ("mcp_list" in names) {
+                assertTrue("read-only" in text && "at most 8" in text && "Approvals still apply" in text)
+                assertTrue("invite corrections" in text && "3–5" in text)
+                when {
+                    "show_ui" in names -> assertTrue("compact show_ui card" in text)
+                    "ask_user" in names -> assertTrue("with ask_user" in text)
+                    else -> assertTrue("numbered list" in text)
+                }
+                assertTrue("If no servers are connected, skip look-ups" in text)
+            } else {
+                assertTrue("Skip look-ups" in text)
+                assertFalse("Explore" in text)
+            }
+            assertTrue("concrete user task first" in text && "connecting apps" in text)
+            assertEquals("memory" in names, "user stated or confirmed" in text)
+        }
+    }
+
     @Test fun connectorOffersFollowAdvertisedTools() = runTest {
         fun prompt(vararg names: String) = aboutKinuvoFor(names.map { tool(it) })
         val card = prompt("mcp_list", "mcp_add", "mcp_login", "show_ui", "ask_user", "memory")

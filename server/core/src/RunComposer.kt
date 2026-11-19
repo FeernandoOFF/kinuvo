@@ -1,6 +1,7 @@
 package kinuvo.server
 
 import kinuvo.harness.Agent
+import kinuvo.harness.AgentDoc
 import kinuvo.server.plugin.PluginTools
 import kinuvo.server.plugin.RunContext
 import kinuvo.server.plugin.instance
@@ -285,12 +286,16 @@ class RunComposer internal constructor(
         }.mapNotNull { it.instructions(agent) }
         val today = "${Clock.System.todayIn(timeZone)} ($timeZone)"
         val style = if (requireModel) e.profile.prompt else PromptStyle.Full
+        val firstSession = if (e.profile.tier == ModelTier.Frontier && style == PromptStyle.Full && routine == null && sessionId != null &&
+            store.session(agent.id, sessionId).let { !it.hidden && it.routine == null } &&
+            store.entries(agent.id, sessionId).none { it is SessionEntry.AssistantMessage } &&
+            docs.read(agent.id, AgentDoc.Memory).isBlank() && docs.read(agent.id, AgentDoc.UserNotes).isBlank()) firstSessionFor(advertised) else ""
         val context = when (style) {
             PromptStyle.Basic, PromptStyle.BasicWithIdentity -> basicContextFor(agent, docs, advertised, today, identity = style == PromptStyle.BasicWithIdentity)
             PromptStyle.Compact, PromptStyle.Full -> {
                 val personal = if (style == PromptStyle.Compact) compactContextFor(agent, docs)
                     else (if (requireModel) personalContextFor(agent, docs) else instructionsFor(agent, docs)) + "\n" + aboutKinuvoFor(advertised)
-                personal + "\n" + capabilitiesFor(agent, advertised, prepared.catalog, compact = style == PromptStyle.Compact) +
+                personal + "\n" + firstSession + capabilitiesFor(agent, advertised, prepared.catalog, compact = style == PromptStyle.Compact) +
                     "\nServer platform: $platformDescription. Today is $today.\n" +
                     sections.joinToString("\n\n") { "## ${it.title}\n\n${it.body}" } +
                     if (advertised.any { it.descriptor.name == ToolNames.ACTIVATE_SKILL }) "\n\nCurrent Skills:\n" + skillCatalogFor(skills.load(agent)) else ""

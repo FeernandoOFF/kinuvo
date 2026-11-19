@@ -14,4 +14,6 @@ Open the app and follow onboarding. Use a management pairing code when configuri
 
 Finish with **Meet your Agent** and start a Session. Try telling it something you want it to remember, then review its Memory and User Notes in Settings.
 
+With a Frontier model, a brand-new Agent whose Memory and User Notes are empty uses its first Session to explore connected apps read-only, show what it learned and suggest next steps. It only saves facts you tell it or confirm. If you start with a specific request, it handles that first; without connected apps, it asks what you would like help with.
+
 An additional Agent uses the shorter Identity and Soul flow and starts with the selected Agent's model. Each Agent keeps its own Memory, Skills and Sessions. Read [Agents](../concepts/agents.md) and [Approvals](../concepts/approvals.md) before giving it more tools.

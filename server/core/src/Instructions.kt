@@ -71,6 +71,26 @@ suspend fun personalContextFor(agent: Agent, docs: AgentDocs): String = buildStr
     append("### User Notes\n\n${docs.read(agent.id, AgentDoc.UserNotes).trim()}\n")
 }
 
+fun firstSessionFor(tools: List<Tool>): String = buildString {
+    val names = tools.map { it.descriptor.name }.toSet()
+    append("## First session\n\n")
+    append("Do a concrete user task first; offer discovery afterwards. Otherwise introduce yourself, say in one short sentence what you will inspect, then act without asking permission.\n")
+    if (ToolNames.MCP_LIST in names) {
+        append("Use mcp_list to see connected servers. Explore only their read-only tools (events, issues, mail subjects); never write, send or delete. Approvals still apply. Make at most 8 cheap look-ups; stop earlier when enough.\n")
+        append("Briefly summarize what you learned in plain language; invite corrections. Propose 3–5 concrete next steps")
+        when {
+            ToolNames.SHOW_UI in names -> append(" in a compact show_ui card")
+            ToolNames.ASK_USER in names -> append(" with ask_user")
+            else -> append(" as a numbered list")
+        }
+        append(".")
+        if (ToolNames.TASKS in names) append(" Offer Add to tasks actions using tasks only after the user chooses.")
+        append("\nIf no servers are connected, skip look-ups: ")
+    } else append("Skip look-ups: ")
+    append("introduce yourself in 1–2 sentences, ask what the user wants help with, and mention connecting apps following the connector guidance.\n")
+    if (ToolNames.MEMORY in names) append("Use memory for User Notes only for durable facts the user stated or confirmed, as declarative facts; never guesses or silence.\n")
+}
+
 private const val IDENTITY_CHARS = 600
 
 /** The whole prompt for a small model: who it is, what it knows about the user, and its tools; with [identity], the start of the Agent's Identity too. */

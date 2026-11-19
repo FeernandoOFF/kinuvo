@@ -1,6 +1,7 @@
 package kinuvo.server
 
 import kinuvo.server.rpc.serverRoutes
+import kinuvo.server.routines.RoutineRun
 import kinuvo.harness.RunKind
 import kinuvo.harness.ToolSpec
 import kinuvo.harness.requiredNames
@@ -51,6 +52,45 @@ import kotlin.test.*
 import kinuvo.server.providers.ModelProvider
 
 class RunPreparationRuntimeTest {
+    @Test fun firstSessionDiscoveryUsesCurrentDocumentsAndSessionHistory() = runBlocking {
+        val local = object : ModelProvider by provider {
+            override suspend fun models() = provider.models().map { it.copy(location = ExecutionLocation.ServerHost) }
+        }
+        val fixture = RuntimeFixture(providers = listOf(local))
+        val harness = fixture.runtime()
+        try {
+            val agent = agent(harness).let { it.copy(config = it.config.copy(tier = ModelTier.Frontier)) }
+            val session = harness.newSession(agent)
+            suspend fun context() = harness.composer.compose(agent, session.id).context
+            assertTrue("## First session" in context())
+            assertFalse("## First session" in fixture.store.entries(agent.id, session.id).filterIsInstance<SessionEntry.Started>().single().instructions)
+            for (tier in listOf(ModelTier.NoTools, ModelTier.Micro, ModelTier.Small, ModelTier.Mid)) {
+                assertFalse("## First session" in harness.composer.compose(agent.copy(config = agent.config.copy(tier = tier)), session.id).context)
+            }
+            for (doc in listOf(AgentDoc.Memory, AgentDoc.UserNotes)) {
+                fixture.documents[doc] = "Known fact"
+                assertFalse("## First session" in context())
+                fixture.documents[doc] = " \n "
+                assertTrue("## First session" in context())
+            }
+            fixture.store.append(agent.id, session.id, SessionEntry.UserMessage("Hello"))
+            assertTrue("## First session" in context())
+            fixture.store.append(agent.id, session.id, SessionEntry.AssistantMessage("Hello"))
+            assertFalse("## First session" in context())
+            val next = harness.newSession(agent)
+            assertTrue("## First session" in harness.composer.compose(agent, next.id).context)
+            fixture.store.append(agent.id, next.id, SessionEntry.Details(hidden = true))
+            assertFalse("## First session" in harness.composer.compose(agent, next.id).context)
+            val ref = RoutineRef("r", "Routine")
+            val scheduled = fixture.store.createSession(agent.id, "", ref)
+            assertFalse("## First session" in harness.composer.compose(agent, scheduled.id).context)
+            val normal = harness.newSession(agent)
+            val routine = RoutineRun(Routine("r", agent.id, "Routine", "Check", Trigger.Every(60), "UTC")) {}
+            assertFalse("## First session" in harness.composer.compose(agent, normal.id, routine = routine).context)
+            assertFalse("## First session" in harness.composer.compose(agent).context)
+        } finally { harness.close() }
+    }
+
     @Test fun offlineDeviceToolsStayOfferedWhileComputerNeedsSetup() = runBlocking {
         val harness = harness()
         try {
