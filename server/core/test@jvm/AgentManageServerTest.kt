@@ -12,6 +12,7 @@ import kinuvo.protocol.session.*
 import kinuvo.server.plugin.*
 import kinuvo.server.tools.*
 import kinuvo.testing.server.TestServer
+import kinuvo.testing.server.FakeMcpManagement
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.*
 import kotlin.test.*
@@ -25,10 +26,7 @@ class AgentManageServerTest {
             McpCatalog.first { it.id == "linear" }.server(ConfigScope.Shared),
             McpServerInfo("my-notes", ConfigScope.Agent, url = "https://mcp.notion.com/mcp/"),
         )
-        val mcp = object : McpManagement by McpManagement.Unavailable {
-            override suspend fun mcpServers(agent: Agent) = entries.toList()
-            override suspend fun saveMcp(p: SaveMcpParams) = p.server.also { entries += it }
-        }
+        val mcp = FakeMcpManagement(entries)
         val plugin = object : ServerPlugin {
             override val definition = PluginDefinition("test.mcp", "Test MCP")
             override val mcp = mcp
@@ -69,12 +67,54 @@ class AgentManageServerTest {
             assertTrue(requests.isEmpty())
             for (tolerance in listOf("strict", "default", "relaxed", "full")) {
                 server.harness.configure(agent, session.id, SessionSettings(approvals = tolerance))
+                entries.removeAll { it.name == "atlassian" }
                 val before = requests.size
                 assertFalse(call("mcp_add", """{"preset":"atlassian"}""").isError)
                 assertEquals(before + if (tolerance == "full") 0 else 1, requests.size)
                 assertFalse(call("mcp_add", """{"name":"custom","url":"https://example.com/mcp"}""").isError)
                 assertEquals(before + if (tolerance == "full") 1 else 2, requests.size)
             }
+        }
+    }
+
+    @Test fun presetsAreCreateOnlyAndListEffectiveConnections() = runBlocking {
+        lateinit var agent: Agent
+        val todoist = McpCatalog.first { it.id == "todoist" }.server().copy(
+            auth = McpAuthStatus.SignedIn, includeTools = listOf("read"), excludeTools = listOf("delete"))
+        val entries = mutableListOf(todoist)
+        val mcp = FakeMcpManagement(entries)
+        val plugin = object : ServerPlugin {
+            override val definition = PluginDefinition("test.mcp", "Test MCP")
+            override val mcp = mcp
+        }
+        TestServer.start(plugins = listOf(plugin), scenario = { agent = agent("work") { it.copy(approvals = "full") } }).use { server ->
+            val session = server.startSession(agent.id)
+            val turn = ToolTurn(emit = { assertFalse(it is AgentEvent.InteractionRequested) })
+            var index = 0
+            suspend fun call(name: String, text: String = "{}") = server.harness.composer.compose(agent, session.id).gate.invoke(
+                SessionEntry.ToolCall(ToolCallId("create-${index++}"), name, text), turn)
+            suspend fun reject(existing: McpServerInfo) {
+                entries.clear()
+                entries += existing
+                val result = call("mcp_add", """{"preset":"todoist"}""")
+                assertTrue(result.isError, result.output)
+                assertTrue("already configured" in result.output && "mcp_list" in result.output)
+                assertEquals(listOf(existing), entries)
+            }
+            reject(todoist)
+            reject(todoist.copy(name = "signed-in-alias", url = todoist.url + "/"))
+            reject(todoist.copy(url = "https://other.example/mcp"))
+            reject(todoist.copy(scope = ConfigScope.Shared, url = "https://other.example/mcp", agents = listOf(AgentId("other"))))
+            reject(todoist.copy(scope = ConfigScope.Shared, name = "shared-alias"))
+            entries.clear()
+            entries += McpCatalog.first { it.id == "linear" }.server(ConfigScope.Shared)
+            entries += McpServerInfo("linear", ConfigScope.Agent, url = "https://other.example/mcp")
+            entries += McpCatalog.first { it.id == "notion" }.server(ConfigScope.Shared).copy(name = "other-notes", agents = listOf(AgentId("other")))
+            val available = call("mcp_list").output.substringAfter("Available presets:")
+            assertTrue("linear: Linear" in available && "unavailable: name already configured" in available)
+            assertTrue("notion: Notion" in available)
+            assertFalse(call("mcp_add", """{"preset":"notion"}""").isError)
+            assertFalse(call("mcp_add", """{"preset":"todoist"}""").isError)
         }
     }
 
@@ -136,7 +176,8 @@ class AgentManageServerTest {
         val completed = mutableListOf<String>()
         val mcp = object : McpManagement by McpManagement.Unavailable {
             override suspend fun mcpServers(agent: Agent) = entries.toList()
-            override suspend fun saveMcp(p: SaveMcpParams): McpServerInfo {
+            override suspend fun saveMcp(p: SaveMcpParams, createOnly: Boolean): McpServerInfo {
+                if (createOnly) entries.requireNewServer(p)
                 changes += p.agentId
                 assertEquals(ConfigScope.Agent, p.server.scope)
                 entries += p.server

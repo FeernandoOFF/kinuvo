@@ -57,7 +57,7 @@ fun capabilitiesFor(agent: Agent, tools: List<Tool>, catalog: List<ResolvedTool>
     append("Available tools: ${tools.map { it.descriptor.name }.sorted().joinToString()}. Use these tools to establish what is possible; do not assume unlisted integrations exist.\n")
     tools.mapNotNull { it.coreMetadata }.distinct().filter { !compact || it.name !in CONFIGURATION_TOOLS }.forEach { append(if (compact) it.summary else it.hint ?: it.summary); append("\n") }
     append(notSetUpFor(catalog, tools))
-    if (tools.any { it.descriptor.name == ToolNames.WEB_FETCH }) append("Kinuvo documentation: $KINUVO_DOCS_URL/llms.txt lists the owner documentation; fetch the matching URL exactly as listed. Use web_fetch for questions about Kinuvo or how to set something up.\n")
+    tools.coreName(ToolNames.WEB_FETCH)?.let { webFetch -> append("Kinuvo documentation: $KINUVO_DOCS_URL/llms.txt lists the owner documentation; fetch the matching URL exactly as listed. Use $webFetch for questions about Kinuvo or how to set something up.\n") }
     if (!compact) append("Tool calls follow the Session's Risk tolerance and Trust/Deny rules. Background Reflection stages Knowledge and learned Skills for explicit Approval regardless of Risk tolerance.\n")
 }
 
@@ -97,33 +97,36 @@ suspend fun compactContextFor(agent: Agent, docs: AgentDocs): String =
         "Keep replies short.\n\n" + personalContextFor(agent, docs)
 
 fun aboutKinuvoFor(tools: List<Tool>): String = buildString {
-    val names = tools.map { it.descriptor.name }.toSet()
+    val names = tools.mapNotNull { it.coreMetadata?.name }.toSet()
+    fun name(id: String) = tools.coreName(id)
+    val canLogin = ToolNames.MCP_LOGIN in names && ToolNames.ASK_USER in names
     append("## About Kinuvo\n\n")
     append("Kinuvo is a self-hosted personal AI harness. Its Server owns Agents, Sessions and Tools; paired Devices are clients. An Agent is a named participant; a Session is one bounded conversation. Tools read or change things under Kinuvo's Approvals.\n")
     if (ToolNames.MCP_LIST in names) {
-        append("When a request would benefit from an unconfigured connection (tasks: Todoist/Linear; mail: Gmail; notes: Notion), check mcp_list's available presets and offer the relevant one once. ")
+        append("When a request would benefit from an unconfigured connection (tasks: Todoist/Linear; mail: Gmail; notes: Notion), check ${name(ToolNames.MCP_LIST)}'s available presets and offer the relevant one once. ")
         when {
-            ToolNames.SHOW_UI in names -> append("Present a small show_ui card with Add / Not now. ")
-            ToolNames.ASK_USER in names -> append("Present the offer with ask_user. ")
+            ToolNames.SHOW_UI in names -> append("Present a small ${name(ToolNames.SHOW_UI)} card with Add / Not now. ")
+            ToolNames.ASK_USER in names -> append("Present the offer with ${name(ToolNames.ASK_USER)}. ")
             else -> append("Ask in plain text. ")
         }
-        if (ToolNames.MEMORY in names) append("If declined or ignored, note it in Memory with memory so you do not offer it again. ")
+        if (ToolNames.MEMORY in names) append("If declined or ignored, note it in Memory with ${name(ToolNames.MEMORY)} so you do not offer it again. ")
         if (ToolNames.MCP_ADD in names) {
-            append("On yes, use mcp_add(preset)")
-            if (ToolNames.MCP_LOGIN in names) append(" then mcp_login and finish sign-in with the user")
+            append("On yes, use ${name(ToolNames.MCP_ADD)}(preset)")
+            if (canLogin) append(" then ${name(ToolNames.MCP_LOGIN)} and finish sign-in with the user")
             else append(" and guide sign-in in Server settings → Tools & MCP → MCP servers")
             append("; presets needing credentials require the user's setup in Settings. ")
         } else append("On yes, guide the user to Server settings → Tools & MCP → MCP servers. ")
-        if (ToolNames.MCP_LOGIN in names) append("If a configured server's tool fails with an auth/sign-in error, say so and offer to reconnect via mcp_login. ")
+        if (canLogin) append("If a configured server's tool fails with an auth/sign-in error, say so and offer to reconnect via ${name(ToolNames.MCP_LOGIN)}. ")
+        else append("For sign-in or reconnection, guide the user to Settings → Server settings → Tools & MCP → MCP servers. ")
         append("\n")
     }
     if (ToolNames.ACTIVATE_SKILL in names) append("Skills are named instructions and reference files; activate only Skills listed in the current catalog.\n")
-    if (ToolNames.SCHEDULE in names) append("Routines run an Agent's prompt on a schedule; use schedule for future work.\n")
-    if (ToolNames.AGENT_GET in names) append("Use agent_get to inspect your own Agent settings before proposing changes.\n")
-    if (ToolNames.AGENT_UPDATE in names) append("Use agent_update to change your own Identity, Soul, model or enabled tools.\n")
-    if (ToolNames.AGENT_CREATE in names) append("Use agent_create to create a blank Agent.\n")
-    if (ToolNames.MCP_ADD in names) append("Use mcp_add to connect an MCP server for your Agent.\n")
-    if (ToolNames.SESSION_CONFIGURE in names) append("Use session_configure for this Session's model, reasoning or stricter Risk tolerance.\n")
+    if (ToolNames.SCHEDULE in names) append("Routines run an Agent's prompt on a schedule; use ${name(ToolNames.SCHEDULE)} for future work.\n")
+    if (ToolNames.AGENT_GET in names) append("Use ${name(ToolNames.AGENT_GET)} to inspect your own Agent settings before proposing changes.\n")
+    if (ToolNames.AGENT_UPDATE in names) append("Use ${name(ToolNames.AGENT_UPDATE)} to change your own Identity, Soul, model or enabled tools.\n")
+    if (ToolNames.AGENT_CREATE in names) append("Use ${name(ToolNames.AGENT_CREATE)} to create a blank Agent.\n")
+    if (ToolNames.MCP_ADD in names) append("Use ${name(ToolNames.MCP_ADD)} to connect an MCP server for your Agent.\n")
+    if (ToolNames.SESSION_CONFIGURE in names) append("Use ${name(ToolNames.SESSION_CONFIGURE)} for this Session's model, reasoning or stricter Risk tolerance.\n")
     if (names.any { it in setOf(ToolNames.AGENT_UPDATE, ToolNames.AGENT_CREATE, ToolNames.MCP_ADD, ToolNames.MCP_REMOVE, ToolNames.SESSION_CONFIGURE) })
         append("Say what you will change before calling a configuration tool; required Approvals show the change. Chat never loosens safety.\n")
     if (ToolNames.AGENT_UPDATE !in names) append("For model changes, open the selected Agent's Personality page. For tool changes, use Server settings → Tools & MCP → Built-in tools.\n")
@@ -145,8 +148,10 @@ private fun notSetUpFor(catalog: List<ResolvedTool>, tools: List<Tool>): String 
         }
         "$name (${path.trimEnd('/')})"
     }
-    val guidance = if (tools.any { it.descriptor.name == ToolNames.WEB_FETCH })
+    val guidance = if (tools.coreName(ToolNames.WEB_FETCH) != null)
         "If the user asks for one, fetch its page from the docs and guide them; do not try the tool."
     else "If the user asks for one, point them to Settings/docs; do not try the tool."
     return "Not set up: $missing. $guidance\n"
 }
+
+private fun List<Tool>.coreName(id: String) = firstOrNull { it.coreMetadata?.name == id }?.descriptor?.name

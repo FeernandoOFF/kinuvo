@@ -4,6 +4,10 @@ import kinuvo.server.plugin.toolSpec
 import kinuvo.harness.Agent
 import kinuvo.harness.AgentConfig
 import kinuvo.harness.AgentDoc
+import kinuvo.server.plugin.Tool
+import kinuvo.server.plugin.CoreToolRegistry
+import kinuvo.protocol.plugin.PluginInstanceId
+import kinuvo.protocol.plugin.ToolIdentity
 import kinuvo.server.plugin.CoreTool
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.JsonObject
@@ -13,13 +17,14 @@ import kinuvo.protocol.capability.CapabilityState
 import kinuvo.protocol.capability.ResolvedTool
 
 class InstructionsTest {
-    private fun tool(name: String) = object : CoreTool {
-        override val descriptor = toolSpec(name, "test")
+    private fun tool(name: String, advertisedName: String = name) = object : CoreTool {
+        override val metadata get() = CoreToolRegistry[name]!!
+        override val descriptor = toolSpec(advertisedName, "test")
         override suspend fun execute(args: JsonObject) = error("Not executed")
     }
 
     @Test fun connectorOffersFollowAdvertisedTools() = runTest {
-        fun prompt(vararg names: String) = aboutKinuvoFor(names.map(::tool))
+        fun prompt(vararg names: String) = aboutKinuvoFor(names.map { tool(it) })
         val card = prompt("mcp_list", "mcp_add", "mcp_login", "show_ui", "ask_user", "memory")
         assertTrue("available presets" in card && "offer the relevant one once" in card)
         assertTrue("show_ui card with Add / Not now" in card)
@@ -36,9 +41,41 @@ class InstructionsTest {
         assertFalse("show_ui" in text || "ask_user" in text)
         assertFalse("available presets" in prompt("mcp_add", "show_ui", "memory"))
         val fixture = RuntimeFixture()
-        val tools = listOf("mcp_list", "mcp_add", "mcp_login", "show_ui", "memory").map(::tool)
+        val tools = listOf("mcp_list", "mcp_add", "mcp_login", "show_ui", "memory").map { tool(it) }
         val compact = compactContextFor(fixture.agent, fixture.docs) + capabilitiesFor(fixture.agent, tools, compact = true)
         assertFalse("available presets" in compact || "offer the relevant one once" in compact)
+    }
+
+    @Test fun connectorGuidanceRequiresCoreIdentityAndUsesAdvertisedAliases() {
+        val external = listOf("mcp_list", "mcp_add", "mcp_login", "ask_user", "agent_update", "web_fetch").map { name ->
+            object : Tool {
+                override val identity = ToolIdentity(PluginInstanceId("mcp", "external"), name)
+                override val descriptor = toolSpec(name, "External tool")
+                override suspend fun execute(args: JsonObject) = error("Not executed")
+            }
+        }
+        val untrusted = aboutKinuvoFor(external)
+        assertFalse("available presets" in untrusted || "Use mcp_add" in untrusted || "Use agent_update" in untrusted)
+        assertTrue("Personality page" in untrusted)
+        val real = listOf("mcp_list", "mcp_add", "mcp_login", "ask_user", "memory", "show_ui", "agent_update", "web_fetch")
+            .map { tool(it, "core_$it") }
+        val trusted = aboutKinuvoFor(real)
+        assertTrue("core_mcp_list's available presets" in trusted)
+        assertTrue("core_mcp_add(preset) then core_mcp_login" in trusted)
+        assertTrue("core_show_ui card" in trusted && "Memory with core_memory" in trusted)
+        assertTrue("Use core_agent_update" in trusted)
+        val agent = Agent(AgentId("a"), "A", AgentConfig())
+        assertFalse("Kinuvo documentation:" in capabilitiesFor(agent, external))
+        assertTrue("Use core_web_fetch" in capabilitiesFor(agent, real))
+    }
+
+    @Test fun loginGuidanceRequiresAskUser() {
+        val tools = listOf("mcp_list", "mcp_add", "mcp_login").map { tool(it) }
+        val prompt = aboutKinuvoFor(tools)
+        assertFalse("then mcp_login" in prompt || "reconnect via mcp_login" in prompt)
+        assertTrue("Settings → Server settings → Tools & MCP → MCP servers" in prompt)
+        val usable = aboutKinuvoFor(tools + tool("ask_user"))
+        assertTrue("then mcp_login" in usable && "reconnect via mcp_login" in usable)
     }
 
     @Test fun smallPromptsMatchOriginalBytes() = runTest {
@@ -86,7 +123,7 @@ class InstructionsTest {
         val partial = aboutKinuvoFor(listOf(tool("agent_get")))
         assertTrue("Use agent_get" in partial)
         assertFalse("Use agent_create" in partial)
-        val full = aboutKinuvoFor(listOf("agent_get", "agent_update", "agent_create", "mcp_add", "session_configure").map(::tool))
+        val full = aboutKinuvoFor(listOf("agent_get", "agent_update", "agent_create", "mcp_add", "session_configure").map { tool(it) })
         assertTrue("Say what you will change" in full && "Approvals show the change" in full)
         assertTrue("Chat never loosens safety" in full)
         assertFalse("Personality page" in full || "Server settings → Tools & MCP" in full)

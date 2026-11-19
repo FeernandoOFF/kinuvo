@@ -27,7 +27,7 @@ class AgentManagement(private val harness: AgentRuntime, private val admin: Admi
     suspend fun configure(agent: AgentId, session: SessionId, settings: SessionSettings) =
         harness.configure(harness.store.agents().first { it.id == agent }, session, settings)
     suspend fun mcpServers(id: AgentId) = harness.mcp.mcpServers(harness.store.agents().first { it.id == id })
-    suspend fun saveMcp(p: SaveMcpParams) = harness.mcp.saveMcp(p)
+    suspend fun saveMcp(p: SaveMcpParams, createOnly: Boolean) = harness.mcp.saveMcp(p, createOnly)
     suspend fun removeMcp(p: McpParams) = harness.mcp.removeMcp(p)
     suspend fun testMcp(p: McpParams) = harness.mcp.testMcp(p)
     suspend fun loginMcp(p: McpLoginParams) = harness.mcp.loginMcp(p).url
@@ -226,7 +226,8 @@ private class McpList(management: AgentManagement, scope: AgentManageScope) : Ma
 
     override suspend fun execute(args: JsonObject): String {
         val servers = management.mcpServers(scope.agentId)
-        val available = McpCatalog.filter { preset -> servers.none { it.name == preset.id || it.url?.trimEnd('/') == preset.url.trimEnd('/') } }
+        val effective = servers.effectiveFor(scope.agentId)
+        val available = McpCatalog.filter { preset -> effective.none { it.url?.trimEnd('/') == preset.url.trimEnd('/') } }
         return buildString {
             appendLine("Configured MCP servers:")
             appendLine(servers.joinToString("\n") { s ->
@@ -234,7 +235,8 @@ private class McpList(management: AgentManagement, scope: AgentManageScope) : Ma
                 "- ${s.name} [${s.url ?: "${s.command} ${s.args.joinToString(" ")}".trim()}] ${s.scope.name.lowercase()}$auth${if (!s.active) ", replaced by your own" else ""}"
             }.ifEmpty { "No MCP servers." })
             appendLine("Available presets:")
-            append(available.joinToString("\n") { "- ${it.id}: ${it.name} (${it.auth}) — ${it.description}" }.ifEmpty { "None." })
+            append(available.joinToString("\n") { "- ${it.id}: ${it.name} (${it.auth}) — ${it.description}" +
+                if (servers.any { s -> s.name == it.id }) " (unavailable: name already configured; inspect mcp_list)" else "" }.ifEmpty { "None." })
         }
     }
 }
@@ -270,7 +272,7 @@ private class McpAdd(management: AgentManagement, scope: AgentManageScope) : Man
     }
 
     override suspend fun execute(args: JsonObject): String {
-        val saved = management.saveMcp(SaveMcpParams(scope.agentId, server(args)))
+        val saved = management.saveMcp(SaveMcpParams(scope.agentId, server(args)), createOnly = args.clean().string("preset") != null)
         return "Added '${saved.name}'. Try it with mcp_test."
     }
 

@@ -4,10 +4,12 @@ import kinuvo.harness.Agent
 import kinuvo.protocol.mcp.*
 import kinuvo.protocol.routine.*
 import kinuvo.protocol.agent.AgentId
+import kinuvo.protocol.agent.ConfigScope
 /** Lists, edits, tests and signs in to the Agents' MCP servers; a Server without MCP uses [Unavailable]. */
 interface McpManagement {
     suspend fun mcpServers(agent: Agent): List<McpServerInfo>
-    suspend fun saveMcp(p: SaveMcpParams): McpServerInfo
+    /** With [createOnly], reject name and effective endpoint conflicts under the save lock. */
+    suspend fun saveMcp(p: SaveMcpParams, createOnly: Boolean = false): McpServerInfo
     suspend fun removeMcp(p: McpParams)
     suspend fun testMcp(p: McpParams): McpTestResult
     suspend fun loginMcp(p: McpLoginParams): McpLogin
@@ -19,7 +21,7 @@ interface McpManagement {
 
     object Unavailable : McpManagement {
         override suspend fun mcpServers(agent: Agent) = emptyList<McpServerInfo>()
-        override suspend fun saveMcp(p: SaveMcpParams): McpServerInfo = unavailable()
+        override suspend fun saveMcp(p: SaveMcpParams, createOnly: Boolean): McpServerInfo = unavailable()
         override suspend fun removeMcp(p: McpParams): Unit = unavailable()
         override suspend fun testMcp(p: McpParams): McpTestResult = unavailable()
         override suspend fun loginMcp(p: McpLoginParams): McpLogin = unavailable()
@@ -28,4 +30,14 @@ interface McpManagement {
         override suspend fun removeAgent(id: AgentId) {}
         private fun unavailable(): Nothing = error("MCP is not installed on this Server")
     }
+}
+
+fun List<McpServerInfo>.effectiveFor(id: AgentId) = filter {
+    it.active && (it.scope != ConfigScope.Shared || it.agents == null || id in it.agents.orEmpty())
+}
+
+fun List<McpServerInfo>.requireNewServer(p: SaveMcpParams) {
+    require(none { it.name == p.server.name } && effectiveFor(p.agentId).none {
+        p.server.url != null && it.url?.trimEnd('/') == p.server.url?.trimEnd('/')
+    }) { "MCP server is already configured or its name is reserved; use mcp_list, mcp_test or mcp_login. Intentional replacement requires custom mcp_add with Approval." }
 }
