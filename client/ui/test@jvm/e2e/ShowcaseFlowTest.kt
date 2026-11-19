@@ -11,22 +11,31 @@ import kinuvo.protocol.browser.BrowserTab
 import kinuvo.protocol.approval.Risk
 import kinuvo.protocol.agent.AgentId
 import kotlinx.coroutines.awaitCancellation
+import kotlinx.coroutines.delay
 import kotlin.test.Test
+import androidx.compose.ui.test.ExperimentalTestApi
+import androidx.compose.ui.test.center
+import androidx.compose.ui.test.performMouseInput
+import androidx.compose.ui.test.performTouchInput
+import androidx.compose.ui.test.longClick
 
 /** Screens with dense, realistic data from the `showcase` scenario, for reviewing layouts rather than behavior. */
+@OptIn(ExperimentalTestApi::class)
 class ShowcaseFlowTest {
     private val plugins = listOf(
         FakeTools(
             FakeTool("shell", Risk.Medium, reason = "Books the flight under 120 EUR") { "booked" },
             FakeTool("slides") { awaitCancellation() },
+            FakeTool("summarize") { delay(5000); "two clauses flagged" },
         ),
         FakeBrowserPlugin(FakeBrowser(listOf(BrowserTab("tab-docs", AgentId("e2e"), "Kinuvo docs", "https://docs.kinuvo.dev/guides/migrating-to-2-0")))),
     )
 
-    private fun showcase(flow: String, block: suspend AppTest.() -> Unit) = appTest(flow, plugins,
+    private fun showcase(flow: String, desktop: Boolean = false, block: suspend AppTest.() -> Unit) = appTest(flow, plugins, desktop = desktop,
         script = {
             on("cheaper flight") { toolCall("shell"); reply("Booked") }
             on("planning deck") { toolCall("slides"); reply("Deck ready") }
+            on("Summarize the contract") { toolCall("summarize"); reply("Two clauses need a lawyer.") }
         },
         scenario = { showcase(it) },
         block = block,
@@ -50,11 +59,54 @@ class ShowcaseFlowTest {
         await("Release notes review for the 2.0 launch.*")
         await("Find a cheaper flight to Lisbon")
         screenshot("sessions")
-        tap("OPEN")
+        tap("Open")
         screenshot("older-sessions")
         tap("Research Assistant for Long-Running Investigations")
         await("Survey of on-device speech models")
         screenshot("long-agent-name")
+    }
+
+    /** Every inbox state: needs you, working, unread (a run that ends while elsewhere), open, favorites pinned, settled. */
+    private suspend fun AppTest.unread() {
+        tap("Open")
+        scrollTo("Contractor agreement review")
+        tap("Contractor agreement review")
+        tap("Message")
+        type("Summarize the contract")
+        tap("Send")
+        scrollTo("Trip plans", up = true)
+        tap("Trip plans")
+        await("Unread", 15_000)
+    }
+
+    @Test fun inboxStatesOnDesktop() = showcase("showcase-inbox", desktop = true) {
+        live()
+        openPairing(pairingCode)
+        await("Favorites", 20_000)
+        unread()
+        screenshot("inbox")
+        listOf("Sort holiday photos", "Car insurance renewal").forEach { title ->
+            await(title).performMouseInput { moveTo(center) }
+            settle()
+            if (title == "Sort holiday photos") screenshot("hover-settle")
+            tap("Settle $title")
+        }
+        tap("Open")
+        tap("Settled \\(2\\)")
+        await("Sort holiday photos")
+        screenshot("settled-open")
+    }
+
+    @Test fun inboxStatesOnPhone() = showcase("showcase-inbox-phone") {
+        live()
+        connect()
+        tap("Agents and sessions")
+        tap("Message.*")
+        type("Summarize the contract")
+        await("Send.*").performTouchInput { longClick() }
+        settle()
+        await("Unread", 15_000)
+        screenshot("inbox")
     }
 
     @Test fun todayFullyPopulated() = showcase("showcase-today") {

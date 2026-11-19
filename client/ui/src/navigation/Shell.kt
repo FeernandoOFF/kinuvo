@@ -183,7 +183,7 @@ class ShellChrome(open: MutableState<Boolean>, private val prefs: Preferences? =
         }
     /** Every open Session, loading more on scroll, rather than the few most recent. */
     var allChats by mutableStateOf(false)
-    /** Whether the column lists the settled Sessions instead of the inbox. */
+    /** Whether the Settled section at the end of the column is unfolded. */
     var showSettled by mutableStateOf(false)
 
     private companion object {
@@ -402,8 +402,6 @@ private fun AgentColumn(state: ShellState, actions: ShellActions, chrome: ShellC
         }
         HorizontalSeparator()
         SessionSearch(chrome.query, state.agent?.name, Modifier.padding(start = Spacing.space8, top = Spacing.space8, end = Spacing.space8))
-        if (!searching) Segmented(listOf(if (inbox.isEmpty()) "Inbox" else "Inbox ${inbox.size}", "Settled"), if (chrome.showSettled) 1 else 0,
-            Modifier.padding(start = Spacing.space8, top = Spacing.space8), small = true) { chrome.showSettled = it == 1 }
         LazyColumn(Modifier.weight(1f), list, contentPadding = PaddingValues(start = Spacing.space8, top = Spacing.space4, end = Spacing.space8, bottom = Spacing.space8 + bottom), verticalArrangement = Arrangement.spacedBy(1.dp)) {
             val selected = (state.view as? Route.Chat)?.sessionId
             val attachedIds = attached.mapNotNull { it.sessionId }.toSet()
@@ -422,7 +420,7 @@ private fun AgentColumn(state: ShellState, actions: ShellActions, chrome: ShellC
                 return@LazyColumn
             }
             fun needsLook(sessions: List<SessionInfo>) = sessions.filter { it.id == selected || it.status != SessionStatus.Idle || it.id in state.finished }
-            if (favorites.isNotEmpty() && !chrome.showSettled) {
+            if (favorites.isNotEmpty()) {
                 val collapsed = ShellSection.Favorites in chrome.collapsed
                 item(key = ShellSection.Favorites) {
                     GroupHeader(ShellSection.Favorites.title, collapsed) {
@@ -431,12 +429,7 @@ private fun AgentColumn(state: ShellState, actions: ShellActions, chrome: ShellC
                 }
                 rows(if (collapsed) needsLook(favorites) else favorites)
             }
-            if (chrome.showSettled) {
-                if (settledChats.isNotEmpty()) {
-                    item(key = "group:settled") { GroupHeader("Settled") }
-                    rows(settledChats, "settled:")
-                } else item(key = "none-settled") { EmptyNote("Nothing settled yet") }
-            } else {
+            run {
                 val waiting = inbox.filter { it.status == SessionStatus.Waiting }
                 val working = inbox.filter { it.status == SessionStatus.Running }
                 val idle = inbox.filter { it.status == SessionStatus.Idle }
@@ -445,7 +438,7 @@ private fun AgentColumn(state: ShellState, actions: ShellActions, chrome: ShellC
                 if (idle.isNotEmpty()) {
                     val groups = idle.groupRoutineRuns().let { g -> g.filter { it.session.id in state.finished } + g.filter { it.session.id !in state.finished } }
                     val more = groups.size > RECENT_CHATS || state.hasMore
-                    item(key = "chats") { GroupHeader("Open", !chrome.allChats, if (more) ({ chrome.allChats = !chrome.allChats }) else null) }
+                    item(key = "chats") { GroupHeader("Open", !chrome.allChats, onToggle = if (more) ({ chrome.allChats = !chrome.allChats }) else null) }
                     val shown = if (chrome.allChats) groups else groups.take(RECENT_CHATS) + groups.drop(RECENT_CHATS).filter { g -> needsLook(listOf(g.session) + g.earlier).isNotEmpty() }
                     shown.forEach { group ->
                         val key = group.session.routine?.id
@@ -488,6 +481,11 @@ private fun AgentColumn(state: ShellState, actions: ShellActions, chrome: ShellC
                         actions.onSelect(r.sessionId!!.value)
                     }
                 }
+            }
+            // Settled Sessions wait at the end, folded, until there's news in one.
+            if (settledChats.isNotEmpty()) {
+                item(key = "group:settled") { GroupHeader("Settled", !chrome.showSettled, settledChats.size) { chrome.showSettled = !chrome.showSettled } }
+                if (chrome.showSettled) rows(settledChats, "settled:")
             }
             if (state.sessions.isEmpty() && state.agent != null) item(key = "empty") {
                 EmptyNote("No sessions yet")
@@ -533,16 +531,17 @@ private fun Pinned(icon: ImageVector, label: String, selected: Boolean, enabled:
 
 /** A section's heading; with [onToggle], it collapses the section. */
 @Composable
-private fun GroupHeader(title: String, collapsed: Boolean = false, onToggle: (() -> Unit)? = null) {
+private fun GroupHeader(title: String, collapsed: Boolean = false, count: Int? = null, onToggle: (() -> Unit)? = null) {
     Row(
         Modifier.fillMaxWidth().padding(top = Spacing.space12).clip(Theme[shapes][smallShape])
             .then(if (onToggle != null) Modifier.clickable(onClick = onToggle).semantics { stateDescription = if (collapsed) "Collapsed" else "Expanded" } else Modifier)
-            .heightIn(min = if (onToggle != null) 44.dp else 0.dp).padding(horizontal = Spacing.space6, vertical = Spacing.space4),
+            .heightIn(min = if (onToggle != null) 36.dp else 0.dp).padding(horizontal = Spacing.space6, vertical = Spacing.space4),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(Spacing.space4),
+        horizontalArrangement = Arrangement.spacedBy(Spacing.space8),
     ) {
-        Text(title.uppercase(), style = TextStyles.overline, lineHeight = 14.sp, letterSpacing = 0.6.sp, color = color(mutedColor), singleLine = true)
-        if (onToggle != null) Icon(if (collapsed) Lucide.ChevronRight else Lucide.ChevronDown, Modifier.size(12.dp), tint = color(mutedColor))
+        Text(if (count != null) "$title ($count)" else title, style = TextStyles.secondary, color = color(mutedColor), singleLine = true)
+        HorizontalSeparator(Modifier.weight(1f))
+        if (onToggle != null) Icon(if (collapsed) Lucide.ChevronDown else Lucide.ChevronUp, Modifier.size(14.dp), tint = color(mutedColor))
     }
 }
 
