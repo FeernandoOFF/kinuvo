@@ -90,7 +90,7 @@ class ComputerTest {
         val server = JvmServerHost(JvmAgentRuntime(Path(home.path), plugins = emptyList()))
         try {
             val error = assertFailsWith<CliktError> { CliComputer(server, "127.0.0.1", 0, DesktopComputer(connect = null)) }
-            assertContains(error.message.orEmpty(), "cua-driver permissions grant")
+            assertContains(error.message.orEmpty(), "Computer use needs")
             assertTrue(server.auth.toolDevices().isEmpty())
         } finally { server.stop(); home.deleteRecursively() }
     }

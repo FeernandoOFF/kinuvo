@@ -364,9 +364,12 @@ private fun jpeg(png: ByteArray): Triple<String, Int, Int> {
 }
 
 /** cua-driver on PATH, in ~/.local/bin or in its app bundle. */
-fun findDriver(): String? = (System.getenv("PATH").orEmpty().split(File.pathSeparator).map { File(it, if (currentPlatform == Platform.Windows) "cua-driver.exe" else "cua-driver") } +
-    File(System.getProperty("user.home"), ".local/bin/cua-driver") + File("/Applications/CuaDriver.app/Contents/MacOS/cua-driver"))
-    .firstOrNull { it.canExecute() }?.path
+fun findDriver(): String? {
+    val name = if (currentPlatform == Platform.Windows) "cua-driver.exe" else "cua-driver"
+    return (System.getenv("PATH").orEmpty().split(File.pathSeparator).map { File(it, name) } +
+        File(System.getProperty("user.home"), ".local/bin/$name") + File("/Applications/CuaDriver.app/Contents/MacOS/cua-driver"))
+        .firstOrNull { it.canExecute() }?.path
+}
 
 /** `cua-driver mcp`, a stdio MCP server that forwards to its daemon, which holds the OS permissions. */
 internal class McpDriver(path: String, args: List<String> = emptyList()) : Driver {

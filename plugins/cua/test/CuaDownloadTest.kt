@@ -37,6 +37,8 @@ class CuaDownloadTest {
             withTimeout(5000) { while (!source.message.contains("offline")) delay(10) }
             assertEquals("cua-driver download failed: offline", computer.perform(ComputerRequest()).message)
             assertEquals(1, calls)
+            assertEquals("Downloading cua-driver for Computer use. Try again in a minute.", computer.perform(ComputerRequest()).message)
+            withTimeout(5000) { while (calls < 2) delay(10) }
         } finally { source.close(); computer.close() }
     }
 

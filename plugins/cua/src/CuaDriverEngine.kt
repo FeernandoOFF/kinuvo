@@ -46,8 +46,10 @@ fun cuaDriverEngine(home: File, platform: Platform = currentPlatform, arch: Arch
     })
 }
 
+private fun tarCommand() = if (currentPlatform == Platform.Windows) File(System.getenv("SystemRoot") ?: "C:\\Windows", "System32\\tar.exe").path else "tar"
+
 private suspend fun tar(vararg args: String): String = runInterruptible(Dispatchers.IO) {
-    val process = ProcessBuilder(listOf("tar") + args).redirectError(ProcessBuilder.Redirect.INHERIT).start()
+    val process = ProcessBuilder(listOf(tarCommand()) + args).redirectError(ProcessBuilder.Redirect.INHERIT).start()
     try {
         val output = process.inputStream.bufferedReader().readText()
         check(process.waitFor() == 0) { "Cannot extract cua-driver" }
@@ -71,15 +73,18 @@ class CuaDriverDownload(
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     @Volatile private var path = discover()
     @Volatile private var failure: String? = null
-    private var started = false
+    private var job: Job? = null
+    private var shown = false
     val ready get() = path != null || engine != null
     val message get() = failure ?: "Downloading cua-driver for Computer use. Try again in a minute."
 
     @Synchronized fun resolve(): String? {
         path?.let { return it }
-        if (!started && engine != null) {
-            started = true
-            scope.launch {
+        if (engine == null) return null
+        if (failure != null && !shown) { shown = true; return null }
+        if (job?.isActive != true) {
+            failure = null; shown = false
+            job = scope.launch {
                 try {
                     val installed = engine.installed
                     val downloaded = download()
