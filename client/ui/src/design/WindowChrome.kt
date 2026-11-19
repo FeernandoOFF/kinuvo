@@ -21,6 +21,8 @@ import androidx.compose.ui.unit.toSize
 class WindowChrome(val height: Dp, val leadingInset: Dp, val trailingInset: Dp, val controls: MutableMap<Any, Rect> = mutableMapOf()) {
     /** The same chrome for content placed clear of the window's leading edge. */
     val trailingOnly by lazy { WindowChrome(height, 0.dp, trailingInset, controls) }
+    /** The same chrome for content clear of the window's trailing edge. */
+    val leadingOnly by lazy { WindowChrome(height, leadingInset, 0.dp, controls) }
     /** The same chrome for content clear of both window edges. */
     val inner by lazy { WindowChrome(height, 0.dp, 0.dp, controls) }
 

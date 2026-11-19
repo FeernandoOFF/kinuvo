@@ -62,6 +62,8 @@ class SidePanelFlowTest {
         tap("Expand panel")
         screenshot("expanded")
         tap("Home")
+        gone("Expand panel")
+        gone("Collapse panel")
         screenshot("home-hides-panel")
     }
 

@@ -141,9 +141,12 @@ fun KinuvoApp(app: AppViewModel = koinViewModel(), initialRoute: Route? = null, 
     val panel = koinViewModel<SidePanelViewModel>(key = "panel/${app.serverLifetime}")
     val panelState by panel.state.collectAsState()
     val panelStores = rememberPanelStores(app.serverLifetime)
-    LaunchedEffect(panelState.tabs) { panelStores.retain(panelState.tabs) }
     // The Screen a tab was last asked to show, and why; Artifact titles as their tabs load them.
     val screenFocus = remember(app.serverLifetime) { mutableStateMapOf<PanelTab, Pair<ScreenRef, String?>>() }
+    LaunchedEffect(panelState.tabs) {
+        panelStores.retain(panelState.tabs)
+        screenFocus.keys.retainAll(panelState.tabs.toSet())
+    }
     val artifactTitles = remember(app.serverLifetime) { mutableStateMapOf<String, String>() }
     val back = { homeEdits.leave { if (history.canGoBack) history.back() else if (backStack.lastOrNull().let { it is Route.Settings }) history.reset(app.lastView()) } }
     val shell = rememberShellChrome()
@@ -615,7 +618,7 @@ fun KinuvoApp(app: AppViewModel = koinViewModel(), initialRoute: Route? = null, 
                         Row { Shell(shellState, shellActions, shell, column = !foldColumn); VerticalSeparator() }
                     }
                     Box(Modifier.weight(1f)) {
-                        CompositionLocalProvider(LocalWindowChrome provides windowChrome?.let { if (beside) it.trailingOnly else it }) { screens() }
+                        CompositionLocalProvider(LocalWindowChrome provides windowChrome?.let { if (panelShown) (if (beside) it.inner else it.leadingOnly) else if (beside) it.trailingOnly else it }) { screens() }
                     }
                     AnimatedVisibility(panelShown, enter = expandHorizontally(expandFrom = Alignment.Start), exit = shrinkHorizontally(shrinkTowards = Alignment.Start)) {
                         // The strip takes the window's trailing edge; tabs beside it keep no room for window buttons.

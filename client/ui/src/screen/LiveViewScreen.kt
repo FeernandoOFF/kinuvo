@@ -102,11 +102,14 @@ internal fun LiveViewContent(state: LiveViewState, actions: LiveActions, back: (
                 TitleBarRow(leading = !docked) {
                     back?.let { HeaderButton(Lucide.ArrowLeft, "Back", it) }
                     val leading = LocalLeadingActions.current
-                    if (leading) headerActions.asReversed().forEach { HeaderButton(it.icon, it.label, it.onClick) }
+                    if (leading) {
+                        headerActions.asReversed().forEach { HeaderButton(it.icon, it.label, it.onClick) }
+                        BrowserWindowControls(state, actions)
+                    }
                     Icon(if (tabs) Lucide.Globe else Lucide.Monitor, Modifier.padding(start = Spacing.space6).size(16.dp), tint = color(mutedColor))
                     Text(if (tabs) "Browser" else state.screen?.title ?: "Computers", Modifier.padding(start = Spacing.space4), singleLine = true)
                     Spacer(Modifier.weight(1f))
-                    if (state.presentation != null) BrowserWindowControls(state, actions)
+                    if (!leading) BrowserWindowControls(state, actions)
                     if (!leading) headerActions.forEach { HeaderButton(it.icon, it.label, it.onClick) }
                 }
                 HorizontalSeparator()

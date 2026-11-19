@@ -82,9 +82,10 @@ fun SidePanel(state: SidePanelState, actions: SidePanelActions, maxWidth: Dp, la
     val max = maxWidth.value
     var dragged by remember { mutableStateOf(0f) }
     val current by rememberUpdatedState(state)
+    val currentActions by rememberUpdatedState(actions)
     Row(Modifier.fillMaxHeight().semantics { paneTitle = "Side panel" }) {
         Box(Modifier.width(7.dp).fillMaxHeight().pointerHoverIcon(PointerIcon.Hand)
-            .pointerInput(Unit) { detectTapGestures(onDoubleTap = { actions.onCollapse(!current.collapsed) }) }
+            .pointerInput(Unit) { detectTapGestures(onDoubleTap = { currentActions.onCollapse(!current.collapsed) }) }
             .draggable(rememberDraggableState { delta ->
                 dragged -= with(density) { delta.toDp().value }
                 actions.onResize(dragged, max)
