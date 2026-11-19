@@ -64,7 +64,7 @@ val openSourceLicenses = listOf(
     OpenSourceLicense("Libron, Readerly and Newsreader", "https://github.com/nicoverbruggen/libron", "OFL-1.1", "Nico Verbruggen; The Newsreader Project Authors", files = listOf("libron_")),
     OpenSourceLicense("Skia", "https://skia.org", "BSD-3-Clause", "Google Inc.; bundled via Skiko in Compose Multiplatform"),
     OpenSourceLicense("JetBrains Runtime (desktop and CLI only)", "https://github.com/JetBrains/JetBrainsRuntime", "GPL-2.0-only WITH Classpath-exception-2.0", "Oracle and/or its affiliates; JetBrains s.r.o.", source = "https://github.com/JetBrains/JetBrainsRuntime/tree/jbr-release-25.0.4.1b635.72"),
-    OpenSourceLicense("Tailscale (tailscale.com and tailcat)", "https://github.com/tailscale/tailscale", "BSD-3-Clause", "Tailscale Inc & contributors"),
+    OpenSourceLicense("Tailscale (tailscale.com and tailcat)", "https://github.com/tailscale/tailscale", "BSD-3-Clause", "Tailscale Inc & contributors", files = listOf("libKinuvoTailcat")),
     OpenSourceLicense("Tailscale hujson, peercred and web-client-prebuilt", "https://github.com/tailscale", "BSD-3-Clause", TAILSCALE),
     OpenSourceLicense("Tailscale wireguard-go", "https://github.com/tailscale/wireguard-go", "MIT", "WireGuard LLC"),
     OpenSourceLicense("Tailscale gliderssh", "https://github.com/tailscale/gliderssh", "BSD-3-Clause", "Glider Labs"),

@@ -2,7 +2,6 @@ package kinuvo.app
 
 import kinuvo.app.settings.openSourceLicenses
 import java.io.File
-import java.nio.file.Files
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
@@ -33,10 +32,9 @@ class OpenSourceLicensesTest {
     fun `every bundled native library and font has a license entry`() {
         val prefixes = openSourceLicenses.flatMap { it.files }
         val libs = File(root, "apps/android/jniLibs").listFiles { f -> f.isDirectory }.orEmpty().flatMap { it.listFiles().orEmpty().toList() }
-        val bundled = (libs.filter { !Files.isSymbolicLink(it.toPath()) } + File(root, "client/ui/composeResources/font").listFiles().orEmpty()).map { it.name }.distinct()
+        val bundled = (libs + File(root, "client/ui/composeResources/font").listFiles().orEmpty()).map { it.name }.distinct()
         val missing = bundled.filter { name -> prefixes.none { name.startsWith(it) } }
         assertEquals(emptyList(), missing, "Add these file prefixes to openSourceLicenses")
-        assertTrue(openSourceLicenses.any { it.name.startsWith("Tailscale") }, "libKinuvoTailcat.so maps to the Tailscale entries")
     }
 
     @Test
