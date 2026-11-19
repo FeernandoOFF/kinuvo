@@ -4,7 +4,7 @@ Exec backends (host, container, SSH) and the shell and file tools.
 
 ## Android Linux environment
 
-On Android, the host backend runs in an Alpine rootfs through proot (`src@android/ProotLinux.kt`). The app downloads the rootfs on first use. proot, talloc, the loader and libandroid-shmem are Termux builds shipped as `lib*.so` in `apps/android/jniLibs`, because Android only executes files from the app's native library directory.
+On Android, the host backend runs in a Debian (trixie slim) rootfs through proot (`src@android/ProotLinux.kt`). The app downloads the rootfs on first use. proot, talloc, the loader and libandroid-shmem are Termux builds shipped as `lib*.so` in `apps/android/jniLibs`, because Android only executes files from the app's native library directory.
 
 That needs `extractNativeLibs`, which AGP rejects in the manifest and Amper can't set, so the full app's APK is patched after the build:
 

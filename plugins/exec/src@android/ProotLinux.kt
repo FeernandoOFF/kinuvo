@@ -14,14 +14,20 @@ import java.io.File
 import java.io.InputStream
 import java.io.OutputStream
 import java.net.URL
+import java.security.MessageDigest
+import kotlin.io.path.ExperimentalPathApi
+import kotlin.io.path.deleteRecursively
 import java.util.zip.GZIPInputStream
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
 
-private const val ALPINE = "3.22"
-private const val ALPINE_RELEASE = "3.22.2"
+/** Debian trixie slim from Docker's official image artifacts, pinned by commit and SHA-256. */
+private val DEBIAN = mapOf(
+    "arm64-v8a" to ("dist-arm64v8" to "5994ab615f09f401eef80676e152b497e2a7b3ba" to "247b26a4519187bec80e4b91bfca39d2882f58e608b9ac5a8d753f860823fad8"),
+    "x86_64" to ("dist-amd64" to "2dcd3d429aa99a1302a4bb9b8cacb4f318c71d4a" to "f2b1a427bf1fb2a8d08e8e0af11582776acd357451f8f403ffa91a68b6d206cb"),
+)
 
-/** An Alpine rootfs run through proot, whose binaries ship as native libraries so Android lets them execute. */
+/** A Debian rootfs run through proot, whose binaries ship as native libraries so Android lets them execute. */
 class ProotLinux(private val nativeLibDir: File, home: File, internal val tmp: File) {
     private val linux = File(home, "linux")
     val rootfs = File(linux, "rootfs")
@@ -30,24 +36,28 @@ class ProotLinux(private val nativeLibDir: File, home: File, internal val tmp: F
 
     val available get() = File(nativeLibDir, "libproot.so").exists()
 
+    @OptIn(ExperimentalPathApi::class)
     suspend fun ensure() = lock.withLock {
-        if (ready.exists()) return@withLock
+        val abi = Build.SUPPORTED_ABIS.first()
+        val (source, sha256) = DEBIAN[abi] ?: error("Linux environment is not available on $abi")
+        if (ready.exists() && ready.readText() == sha256) return@withLock
         withContext(Dispatchers.IO) {
-            rootfs.deleteRecursively()
+            rootfs.toPath().deleteRecursively()
             rootfs.mkdirs()
-            val arch = when (Build.SUPPORTED_ABIS.first()) {
-                "arm64-v8a" -> "aarch64"
-                "x86_64" -> "x86_64"
-                else -> error("Linux environment is not available on ${Build.SUPPORTED_ABIS.first()}")
-            }
-            val url = "https://dl-cdn.alpinelinux.org/alpine/v$ALPINE/releases/$arch/alpine-minirootfs-$ALPINE_RELEASE-$arch.tar.gz"
-            URL(url).openStream().use { extractTarGz(it, rootfs) }
-            File(rootfs, "etc/resolv.conf").apply { parentFile?.mkdirs(); writeText("nameserver 1.1.1.1\nnameserver 8.8.8.8\n") }
+            val (branch, commit) = source
+            val archive = File(tmp.apply { mkdirs() }, "rootfs.tar.gz")
+            try {
+                URL("https://raw.githubusercontent.com/debuerreotype/docker-debian-artifacts/$commit/trixie/slim/oci/blobs/rootfs.tar.gz")
+                    .openStream().use { input -> archive.outputStream().use { input.copyTo(it) } }
+                val digest = MessageDigest.getInstance("SHA-256").digest(archive.readBytes()).joinToString("") { "%02x".format(it) }
+                check(digest == sha256) { "Debian rootfs ($branch) failed its checksum" }
+                archive.inputStream().use { extractTarGz(it, rootfs) }
+            } finally { archive.delete() }
+            File(rootfs, "etc/resolv.conf").apply { delete(); writeText("nameserver 1.1.1.1\nnameserver 8.8.8.8\n") }
+            File(rootfs, "etc/apt/apt.conf.d/99kinuvo").writeText("APT::Sandbox::User \"root\";\n")
             File(rootfs, "tmp").mkdirs()
+            ready.writeText(sha256)
         }
-        val install = runProcess(command(listOf("apk", "add", "--no-cache", "bash"), "/"), timeout = Duration.parse("10m"), env = environment())
-        check(install.exitCode == 0) { "Could not set up the Linux environment: ${install.output}" }
-        ready.writeText("ok")
     }
 
     fun environment(): Map<String, String> {
@@ -68,7 +78,7 @@ class ProotLinux(private val nativeLibDir: File, home: File, internal val tmp: F
         if (File("/storage").canRead()) addAll(listOf("-b", "/storage"))
         addAll(listOf("-w", cwd, "/usr/bin/env", "-i", "HOME=/root",
             "PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
-            "TERM=xterm-256color", "LANG=C.UTF-8", "TMPDIR=/tmp"))
+            "TERM=xterm-256color", "LANG=C.UTF-8", "TMPDIR=/tmp", "DEBIAN_FRONTEND=noninteractive"))
         environment.forEach { (key, value) -> add("$key=$value") }
         addAll(argv)
     }
@@ -77,7 +87,7 @@ class ProotLinux(private val nativeLibDir: File, home: File, internal val tmp: F
 }
 
 class ProotBackend(private val linux: ProotLinux, workspace: List<String>) : ExecBackend(workspace) {
-    override val label = "this phone's Linux environment (Alpine via proot)"
+    override val label = "this phone's Linux environment (Debian via proot)"
 
     init { workspace.forEach { linux.guest(it).mkdirs() } }
 
