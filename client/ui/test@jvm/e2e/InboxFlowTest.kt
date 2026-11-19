@@ -69,5 +69,11 @@ class InboxFlowTest {
         tap("Settled \\(1\\)")
         await("Alpha plan")
         screenshot("settled-open")
+        ui.onAllNodes(label("Beta plan")).fetchSemanticsNodes().indices.map { ui.onAllNodes(label("Beta plan"))[it] }
+            .maxBy { it.fetchSemanticsNode().boundsInRoot.top }
+            .performTouchInput { touchSwipe(Offset(width * 0.9f, height / 2f), Offset(width * 0.05f, height / 2f), 300) }
+        settle()
+        gone("Settled \\(1\\)")
+        screenshot("swiped-left")
     }
 }

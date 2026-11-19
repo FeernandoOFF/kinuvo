@@ -14,10 +14,13 @@ import kinuvo.ui.board.*
 
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.animateDpAsState
-import androidx.compose.foundation.gestures.Orientation
-import androidx.compose.foundation.gestures.draggable
-import androidx.compose.foundation.gestures.rememberDraggableState
 import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.awaitHorizontalTouchSlopOrCancellation
+import androidx.compose.foundation.gestures.horizontalDrag
+import androidx.compose.ui.input.pointer.positionChange
 import androidx.compose.ui.unit.IntOffset
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
@@ -108,10 +111,12 @@ data class ShellState(
     private val unattached get() = attached.mapNotNull { it.sessionId }.toSet().let { ids -> sessions.filter { it.id !in ids } }
     val favorites get() = unattached.filter { it.favorite }
     val chats get() = unattached.filter { !it.favorite }
-    fun isSettled(session: SessionInfo) = session.id in settled && session.status == SessionStatus.Idle
+    fun isSettled(session: SessionInfo) = session.id in settled
     /** The inbox: Sessions still needing a look, and the [settledChats] set aside. */
     val inbox get() = chats.filter { !isSettled(it) }
     val settledChats get() = chats.filter(::isSettled)
+    /** Every settled Session the Server counts, including those on pages not loaded yet. */
+    val settledCount get() = maxOf(settledChats.size, agent?.let { lists[it.id] }?.settledCount ?: 0)
     val settings get() = view is Route.Settings && !view.home
     private val everySession get() = lists.values.flatMap { it.sessions }.distinctBy { it.id }
     /** Sessions across Agents waiting on an Approval or an answer, and those running, for Home's column. */
@@ -405,7 +410,7 @@ private fun AgentColumn(state: ShellState, actions: ShellActions, chrome: ShellC
         LazyColumn(Modifier.weight(1f), list, contentPadding = PaddingValues(start = Spacing.space8, top = Spacing.space4, end = Spacing.space8, bottom = Spacing.space8 + bottom), verticalArrangement = Arrangement.spacedBy(1.dp)) {
             val selected = (state.view as? Route.Chat)?.sessionId
             val attachedIds = attached.mapNotNull { it.sessionId }.toSet()
-            fun settleOf(s: SessionInfo) = if (s.favorite || s.id in attachedIds || s.status != SessionStatus.Idle && !state.isSettled(s)) null
+            fun settleOf(s: SessionInfo) = if (s.favorite || s.id in attachedIds) null
                 else state.isSettled(s).let { settled -> SettleAction(settled) { actions.onSettle(s.id, !settled) } }
             fun LazyListScope.rows(sessions: List<SessionInfo>, prefix: String = "") = items(sessions, key = { prefix + it.id }) { session ->
                 SessionRow(session, session.id == selected, session.id in state.finished, settleOf(session)) { actions.onSelect(session.id.value) }
@@ -438,16 +443,22 @@ private fun AgentColumn(state: ShellState, actions: ShellActions, chrome: ShellC
             if (working.isNotEmpty()) rows(working.folded(section(ShellSection.Working)) { it.id })
             if (idle.isNotEmpty()) {
                 val collapsed = section(ShellSection.Open)
-                val groups = idle.groupRoutineRuns().let { g -> g.filter { it.session.id in state.finished } + g.filter { it.session.id !in state.finished } }
-                val more = groups.size > RECENT_CHATS || state.hasMore
+                // Unread groups always show, ahead of the few most recent; a collapsed Open keeps only the open Session.
+                fun SessionGroup.runs() = listOf(session) + earlier
+                fun SessionGroup.unread() = runs().any { it.id in state.finished }
+                val groups = idle.groupRoutineRuns().let { g -> g.filter { it.unread() } + g.filterNot { it.unread() } }
+                val read = groups.filterNot { it.unread() }
+                val more = read.size > RECENT_CHATS || state.hasMore
+                val recent = read.take(RECENT_CHATS).toSet()
                 val shown = when {
-                    collapsed -> groups.filter { g -> (listOf(g.session) + g.earlier).any { it.id == selected } }
+                    collapsed -> emptyList()
                     chrome.allChats -> groups
-                    else -> groups.take(RECENT_CHATS) + groups.drop(RECENT_CHATS).filter { g -> (listOf(g.session) + g.earlier).any { it.id == selected } }
+                    else -> groups.filter { it.unread() || it in recent || it.runs().any { r -> r.id == selected } }
                 }
+                if (collapsed) rows(idle.filter { it.id == selected })
                 shown.forEach { group ->
                     val key = group.session.routine?.id
-                    val open = key != null && (key in chrome.expanded || group.earlier.any { it.id == selected })
+                    val open = key != null && (key in chrome.expanded || group.earlier.any { it.id == selected || it.id in state.finished })
                     item(key = group.session.id.value) {
                         SessionRow(group.session, group.session.id == selected, group.session.id in state.finished, settleOf(group.session)) { actions.onSelect(group.session.id.value) }
                     }
@@ -479,8 +490,8 @@ private fun AgentColumn(state: ShellState, actions: ShellActions, chrome: ShellC
                 }
             }
             // Settled Sessions wait at the very end, folded until opened, and leave when there's news in one.
-            if (settledChats.isNotEmpty()) {
-                item(key = "group:settled") { GroupHeader("Settled", !chrome.showSettled, settledChats.size) { chrome.showSettled = !chrome.showSettled } }
+            if (state.settledCount > 0) {
+                item(key = "group:settled") { GroupHeader("Settled", !chrome.showSettled, state.settledCount) { chrome.showSettled = !chrome.showSettled } }
                 rows(settledChats.folded(!chrome.showSettled) { it.id }, "settled:")
             }
             if (state.sessions.isEmpty() && state.agent != null) item(key = "empty") {
@@ -589,19 +600,30 @@ private fun SwipeToSettle(settle: SettleAction, content: @Composable () -> Unit)
     val offset = remember { Animatable(0f) }
     var width by remember { mutableFloatStateOf(1f) }
     val shape = Theme[shapes][mediumShape]
+    val current by rememberUpdatedState(settle)
     Box(Modifier.onSizeChanged { width = it.width.toFloat().coerceAtLeast(1f) }) {
         if (offset.value > 0f) Box(Modifier.matchParentSize().clip(shape).background(color(successColor).copy(alpha = 0.2f)).padding(start = Spacing.space16), contentAlignment = Alignment.CenterStart) {
             Icon(if (settle.settled) Lucide.Undo2 else Lucide.Check, Modifier.size(18.dp), tint = color(successColor))
         }
         Box(
             Modifier.offset { IntOffset(offset.value.roundToInt(), 0) }.then(if (offset.value > 0f) Modifier.background(color(sidebarColor), shape) else Modifier)
-                .draggable(rememberDraggableState { delta -> scope.launch { offset.snapTo((offset.value + delta).coerceAtLeast(0f)) } }, Orientation.Horizontal,
-                    onDragStopped = {
+                // Claims only drags toward the end, so a swipe the other way still closes the drawer.
+                .pointerInput(Unit) {
+                    awaitEachGesture {
+                        val down = awaitFirstDown(requireUnconsumed = false)
+                        val start = awaitHorizontalTouchSlopOrCancellation(down.id) { change, over -> if (over > 0f) change.consume() } ?: return@awaitEachGesture
+                        var dragged = 0f
+                        horizontalDrag(start.id) { change ->
+                            dragged = (dragged + change.positionChange().x).coerceAtLeast(0f)
+                            change.consume()
+                            scope.launch { offset.snapTo(dragged) }
+                        }
                         scope.launch {
-                            if (offset.value > width / 3) { offset.animateTo(width); settle.onClick() }
+                            if (dragged > width / 3) { offset.animateTo(width); current.onClick() }
                             offset.animateTo(0f)
                         }
-                    }),
+                    }
+                },
         ) { content() }
     }
 }
