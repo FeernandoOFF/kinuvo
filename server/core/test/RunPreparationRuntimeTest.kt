@@ -56,6 +56,37 @@ import kotlin.test.*
 import kinuvo.server.providers.ModelProvider
 
 class RunPreparationRuntimeTest {
+    @Test fun proactivityRefreshesNewAndExistingFullSessions() = runBlocking {
+        val fixture = RuntimeFixture()
+        val prompts = mutableListOf<String>()
+        val harness = fixture.runtime(scriptedModel { prompt, _ ->
+            prompts += prompt.messages.filterIsInstance<Message.System>().joinToString("\n") { it.textContent() }
+            flowOf(StreamFrame.TextDelta("ok"), StreamFrame.End())
+        })
+        try {
+            val agent = agent(harness).let { it.copy(config = it.config.copy(tier = ModelTier.Frontier)) }
+            val legacy = "Legacy operating instructions"
+            val existing = fixture.store.createSession(agent.id, legacy)
+            fixture.store.append(agent.id, existing.id, SessionEntry.UserMessage("Earlier request"))
+            fixture.store.append(agent.id, existing.id, SessionEntry.AssistantMessage("Earlier answer"))
+            val fresh = harness.newSession(agent)
+            for (session in listOf(fresh, existing)) {
+                repeat(2) {
+                    val context = harness.composer.compose(agent, session.id).context
+                    assertEquals(1, context.split(PROACTIVITY_BRIEF).size - 1)
+                    harness.composer.runner(agent, session.id).run(session.id, "Continue").toList()
+                    assertEquals(1, prompts.last().split(PROACTIVITY_BRIEF).size - 1)
+                }
+            }
+            assertTrue(legacy in prompts.last())
+            assertEquals(legacy, fixture.store.entries(agent.id, existing.id).filterIsInstance<SessionEntry.Started>().single().instructions)
+            for (tier in listOf(ModelTier.NoTools, ModelTier.Micro, ModelTier.Small, ModelTier.Mid)) {
+                val context = harness.composer.compose(agent.copy(config = agent.config.copy(tier = tier)), existing.id).context
+                assertEquals(if (tier == ModelTier.Mid) 1 else 0, context.split(PROACTIVITY_BRIEF).size - 1)
+            }
+        } finally { harness.close() }
+    }
+
     @Test fun firstSessionDiscoveryUsesCurrentDocumentsAndSessionHistory() = runBlocking {
         val local = object : ModelProvider by provider {
             override suspend fun models() = provider.models().map { it.copy(location = ExecutionLocation.ServerHost) }

@@ -28,7 +28,8 @@ private fun instructions(agent: Agent, doc: Map<AgentDoc, String>) = buildString
     section("Soul", doc.getValue(AgentDoc.Soul))
 }
 
-private const val PROACTIVITY_BRIEF = """When the user names a topic, goal, problem or open-ended request, research first with available tools: web search, connected apps, notes and Memory.
+internal const val PROACTIVITY_BRIEF = """When the user names a topic, goal, problem or open-ended request, research first with available tools: web search, connected apps, notes and Memory.
+Research only with relevant read-only calls within the user's scope, and keep private data (Memory, notes, connector content) out of web-search queries and other external tool arguments unless the user asked for that disclosure.
 Answer with findings and a recommendation, not questions or a menu. Do read-only follow-ups before offering more; never end read-only work with "want me to...?".
 Ask or offer choices before writes, sends, spending or irreversible steps outside the user's authorized scope; follow Kinuvo's Approvals without asking again for authorized work.
 Ask one focused question only when a missing decision materially changes the work, after doing the research possible without it.
@@ -42,8 +43,6 @@ Resolve retrievable missing information with tools. Ask only when a missing deci
 otherwise make a reasonable assumption and state it when it matters. Check current state and changeable facts with
 tools rather than from memory. If a lookup is unexpectedly empty or partial, try another before concluding.
 Request independent lookups together in one response; serialize only when a call depends on an earlier result.
-
-$PROACTIVITY_BRIEF
 
 Follow the user's authorized scope and Kinuvo's Approval decisions. Kinuvo handles tool Approval requests; proceed
 with authorized work without repeatedly asking permission. Treat a denied action as a boundary. When a path fails,

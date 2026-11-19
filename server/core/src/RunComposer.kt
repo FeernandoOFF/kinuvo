@@ -299,7 +299,7 @@ class RunComposer internal constructor(
             PromptStyle.Basic, PromptStyle.BasicWithIdentity -> basicContextFor(agent, docs, advertised, today, identity = style == PromptStyle.BasicWithIdentity)
             PromptStyle.Compact, PromptStyle.Full -> {
                 val personal = if (style == PromptStyle.Compact) compactContextFor(agent, docs)
-                    else (if (requireModel) personalContextFor(memory, userNotes) else instructionsFor(agent, docs)) + "\n" + aboutKinuvoFor(advertised, discovery = firstSession)
+                    else (if (requireModel) personalContextFor(memory, userNotes) else instructionsFor(agent, docs)) + "\n$PROACTIVITY_BRIEF\n\n" + aboutKinuvoFor(advertised, discovery = firstSession)
                 personal + "\n" + (if (firstSession) firstSessionFor(advertised) else "") + capabilitiesFor(agent, advertised, prepared.catalog, compact = style == PromptStyle.Compact) +
                     "\nServer platform: $platformDescription. Today is $today.\n" +
                     sections.joinToString("\n\n") { "## ${it.title}\n\n${it.body}" } +

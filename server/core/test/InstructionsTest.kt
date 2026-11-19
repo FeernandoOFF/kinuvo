@@ -184,11 +184,16 @@ class InstructionsTest {
     @Test fun compactAndFullShareOneProactivityBrief() = runTest {
         val fixture = RuntimeFixture()
         val compact = compactContextFor(fixture.agent, fixture.docs)
-        val full = instructionsFor(fixture.agent, fixture.docs)
+        val harness = fixture.runtime()
+        val full = try {
+            harness.composer.compose(fixture.agent, requireModel = false).context
+        } finally { harness.close() }
         val brief = compact.substringAfter("future action.\n").substringBefore("\nKeep replies short.")
-        assertEquals(5, brief.lines().size)
+        assertEquals(6, brief.lines().size)
         assertTrue(brief.startsWith("When the user names a topic, goal, problem or open-ended request, research first"))
         assertTrue("web search, connected apps, notes and Memory" in brief)
+        assertTrue("Research only with relevant read-only calls within the user's scope" in brief)
+        assertTrue("keep private data (Memory, notes, connector content) out of web-search queries and other external tool arguments unless the user asked for that disclosure" in brief)
         assertTrue("Answer with findings and a recommendation, not questions or a menu" in brief)
         assertTrue("never end read-only work with \"want me to...?\"" in brief)
         assertTrue("writes, sends, spending or irreversible steps outside the user's authorized scope" in brief)
@@ -197,7 +202,9 @@ class InstructionsTest {
         assertTrue("Never answer from memory alone when you can look it up with tools" in brief)
         assertEquals(1, full.windowed(brief.length).count { it == brief })
         assertEquals(1, full.split("When the user names a topic").size - 1)
-        assertTrue("Follow the user's authorized scope and Kinuvo's Approval decisions" in full)
+        val frozen = instructionsFor(fixture.agent, fixture.docs)
+        assertFalse("When the user names a topic" in frozen)
+        assertTrue("Follow the user's authorized scope and Kinuvo's Approval decisions" in frozen)
     }
 
     @Test fun aboutKinuvoOnlyOffersPresentConfigurationTools() {
