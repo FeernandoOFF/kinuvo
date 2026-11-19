@@ -56,7 +56,9 @@ class InstructionsTest {
     @Test fun aboutKinuvoOnlyOffersPresentConfigurationTools() {
         val absent = aboutKinuvoFor(emptyList())
         assertTrue("## About Kinuvo" in absent)
-        assertTrue("Settings → Agent → Model" in absent && "Settings → MCP" in absent)
+        assertTrue("selected Agent's Personality page" in absent)
+        assertTrue("Server settings → Tools & MCP → Built-in tools" in absent)
+        assertTrue("Server settings → Tools & MCP → MCP servers" in absent)
         assertFalse("Use agent_update" in absent || "Use mcp_add" in absent)
         val partial = aboutKinuvoFor(listOf(tool("agent_get")))
         assertTrue("Use agent_get" in partial)
@@ -64,7 +66,7 @@ class InstructionsTest {
         val full = aboutKinuvoFor(listOf("agent_get", "agent_update", "agent_create", "mcp_add", "session_configure").map(::tool))
         assertTrue("Say what you will change" in full && "Approvals show the change" in full)
         assertTrue("Chat never loosens safety" in full)
-        assertFalse("Settings → Agent" in full || "Settings → MCP" in full)
+        assertFalse("Personality page" in full || "Server settings → Tools & MCP" in full)
         assertTrue("Never answer questions about Kinuvo from memory" in full)
     }
 

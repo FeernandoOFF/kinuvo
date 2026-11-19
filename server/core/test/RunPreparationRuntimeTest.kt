@@ -51,6 +51,39 @@ import kotlin.test.*
 import kinuvo.server.providers.ModelProvider
 
 class RunPreparationRuntimeTest {
+    @Test fun offlineDeviceToolsStayOfferedWhileComputerNeedsSetup() = runBlocking {
+        val harness = harness()
+        try {
+            harness.devices.paired = { listOf(ToolDevice("phone", "Phone",
+                setOf(DeviceToolKind.Contacts, DeviceToolKind.Sleep, DeviceToolKind.Workouts))) }
+            val base = agent(harness, listOf("device_tools", "computer"))
+            val session = harness.newSession(base)
+            for (tier in listOf(ModelTier.Small, ModelTier.Frontier)) {
+                val agent = base.copy(config = base.config.copy(tier = tier))
+                val run = harness.composer.compose(agent, session.id)
+                val names = run.tools.advertised.map { it.name }
+                assertTrue(names.containsAll(listOf("contacts_lookup", "sleep_sessions", "workouts_list")))
+                assertFalse(names.any { it.startsWith("computer_") })
+                val capabilities = inspect(harness, agent, session.id.value)
+                assertEquals("device_offline", capabilities.tools.first { it.id == "contacts_lookup" }.state.reasonCode)
+                assertEquals("needs_setup", capabilities.tools.first { it.id == "computer_capture" }.state.reasonCode)
+            }
+        } finally { harness.close() }
+    }
+
+    @Test fun instructionOnlyPluginKeepsItsSection() = runBlocking {
+        val plugin = object : ServerPlugin {
+            override val definition = PluginDefinition("test.instructions", "Instructions")
+            override suspend fun instructions(agent: Agent) = InstructionSection("Instructions", "Keep this guidance.")
+        }
+        val harness = harness(listOf(plugin))
+        try {
+            val agent = agent(harness)
+            val session = harness.newSession(agent)
+            assertTrue("## Instructions\n\nKeep this guidance." in harness.composer.compose(agent, session.id).context)
+        } finally { harness.close() }
+    }
+
     @Test fun computerReadinessControlsToolsAndPromptInTheSameRun() = runBlocking {
         val harness = harness()
         try {

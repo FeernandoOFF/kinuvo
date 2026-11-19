@@ -225,7 +225,7 @@ class RunComposer internal constructor(
             }
             tool.copy(state = state)
         }
-        val usableTools = all.filter { tool -> tool.descriptor.name in eligible && catalog.any { it.id == tool.descriptor.name && it.state.availability == Availability.Ready } }
+        val usableTools = all.filter { tool -> tool.descriptor.name in eligible && catalog.none { it.id == tool.descriptor.name && it.state.reasonCode == "needs_setup" } }
         val cataloguedNames = plugins.zip(contributed).filter { it.first.catalogued }.flatMap { it.second.tools }.map { renamed[it.descriptor.name] ?: it.descriptor.name }.toSet()
         val candidates = usableTools.filter { it.descriptor.name in cataloguedNames }.takeIf {
             if (e.profile.tools.catalogExternal) it.size > ToolCatalog.DIRECT_LIMIT else usableTools.size > ToolCatalog.LIMIT
@@ -280,7 +280,9 @@ class RunComposer internal constructor(
         val agent = e.agent
         val tools = prepared.tools.map(secrets::redacting)
         val advertised = prepared.advertised.map { it.descriptor.name }.toSet().let { names -> tools.filter { it.descriptor.name in names } }
-        val sections = plugins.filter { plugin -> prepared.tools.any { it.identity?.instance == plugin.instance } }.mapNotNull { it.instructions(agent) }
+        val sections = plugins.filter { plugin ->
+            plugin.definition.id !in setOf("kinuvo.browser", "kinuvo.computer") || prepared.tools.any { it.identity?.instance == plugin.instance }
+        }.mapNotNull { it.instructions(agent) }
         val today = "${Clock.System.todayIn(timeZone)} ($timeZone)"
         val style = if (requireModel) e.profile.prompt else PromptStyle.Full
         val context = when (style) {
