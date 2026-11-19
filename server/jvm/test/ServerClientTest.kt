@@ -372,7 +372,7 @@ class ServerClientTest {
                 assertEquals(LiveState(), caught.live)
                 val page = client.call(Api.Sessions, SessionsParams(AgentId("default")))
                 assertNotNull(page.sessions.single().createdAt)
-                assertEquals(SessionInfo(sessionId, AgentId("default"), "make a skill", answered = true, createdAt = page.sessions.single().createdAt), page.sessions.single())
+                assertEquals(SessionInfo(sessionId, AgentId("default"), "make a skill", answered = true, createdAt = page.sessions.single().createdAt, unread = true), page.sessions.single())
                 client.close()
 
                 // A paired device reconnects with its token, no code needed
