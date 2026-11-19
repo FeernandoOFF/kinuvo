@@ -23,4 +23,4 @@ Queued or undelivered steering messages, failed first turns, voice transcripts, 
 
 ## Future work
 
-An ACP Session keeps first-turn setup guidance if a Computer is paired mid-session.
+An ACP Session keeps first-turn setup guidance if a Computer is paired mid-session. Speech fallback sends never opt in to discovery. Discovery wording treats a connector as read-only from its Risk, not the MCP read-only annotation, and may take the no-apps introduction when connected tools sit behind the tool catalog; both only change the wording, never what Approvals allow.

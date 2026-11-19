@@ -74,6 +74,14 @@ class SessionDiscoveryTest {
             runCurrent()
             assertEquals(3, sent.size)
             assertFalse(sent.last().discovery)
+            val speech = SessionViewModel(server.sessions, Route.Chat(agent))
+            store.put("speech", speech)
+            runCurrent()
+            speech.send("spoken", true)
+            runCurrent()
+            assertEquals(4, sent.size)
+            assertTrue(sent.last().voice)
+            assertFalse(sent.last().discovery)
         } finally { store.clear(); server.close(); client.close(); Dispatchers.resetMain() }
     }
 }
