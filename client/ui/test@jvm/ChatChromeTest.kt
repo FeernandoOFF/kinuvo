@@ -37,12 +37,16 @@ import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.key
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.collectAsState
+import androidx.compose.ui.unit.dp
+import com.composables.icons.lucide.Globe
+import com.composables.icons.lucide.Lucide
+import com.composables.ui.components.Text
 import androidx.compose.runtime.setValue
 import kinuvo.app.screen.LiveViewModel
 import kinuvo.app.screen.ScreensRepository
-import kinuvo.ui.screen.BrowserDockHost
-import kinuvo.ui.screen.BrowserDocks
-import kinuvo.ui.session.BrowserDock
+import kinuvo.ui.panel.*
+import kinuvo.app.panel.*
 import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.flowOf
 import org.koin.compose.KoinIsolatedContext
@@ -276,41 +280,30 @@ class ChatChromeTest {
         }
     }
 
-    @Test fun dockedBrowserStaysOpenAcrossSessionsOfItsAgent() = javax.swing.SwingUtilities.invokeAndWait {
-        val screens = object : ScreensRepository {
-            override val connected = flowOf(false)
-            override val frames = emptyFlow<ScreenFrame>()
-            override val status = emptyFlow<ScreenStreamStatus>()
-            override val changes = emptyFlow<BrowserOwner?>()
-            override suspend fun device() = "device"
-            override suspend fun list(owner: BrowserOwner?) = emptyList<ScreenInfo>()
-            override suspend fun watch(ref: ScreenRef, thumbnail: Boolean) = error("unused")
-            override suspend fun unwatch(id: String) {}
-            override suspend fun ack(frame: ScreenFrameAck) {}
-            override suspend fun control(request: ScreenControlRequest) = error("unused")
-            override suspend fun input(request: ScreenInputRequest) = error("unused")
-            override suspend fun open(request: ScreenOpen) = error("unused")
-            override suspend fun command(request: ScreenCommand) {}
-        }
-        val koin = koinApplication { modules(module { viewModel { (_: Route) -> LiveViewModel(screens) } }) }
-        val docks = BrowserDocks()
-        var session by mutableStateOf("first")
-        var dock: BrowserDock? = null
+    @Test fun sidePanelSwitchesAndCollapsesItsTabs() = javax.swing.SwingUtilities.invokeAndWait {
+        val panel = SidePanelViewModel()
+        val browser = PanelTab.Browser(AgentId("echo"))
+        panel.open(PanelTab.AgentSettings)
+        panel.open(browser)
         ImageComposeScene(1200, 800, Density(1f), coroutineContext = Dispatchers.Main, content = {
-            KoinIsolatedContext(koin) { KinuvoTheme(dark = true) {
-                key(session) { BrowserDockHost(Route.Browser(AgentId("echo"), SessionId(session)), docks, {}) { dock = it } }
-            } }
+            KinuvoTheme(dark = true) {
+                val state by panel.state.collectAsState()
+                SidePanel(state, panel.actions(), 800.dp, { tab -> PanelTabLabel(Lucide.Globe, if (tab == browser) "Browser" else "Agent settings") }) { tab ->
+                    Text(if (tab == browser) "Browser page" else "Settings page")
+                }
+            }
         }).use { scene ->
-            scene.render(0)
-            dock!!.toggle()
-            repeat(3) { scene.render((it + 1) * 100_000_000L) }
-            assertNotNull(scene.node("Close Browser"))
-            session = "second"
-            repeat(3) { scene.render((it + 4) * 100_000_000L) }
-            assertTrue(dock!!.open)
-            assertNotNull(scene.node("Close Browser"))
+            repeat(3) { scene.render(it * 100_000_000L) }
+            assertNotNull(scene.node("Browser page"))
+            panel.select(PanelTab.AgentSettings)
+            repeat(3) { scene.render((it + 3) * 100_000_000L) }
+            assertNotNull(scene.node("Settings page"))
+            assertNull(scene.node("Browser page"))
+            panel.collapse(true)
+            repeat(3) { scene.render((it + 6) * 100_000_000L) }
+            assertNull(scene.node("Settings page"))
+            assertNotNull(scene.node("Expand panel"))
         }
-        docks.viewModelStore.clear()
     }
 
     @Test fun phoneRailKeepsServerImmediatelyAboveSettingsAtTheFoot() = javax.swing.SwingUtilities.invokeAndWait {

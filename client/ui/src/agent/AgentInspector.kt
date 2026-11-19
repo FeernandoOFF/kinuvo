@@ -128,6 +128,7 @@ private fun InspectorHeader(state: InspectorState, host: InspectorHost, actions:
         if (state.pages.isEmpty()) agent?.name ?: "…" else state.page.title(),
         back = actions.onBack.takeIf { state.pages.isNotEmpty() },
         subtitle = if (state.pages.isEmpty()) "Agent settings for every Session" else "${agent?.name ?: "Agent"} · every Session",
+        icon = Lucide.SlidersHorizontal,
     ) {
         if (state.dirty) SaveButton(actions.onSave, enabled = !state.saving && state.agentId?.let { id -> state.draft?.problems(id, host.agents)?.isEmpty() } == true)
         else if (state.pages.isEmpty()) HeaderButton(Lucide.X, "Close", actions.onClose)

@@ -101,11 +101,16 @@ internal fun LiveViewContent(state: LiveViewState, actions: LiveActions, back: (
             else {
                 TitleBarRow(leading = !docked) {
                     back?.let { HeaderButton(Lucide.ArrowLeft, "Back", it) }
+                    val leading = LocalLeadingActions.current
+                    if (leading) {
+                        headerActions.asReversed().forEach { HeaderButton(it.icon, it.label, it.onClick) }
+                        BrowserWindowControls(state, actions)
+                    }
                     Icon(if (tabs) Lucide.Globe else Lucide.Monitor, Modifier.padding(start = Spacing.space6).size(16.dp), tint = color(mutedColor))
                     Text(if (tabs) "Browser" else state.screen?.title ?: "Computers", Modifier.padding(start = Spacing.space4), singleLine = true)
                     Spacer(Modifier.weight(1f))
-                    if (state.presentation != null) BrowserWindowControls(state, actions)
-                    headerActions.forEach { HeaderButton(it.icon, it.label, it.onClick) }
+                    if (!leading) BrowserWindowControls(state, actions)
+                    if (!leading) headerActions.forEach { HeaderButton(it.icon, it.label, it.onClick) }
                 }
                 HorizontalSeparator()
             }
@@ -123,7 +128,7 @@ internal fun LiveViewContent(state: LiveViewState, actions: LiveActions, back: (
                     if (screen == null) EmptyStage(state, actions, Modifier.weight(1f).fillMaxWidth())
                     else {
                         Stage(state, screen, actions, Modifier.weight(1f).fillMaxWidth().padding(if (wide) Spacing.space12 else Spacing.space8),
-                            onFocus = { if (state.interactive && "type" in screen.capabilities.inputs) keyboardFocus.requestFocus() })
+                            onFocus = { if (state.interactive && "type" in screen.capabilities.inputs) keyboardFocus.requestFocus() }, top = docked)
                         if (state.ownsControl && "type" in screen.capabilities.inputs) key(state.selected, state.control.generation) {
                             RemoteKeyboard(state, actions, keyboardFocus, keyboard)
                         }
@@ -230,10 +235,10 @@ internal fun EmptyStage(state: LiveViewState, actions: LiveActions, modifier: Mo
 }
 
 @Composable
-private fun Stage(state: LiveViewState, screen: ScreenInfo, actions: LiveActions, modifier: Modifier, onFocus: () -> Unit) {
+private fun Stage(state: LiveViewState, screen: ScreenInfo, actions: LiveActions, modifier: Modifier, onFocus: () -> Unit, top: Boolean = false) {
     val status = state.status ?: Status.Watching
     val shape = RoundedCornerShape(Radius.menu)
-    BoxWithConstraints(modifier, contentAlignment = Alignment.Center) {
+    BoxWithConstraints(modifier, contentAlignment = if (top) Alignment.TopCenter else Alignment.Center) {
         val widthDp = maxWidth.value.roundToInt().coerceIn(240, 2560)
         val heightDp = maxHeight.value.roundToInt().coerceIn(160, 2160)
         LaunchedEffect(screen.ref, state.control.generation, state.ownsControl, state.pending, widthDp, heightDp) {

@@ -139,7 +139,7 @@ internal fun TopBar(state: ChatState, usage: Usage?, actions: ChatActions, compa
                 }
                 if (state.items.isNotEmpty()) SessionMenu(selected, actions, state, onStatistics = { statistics = true }, favorite = compact) { open -> HeaderButton(Lucide.Ellipsis, "More", open) }
             }
-            actions.onBrowser?.let { ToolbarGroup { HeaderButton(if (actions.browserOpen) Lucide.PanelRightClose else Lucide.Globe, if (actions.browserOpen) "Hide Browser" else "Browser", it) } }
+            actions.onBrowser?.let { ToolbarGroup { HeaderButton(Lucide.Globe, if (actions.browserOpen) "Hide Browser" else "Browser", it, selected = actions.browserOpen) } }
         }
         Popover(statistics, { statistics = false }, "Statistics") {
             ChatStatisticsContent(usage, remember(state.items) { state.items.requestMetrics() }, Modifier.fillMaxWidth())
