@@ -15,6 +15,7 @@ export function markdown(body: string, id: string, site: URL) {
       if (route.startsWith('adr/')) return `https://github.com/FeernandoOFF/kinuvo/blob/main/docs/${route}.md${url.hash}`;
       url.pathname = `/${route}/`;
     }
+    if (route === 'deployment/Caddyfile') return `https://github.com/FeernandoOFF/kinuvo/blob/main/docs/${route}${url.search}${url.hash}`;
     return url.href;
   }
   let fence = '';
@@ -26,6 +27,7 @@ export function markdown(body: string, id: string, site: URL) {
       return line;
     }
     if (fence) return line;
+    if (/^\s*<div class="k-[^"]+">\s*$|^\s*<\/div>\s*$/.test(line)) return '';
     return line.split(/(`+[^`]*`+)/g).map((part, i) => i % 2 ? part : part
       .replace(/(\]\()([^\s)]+)([^)]*\))/g, (_, before, target, after) => before + rewrite(target) + after)
       .replace(/^(\s*\[[^\]]+\]:\s*)(\S+)/, (_, before, target) => before + rewrite(target)))

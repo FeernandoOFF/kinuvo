@@ -46,7 +46,7 @@ class InstructionsTest {
         assertFalse("Kinuvo documentation:" in empty)
         assertFalse("Reflection" in empty || "agent_update" in empty || "proactiv" in empty)
         val web = brief + capabilitiesFor(fixture.agent, listOf(tool("web_fetch")), compact = true)
-        assertTrue("Kinuvo documentation: $KINUVO_DOCS_URL/llms.txt lists every page; fetch the matching page (add .md for plain text). Use web_fetch" in web)
+        assertTrue("Kinuvo documentation: $KINUVO_DOCS_URL/llms.txt lists the owner documentation; fetch the matching URL exactly as listed. Use web_fetch" in web)
         assertTrue("Kinuvo documentation:" in capabilitiesFor(fixture.agent, listOf(tool("web_fetch"))))
         assertFalse("Kinuvo documentation:" in capabilitiesFor(fixture.agent, emptyList()))
         val missing = listOf(ResolvedTool("computer_capture", state = CapabilityState.needsSetup("Pair a Computer", "guides/computer-use/")))
