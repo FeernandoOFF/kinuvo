@@ -50,6 +50,9 @@ class InstructionsTest {
             assertEquals("tasks" in names, "Add to tasks" in text)
             assertTrue("read-only" in text && "at most 8" in text && "Approvals still apply" in text)
             assertTrue("invite corrections" in text && "3–5" in text)
+            val recommendation = text.indexOf("Lead with what you found and your top recommendation")
+            assertTrue(recommendation >= 0 && recommendation < text.indexOf("Then propose 3–5"))
+            assertTrue("Do the first suggested read-only follow-up yourself when cheap, within the look-up limit" in text)
             when {
                 "show_ui" in names -> assertTrue("compact show_ui card" in text)
                 "ask_user" in names -> assertTrue("with ask_user" in text)
@@ -86,6 +89,7 @@ class InstructionsTest {
         fun prompt(vararg names: String) = aboutKinuvoFor(names.map { tool(it) })
         val card = prompt("mcp_list", "mcp_add", "mcp_login", "show_ui", "ask_user", "memory")
         assertTrue("available presets" in card && "offer the relevant one once" in card)
+        assertTrue("Research the user's request with existing tools without waiting for a connection decision" in card)
         assertTrue("show_ui card with Add / Not now" in card)
         assertFalse("Present the offer with ask_user" in card)
         assertTrue("Only after an explicit decline" in card && "never record silence" in card && "Memory with memory" in card)
@@ -160,6 +164,11 @@ class InstructionsTest {
         assertTrue("Never claim success without a tool result" in brief)
         assertTrue("missing decision materially changes the work" in brief)
         assertTrue("Keep replies short" in brief)
+        assertTrue("Resolve retrievable missing information with tools" in brief)
+        assertTrue("check current state and changeable facts with tools rather than from memory" in brief)
+        assertTrue("If a lookup is unexpectedly empty or partial, try another before concluding" in brief)
+        assertTrue("Keep going until the result is complete and verified or genuinely blocked" in brief)
+        assertTrue("never end a turn with a promise of future action" in brief)
         assertTrue("A lesson" in brief && "Likes tea" in brief)
         val empty = brief + capabilitiesFor(fixture.agent, emptyList(), compact = true)
         assertFalse("Kinuvo documentation:" in empty)
@@ -170,6 +179,25 @@ class InstructionsTest {
         assertFalse("Kinuvo documentation:" in capabilitiesFor(fixture.agent, emptyList()))
         val missing = listOf(ResolvedTool("computer_capture", state = CapabilityState.needsSetup("Pair a Computer", "guides/computer-use/")))
         assertTrue("fetch its page" in capabilitiesFor(fixture.agent, listOf(tool("web_fetch")), missing, compact = true))
+    }
+
+    @Test fun compactAndFullShareOneProactivityBrief() = runTest {
+        val fixture = RuntimeFixture()
+        val compact = compactContextFor(fixture.agent, fixture.docs)
+        val full = instructionsFor(fixture.agent, fixture.docs)
+        val brief = compact.substringAfter("future action.\n").substringBefore("\nKeep replies short.")
+        assertEquals(5, brief.lines().size)
+        assertTrue(brief.startsWith("When the user names a topic, goal, problem or open-ended request, research first"))
+        assertTrue("web search, connected apps, notes and Memory" in brief)
+        assertTrue("Answer with findings and a recommendation, not questions or a menu" in brief)
+        assertTrue("never end read-only work with \"want me to...?\"" in brief)
+        assertTrue("writes, sends, spending or irreversible steps outside the user's authorized scope" in brief)
+        assertTrue("follow Kinuvo's Approvals without asking again for authorized work" in brief)
+        assertTrue("Ask one focused question" in brief && "after doing the research possible without it" in brief)
+        assertTrue("Never answer from memory alone when you can look it up with tools" in brief)
+        assertEquals(1, full.windowed(brief.length).count { it == brief })
+        assertEquals(1, full.split("When the user names a topic").size - 1)
+        assertTrue("Follow the user's authorized scope and Kinuvo's Approval decisions" in full)
     }
 
     @Test fun aboutKinuvoOnlyOffersPresentConfigurationTools() {

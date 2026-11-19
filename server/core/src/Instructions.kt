@@ -28,6 +28,12 @@ private fun instructions(agent: Agent, doc: Map<AgentDoc, String>) = buildString
     section("Soul", doc.getValue(AgentDoc.Soul))
 }
 
+private const val PROACTIVITY_BRIEF = """When the user names a topic, goal, problem or open-ended request, research first with available tools: web search, connected apps, notes and Memory.
+Answer with findings and a recommendation, not questions or a menu. Do read-only follow-ups before offering more; never end read-only work with "want me to...?".
+Ask or offer choices before writes, sends, spending or irreversible steps outside the user's authorized scope; follow Kinuvo's Approvals without asking again for authorized work.
+Ask one focused question only when a missing decision materially changes the work, after doing the research possible without it.
+Never answer from memory alone when you can look it up with tools."""
+
 private const val OPERATING_INSTRUCTIONS = """When the user asks you to do work, use your tools to do it; don't describe what you would do. When you say you will
 act, make the tool call in the same response, and never end a turn with a promise of future action. Keep going until
 the result is complete and verified, or a genuine blocker needs the user. Simple conversational answers need no tools.
@@ -36,6 +42,8 @@ Resolve retrievable missing information with tools. Ask only when a missing deci
 otherwise make a reasonable assumption and state it when it matters. Check current state and changeable facts with
 tools rather than from memory. If a lookup is unexpectedly empty or partial, try another before concluding.
 Request independent lookups together in one response; serialize only when a call depends on an earlier result.
+
+$PROACTIVITY_BRIEF
 
 Follow the user's authorized scope and Kinuvo's Approval decisions. Kinuvo handles tool Approval requests; proceed
 with authorized work without repeatedly asking permission. Treat a denied action as a boundary. When a path fails,
@@ -82,13 +90,13 @@ fun firstSessionFor(tools: List<Tool>): String = buildString {
     if (tools.any { it.coreMetadata == null && it.identity?.instance?.pluginId == "kinuvo.mcp" && it.risk == Risk.Low }) {
         name(ToolNames.MCP_LIST)?.let { append("Use $it to see connected servers. ") }
         append("Explore only their advertised read-only tools (events, issues, mail subjects); never write, send or delete. Approvals still apply. Make at most 8 cheap look-ups; stop earlier when enough.\n")
-        append("Briefly summarize what you learned in plain language; invite corrections. Propose 3–5 concrete next steps")
+        append("Lead with what you found and your top recommendation in plain language; invite corrections. Then propose 3–5 concrete next steps")
         when {
             name(ToolNames.SHOW_UI) != null -> append(" in a compact ${name(ToolNames.SHOW_UI)} card")
             name(ToolNames.ASK_USER) != null -> append(" with ${name(ToolNames.ASK_USER)}")
             else -> append(" as a numbered list")
         }
-        append(".")
+        append(". Do the first suggested read-only follow-up yourself when cheap, within the look-up limit.")
         if (name(ToolNames.TASKS) != null) append(" Offer Add to tasks actions using ${name(ToolNames.TASKS)} only after the user chooses.")
         append("\nIf no connected server offers read-only look-up tools, skip look-ups and do the no-apps introduction: ")
     } else append("Skip look-ups: ")
@@ -119,7 +127,10 @@ const val KINUVO_DOCS_URL = "https://kinuvo.feernandooff.com"
 suspend fun compactContextFor(agent: Agent, docs: AgentDocs): String =
     "You are ${agent.name}, the user's personal assistant.\n\n" +
         "When asked to act, use tools. Never claim success without a tool result.\n" +
-        "Ask only when a missing decision materially changes the work.\n" +
+        "Resolve retrievable missing information with tools; check current state and changeable facts with tools rather than from memory.\n" +
+        "If a lookup is unexpectedly empty or partial, try another before concluding.\n" +
+        "Keep going until the result is complete and verified or genuinely blocked; never end a turn with a promise of future action.\n" +
+        "$PROACTIVITY_BRIEF\n" +
         "Keep replies short.\n\n" + personalContextFor(agent, docs)
 
 fun aboutKinuvoFor(tools: List<Tool>, discovery: Boolean = false): String = buildString {
@@ -129,7 +140,7 @@ fun aboutKinuvoFor(tools: List<Tool>, discovery: Boolean = false): String = buil
     append("## About Kinuvo\n\n")
     append("Kinuvo is a self-hosted personal AI harness. Its Server owns Agents, Sessions and Tools; paired Devices are clients. An Agent is a named participant; a Session is one bounded conversation. Tools read or change things under Kinuvo's Approvals.\n")
     if (ToolNames.MCP_LIST in names) {
-        append("When a request would benefit from an unconfigured connection (tasks: Todoist/Linear; mail: Gmail; notes: Notion), check ${name(ToolNames.MCP_LIST)}'s available presets and offer the relevant one once. ")
+        append("When a request would benefit from an unconfigured connection (tasks: Todoist/Linear; mail: Gmail; notes: Notion), check ${name(ToolNames.MCP_LIST)}'s available presets and offer the relevant one once. Research the user's request with existing tools without waiting for a connection decision. ")
         when {
             ToolNames.SHOW_UI in names -> append("Present a small ${name(ToolNames.SHOW_UI)} card with Add / Not now. ")
             ToolNames.ASK_USER in names -> append("Present the offer with ${name(ToolNames.ASK_USER)}. ")
