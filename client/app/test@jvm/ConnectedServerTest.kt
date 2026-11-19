@@ -114,6 +114,26 @@ class ConnectedServerTest {
         assertTrue(sessions.state.value.finished.isEmpty())
     }
 
+    @Test fun presenceFollowsViewedSessionAndForeground() = withOwner { owner, _, _ ->
+        val script = Script("A", serverFeatures = setOf(ServerFeature.SessionInbox))
+        connect(owner, script)
+        val client = requireNotNull(owner.client)
+        val (id, agent) = script.sessionInfo
+        assertEquals(PresenceParams(true), script.presences.receive())
+        owner.sessions.view(agent, id).join()
+        assertEquals(PresenceParams(true, id), script.presences.receive())
+        client.setActive(false)
+        assertEquals(PresenceParams(false, id), script.presences.receive())
+        client.setActive(true)
+        assertEquals(PresenceParams(true, id), script.presences.receive())
+        owner.sessions.view(agent, null).join()
+        assertEquals(PresenceParams(true), script.presences.receive())
+        owner.sessions.view(agent, id).join()
+        assertEquals(PresenceParams(true, id), script.presences.receive())
+        owner.sessions.leaveView()
+        assertEquals(PresenceParams(true), script.presences.receive())
+    }
+
     @Test fun serverInboxMigratesLocallySettledSessionsOnce() {
         val prefs = MemoryPreferences()
         val key = "sessions.settled.test"
@@ -586,6 +606,7 @@ class ConnectedServerTest {
         val closed = CompletableDeferred<Boolean>()
         val caughtUp = CompletableDeferred<Unit>()
         val inboxUpdates = Channel<UpdateSessionParams>(Channel.UNLIMITED)
+        val presences = Channel<PresenceParams>(Channel.UNLIMITED)
         var sessionInfo = SessionInfo(SessionId("session"), AgentId("agent"), name)
         var after: Int? = null
         fun hold(method: String, error: Boolean = false) { held[method] = error }
@@ -614,7 +635,10 @@ class ConnectedServerTest {
         private suspend fun respond(request: Frame.Request) {
             when (request.method) {
                 Api.Connect.name -> reply(request, Api.Connect, ConnectResult("token", name, capabilities = ServerCapabilities(serverId, serverFeatures), management = true))
-                Api.Presence.name -> reply(request, Api.Presence, Unit)
+                Api.Presence.name -> {
+                    presences.send(ProtocolJson.decodeFromJsonElement(Api.Presence.params, request.params))
+                    reply(request, Api.Presence, Unit)
+                }
                 Api.Agents.name -> reply(request, Api.Agents, listOf(AgentInfo(AgentId("agent"), name, "none")))
                 Api.Models.name -> { reply(request, Api.Models, ModelsCatalog()); modelsLoaded.send(Unit) }
                 Api.Capabilities.name -> if (capabilities != null) reply(request, Api.Capabilities, capabilities)

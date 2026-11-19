@@ -6,6 +6,7 @@ import kinuvo.protocol.device.PairedDeviceInfo
 import kinuvo.protocol.execution.RemoteExecutionCall
 import kinuvo.protocol.execution.RemoteExecutionResult
 import kinuvo.protocol.push.PushSubscription
+import kinuvo.protocol.session.SessionId
 import kinuvo.protocol.surface.UiCatalog
 import kinuvo.protocol.voice.LiveVoiceCall
 import kinuvo.protocol.voice.LiveVoiceParams
@@ -25,7 +26,7 @@ interface Caller {
 
     fun requireDevice(): String
     fun setSurfaceCatalogs(catalogs: List<UiCatalog>)
-    suspend fun presence(active: Boolean)
+    suspend fun presence(active: Boolean, viewing: SessionId?)
     suspend fun setDeviceTools(tools: Set<DeviceToolKind>)
     fun setPush(subscription: PushSubscription?)
     fun pairedDevices(): List<PairedDeviceInfo>

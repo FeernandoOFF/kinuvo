@@ -11,6 +11,7 @@ import kinuvo.protocol.*
 import kinuvo.protocol.computer.*
 import kinuvo.protocol.connection.*
 import kinuvo.protocol.device.*
+import kinuvo.protocol.session.SessionId
 import kinuvo.protocol.surface.*
 import kinuvo.protocol.voice.*
 import kotlin.concurrent.Volatile
@@ -97,6 +98,7 @@ class KinuvoClient(
     private var loop: Job? = null
     val foreground: StateFlow<Boolean>
         field = MutableStateFlow(true)
+    private val viewing = MutableStateFlow<SessionId?>(null)
     private val presence = Mutex()
     /** Keeps within the Server's limit, leaving one for a voice cancel sent while its request is still open. */
     private val slots = Semaphore(MAX_CONCURRENT_REQUESTS - 1)
@@ -152,7 +154,7 @@ class KinuvoClient(
                     lastConnect = result
                     connected.complete(Unit)
                     _state.value = ConnectionState.Connected(result.serverName)
-                    presence.withLock { dispatchRequest(Api.Presence, PresenceParams(foreground.value)) }
+                    sendPresence()
                     first.complete(result)
                     backoff = ReconnectBackoff.step
                     reader.join()
@@ -200,9 +202,21 @@ class KinuvoClient(
     fun setActive(active: Boolean) {
         if (foreground.value == active) return
         foreground.value = active
-        // One at a time, each sending the latest value, so the Server ends up with the last one.
-        scope.launch { presence.withLock { Either.catch { dispatchRequest(Api.Presence, PresenceParams(foreground.value)) } } }
+        updatePresence()
     }
+
+    fun setViewing(sessionId: SessionId?) {
+        if (viewing.value == sessionId) return
+        viewing.value = sessionId
+        updatePresence()
+    }
+
+    private fun updatePresence() {
+        // One at a time, each sending the latest value, so the Server ends up with the last one.
+        scope.launch { Either.catch { sendPresence() } }
+    }
+
+    private suspend fun sendPresence() = presence.withLock { dispatchRequest(Api.Presence, PresenceParams(foreground.value, viewing.value)) }
 
     /** Sends an event the Server takes without replying, e.g. live call audio. */
     suspend fun <T> emit(type: EventType<T>, payload: T) {

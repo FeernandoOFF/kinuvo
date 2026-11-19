@@ -4,8 +4,12 @@ import kinuvo.protocol.Api
 import kinuvo.protocol.agent.AgentId
 import kinuvo.protocol.agent.AgentRef
 import kinuvo.protocol.capability.ServerFeature
+import kinuvo.protocol.connection.PresenceParams
+import kinuvo.protocol.session.AgentEvent
 import kinuvo.protocol.session.CatchUpParams
 import kinuvo.protocol.session.SendParams
+import kinuvo.protocol.session.SessionChange
+import kinuvo.protocol.session.SessionParams
 import kinuvo.protocol.session.SessionStatus
 import kinuvo.protocol.session.SessionsParams
 import kinuvo.protocol.session.UpdateSessionParams
@@ -28,6 +32,7 @@ class SessionInboxTest {
                 val desktop = server.client("desktop", server.pairDevice("desktop")).also { it.connect() }
                 assertTrue(ServerFeature.SessionInbox in requireNotNull(phone.lastConnect).capabilities.features)
                 val id = desktop.call(Api.CreateSession, AgentRef(agent)).id
+                desktop.call(Api.CatchUp, CatchUpParams(agent, id))
                 val changes = phone.events(Api.SessionChanged)
 
                 val settled = async(start = CoroutineStart.UNDISPATCHED) { changes.first { it.id == id && it.settled } }
@@ -52,19 +57,26 @@ class SessionInboxTest {
         }
     }
 
-    @Test fun aReplyWatchedInTheForegroundIsRead() = runBlocking {
+    @Test fun aReplyWatchedInTheForegroundIsRead() = replyWhileViewing(sameSession = true)
+
+    @Test fun aReplyInACachedSessionIsUnread() = replyWhileViewing(sameSession = false)
+
+    private fun replyWhileViewing(sameSession: Boolean) = runBlocking {
         val agent = AgentId("inbox")
         TestServer.start(script = { reply("Finished") }, scenario = { agent("inbox") }).use { server ->
             withTimeout(15_000) {
                 val desktop = server.client("desktop", server.pairDevice("desktop")).also { it.connect() }
                 val id = desktop.call(Api.CreateSession, AgentRef(agent)).id
                 desktop.call(Api.CatchUp, CatchUpParams(agent, id))
-                val idle = async(start = CoroutineStart.UNDISPATCHED) {
-                    desktop.events(Api.SessionChanged).first { it.id == id && it.status == SessionStatus.Idle && it.title != null }
+                val viewed = if (sameSession) id else desktop.call(Api.CreateSession, AgentRef(agent)).id
+                desktop.call(Api.Presence, PresenceParams(active = true, viewing = viewed))
+                val finished = async(start = CoroutineStart.UNDISPATCHED) {
+                    desktop.events(Api.Update).first { it.sessionId == id && (it.change as? SessionChange.Event)?.event is AgentEvent.RunFinished }
                 }
                 desktop.call(Api.Send, SendParams(agent, id, "Start"))
-                idle.await()
-                assertFalse(desktop.call(Api.Sessions, SessionsParams(agent)).sessions.single().unread)
+                finished.await()
+                if (sameSession) assertFalse(desktop.call(Api.Session, SessionParams(agent, id)).unread)
+                else assertTrue(desktop.call(Api.Session, SessionParams(agent, id)).unread)
             }
         }
     }

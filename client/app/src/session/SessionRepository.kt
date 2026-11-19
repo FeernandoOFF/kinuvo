@@ -226,6 +226,7 @@ class SessionRepository(private val notifications: Notifications, internal val c
     fun view(agentId: AgentId, sessionId: SessionId?) = scope.launch {
         val previous = viewing
         viewing = sessionId
+        client?.setViewing(sessionId)
         if (serverInbox && previous != sessionId) inboxInfo[previous]?.let(::recordInbox)
         if (sessionId == null) return@launch
         state.update { it.copy(finished = it.finished - sessionId) }
@@ -240,10 +241,10 @@ class SessionRepository(private val notifications: Notifications, internal val c
     }
 
     internal fun leaveView() {
-        if (!serverInbox) return
         val previous = viewing
         viewing = null
-        inboxInfo[previous]?.let(::recordInbox)
+        client?.setViewing(null)
+        if (serverInbox) inboxInfo[previous]?.let(::recordInbox)
     }
 
     private suspend fun refreshViewed(agentId: AgentId, id: SessionId, refresh: Boolean = false) {

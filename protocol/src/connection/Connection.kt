@@ -4,6 +4,7 @@ import kinuvo.protocol.ProtocolVersion
 import kinuvo.protocol.capability.ServerCapabilities
 import kinuvo.protocol.device.DeviceToolKind
 import kinuvo.protocol.device.DeviceToolKinds
+import kinuvo.protocol.session.SessionId
 import kinuvo.protocol.usage.Usage
 import kotlinx.serialization.Required
 import kotlinx.serialization.Serializable
@@ -27,6 +28,6 @@ data class ConnectResult(val token: String, val serverName: String, val usage: U
 @Serializable
 data class ProtocolRange(val minimum: Int, val current: Int)
 
-/** [active] is false while the app is in the background, so the Server notifies instead of counting it as watching. */
+/** [active] is false while the app is in the background. [viewing] is the Session currently on screen. */
 @Serializable
-data class PresenceParams(val active: Boolean)
+data class PresenceParams(val active: Boolean, val viewing: SessionId? = null)

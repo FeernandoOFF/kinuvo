@@ -254,8 +254,10 @@ class ServerRuntime(
 
         override fun setSurfaceCatalogs(catalogs: List<UiCatalog>) = harness.uiCatalogs.connect(this, catalogs)
 
-        override suspend fun presence(active: Boolean) {
+        override suspend fun presence(active: Boolean, viewing: SessionId?) {
             if (linked) return
+            harness.log.setViewing(this, viewing.takeIf { active })
+            if (watching == active) return
             watching = active
             refreshTools()
             if (foregroundOnly && unwatched()) stopWaiting()

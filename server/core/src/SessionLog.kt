@@ -52,6 +52,7 @@ class SessionLog(private val store: Store, private val clock: () -> Long = { Clo
     private val runReplies = HashMap<SessionId, RunReply>()
     suspend fun completion(sessionId: SessionId): AgentEvent? = lock.withLock { completions[sessionId] }
     private val subscribers = HashMap<SessionId, MutableSet<Subscriber>>()
+    private val viewing = HashMap<Subscriber, SessionId>()
     private val changeListeners = AtomicReference(emptySet<(SessionInfo) -> Unit>())
     private val eventListeners = AtomicReference(emptySet<(AgentId, SessionId, AgentEvent) -> Unit>())
 
@@ -67,6 +68,11 @@ class SessionLog(private val store: Store, private val clock: () -> Long = { Clo
 
     /** Whether a client in the foreground is subscribed to [sessionId]. */
     suspend fun watched(sessionId: SessionId): Boolean = lock.withLock { subscribers[sessionId].orEmpty().any { it.watching } }
+
+    suspend fun setViewing(client: Subscriber, sessionId: SessionId?) = lock.withLock {
+        if (sessionId == null) viewing.remove(client) else viewing[client] = sessionId
+        Unit
+    }
 
     suspend fun pending(sessionId: SessionId): List<PendingInteraction> = lock.withLock { live[sessionId]?.pending.orEmpty() }
 
@@ -218,9 +224,8 @@ class SessionLog(private val store: Store, private val clock: () -> Long = { Clo
                 runReplies.remove(sessionId)
             else -> null
         }
-        // A reply someone is watching in the foreground is read already.
         val unread = event is AgentEvent.RunFinished && (reply == RunReply.Chat || reply == RunReply.Report) &&
-            subscribers[sessionId].orEmpty().none { it.watching }
+            sessionId !in viewing.values
         val unsettle = started || state.status == SessionStatus.Waiting && previous.status != SessionStatus.Waiting
         val inboxChanged = if (unread || unsettle) {
             val details = store.sessionDetails(agentId, sessionId)
@@ -275,7 +280,10 @@ class SessionLog(private val store: Store, private val clock: () -> Long = { Clo
 
     private fun statusOf(sessionId: SessionId) = live[sessionId]?.status ?: SessionStatus.Idle
 
-    private fun removeEverywhere(subscriber: Subscriber) = subscribers.values.forEach { it.remove(subscriber) }
+    private fun removeEverywhere(subscriber: Subscriber) {
+        viewing.remove(subscriber)
+        subscribers.values.forEach { it.remove(subscriber) }
+    }
 
     private suspend fun count(agentId: AgentId, sessionId: SessionId): Int {
         return store.entryCount(agentId, sessionId).also { counts[sessionId] = it }
