@@ -15,7 +15,11 @@ import android.os.IBinder
 import kinuvo.server.BUILT_IN_FEATURES
 import kinuvo.server.DeviceAuth
 import kinuvo.server.embedded.EmbeddedServerHost
+import kinuvo.plugins.exec.prootExecPlugin
+import kinuvo.plugins.exec.prootLinux
+import kinuvo.harness.acp.AcpExecutionFactory
 import kinuvo.server.embedded.browserPlugins
+import kinuvo.server.store.AgentFiles
 import kinuvo.server.embedded.embeddedPlugins
 import kinuvo.server.NetworkSecurity
 import kinuvo.server.embedded.EmbeddedSharing
@@ -38,6 +42,7 @@ import kotlinx.io.files.Path
 internal class AndroidEmbeddedServer(private val context: Context) : EmbeddedServer {
     private val browserRuntime by lazy { AndroidBrowserRuntime(context) }
     private val lock = Mutex()
+    private val setup = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private var server: EmbeddedServerHost? = null
     private var listener: NetworkListener? = null
     private val prefs = context.getSharedPreferences("kinuvo-server", Context.MODE_PRIVATE)
@@ -88,8 +93,10 @@ internal class AndroidEmbeddedServer(private val context: Context) : EmbeddedSer
     suspend fun host(): EmbeddedServerHost = lock.withLock {
         server ?: run {
             val browser = withContext(Dispatchers.Main.immediate) { browserRuntime.browserPlugins() }
-            val embedded = embeddedPlugins(home, browser)
-            EmbeddedServerHost.create(home, plugins = embedded.plugins, modelSources = embedded.modelSources, continuous = true, features = BUILT_IN_FEATURES, peers = { SharedPeers(it, auth) })
+            val linux = prootLinux(context)?.also { linux -> setup.launch { runCatching { linux.ensure() } } }
+            val embedded = embeddedPlugins(home, browser + listOfNotNull(linux?.let { prootExecPlugin(it, AgentFiles(home)) }))
+            EmbeddedServerHost.create(home, plugins = embedded.plugins, modelSources = embedded.modelSources, continuous = true, features = BUILT_IN_FEATURES, peers = { SharedPeers(it, auth) },
+                executionFactory = linux?.let { AcpExecutionFactory(launcher = prootAcpLauncher(it)) })
                 .also {
                     server = it
                     sharingHost.restore()

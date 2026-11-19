@@ -1,4 +1,9 @@
-product: jvm/lib
+product:
+  type: kmp/lib
+  platforms: [jvm, android]
+
+aliases:
+  - jvmAndAndroid: [jvm, android]
 
 dependencies:
   - ../api
@@ -13,6 +18,8 @@ settings:
     serialization: json
 
 test-dependencies:
+  - $kotlin.test
+
+test-dependencies@jvm:
   - ../../testing/harness-testing
   - org.slf4j:slf4j-api:2.0.17
-  - $kotlin.test

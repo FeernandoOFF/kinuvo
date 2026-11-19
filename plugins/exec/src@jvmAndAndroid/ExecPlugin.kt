@@ -1,6 +1,7 @@
 package kinuvo.plugins.exec
 
 import kinuvo.harness.Agent
+import kinuvo.harness.ExecModes
 import kinuvo.server.plugin.ServerPlugin
 import kinuvo.server.plugin.InstructionSection
 import kinuvo.server.plugin.PluginTools
@@ -25,7 +26,11 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.NonCancellable
 
 /** Shell, file and process tools on each Agent's exec backend, started on first use. */
-class ExecPlugin(private val files: PluginStorage, private val secrets: SecretResolver = SecretResolver.None) : ServerPlugin {
+class ExecPlugin(
+    private val files: PluginStorage,
+    private val secrets: SecretResolver = SecretResolver.None,
+    private val host: (suspend (workspace: List<String>) -> ExecBackend)? = null,
+) : ServerPlugin {
     override val definition = PluginDefinition("kinuvo.exec", "Shell and files")
     override val features = setOf(ServerFeature.Shell)
     private val lock = Mutex()
@@ -43,7 +48,7 @@ class ExecPlugin(private val files: PluginStorage, private val secrets: SecretRe
         val cached = lock.withLock { backends[agent.id] to states[agent.id] }
         val definitions = execTools(cached.first ?: preview)
         val state = when {
-            agent.config.workspace.isEmpty() -> CapabilityState.unavailable("Exec needs at least one Workspace folder")
+            agent.config.workspace.isEmpty() && !(host != null && agent.config.exec == ExecModes.HOST) -> CapabilityState.unavailable("Exec needs at least one Workspace folder")
             agent.config.exec == "ssh" && agent.config.ssh == null -> CapabilityState.unavailable("SSH settings are missing")
             else -> cached.second ?: CapabilityState.unknown("Exec backend has not been checked")
         }
@@ -64,7 +69,7 @@ class ExecPlugin(private val files: PluginStorage, private val secrets: SecretRe
 
     override val execCheck = ExecCheck { agent, command ->
         val backend = try {
-            ExecBackends.create(agent, files, secrets, check = true) ?: return@ExecCheck ExecTestResult(error = "Choose where the shell runs")
+            ExecBackends.create(agent, files, secrets, check = true, host = host) ?: return@ExecCheck ExecTestResult(error = "Choose where the shell runs")
         } catch (e: CancellationException) { throw e }
         catch (e: Exception) { return@ExecCheck ExecTestResult(error = e.message) }
         try {
@@ -97,6 +102,6 @@ class ExecPlugin(private val files: PluginStorage, private val secrets: SecretRe
     }
 
     private suspend fun backend(agent: Agent): ExecBackend? = lock.withLock {
-        backends.getOrPut(agent.id) { ExecBackends.create(agent, files, secrets) }
+        backends.getOrPut(agent.id) { ExecBackends.create(agent, files, secrets, host = host) }
     }
 }

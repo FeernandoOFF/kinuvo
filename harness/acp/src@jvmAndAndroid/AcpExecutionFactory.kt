@@ -13,7 +13,7 @@ import kotlinx.serialization.json.*
 import kotlin.uuid.Uuid
 import java.io.IOException
 
-class AcpExecutionFactory(private val probeTimeoutMillis: Long = 15_000,
+class AcpExecutionFactory(private val probeTimeoutMillis: Long = 15_000, private val launcher: AcpLauncher = DefaultAcpLauncher,
     private val persistAttachment: suspend (ExecutionState, AttachmentData) -> Attachment = { _, _ -> error("Output attachment persistence is unavailable") },
 ) : ExecutionFactory {
     override suspend fun probe(config: HarnessConnection): ExecutionProbe {
@@ -23,7 +23,7 @@ class AcpExecutionFactory(private val probeTimeoutMillis: Long = 15_000,
             withTimeoutOrNull(probeTimeoutMillis) {
                 val connection = AcpConnection.open(scope, acp, object : ElicitationHandler {
                     override suspend fun createElicitation(request: CreateElicitationRequest) = CreateElicitationResponse(ElicitationAction.Decline)
-                }, {})
+                }, {}, launcher = launcher)
                 try {
                     val info = connection.client.agentInfo.await()
                     val auth = if (info.capabilities.auth?.status == true) connection.client.authStatus().authenticated else null
@@ -47,7 +47,7 @@ class AcpExecutionFactory(private val probeTimeoutMillis: Long = 15_000,
                 val answer = requests.ask(prompt)
                 return ProtocolJson.decodeFromJsonElement(CreateElicitationResponse.serializer(), prompt.encodeAnswer(answer))
             }
-        }, { reducer.lost(broker::lost) }, cwd = registration.cwd)
+        }, { reducer.lost(broker::lost) }, cwd = registration.cwd, launcher = launcher)
         try {
             val operations = object : ClientSessionOperations {
                 override suspend fun requestPermission(request: RequestPermissionRequest): RequestPermissionResponse {
