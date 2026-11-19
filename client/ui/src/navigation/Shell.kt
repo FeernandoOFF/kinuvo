@@ -419,73 +419,69 @@ private fun AgentColumn(state: ShellState, actions: ShellActions, chrome: ShellC
                 }
                 return@LazyColumn
             }
-            fun needsLook(sessions: List<SessionInfo>) = sessions.filter { it.id == selected || it.status != SessionStatus.Idle || it.id in state.finished }
-            if (favorites.isNotEmpty()) {
-                val collapsed = ShellSection.Favorites in chrome.collapsed
-                item(key = ShellSection.Favorites) {
-                    GroupHeader(ShellSection.Favorites.title, collapsed) {
-                        chrome.collapsed = if (collapsed) chrome.collapsed - ShellSection.Favorites else chrome.collapsed + ShellSection.Favorites
+            // A collapsed section keeps only the open Session, when it's in there.
+            fun LazyListScope.section(section: ShellSection, count: Int? = null): Boolean {
+                val collapsed = section in chrome.collapsed
+                item(key = section) {
+                    GroupHeader(section.title, collapsed, count) {
+                        chrome.collapsed = if (collapsed) chrome.collapsed - section else chrome.collapsed + section
                     }
                 }
-                rows(if (collapsed) needsLook(favorites) else favorites)
+                return collapsed
             }
-            run {
-                val waiting = inbox.filter { it.status == SessionStatus.Waiting }
-                val working = inbox.filter { it.status == SessionStatus.Running }
-                val idle = inbox.filter { it.status == SessionStatus.Idle }
-                if (waiting.isNotEmpty()) { item(key = "group:needs") { GroupHeader("Needs you") }; rows(waiting) }
-                if (working.isNotEmpty()) { item(key = "group:working") { GroupHeader("Working") }; rows(working) }
-                if (idle.isNotEmpty()) {
-                    val groups = idle.groupRoutineRuns().let { g -> g.filter { it.session.id in state.finished } + g.filter { it.session.id !in state.finished } }
-                    val more = groups.size > RECENT_CHATS || state.hasMore
-                    item(key = "chats") { GroupHeader("Open", !chrome.allChats, onToggle = if (more) ({ chrome.allChats = !chrome.allChats }) else null) }
-                    val shown = if (chrome.allChats) groups else groups.take(RECENT_CHATS) + groups.drop(RECENT_CHATS).filter { g -> needsLook(listOf(g.session) + g.earlier).isNotEmpty() }
-                    shown.forEach { group ->
-                        val key = group.session.routine?.id
-                        val open = key != null && (key in chrome.expanded || group.earlier.any { it.id == selected })
-                        item(key = group.session.id.value) {
-                            SessionRow(group.session, group.session.id == selected, group.session.id in state.finished, settleOf(group.session)) { actions.onSelect(group.session.id.value) }
+            fun <T> List<T>.folded(collapsed: Boolean, id: (T) -> SessionId?) = if (collapsed) filter { id(it) == selected } else this
+            if (favorites.isNotEmpty()) rows(favorites.folded(section(ShellSection.Favorites)) { it.id })
+            val waiting = inbox.filter { it.status == SessionStatus.Waiting }
+            val working = inbox.filter { it.status == SessionStatus.Running }
+            val idle = inbox.filter { it.status == SessionStatus.Idle }
+            if (waiting.isNotEmpty()) rows(waiting.folded(section(ShellSection.NeedsYou)) { it.id })
+            if (working.isNotEmpty()) rows(working.folded(section(ShellSection.Working)) { it.id })
+            if (idle.isNotEmpty()) {
+                val collapsed = section(ShellSection.Open)
+                val groups = idle.groupRoutineRuns().let { g -> g.filter { it.session.id in state.finished } + g.filter { it.session.id !in state.finished } }
+                val more = groups.size > RECENT_CHATS || state.hasMore
+                val shown = when {
+                    collapsed -> groups.filter { g -> (listOf(g.session) + g.earlier).any { it.id == selected } }
+                    chrome.allChats -> groups
+                    else -> groups.take(RECENT_CHATS) + groups.drop(RECENT_CHATS).filter { g -> (listOf(g.session) + g.earlier).any { it.id == selected } }
+                }
+                shown.forEach { group ->
+                    val key = group.session.routine?.id
+                    val open = key != null && (key in chrome.expanded || group.earlier.any { it.id == selected })
+                    item(key = group.session.id.value) {
+                        SessionRow(group.session, group.session.id == selected, group.session.id in state.finished, settleOf(group.session)) { actions.onSelect(group.session.id.value) }
+                    }
+                    if (key != null && group.earlier.isNotEmpty()) {
+                        item(key = "earlier:$key") {
+                            ListRow(false, { chrome.expanded = if (open) chrome.expanded - key else chrome.expanded + key }, Modifier.padding(start = Spacing.space16),
+                                leading = { Icon(if (open) Lucide.ChevronDown else Lucide.ChevronRight, Modifier.size(14.dp)) }) {
+                                Text("${group.earlier.size} earlier", Modifier.weight(1f), color = color(mutedColor), style = TextStyles.secondary, singleLine = true)
+                            }
                         }
-                        if (key != null && group.earlier.isNotEmpty()) {
-                            item(key = "earlier:$key") {
-                                ListRow(false, { chrome.expanded = if (open) chrome.expanded - key else chrome.expanded + key }, Modifier.padding(start = Spacing.space16),
-                                    leading = { Icon(if (open) Lucide.ChevronDown else Lucide.ChevronRight, Modifier.size(14.dp)) }) {
-                                    Text("${group.earlier.size} earlier", Modifier.weight(1f), color = color(mutedColor), style = TextStyles.secondary, singleLine = true)
-                                }
-                            }
-                            if (open) items(group.earlier, key = { it.id.value }) { run ->
-                                Box(Modifier.padding(start = Spacing.space16)) { SessionRow(run, run.id == selected, run.id in state.finished, settleOf(run)) { actions.onSelect(run.id.value) } }
-                            }
+                        if (open) items(group.earlier, key = { it.id.value }) { run ->
+                            Box(Modifier.padding(start = Spacing.space16)) { SessionRow(run, run.id == selected, run.id in state.finished, settleOf(run)) { actions.onSelect(run.id.value) } }
                         }
                     }
-                    if (!chrome.allChats && more) item(key = "allChats") {
-                        ListRow(false, { chrome.allChats = true }, leading = { Icon(Lucide.History, Modifier.size(16.dp), tint = color(mutedColor)) }) {
-                            Text("Older sessions", Modifier.weight(1f), color = color(mutedColor), singleLine = true)
-                        }
+                }
+                if (!collapsed && !chrome.allChats && more) item(key = "allChats") {
+                    ListRow(false, { chrome.allChats = true }, leading = { Icon(Lucide.History, Modifier.size(16.dp), tint = color(mutedColor)) }) {
+                        Text("Older sessions", Modifier.weight(1f), color = color(mutedColor), singleLine = true)
                     }
-                } else if (state.sessions.isNotEmpty() && waiting.isEmpty() && working.isEmpty()) item(key = "clear") { EmptyNote("Inbox clear") }
-            }
-            // Collapsed, it lists only what needs a look: the open Session, runs, waits and unread results.
+                }
+            } else if (state.sessions.isNotEmpty() && waiting.isEmpty() && working.isEmpty()) item(key = "clear") { EmptyNote("Inbox clear") }
             if (attached.isNotEmpty()) {
-                val collapsed = ShellSection.Routines in chrome.collapsed
                 val byId = state.sessions.associateBy { it.id }
-                item(key = ShellSection.Routines) {
-                    GroupHeader(ShellSection.Routines.title, collapsed) {
-                        chrome.collapsed = if (collapsed) chrome.collapsed - ShellSection.Routines else chrome.collapsed + ShellSection.Routines
-                    }
-                }
-                val shown = if (!collapsed) attached else attached.filter { r -> byId[r.sessionId]?.let { needsLook(listOf(it)).isNotEmpty() } ?: (r.sessionId == selected) }
-                items(shown, key = { "routine:${it.id}" }) { r ->
+                items(attached.folded(section(ShellSection.Routines)) { it.sessionId }, key = { "routine:${it.id}" }) { r ->
                     val session = byId[r.sessionId]
                     ShellRow(Lucide.AlarmClock, r.name, session?.status ?: SessionStatus.Idle, r.sessionId == selected, r.sessionId in state.finished) {
                         actions.onSelect(r.sessionId!!.value)
                     }
                 }
             }
-            // Settled Sessions wait at the end, folded, until there's news in one.
+            // Settled Sessions wait at the very end, folded until opened, and leave when there's news in one.
             if (settledChats.isNotEmpty()) {
                 item(key = "group:settled") { GroupHeader("Settled", !chrome.showSettled, settledChats.size) { chrome.showSettled = !chrome.showSettled } }
-                if (chrome.showSettled) rows(settledChats, "settled:")
+                rows(settledChats.folded(!chrome.showSettled) { it.id }, "settled:")
             }
             if (state.sessions.isEmpty() && state.agent != null) item(key = "empty") {
                 EmptyNote("No sessions yet")
@@ -613,7 +609,7 @@ private fun SwipeToSettle(settle: SettleAction, content: @Composable () -> Unit)
 private const val RECENT_CHATS = 4
 
 /** The column's collapsible sections, under its pinned screens and chats. */
-enum class ShellSection(val title: String) { Favorites("Favorites"), Routines("Routines") }
+enum class ShellSection(val title: String) { Favorites("Favorites"), NeedsYou("Needs you"), Working("Working"), Open("Open"), Routines("Routines") }
 
 @Composable
 private fun ServerPicker(

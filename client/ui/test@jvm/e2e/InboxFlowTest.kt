@@ -46,7 +46,10 @@ class InboxFlowTest {
         tap("Unsettle Alpha plan")
         gone("Settled \\(1\\)")
         await("Alpha plan")
-        screenshot("unsettled")
+        tap("Open")
+        gone("Alpha plan")
+        await("Beta plan")
+        screenshot("open-collapsed")
     }
 
     @Test fun swipingSettlesOnPhones() = appTest("inbox-phone") {
