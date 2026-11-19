@@ -142,6 +142,8 @@ class HarnessScreenshotTest {
         }
         val offline = base.copy(agent = reviewer, harness = "Codex", running = false, unsent = "and fix lint when you're done",
             capabilities = SessionCapabilities(server = capabilities, chat = CapabilityState.unavailable("Not signed in", "needs_sign_in")))
+        val plan = ChatItem.ToolCall("plan", ToolCallId("plan:g:1:default"), "Plan", "", "- [x] Run the build\n- [ ] Fix lint (in progress)\n- [ ] Push the fix")
+        render("harness-chat-plan-phone", 390, 844) { theme(touch = true) { ChatContent(base.copy(running = false, items = base.items + plan), ConnectionState.Connected("x"), null, ChatActions()) } }
         render("harness-chat-not-ready-phone", 390, 844) { theme(touch = true) { ChatContent(offline, ConnectionState.Connected("x"), null, ChatActions()) } }
     }
 

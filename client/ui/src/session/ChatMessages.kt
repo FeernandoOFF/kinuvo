@@ -485,8 +485,31 @@ private fun ToolAttachments(attachments: List<Attachment>, actions: ChatActions)
     }
 }
 
+/** An ACP harness's plan: its `- [x]` checklist, kept current through the turn. */
+@Composable
+private fun PlanView(item: ChatItem.ToolCall, border: Boolean) {
+    val steps = item.result.orEmpty().lines().mapNotNull { line ->
+        when {
+            line.startsWith("- [x] ") -> line.removePrefix("- [x] ") to true
+            line.startsWith("- [ ] ") -> line.removePrefix("- [ ] ") to false
+            else -> null
+        }
+    }
+    Expandable(Lucide.ListChecks, "Plan", "${steps.count { it.second }} of ${steps.size} done", border = border, initiallyExpanded = true) {
+        Column(verticalArrangement = Arrangement.spacedBy(Spacing.space6)) {
+            steps.forEach { (text, done) ->
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.space8)) {
+                    Icon(if (done) Lucide.CircleCheck else Lucide.Circle, Modifier.size(14.dp), tint = color(if (done) accentColor else mutedColor))
+                    Text(text, style = TextStyles.secondary, color = color(if (done) mutedColor else onBackgroundColor))
+                }
+            }
+        }
+    }
+}
+
 @Composable
 private fun ToolCallView(item: ChatItem.ToolCall, border: Boolean = true, actions: ChatActions = ChatActions()) {
+    if (item.callId.value.startsWith("plan:")) return PlanView(item, border)
     val label = item.label()
     Expandable(label.icon, label.title, label.subtitle, border = border, titleStyle = if (label.skill) TextStyles.callout else MonoStyle,
         subtitleStyle = if (label.skill) TextStyles.caption else MonoStyle.copy(fontSize = 12.sp), status = {
