@@ -247,7 +247,8 @@ private fun ExternalAgentPage(state: InspectorState, draft: AgentDraft, details:
         }
     }
     Group("Approvals") {
-        Text("Kinuvo's Risk tolerance and Trust rules don't apply. $harness decides when to ask before acting; answer from any Device with access.",
+        Text(if (agent.executionKind == ExecutionKind.Acp) "Kinuvo's tools follow its Risk tolerance and Trust rules. $harness decides when to ask before its own actions, unless a Session's Risk tolerance is Full; answer from any Device with access."
+            else "Kinuvo's Risk tolerance and Trust rules don't apply. $harness decides when to ask before acting; answer from any Device with access.",
             Modifier.padding(Spacing.space4), style = TextStyles.secondary)
     }
     Group("Managed by $harness") {
