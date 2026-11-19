@@ -18,7 +18,6 @@ import kotlinx.io.asSink
 import kotlinx.io.asSource
 import kotlinx.io.buffered
 import kinuvo.protocol.execution.ExecutionConnection
-import java.io.File
 import kinuvo.harness.McpServerDescriptor
 import com.agentclientprotocol.model.HttpHeader
 import java.util.concurrent.TimeUnit
@@ -99,6 +98,7 @@ class AcpConnection private constructor(
             elicitation: ElicitationHandler,
             onLost: suspend () -> Unit,
             cwd: String? = null,
+            launcher: AcpLauncher = DefaultAcpLauncher,
         ): AcpConnection {
             require(config.command.isNotEmpty())
             var process: Process? = null
@@ -106,8 +106,7 @@ class AcpConnection private constructor(
             try {
                 // Establish ownership before returning to a cancellable caller context.
                 withContext(NonCancellable + Dispatchers.IO) {
-                    process = ProcessBuilder(config.command).directory(cwd?.let(::File))
-                        .apply { environment().putAll(config.environment) }.redirectError(ProcessBuilder.Redirect.DISCARD).start()
+                    process = launcher.start(config.command, cwd, config.environment)
                 }
                 currentCoroutineContext().ensureActive()
                 val owned = requireNotNull(process)

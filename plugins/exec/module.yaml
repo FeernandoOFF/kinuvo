@@ -1,13 +1,20 @@
 # Exec backends (host, container, ssh) and the shell/file tools.
-product: jvm/lib
+product:
+  type: kmp/lib
+  platforms: [jvm, android]
+
+aliases:
+  - jvmAndAndroid: [jvm, android]
 
 dependencies:
   - ../../server/plugin-api: exported
 
 test-dependencies:
-  - ../../testing/harness-testing
   - $kotlin.test
   - org.jetbrains.kotlinx:kotlinx-coroutines-test:1.11.0
+
+test-dependencies@jvm:
+  - ../../testing/harness-testing
 
 settings:
   jvm:

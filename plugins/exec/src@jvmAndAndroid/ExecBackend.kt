@@ -40,6 +40,9 @@ abstract class ExecBackend(
     /** Output past [maxChars] keeps only its start and end. */
     protected abstract suspend fun execScript(script: String, cwd: String, stdin: String?, timeout: Duration, maxChars: Int = 30_000): ExecResult
 
+    /** Runs [script], which starts a detached process and prints its pid; backends whose processes die with the script override it. */
+    protected open suspend fun spawnDetached(script: String, cwd: String): ExecResult = execScript(script, cwd, null, Duration.parse("30s"))
+
     private val background = LinkedHashMap<String, BackgroundProcess>()
     private val tag = UUID.randomUUID().toString().take(8)
 
@@ -62,8 +65,7 @@ abstract class ExecBackend(
         val log = "/tmp/kinuvo-bg-$tag-$id.log"
         val wrapper = "bash -lc \"\$1\"; echo \$? > \"\$2\""
         val script = "set -m; rm -f ${shq("$log.exit")}; nohup bash -c ${shq(wrapper)} _ ${shq(command)} ${shq("$log.exit")} > ${shq(log)} 2>&1 < /dev/null & echo \$!"
-        // Background tasks only last 30sec
-        val r = execScript(script, cwd?.let(::resolve) ?: roots.first(), null, Duration.parse("30s"))
+        val r = spawnDetached(script, cwd?.let(::resolve) ?: roots.first())
         val pid = r.output.lines().lastOrNull { it.isNotBlank() }?.trim()
         check(r.exitCode == 0 && pid?.all(Char::isDigit) == true) { r.output.ifBlank { "Could not start background process" } }
         return BackgroundProcess(id, pid, log, command).also { synchronized(background) { background[id] = it } }
@@ -163,15 +165,12 @@ internal suspend fun runProcess(
         val output = CappedOutput(maxChars)
         val reader = Thread { process.inputStream.bufferedReader().use { r -> r.forEachLine(output::appendLine) } }.apply { start() }
         val finished = runInterruptible { process.waitFor(timeout.inWholeMilliseconds, TimeUnit.MILLISECONDS) }
-        if (!finished) process.descendants().forEach { it.destroyForcibly() }.also { process.destroyForcibly() }
+        if (!finished) killTree(process)
         reader.join(2_000)
         writer.join(500)
         ExecResult(if (finished) process.exitValue() else -1, output.text(), timedOut = !finished)
     } finally {
-        if (process.isAlive) {
-            process.descendants().forEach { it.destroyForcibly() }
-            process.destroyForcibly()
-        }
+        if (process.isAlive) killTree(process)
     }
 }
 
