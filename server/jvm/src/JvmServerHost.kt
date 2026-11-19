@@ -7,6 +7,7 @@ import kinuvo.gateways.mcp.McpExecutionFactory
 import kotlinx.coroutines.*
 import kinuvo.server.execution.ExecutionStorage
 import kinuvo.server.execution.remoteLinks
+import kinuvo.server.execution.serverToolAgent
 import kinuvo.server.plugin.TailcatServing
 import kinuvo.server.plugin.TailcatTunnel
 import kotlinx.io.files.Path
@@ -31,7 +32,9 @@ class JvmServerHost(val harness: JvmAgentRuntime, val auth: DeviceAuth = DeviceA
     private val links = remoteLinks(harness.files.home)
     val runtime: ServerRuntime = ServerRuntime(harness, auth, serverRoutes(), name,
         remoteLinks = links, remoteHarness = { RemoteExecutionFactory(links::link, harness.serverId, it) }, security = security, prepareAttachment = ::prepareAttachment, keepAwake = activity::hold,
-        executionRegistry = executionStorage.registry, executionFactory = McpExecutionFactory(AcpExecutionFactory(persistAttachment = ::persistExecutionAttachment), harness, mcpAccess, { mcpListener.url }), executionStorage = executionStorage)
+        executionRegistry = executionStorage.registry, executionFactory = McpExecutionFactory(AcpExecutionFactory(persistAttachment = ::persistExecutionAttachment, autoApprove = { registration, session, kind ->
+            harness.composer.autoApproveHarness(registration.serverToolAgent(), session, kind)
+        }), harness, mcpAccess, { mcpListener.url }), executionStorage = executionStorage)
     private suspend fun persistExecutionAttachment(state: ExecutionState, data: AttachmentData) = runtime.persistExecutionAttachment(state, data)
     private val listener = NetworkListener(runtime, auth, network)
     private var tailcatListener: NetworkListener? = null

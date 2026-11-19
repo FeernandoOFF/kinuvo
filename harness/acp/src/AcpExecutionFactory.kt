@@ -9,12 +9,14 @@ import kinuvo.protocol.approval.*
 import kinuvo.protocol.execution.*
 import kinuvo.protocol.session.*
 import kotlinx.coroutines.*
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.serialization.json.*
 import kotlin.uuid.Uuid
 import java.io.IOException
 
 class AcpExecutionFactory(private val probeTimeoutMillis: Long = 15_000,
     private val persistAttachment: suspend (ExecutionState, AttachmentData) -> Attachment = { _, _ -> error("Output attachment persistence is unavailable") },
+    private val autoApprove: suspend (AgentRegistration, SessionId, RunKind) -> Boolean = { _, _, _ -> false },
 ) : ExecutionFactory {
     override suspend fun probe(config: HarnessConnection): ExecutionProbe {
         val acp = config.connection as? ExecutionConnection.Acp ?: return ExecutionProbe(ExecutionReadiness(true, false, "Remote adapter unavailable", "unsupported"))
@@ -40,6 +42,7 @@ class AcpExecutionFactory(private val probeTimeoutMillis: Long = 15_000,
     override suspend fun open(config: HarnessConnection, registration: AgentRegistration, state: ExecutionState, broker: ExecutionBroker, scope: CoroutineScope): ExecutionSession {
         val acp = config.connection as? ExecutionConnection.Acp ?: error("Remote execution is not installed")
         val requests = AcpRequests(broker)
+        val kind = MutableStateFlow<RunKind?>(null)
         val reducer = AcpReducer(state) { persistAttachment(state, it) }
         val connection = AcpConnection.open(scope, acp, object : ElicitationHandler {
             override suspend fun createElicitation(request: CreateElicitationRequest): CreateElicitationResponse {
@@ -55,7 +58,11 @@ class AcpExecutionFactory(private val probeTimeoutMillis: Long = 15_000,
                         ProtocolJson.encodeToJsonElement(RequestPermissionRequest.serializer(), request), request.options.map {
                             ExternalApprovalOption(it.optionId.toString(), it.name, ProtocolJson.encodeToJsonElement(PermissionOptionKind.serializer(), it.kind).jsonPrimitive.content)
                         })
-                    val answer = requests.ask(prompt)
+                    val allow = request.options.firstOrNull { it.kind == PermissionOptionKind.AllowOnce }
+                    val active = state.snapshot().phase in setOf(ExecutionPhase.Running, ExecutionPhase.RequiresAction)
+                    val answer = if (allow != null && active && kind.value?.let { autoApprove(registration, state.sessionId, it) } == true)
+                        buildJsonObject { put("optionId", allow.optionId.toString()) }
+                    else requests.ask(prompt)
                     return ProtocolJson.decodeFromJsonElement(RequestPermissionResponse.serializer(), prompt.encodeAnswer(answer))
                 }
             }
@@ -72,6 +79,10 @@ class AcpExecutionFactory(private val probeTimeoutMillis: Long = 15_000,
                 finally { withContext(NonCancellable) { try { reducer.lost(broker::lost) } finally { connection.close() } } }
             }
             return object : ExecutionSession by adapter {
+                override suspend fun prompt(input: ExecutionInput): ExecutionAcceptance {
+                    kind.value = input.kind
+                    return adapter.prompt(input)
+                }
                 override suspend fun close() { collecting.cancelAndJoin(); connection.close() }
             }
         } catch(e: Throwable) { reducer.lost(broker::lost); connection.close(); throw e }

@@ -67,7 +67,7 @@ internal class ServerAssembly(
         { _, id -> if (external.owns(SessionId(id))) external.discard(SessionId(id)) else dispatch.stop(SessionId(id)) })
     private val executionManagement = Mutex()
     val external = ExecutionCoordinator(executions, installedFactory, scope, harness.log, executionStorage,
-        resolve = { harness.attachments.download(it) }, readinessChanged = { catalogChanged() })
+        resolve = { harness.attachments.download(it) }, readinessChanged = { catalogChanged() }, toolCatalog = harness.composer::externalTools)
     suspend fun persistExecutionAttachment(state: ExecutionState, data: AttachmentData): Attachment {
         external.currentStateOwner(state)
         require(attachmentMimeType(data.attachment.name) == data.attachment.mimeType) { "Output filename and MIME differ" }
@@ -89,7 +89,7 @@ internal class ServerAssembly(
         NativeExecution(harness, runs, scope, { admin.agent(it) }, { hub.capabilities }, reflector::ran) { sessionId, text -> hub.notifyVoice(sessionId, text) }, executionManagement)
     private val subAgents = SubAgents(harness, dispatch, scope, runs::join).also { harness.subAgents = it; dispatch.subAgents = it; runs.onBegin = { _, id -> it.begin(id) }; runs.onFinish(it::finish); runs.onCancel = it::cancelChildren }
     val dispatcher = TaskDispatcher(harness, runs, scope)
-    private val sessions = SessionService(harness, admin)
+    private val sessions = SessionService(harness, admin, external)
     private val routines = RoutineService(harness, admin, sessions) { hub.scheduling }
     val browserAccess = BrowserAccess(harness, executions, admin)
     val voice = VoiceService(harness, hub::changedCapabilities)
@@ -104,8 +104,8 @@ internal class ServerAssembly(
     init {
         harness.browser?.authorize { owner ->
             throwing<ServerError, Unit> {
-                browserAccess.validate(owner)
-                if ("browser" !in admin.agent(owner.agentId).config.tools) raise(BrowserError.Disabled)
+                val agent = browserAccess.validate(owner)
+                if ("browser" !in agent.config.tools) raise(BrowserError.Disabled)
             }
         }
         harness.log.executionMetadata = { info -> if (external.owns(info.id)) info.copy(legacyOrder = external.record(info.id).legacyOrder) else info }

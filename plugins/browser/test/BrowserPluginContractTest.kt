@@ -8,6 +8,7 @@ import kinuvo.server.plugin.ScreenGate
 import kinuvo.server.plugin.instance
 import kinuvo.server.plugin.ownedBy
 import kinuvo.protocol.approval.*
+import kinuvo.protocol.capability.CapabilityState
 import kinuvo.protocol.browser.*
 import kinuvo.protocol.session.*
 import kinuvo.protocol.agent.AgentId
@@ -22,6 +23,9 @@ class BrowserPluginContractTest {
         val gate = ScreenGate()
         val commands = mutableListOf<BrowserCommand>()
         var closed = false
+        var ready = true
+        override fun availability() = if (ready) CapabilityState() else
+            CapabilityState.needsSetup("Install Chromium", "guides/browser-access/")
         override fun openingGate(owner: BrowserOwner) = gate
         override suspend fun gate(owner: BrowserOwner, tabId: String) = gate
         override suspend fun tabs(owner: BrowserOwner) = emptyList<BrowserTab>()
@@ -32,6 +36,17 @@ class BrowserPluginContractTest {
         }
         override suspend fun close() { closed = true }
     }
+    @Test fun readinessHidesBrowserInstructionsUntilRuntimeIsAvailable() = runTest {
+        val browser = Browser().apply { ready = false }
+        val plugin = BrowserPlugin(browser)
+        val missing = plugin.prepare(RunContext(agent, SessionId("session")), false)
+        assertTrue(missing.catalog.all { !it.state.actionable && it.state.docsPath == "guides/browser-access/" })
+        assertNull(plugin.instructions(agent))
+        browser.ready = true
+        assertTrue(plugin.prepare(RunContext(agent, SessionId("session")), false).catalog.all { it.state.actionable })
+        assertNotNull(plugin.instructions(agent))
+    }
+
     @Test fun toolsShareAgentOwnershipAcrossSessionsAndDoNotPutImagesInTextResults() = runTest {
         val browser = Browser()
         val plugin = BrowserPlugin(browser)

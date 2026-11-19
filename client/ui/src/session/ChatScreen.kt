@@ -67,6 +67,7 @@ import kinuvo.protocol.capability.supports
 import kinuvo.ui.design.*
 import kinuvo.protocol.session.UploadAttachmentParams
 import kinuvo.protocol.agent.AgentId
+import kinuvo.protocol.execution.ExecutionKind
 import kinuvo.protocol.agent.AgentInfo
 import kinuvo.protocol.session.SessionId
 import kotlinx.coroutines.launch
@@ -424,8 +425,11 @@ fun ChatContent(
                         if (!dictation.dictating) dictated = null
                     }
                     val settings: @Composable RowScope.() -> Unit = {
-                        if (state.external) ComposerSettings(state.settings, AgentSettings("", "", "", ""), state.models, {}, actions.onAttach,
-                            !state.running && state.chatBlocked == null, photos = state.photos, files = state.files, nativeSettings = false)
+                        if (state.external) {
+                            val acp = state.agent?.executionKind == ExecutionKind.Acp
+                            ComposerSettings(state.settings, AgentSettings("", "", if (acp) "default" else "", ""), state.models, if (acp) actions.onConfigure else ({}), actions.onAttach,
+                                !state.running && state.chatBlocked == null, photos = state.photos, files = state.files, nativeSettings = false, approvalSettings = acp)
+                        }
                         state.defaults?.takeIf { !state.external }?.let { ComposerSettings(state.settings, it, state.models, actions.onConfigure, actions.onAttach, !state.running, actions.onRefreshModels, state.photos, state.files,
                             agent = state.agent?.name, onAgentDefaults = actions.onSettings.takeIf { state.agent != null }) }
                     }

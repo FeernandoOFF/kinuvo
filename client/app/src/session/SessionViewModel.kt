@@ -511,6 +511,7 @@ class SessionViewModel(private val repo: SessionRepository, route: Route.Chat, p
     }
 
     private suspend fun sendNow(agent: AgentId, text: String, pending: List<PendingAttachment>, uploads: MutableMap<String, Attachment>, voice: Boolean, submissionId: String, action: SurfaceAction?, delivery: SendDelivery) {
+        val discovery = route.sessionId == null && !voice && action == null && delivery == SendDelivery.Turn
         val sessionId = sessionFor(agent)
         if (state.value.resumeOnSend) {
             state.update { it.copy(resuming = true) }
@@ -525,7 +526,7 @@ class SessionViewModel(private val repo: SessionRepository, route: Route.Chat, p
                 state.update { it.copy(downloads = it.downloads + (a.id to AttachmentData(a, draft.upload.base64))) }
             })
         }
-        repo.send(agent, sessionId, text, uploaded.map { it.id }, voice, submissionId, action, delivery)
+        repo.send(agent, sessionId, text, uploaded.map { it.id }, voice, submissionId, action, delivery, discovery = discovery)
         pendingSubmission = null
     }
 

@@ -37,7 +37,7 @@ data class AgentRegistration(val id: AgentId, val name: String, val connectionId
 data class ExecutionReadiness(val configured: Boolean, val online: Boolean, val reason: String? = null, val reasonCode: String? = null)
 
 @Serializable
-data class ExecutionCapabilities(val resume: Boolean = false, val cancel: Boolean = false, val questions: Boolean = false, val approvals: Boolean = false, val supportedMimeTypes: Set<String> = emptySet())
+data class ExecutionCapabilities(val resume: Boolean = false, val cancel: Boolean = false, val questions: Boolean = false, val approvals: Boolean = false, val supportedMimeTypes: Set<String> = emptySet(), val mcp: Boolean = false)
 
 @Serializable
 data class HarnessConnectionStatus(val config: HarnessConnection, val readiness: ExecutionReadiness, val capabilities: ExecutionCapabilities = ExecutionCapabilities())

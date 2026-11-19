@@ -1,6 +1,12 @@
 package kinuvo.server
 
+import kinuvo.server.execution.NativeExecution
 import kinuvo.server.rpc.serverRoutes
+import kinuvo.server.routines.RoutineRun
+import kinuvo.protocol.team.TeamId
+import kinuvo.harness.ExecutionInput
+import kinuvo.harness.ModelProfile
+import kinuvo.harness.RunKind
 import kinuvo.harness.ToolSpec
 import kinuvo.harness.requiredNames
 import ai.koog.agents.core.tools.ToolDescriptor
@@ -28,6 +34,7 @@ import kinuvo.protocol.*
 import kinuvo.protocol.approval.*
 import kinuvo.protocol.capability.*
 import kinuvo.protocol.device.*
+import kinuvo.protocol.computer.*
 import kinuvo.protocol.model.*
 import kinuvo.protocol.plugin.*
 import kinuvo.protocol.routine.*
@@ -49,6 +56,200 @@ import kotlin.test.*
 import kinuvo.server.providers.ModelProvider
 
 class RunPreparationRuntimeTest {
+    @Test fun firstSessionDiscoveryUsesCurrentDocumentsAndSessionHistory() = runBlocking {
+        val local = object : ModelProvider by provider {
+            override suspend fun models() = provider.models().map { it.copy(location = ExecutionLocation.ServerHost) }
+        }
+        val fixture = RuntimeFixture(providers = listOf(local))
+        val harness = fixture.runtime()
+        try {
+            val agent = agent(harness).let { it.copy(config = it.config.copy(tier = ModelTier.Frontier)) }
+            val session = harness.newSession(agent)
+            suspend fun context() = harness.composer.compose(agent, session.id, discovery = true).context
+            assertTrue("## First session" in context())
+            assertFalse("## First session" in fixture.store.entries(agent.id, session.id).filterIsInstance<SessionEntry.Started>().single().instructions)
+            for (tier in listOf(ModelTier.NoTools, ModelTier.Micro, ModelTier.Small, ModelTier.Mid)) {
+                assertFalse("## First session" in harness.composer.compose(agent.copy(config = agent.config.copy(tier = tier)), session.id, discovery = true).context)
+            }
+            for (doc in listOf(AgentDoc.Memory, AgentDoc.UserNotes)) {
+                fixture.documents[doc] = "Known fact"
+                assertFalse("## First session" in context())
+                fixture.documents[doc] = " \n "
+                assertTrue("## First session" in context())
+            }
+            fixture.store.append(agent.id, session.id, SessionEntry.UserMessage("Hello"))
+            assertFalse("## First session" in context())
+            fixture.store.append(agent.id, session.id, SessionEntry.AssistantMessage("Hello"))
+            assertFalse("## First session" in context())
+            val core = PluginInstanceId("kinuvo.core")
+            val outputs = listOf(
+                SessionEntry.UserMessage("Earlier failed or queued turn"),
+                SessionEntry.VoiceCall("user", listOf(VoiceTurn(true, "Hello")), 0, 100),
+                SessionEntry.ToolResult(ToolCallId("failed"), ToolNames.SHOW_UI, "Failed", isError = true),
+                SessionEntry.ToolResult(ToolCallId("image"), "generate_image", "Image", attachments = listOf(Attachment("image", "image.png", "image/png", 8))),
+                SessionEntry.ToolResult(ToolCallId("app"), "mcp_app", "Shown", identity = ToolIdentity(PluginInstanceId("kinuvo.mcp", "app"), "show")),
+                SessionEntry.VoiceCall("voice", listOf(VoiceTurn(false, "Hello")), 0, 100),
+            ) + listOf(ToolNames.SHOW_UI, ToolNames.SHOW_HTML, ToolNames.ASK_USER).map {
+                SessionEntry.ToolResult(ToolCallId(it), "aliased_$it", "Shown", identity = ToolIdentity(core, it))
+            }
+            for (output in outputs) {
+                val prior = harness.newSession(agent)
+                fixture.store.append(agent.id, prior.id, output)
+                assertFalse("## First session" in harness.composer.compose(agent, prior.id, discovery = true).context)
+            }
+            val next = harness.newSession(agent)
+            assertTrue("## First session" in harness.composer.compose(agent, next.id, discovery = true).context)
+            fixture.store.append(agent.id, next.id, SessionEntry.Details(hidden = true))
+            assertFalse("## First session" in harness.composer.compose(agent, next.id, discovery = true).context)
+            val ref = RoutineRef("r", "Routine")
+            val scheduled = fixture.store.createSession(agent.id, "", ref)
+            assertFalse("## First session" in harness.composer.compose(agent, scheduled.id, discovery = true).context)
+            val team = harness.newSession(agent)
+            fixture.store.append(agent.id, team.id, SessionEntry.Details(teamId = TeamId("team")))
+            assertFalse("## First session" in harness.composer.compose(agent, team.id, discovery = true).context)
+            val normal = harness.newSession(agent)
+            assertFalse("## First session" in harness.composer.compose(agent, normal.id).context)
+            assertFalse("## First session" in harness.composer.compose(agent, normal.id, taskId = "task", discovery = true).context)
+            assertFalse("## First session" in harness.composer.compose(agent, normal.id, requireModel = false, discovery = true).context)
+            val routine = RoutineRun(Routine("r", agent.id, "Routine", "Check", Trigger.Every(60), "UTC")) {}
+            assertFalse("## First session" in harness.composer.compose(agent, normal.id, routine = routine, discovery = true).context)
+            assertFalse("## First session" in harness.composer.compose(agent).context)
+        } finally { harness.close() }
+    }
+
+    @Test fun sharedRunPathsRequireInteractiveDiscoveryOptIn() = runBlocking {
+        val frontier = object : ModelProvider by provider {
+            override fun profile(model: String, base: ModelProfile) = ModelProfile.of(ModelTier.Frontier)
+        }
+        val fixture = RuntimeFixture(providers = listOf(frontier))
+        val prompts = mutableListOf<String>()
+        val harness = fixture.runtime(scriptedModel { prompt, _ ->
+            prompts += prompt.messages.joinToString("\n") { it.toString() }
+            flowOf(StreamFrame.End())
+        })
+        try {
+            val agent = fixture.agent
+            val session = harness.newSession(agent)
+            suspend fun context(kind: RunKind) = harness.composer.run(agent.id, session.id, ExecutionInput("Hello", kind = kind)).context
+            assertTrue("## First session" in context(RunKind.Chat(discovery = true)))
+            assertFalse("Only after an explicit decline" in context(RunKind.Chat(discovery = true)))
+            // Workflow Agent turns use the default ExecutionInput kind.
+            assertFalse("## First session" in harness.composer.run(agent.id, session.id, ExecutionInput("Workflow")).context)
+            assertFalse("## First session" in context(RunKind.Chat(taskId = "task")))
+            assertFalse("## First session" in context(RunKind.Chat(report = SessionEntry.ToolReport("tool", null, "Done"))))
+            assertFalse("## First session" in context(RunKind.Chat(discovery = true, report = SessionEntry.ToolReport("tool", null, "Done"))))
+            val routine = RoutineRun(Routine("r", agent.id, "Routine", "Check", Trigger.Every(60), "UTC")) {}
+            assertFalse("## First session" in context(RunKind.Routine(routine)))
+            assertFalse("## First session" in harness.composer.completion(agent, null, null).context)
+            harness.composer.runner(agent, session.id).run(session.id, "Background").toList()
+            assertTrue(prompts.isNotEmpty())
+            assertTrue(prompts.none { "## First session" in it })
+        } finally { harness.close() }
+    }
+
+    @Test fun nativeDispatchDiscoversOnlyOptedInInteractiveChat() = runBlocking {
+        val frontier = object : ModelProvider by provider {
+            override fun profile(model: String, base: ModelProfile) = ModelProfile.of(ModelTier.Frontier)
+        }
+        val fixture = RuntimeFixture(providers = listOf(frontier))
+        val prompts = mutableListOf<String>()
+        val harness = fixture.runtime(scriptedModel { prompt, _ ->
+            prompts += prompt.messages.joinToString("\n") { it.toString() }
+            flowOf(StreamFrame.End())
+        })
+        val scope = CoroutineScope(coroutineContext + SupervisorJob())
+        val runs = Runs(harness.log, scope, harness.native)
+        val native = NativeExecution(harness, runs, scope, { fixture.agent }, { ServerCapabilities("test") }, { _, _ -> }, { _, _ -> })
+        try {
+            val agent = fixture.agent
+            for (source in listOf("remote grant", "ACP gateway", "automated paired client", "Live voice delegation", "interactive chat")) {
+                val session = harness.newSession(agent)
+                val params = SendParams(agent.id, session.id, source, voice = source == "Live voice delegation", discovery = source == "interactive chat")
+                prompts.clear()
+                native.send(params)
+                runs.join(session.id)
+                assertTrue(prompts.isNotEmpty(), source)
+                assertEquals(source == "interactive chat", prompts.any { "## First session" in it }, source)
+                assertEquals(1, fixture.store.entries(agent.id, session.id).filterIsInstance<SessionEntry.UserMessage>().size)
+                prompts.clear()
+                native.send(params.copy(text = "next", discovery = true))
+                runs.join(session.id)
+                assertTrue(prompts.none { "## First session" in it }, source)
+            }
+        } finally { scope.cancel(); scope.coroutineContext.job.join(); harness.close() }
+    }
+
+    @Test fun offlineDeviceToolsStayOfferedWhileComputerNeedsSetup() = runBlocking {
+        val harness = harness()
+        try {
+            harness.devices.paired = { listOf(ToolDevice("phone", "Phone",
+                setOf(DeviceToolKind.Contacts, DeviceToolKind.Sleep, DeviceToolKind.Workouts))) }
+            val base = agent(harness, listOf("device_tools", "computer"))
+            val session = harness.newSession(base)
+            for (tier in listOf(ModelTier.Small, ModelTier.Frontier)) {
+                val agent = base.copy(config = base.config.copy(tier = tier))
+                val run = harness.composer.compose(agent, session.id)
+                val names = run.tools.advertised.map { it.name }
+                assertTrue(names.containsAll(listOf("contacts_lookup", "sleep_sessions", "workouts_list")))
+                assertFalse(names.any { it.startsWith("computer_") })
+                val capabilities = inspect(harness, agent, session.id.value)
+                assertEquals("device_offline", capabilities.tools.first { it.id == "contacts_lookup" }.state.reasonCode)
+                assertEquals("needs_setup", capabilities.tools.first { it.id == "computer_capture" }.state.reasonCode)
+            }
+        } finally { harness.close() }
+    }
+
+    @Test fun instructionOnlyPluginKeepsItsSection() = runBlocking {
+        val plugin = object : ServerPlugin {
+            override val definition = PluginDefinition("test.instructions", "Instructions")
+            override suspend fun instructions(agent: Agent) = InstructionSection("Instructions", "Keep this guidance.")
+        }
+        val harness = harness(listOf(plugin))
+        try {
+            val agent = agent(harness)
+            val session = harness.newSession(agent)
+            assertTrue("## Instructions\n\nKeep this guidance." in harness.composer.compose(agent, session.id).context)
+        } finally { harness.close() }
+    }
+
+    @Test fun computerReadinessControlsToolsAndPromptInTheSameRun() = runBlocking {
+        val harness = harness()
+        try {
+            val agent = agent(harness, listOf("computer"))
+            val session = harness.newSession(agent)
+            val missing = harness.composer.compose(agent, session.id)
+            assertFalse(missing.tools.advertised.any { it.name.startsWith("computer_") })
+            assertFalse("## Computer use" in missing.context)
+            assertTrue("Not set up: Computer use (guides/computer-use)" in missing.context)
+            assertFalse("fetch its page" in missing.context)
+            val missingMid = harness.composer.compose(agent.copy(config = agent.config.copy(tier = ModelTier.Mid)), session.id)
+            assertTrue("Not set up: Computer use (guides/computer-use)" in missingMid.context)
+            harness.computers.paired = { listOf(ToolDevice("mac", "Mac", setOf(DeviceToolKind.Computer))) }
+            harness.computers.connect("mac") { ComputerResult(DeviceToolStatus.Ready) }
+            val ready = harness.composer.compose(agent, session.id)
+            assertTrue(ready.tools.advertised.any { it.name == "computer_capture" })
+            assertTrue("## Computer use" in ready.context)
+            assertFalse("Not set up:" in ready.context)
+            val mid = harness.composer.compose(agent.copy(config = agent.config.copy(tier = ModelTier.Mid)), session.id)
+            assertFalse("## About Kinuvo" in mid.context)
+            assertTrue("Never claim success without a tool result" in mid.context)
+        } finally { harness.close() }
+    }
+
+    @Test fun deniedComputerToolStillNeedsSetupWhenNoComputerIsPaired() = runBlocking {
+        val fixture = RuntimeFixture(providers = listOf(provider))
+        val capture = ToolIdentity(PluginInstanceId("kinuvo.computer"), "computer_capture")
+        fixture.rules = TrustRules(deny = DenyRules(tools = listOf(capture.key)))
+        val harness = fixture.runtime()
+        try {
+            val agent = agent(harness, listOf("computer"))
+            val session = harness.newSession(agent)
+            val run = harness.composer.compose(agent, session.id)
+            assertFalse(run.tools.advertised.any { it.name.startsWith("computer_") })
+            assertTrue("Not set up: Computer use (guides/computer-use)" in run.context)
+        } finally { harness.close() }
+    }
+
     @Test fun steeringAppearsAfterToolResultsBeforeTheNextModelRequest() = runBlocking {
         var executed = false
         var requests = 0
@@ -85,6 +286,20 @@ class RunPreparationRuntimeTest {
             assertTrue(events.none { it is AgentEvent.RunError })
             val entries = runtime.store.entries(agent.id, session.id)
             assertTrue(entries.indexOfLast { it is SessionEntry.ToolResult } < entries.indexOfLast { it is SessionEntry.UserMessage })
+        } finally { runtime.close() }
+    }
+
+    @Test fun externalPermissionToleranceFollowsSessionSettings() = runBlocking {
+        val fixture = RuntimeFixture()
+        val runtime = fixture.runtime()
+        try {
+            val agent = fixture.agent.copy(config = fixture.agent.config.copy(approvals = "full"))
+            val session = runtime.newSession(agent)
+            assertTrue(runtime.composer.autoApproveHarness(agent, session.id, RunKind.Chat()))
+            for (tolerance in listOf("strict", "default", "relaxed", "full")) {
+                runtime.configure(agent, session.id, SessionSettings(approvals = tolerance))
+                assertEquals(tolerance == "full", runtime.composer.autoApproveHarness(agent, session.id, RunKind.Chat()))
+            }
         } finally { runtime.close() }
     }
 

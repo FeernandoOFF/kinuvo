@@ -55,6 +55,7 @@ import androidx.compose.foundation.verticalScroll
 import kinuvo.protocol.device.PairLink
 import kinuvo.protocol.device.Links
 import kinuvo.protocol.agent.AgentId
+import kinuvo.protocol.execution.ExecutionKind
 import kinuvo.protocol.session.SessionId
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
@@ -441,11 +442,11 @@ fun KinuvoApp(app: AppViewModel = koinViewModel(), initialRoute: Route? = null, 
                         entry<Route.Browser> { route ->
                             val client = (connection as? Connection.Ready)?.client
                             if (client == null) Loading(connection)
-                            else if (appState.agents.firstOrNull { it.id == route.agentId }?.external == true) {
+                            else if (appState.agents.firstOrNull { it.id == route.agentId }?.executionKind == ExecutionKind.Remote) {
                                 Column(Modifier.fillMaxSize()) {
                                     PageHeader(Lucide.Globe, "Browser", back = { back() })
                                     Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
-                                        Text("Browser is managed by this Agent's harness and isn't available in Kinuvo.")
+                                        Text("This Agent's Server manages its own Browser.")
                                     }
                                 }
                             } else {

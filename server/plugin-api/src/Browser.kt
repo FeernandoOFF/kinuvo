@@ -1,9 +1,11 @@
 package kinuvo.server.plugin
 
 import kinuvo.protocol.browser.*
+import kinuvo.protocol.capability.CapabilityState
 import kinuvo.protocol.agent.AgentId
 /** Server-owned browsing, separate from paired Computers. Implementations never expose a debugging endpoint. */
 interface BrowserService {
+    fun availability(): CapabilityState = CapabilityState()
     suspend fun presentation(owner: BrowserOwner): BrowserPresentation = error("Browser window settings unavailable")
     suspend fun presentation(request: BrowserPresentationRequest): BrowserPresentation = error("Browser window settings unavailable")
     suspend fun close() {}

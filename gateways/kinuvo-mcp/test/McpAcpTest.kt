@@ -1,11 +1,19 @@
 package kinuvo.gateways.mcp
 
+import kinuvo.harness.Agent
+import kinuvo.harness.AgentDoc
 import kinuvo.harness.acp.AcpExecutionFactory
 import kinuvo.protocol.Api
 import kinuvo.protocol.agent.AgentId
 import kinuvo.protocol.agent.AgentRef
+import kinuvo.protocol.agent.UpdateAgentParams
 import kinuvo.protocol.approval.*
+import kinuvo.protocol.capability.*
 import kinuvo.protocol.execution.*
+import kinuvo.protocol.plugin.PluginDefinition
+import kinuvo.server.plugin.*
+import kinuvo.server.execution.serverToolAgent
+import kotlinx.serialization.json.JsonObject
 import kinuvo.protocol.session.*
 import kinuvo.testing.server.*
 import kotlinx.coroutines.*
@@ -16,15 +24,15 @@ import kotlin.test.*
 
 /** A real subprocess speaks ACP and calls the real Server's HTTP endpoint. */
 class McpAcpTest {
-    @Test fun twoTurnsRenewCredentialsAndCancelThenResume() = runBlocking {
+    @Test fun twoTurnsReuseCredentialsAndCancelThenResume() = runBlocking {
         val directory = Files.createTempDirectory("kinuvo-mcp-acp")
         val script = directory.resolve("agent.py")
         Files.writeString(script, """
             import sys,json,threading,urllib.request,urllib.error,os
             lock=threading.Lock()
             current=None
-            old=None
             prompts={}
+            first_prompt=False
             cancelled=threading.Event()
             def emit(v):
                 with lock: print(json.dumps(v),flush=True)
@@ -40,6 +48,12 @@ class McpAcpTest {
                 status,result=http(server,'tools/call','ask_user',{'questions':[{'id':'answer','label':'Your answer','kind':'text'}]}) if questions else http(server,'tools/call')
                 if cancelled.is_set(): return
                 assert status==200 and result['result']['isError']==False, (status,result)
+                if not questions:
+                    assert result['result']['content']==[
+                        {'type':'text','text':'deployed'},
+                        {'type':'image','data':'iVBORw0KGgo=','mimeType':'image/png'},
+                        {'type':'text','text':'Attachment: report.txt (text/plain)'}
+                    ], result
                 update({'sessionUpdate':'agent_message_chunk','messageId':str(r['id']),'content':{'type':'text','text':'deployed'}})
                 update({'sessionUpdate':'state_update','state':'idle','stopReason':'end_turn'})
             for line in sys.stdin:
@@ -48,18 +62,36 @@ class McpAcpTest {
                 elif m in ('session/new','session/resume'):
                     servers=r['params'].get('mcpServers',[])
                     assert len(servers)==1, servers
+                    assert current is None, "Already loaded"
                     current=servers[0]
-                    if old:
-                        assert old['headers']!=current['headers']
-                        assert http(old,'tools/list')[0]==401
-                    old=current
+                    first_prompt=m=='session/new'
+                    status,initialized=http(current,'initialize')
+                    instructions=initialized['result']['instructions']
+                    assert status==200 and 'Server platform:' in instructions, initialized
+                    assert 'IDENTITY_SENTINEL' in instructions and 'SOUL_SENTINEL' in instructions, instructions
+                    assert 'MEMORY_SENTINEL' not in instructions and 'USER_NOTES_SENTINEL' not in instructions, instructions
+                    assert 'PLUGIN_SENTINEL' in instructions and 'Current Skills:' in instructions, instructions
                     reply(r,{'sessionId':'external'} if m=='session/new' else {})
                 elif m=='session/prompt':
-                    text=r['params']['prompt'][0]['text']
-                    if text=='disconnect': os._exit(0)
-                    if text=='private':
+                    blocks=r['params']['prompt']
+                    if first_prompt:
+                        assert blocks[0]['text']=='<kinuvo_context>\n'+instructions+'\n</kinuvo_context>', blocks
+                        blocks.pop(0)
+                    first_prompt=False
+                    assert len(blocks)==1 and '<kinuvo_context>' not in blocks[0]['text'], blocks
+                    text=blocks[0]['text']
+                    if text=='disconnect':
+                        with open('previous-mcp.json','w') as f: json.dump(current,f)
+                        os._exit(0)
+                    if text=='resume':
+                        with open('previous-mcp.json') as f: previous=json.load(f)
+                        assert http(previous,'tools/list')[0]==401
+                    if text.startswith('private'):
                         reply(r,{})
-                        emit({'jsonrpc':'2.0','id':'private-question','method':'session/request_permission','params':{'sessionId':'external','title':'Private tool','toolCall':{'rawInput':{'serverName':'private','toolName':'deploy'}},'options':[{'optionId':'yes','name':'Allow','kind':'allow_once'}]}})
+                        emit({'jsonrpc':'2.0','id':'private-question','method':'session/request_permission','params':{'sessionId':'external','title':'Private tool','toolCall':{'rawInput':{'serverName':'private','toolName':'deploy'}},'options':([{'optionId':'yes','name':'Always allow','kind':'allow_always'}] if text.endswith('always') else [
+                            {'optionId':'always','name':'Always allow','kind':'allow_always'},
+                            {'optionId':'yes','name':'Allow','kind':'allow_once'}
+                        ])}})
                         continue
                     cancelled.clear()
                     reply(r,{'messageId':str(r['id'])})
@@ -75,22 +107,50 @@ class McpAcpTest {
                     update({'sessionUpdate':'state_update','state':'idle','stopReason':'end_turn'})
                 elif m=='session/cancel':
                     cancelled.set()
-                    assert http(current,'tools/list')[0]==401
+                    status,result=http(current,'tools/call')
+                    assert status==200 and result['error']['message']=='No turn is active'
                     update({'sessionUpdate':'state_update','state':'idle','stopReason':'cancelled'})
         """.trimIndent())
         val access = McpAccess()
         val listener = McpListener(access)
         listener.start()
         val server = TestServer.start(
-            plugins = listOf(FakeTools(FakeTool("deploy", Risk.High) { "deployed" })),
-            executionFactory = { harness -> McpExecutionFactory(AcpExecutionFactory(), harness, access, { listener.url }) },
+            plugins = listOf(object : ServerPlugin {
+                override val definition = PluginDefinition("test.tools", "Test tools")
+                override suspend fun instructions(agent: Agent) = InstructionSection("Test tools", "PLUGIN_SENTINEL")
+                override suspend fun prepare(run: RunContext, activate: Boolean) = PluginTools(listOf(object : Tool {
+                    override val descriptor = toolSpec("deploy", "Fake deploy")
+                    override val risk = Risk.High
+                    override suspend fun execute(args: JsonObject) = "deployed"
+                    override suspend fun execute(args: JsonObject, callId: String, run: ToolRun): String {
+                        run.attach("screen.png", byteArrayOf(-119, 80, 78, 71, 13, 10, 26, 10))
+                        run.attach("report.txt", "report".encodeToByteArray())
+                        return execute(args)
+                    }
+                }))
+            }),
+            executionFactory = { harness -> McpExecutionFactory(AcpExecutionFactory(autoApprove = { registration, session, kind ->
+                harness.composer.autoApproveHarness(registration.serverToolAgent(), session, kind)
+            }), harness, access, { listener.url }) },
         )
         try {
             val client = server.client(token = server.auth.sessionToken()).also { it.connect() }
             client.call(Api.SaveHarnessConnection, HarnessConnection("acp", "ACP", ExecutionConnection.Acp(listOf("/usr/bin/env", "python3", script.toString()))))
             val agent = AgentId("external")
             client.call(Api.RegisterExternalAgent, AgentRegistration(agent, "External", "acp", cwd = directory.toString()))
+            client.call(Api.UpdateAgent, UpdateAgentParams(agent, identity = "IDENTITY_SENTINEL", soul = "SOUL_SENTINEL"))
+            val details = client.call(Api.Agent, AgentRef(agent))
+            assertEquals("IDENTITY_SENTINEL", details.identity)
+            assertEquals("SOUL_SENTINEL", details.soul)
+            server.harness.docs.write(agent, AgentDoc.Memory, "MEMORY_SENTINEL")
+            server.harness.docs.write(agent, AgentDoc.UserNotes, "USER_NOTES_SENTINEL")
             val session = client.call(Api.CreateSession, AgentRef(agent))
+            val tools = client.call(Api.Capabilities, CapabilitiesParams(agent, session.id)).tools
+            val deploy = tools.single { it.id == "deploy" }
+            assertEquals(Support.Supported, deploy.state.support)
+            client.call(Api.SaveServerRules, TrustRules(deny = DenyRules(tools = listOf(requireNotNull(deploy.identity).key))))
+            assertEquals(Authorization.Denied, client.call(Api.Capabilities, CapabilitiesParams(agent, session.id)).tools.single { it.id == "deploy" }.state.authorization)
+            client.call(Api.SaveServerRules, TrustRules())
             client.call(Api.CatchUp, CatchUpParams(agent, session.id))
             suspend fun phase(expected: ExecutionPhase) = withTimeout(10000) {
                 while (client.call(Api.ExecutionSnapshot, ExecutionRef(session.id.value)).phase != expected) delay(10)
@@ -131,8 +191,27 @@ class McpAcpTest {
             }
             assertTrue(client.call(Api.Respond, RespondParams(session.id, privateQuestion.id, InteractionAnswer.Harness(buildJsonObject { put("optionId", "yes") }))))
             phase(ExecutionPhase.Idle)
+            client.call(Api.ConfigureSession, ConfigureSessionParams(agent, session.id, SessionSettings(approvals = "full")))
+            client.call(Api.Send, SendParams(agent, session.id, "private"))
+            phase(ExecutionPhase.Idle)
+            // Full tolerance never grants a lasting permission; a harness offering only that still asks.
+            client.call(Api.Send, SendParams(agent, session.id, "private always"))
+            val always = withTimeout(10000) {
+                while (true) {
+                    client.call(Api.ExecutionSnapshot, ExecutionRef(session.id.value)).pending.filterIsInstance<PendingInteraction.HarnessApproval>().firstOrNull()?.let { return@withTimeout it }
+                    delay(10)
+                }
+                error("unreachable")
+            }
+            assertTrue(client.call(Api.Respond, RespondParams(session.id, always.id, InteractionAnswer.Harness(buildJsonObject { put("optionId", "yes") }))))
+            phase(ExecutionPhase.Idle)
+            client.call(Api.ConfigureSession, ConfigureSessionParams(agent, session.id, SessionSettings()))
             val history = client.call(Api.History, HistoryParams(agent, session.id, 100)).map { it.entry }
-            assertEquals(2, history.filterIsInstance<SessionEntry.ToolResult>().count { it.output == "deployed" })
+            val userMessages = history.filterIsInstance<SessionEntry.UserMessage>()
+            assertEquals(listOf("deploy", "deploy", "private", "private", "private always", "questions"), userMessages.map { it.text }.sorted())
+            val results = history.filterIsInstance<SessionEntry.ToolResult>().filter { it.output == "deployed" }
+            assertEquals(2, results.size)
+            results.forEach { assertEquals(listOf("screen.png", "report.txt"), it.attachments.map { attachment -> attachment.name }) }
             client.call(Api.Send, SendParams(agent, session.id, "cancel"))
             val cancelled = pending()
             client.call(Api.Stop, StopParams(session.id))
@@ -149,7 +228,7 @@ class McpAcpTest {
             phase(ExecutionPhase.Idle)
         } finally {
             server.stop(); listener.stop()
-            Files.deleteIfExists(script); Files.deleteIfExists(directory)
+            Files.deleteIfExists(directory.resolve("previous-mcp.json")); Files.deleteIfExists(script); Files.deleteIfExists(directory)
         }
     }
 }

@@ -10,6 +10,7 @@ import kinuvo.server.plugin.Assessment
 import kinuvo.server.plugin.BrowserService
 import kinuvo.server.plugin.Computer
 import kinuvo.server.plugin.CoreTool
+import kinuvo.server.plugin.CoreToolRegistry
 import kinuvo.server.plugin.ServerPlugin
 import kinuvo.server.plugin.InstructionSection
 import kinuvo.server.plugin.PluginTools
@@ -275,7 +276,7 @@ class Computers(
 
     private fun enabled(run: RunContext) = ToolNames.COMPUTER in run.agent.config.tools
 
-    override suspend fun instructions(agent: Agent): InstructionSection? = if (ToolNames.COMPUTER !in agent.config.tools) null else InstructionSection(
+    override suspend fun instructions(agent: Agent): InstructionSection? = if (ToolNames.COMPUTER !in agent.config.tools || all().none { it.available }) null else InstructionSection(
         "Computer use",
         "The capture tool shows a Computer's screen as numbered elements and a screenshot; the action tool taps, types, scrolls, presses keys " +
             "or opens apps, then shows the new screen. Prefer element numbers from the latest capture over coordinates, and capture again " +
@@ -286,10 +287,11 @@ class Computers(
     )
 
     override suspend fun prepare(run: RunContext, activate: Boolean): PluginTools {
-        if (!enabled(run)) return PluginTools(if ("browser" in run.agent.config.tools && run.sessionId != null) listOf(TakeoverTool(run)) else emptyList())
+        val browserReady = "browser" in run.agent.config.tools && browserService()?.availability()?.actionable == true
+        if (!enabled(run)) return PluginTools(if (browserReady && run.sessionId != null) listOf(TakeoverTool(run)) else emptyList())
         all().filter { it.available && it.id !in probed.value }.forEach { probed.update { ids -> ids + it.id }; probe(it) }
         val available = all().any { it.available }
-        val state = if (available) CapabilityState() else CapabilityState.unavailable("Allow computer use under This Device's tools on a paired Device", "no_computer")
+        val state = if (available) CapabilityState() else CapabilityState.needsSetup("Allow computer use under This Device's tools on a paired Device", CoreToolRegistry[ToolNames.COMPUTER_LIST]!!.documentation!!)
         // Each run acts on the screens it saw, so another Agent's capture can't change what an element number or Approval means.
         val seen = mutableMapOf<String, ComputerScreen>()
         val windows = mutableMapOf<String, List<ComputerWindow>>()
@@ -297,7 +299,7 @@ class Computers(
         val tools = listOf(ListTool(), CaptureTool(seen), ActTool(seen, windows, supported)) +
             listOfNotNull(ReadTool(false, windows).takeIf { ComputerActionKind.ListApps in supported },
                 ReadTool(true, windows).takeIf { ComputerActionKind.ListWindows in supported }) + listOfNotNull(run.sessionId?.let { TakeoverTool(run) })
-        return PluginTools(tools, catalog = tools.map { ResolvedTool(it.descriptor.name, state = if (it is ListTool) CapabilityState() else state) })
+        return PluginTools(tools, catalog = tools.map { ResolvedTool(it.descriptor.name, state = if (it is TakeoverTool && browserReady) CapabilityState() else state) })
     }
 
     private fun choose(args: JsonObject): Computer {

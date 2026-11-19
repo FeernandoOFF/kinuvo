@@ -37,10 +37,12 @@ data class AgentDraft(
     /** One of [AvatarArtboards]. */
     val avatar: String = "",
 ) {
-    /** Only what differs from [details]; an external Agent's edits are in [registration] instead. */
+    /** Only what differs from [details]; an external Agent's other edits are in [registration] instead. */
     fun changes(details: AgentDetails): UpdateAgentParams {
         val s = details.settings
-        if (kind != ExecutionKind.Native) return UpdateAgentParams(details.info.id)
+        if (kind == ExecutionKind.Remote) return UpdateAgentParams(details.info.id)
+        if (kind == ExecutionKind.Acp) return UpdateAgentParams(details.info.id,
+            identity = identity.takeIf { it != details.identity }, soul = soul.takeIf { it != details.soul })
         return UpdateAgentParams(
             details.info.id,
             name = name.trim().takeIf { it != details.info.name },
@@ -183,8 +185,8 @@ class AgentInspectorViewModel(private val config: ConfigRepository) : ViewModel(
         viewModelScope.launch {
             try {
                 config.connection.run {
-                    if (registration != null) { harnesses.register(registration); config.loadDetails(details.info.id).join() }
-                    else config.updateAgent(changes!!)
+                    if (registration != null) harnesses.register(registration)
+                    if (changes != null) config.updateAgent(changes) else config.loadDetails(details.info.id).join()
                 }
                 state.update { it.copy(saving = false, saved = true, draft = it.details?.let(AgentDraft::of)) }
                 then()
