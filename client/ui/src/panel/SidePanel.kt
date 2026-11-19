@@ -11,6 +11,7 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsHoveredAsState
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -84,13 +85,21 @@ fun SidePanel(state: SidePanelState, actions: SidePanelActions, maxWidth: Dp, la
     val current by rememberUpdatedState(state)
     val currentActions by rememberUpdatedState(actions)
     Row(Modifier.fillMaxHeight().semantics { paneTitle = "Side panel" }) {
-        Box(Modifier.width(7.dp).fillMaxHeight().pointerHoverIcon(PointerIcon.Hand)
+        val edge = remember { MutableInteractionSource() }
+        val onEdge by edge.collectIsHoveredAsState()
+        var dragging by remember { mutableStateOf(false) }
+        Box(Modifier.width(9.dp).fillMaxHeight().hoverable(edge).pointerHoverIcon(ResizeHorizontalIcon)
             .pointerInput(Unit) { detectTapGestures(onDoubleTap = { currentActions.onCollapse(!current.collapsed) }) }
             .draggable(rememberDraggableState { delta ->
                 dragged -= with(density) { delta.toDp().value }
                 actions.onResize(dragged, max)
-            }, Orientation.Horizontal, onDragStarted = { dragged = if (current.collapsed) 0f else current.width.coerceAtMost(max) }),
-            contentAlignment = Alignment.Center) { VerticalSeparator() }
+            }, Orientation.Horizontal, onDragStarted = { dragging = true; dragged = if (current.collapsed) 0f else current.width.coerceAtMost(max) },
+                onDragStopped = { dragging = false }),
+            contentAlignment = Alignment.Center) {
+            val active = onEdge || dragging
+            Box(Modifier.width(if (active) 2.dp else 1.dp).fillMaxHeight().background(color(if (active) accentColor else borderColor)))
+            if (active) Box(Modifier.size(5.dp, 32.dp).background(color(accentColor), CircleShape))
+        }
         val selected = state.selected
         if (!state.collapsed && selected != null) {
             Box(Modifier.width(state.width.coerceIn(0f, max.coerceAtLeast(0f)).dp).fillMaxHeight()) {
@@ -111,10 +120,10 @@ private fun TabStrip(state: SidePanelState, actions: SidePanelActions, label: (P
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(Spacing.space4),
     ) {
-        state.tabs.forEach { tab -> StripTab(label(tab), state.showing(tab), { actions.onSelect(tab) }, { actions.onClose(tab) }) }
-        Spacer(Modifier.weight(1f))
         HeaderButton(if (state.collapsed) Lucide.PanelRightOpen else Lucide.PanelRightClose,
             if (state.collapsed) "Expand panel" else "Collapse panel", { actions.onCollapse(!state.collapsed) })
+        HorizontalSeparator(Modifier.width(24.dp).padding(vertical = Spacing.space4))
+        state.tabs.forEach { tab -> StripTab(label(tab), state.showing(tab), { actions.onSelect(tab) }, { actions.onClose(tab) }) }
     }
 }
 
@@ -122,15 +131,17 @@ private fun TabStrip(state: SidePanelState, actions: SidePanelActions, label: (P
 private fun StripTab(tab: PanelTabLabel, selected: Boolean, onSelect: () -> Unit, onClose: () -> Unit) {
     val hover = remember { MutableInteractionSource() }
     val hovered by hover.collectIsHoveredAsState()
-    Box(Modifier.hoverable(hover)) {
-        Hint(tab.label, TooltipSide.Start) {
+    Box(Modifier.width(StripWidth).height(36.dp).hoverable(hover)) {
+        if (selected) Box(Modifier.align(Alignment.CenterEnd).width(4.dp).height(24.dp)
+            .background(color(onBackgroundColor), RoundedCornerShape(topStart = Radius.extraSmall, bottomStart = Radius.extraSmall)))
+        Box(Modifier.align(Alignment.Center)) { Hint(tab.label, TooltipSide.Start) {
             Box(Modifier.size(32.dp).titleBarControl().clip(Theme[shapes][mediumShape])
                 .background(if (selected) color(subtleColor) else color(sidebarColor))
                 .clickable(role = Role.Tab, onClickLabel = tab.label, onClick = onSelect), contentAlignment = Alignment.Center) {
                 Icon(tab.icon, Modifier.size(17.dp), tint = color(if (selected) onBackgroundColor else mutedColor), contentDescription = tab.label)
             }
-        }
-        if (hovered) Box(Modifier.align(Alignment.TopEnd).offset(4.dp, (-4).dp).size(14.dp).clip(CircleShape).background(color(borderColor))
+        } }
+        if (hovered) Box(Modifier.align(Alignment.TopEnd).padding(end = 2.dp).size(14.dp).clip(CircleShape).background(color(borderColor))
             .clickable(role = Role.Button, onClickLabel = "Close ${tab.label}", onClick = onClose), contentAlignment = Alignment.Center) {
             Icon(Lucide.X, Modifier.size(10.dp), tint = color(onBackgroundColor), contentDescription = "Close ${tab.label}")
         }

@@ -24,6 +24,7 @@ import kinuvo.app.connection.AppViewModel
 import kinuvo.app.navigation.*
 import kinuvo.ui.design.*
 import kinuvo.ui.session.*
+import androidx.compose.ui.graphics.vector.ImageVector
 import com.composables.icons.lucide.*
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -123,6 +124,7 @@ internal fun SettingsPageHeader(title: String, back: (() -> Unit)? = null, subti
     info: String? = null,
     /** On desktop, keeps the title and [trailing] over a centered column this wide, so on big screens they line up with it. */
     contentWidth: Dp? = null,
+    icon: ImageVector? = null,
     trailing: @Composable RowScope.() -> Unit = {}) {
     val navigation = LocalModalNavigation.current
     val up = if (navigation != null) navigation.back else back
@@ -153,7 +155,8 @@ internal fun SettingsPageHeader(title: String, back: (() -> Unit)? = null, subti
                 if (up != null) HeaderButton(Lucide.ArrowLeft, "Back", up)
                 val leading = LocalLeadingActions.current
                 if (leading) trailing()
-                Column(Modifier.weight(1f).padding(start = Spacing.space6)) {
+                icon?.let { Icon(it, Modifier.padding(start = Spacing.space6).size(16.dp), tint = color(mutedColor)) }
+                Column(Modifier.weight(1f).padding(start = if (icon != null) Spacing.space4 else Spacing.space6)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(title, Modifier.weight(1f, fill = false), fontWeight = FontWeight.Normal, singleLine = true, overflow = TextOverflow.Ellipsis)
                         info?.let { InfoButton(it) }

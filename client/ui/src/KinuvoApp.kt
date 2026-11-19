@@ -316,7 +316,7 @@ fun KinuvoApp(app: AppViewModel = koinViewModel(), initialRoute: Route? = null, 
             // Narrow windows fold the column while the Side panel is expanded, keeping the rail and room for the screen.
             val foldColumn = panelShown && !panelState.collapsed && maxWidth < 1100.dp
             val beside = !compact && (shell.open || top is Route.Settings && !top.home) && withShell
-            val panelMax = maxWidth - (if (beside) RailWidth + (if (foldColumn) 0.dp else ColumnWidth) else 0.dp) - ListColumnWidth - StripWidth - 8.dp
+            val panelMax = maxWidth - (if (beside) RailWidth + (if (foldColumn) 0.dp else ColumnWidth) else 0.dp) - ChatMinWidth - StripWidth - 8.dp
             val windowChrome = LocalWindowChrome.current
             val content = @Composable {
                 NavDisplay(
@@ -589,6 +589,8 @@ fun KinuvoApp(app: AppViewModel = koinViewModel(), initialRoute: Route? = null, 
                             onKeepMine = artifacts::keepMine,
                             onSaveDesign = artifacts::saveDesign,
                             onFullScreen = { expand(tab, Route.Artifacts(tab.artifact, fullScreen = it)) },
+                            onClose = { panel.close(tab) },
+                            onExpand = { expand(tab, Route.Artifacts(tab.artifact)) },
                         ))
                     }
                 }
@@ -700,3 +702,6 @@ private fun Loading(connection: Connection) = Box(Modifier.fillMaxSize(), conten
         Text(server?.let { "Connecting to ${it.label}…" } ?: "Connecting…", color = color(mutedColor), style = TextStyles.secondary)
     }
 }
+
+/** The chat beside the Side panel keeps room for its messages and composer. */
+private val ChatMinWidth = 560.dp

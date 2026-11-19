@@ -61,6 +61,9 @@ class ArtifactsActions(
     val onCancel: () -> Unit = {},
     val onKeepMine: () -> Unit = {},
     val onSaveDesign: (String) -> Unit = {},
+    /** In the Side panel: its header closes the tab and expands it to the Artifacts page. */
+    val onClose: (() -> Unit)? = null,
+    val onExpand: (() -> Unit)? = null,
 )
 
 @Composable
@@ -162,25 +165,43 @@ private fun ArtifactPane(state: ArtifactsState, agents: List<AgentInfo>, now: Lo
         if (data?.info?.isDesign == true && !editing) state.errors.lastOrNull()?.let { Pill(it, Modifier.align(Alignment.BottomCenter).padding(Spacing.space16), tone = Tone.Danger, icon = Lucide.CircleX) }
         val chrome = LocalWindowChrome.current
         val leading = back != null || state.route.fullScreen
-        Row(
+        val editBar = @Composable {
+            FloatingBar {
+                Text("Cancel", Modifier.clip(CircleShape).clickable(onClick = actions.onCancel).padding(horizontal = Spacing.space10, vertical = Spacing.space8), style = TextStyles.secondary)
+                if (tabs.size > 1 && tab != null) Segmented(tabs.map { it.label() }, tabs.indexOf(tab), Modifier, small = true) { chosen = tabs[it] }
+                val on = state.dirty && !state.saving && !state.stale
+                Text(
+                    if (state.saving) "Saving…" else "Save",
+                    Modifier.clip(CircleShape).background(if (on) color(accentColor) else color(subtleColor)).clickable(enabled = on, onClick = actions.onSave).padding(horizontal = Spacing.space12, vertical = Spacing.space8),
+                    style = TextStyles.secondary, fontWeight = FontWeight.SemiBold, color = if (on) color(backgroundColor) else color(mutedColor),
+                )
+            }
+        }
+        val close = actions.onClose
+        if (close != null) Column(Modifier.fillMaxWidth().background(background).onSizeChanged { controls = with(density) { it.height.toDp() } }) {
+            TitleBarRow(leading = false) {
+                HeaderButton(Lucide.X, "Close artifact", close)
+                actions.onExpand?.let { HeaderButton(Lucide.Maximize2, "Expand artifact", it) }
+                if (data != null && !editing) {
+                    if (design?.artboards?.isNotEmpty() == true) HeaderButton(Lucide.Play, "Present", { present = 0 })
+                    if (!data.info.isDesign) HeaderButton(Lucide.Pencil, "Edit", actions.onEdit)
+                    data.info.sessionId?.let { s -> HeaderButton(Lucide.MessageSquare, "Open the chat", { actions.onOpenSession(data.info.agentId, s) }) }
+                    ArtifactMenu(data, agents, now, state.route.fullScreen, actions)
+                }
+                Icon(data?.info?.type?.icon() ?: Lucide.Shapes, Modifier.padding(start = Spacing.space6).size(16.dp), tint = color(mutedColor))
+                Text(data?.info?.title ?: "Artifact", Modifier.weight(1f).padding(start = Spacing.space4), singleLine = true, overflow = TextOverflow.Ellipsis)
+                if (data != null && editing) editBar()
+            }
+            HorizontalSeparator()
+        } else Row(
             Modifier.fillMaxWidth().onSizeChanged { controls = with(density) { it.height.toDp() } }
                 .padding(chrome?.padding(leading, true) ?: PaddingValues()).padding(horizontal = Spacing.space10, vertical = Spacing.space8),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             if (back != null) FloatingBar { FloatingButton(Lucide.ArrowLeft, "Back", back) }
-            val leading = LocalLeadingActions.current
-            if (!leading) Spacer(Modifier.weight(1f))
+            Spacer(Modifier.weight(1f))
             if (data != null) {
-                if (editing) FloatingBar {
-                    Text("Cancel", Modifier.clip(CircleShape).clickable(onClick = actions.onCancel).padding(horizontal = Spacing.space10, vertical = Spacing.space8), style = TextStyles.secondary)
-                    if (tabs.size > 1 && tab != null) Segmented(tabs.map { it.label() }, tabs.indexOf(tab), Modifier, small = true) { chosen = tabs[it] }
-                    val on = state.dirty && !state.saving && !state.stale
-                    Text(
-                        if (state.saving) "Saving…" else "Save",
-                        Modifier.clip(CircleShape).background(if (on) color(accentColor) else color(subtleColor)).clickable(enabled = on, onClick = actions.onSave).padding(horizontal = Spacing.space12, vertical = Spacing.space8),
-                        style = TextStyles.secondary, fontWeight = FontWeight.SemiBold, color = if (on) color(backgroundColor) else color(mutedColor),
-                    )
-                } else FloatingBar {
+                if (editing) editBar() else FloatingBar {
                     if (design?.artboards?.isNotEmpty() == true) FloatingButton(Lucide.Play, "Present") { present = 0 }
                     if (data.info.isDesign.not()) FloatingButton(Lucide.Pencil, "Edit", actions.onEdit)
                     data.info.sessionId?.let { s -> FloatingButton(Lucide.MessageSquare, "Open the chat", { actions.onOpenSession(data.info.agentId, s) }) }

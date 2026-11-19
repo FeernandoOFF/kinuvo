@@ -520,7 +520,7 @@ private fun SessionRow(session: SessionInfo, selected: Boolean, finished: Boolea
 @Composable
 private fun ShellRow(icon: ImageVector, title: String, status: SessionStatus, selected: Boolean, finished: Boolean, onClick: () -> Unit) {
     ListRow(selected, onClick, leading = { Icon(icon, Modifier.size(16.dp)) }) {
-        Text(title.trimEnd(), Modifier.weight(1f), style = TextStyles.label, maxLines = 2, overflow = TextOverflow.Ellipsis,
+        Text(title.trimEnd(), Modifier.weight(1f), style = TextStyles.label, singleLine = true, overflow = TextOverflow.Ellipsis,
             // Idle Sessions recede, but stay clearly readable rather than looking disabled.
             color = color(onBackgroundColor).copy(alpha = if (selected || finished || status != SessionStatus.Idle) 1f else 0.75f))
         SessionStatusIcon(status, finished)

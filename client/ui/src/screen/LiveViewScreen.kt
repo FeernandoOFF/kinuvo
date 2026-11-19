@@ -128,7 +128,7 @@ internal fun LiveViewContent(state: LiveViewState, actions: LiveActions, back: (
                     if (screen == null) EmptyStage(state, actions, Modifier.weight(1f).fillMaxWidth())
                     else {
                         Stage(state, screen, actions, Modifier.weight(1f).fillMaxWidth().padding(if (wide) Spacing.space12 else Spacing.space8),
-                            onFocus = { if (state.interactive && "type" in screen.capabilities.inputs) keyboardFocus.requestFocus() })
+                            onFocus = { if (state.interactive && "type" in screen.capabilities.inputs) keyboardFocus.requestFocus() }, top = docked)
                         if (state.ownsControl && "type" in screen.capabilities.inputs) key(state.selected, state.control.generation) {
                             RemoteKeyboard(state, actions, keyboardFocus, keyboard)
                         }
@@ -235,10 +235,10 @@ internal fun EmptyStage(state: LiveViewState, actions: LiveActions, modifier: Mo
 }
 
 @Composable
-private fun Stage(state: LiveViewState, screen: ScreenInfo, actions: LiveActions, modifier: Modifier, onFocus: () -> Unit) {
+private fun Stage(state: LiveViewState, screen: ScreenInfo, actions: LiveActions, modifier: Modifier, onFocus: () -> Unit, top: Boolean = false) {
     val status = state.status ?: Status.Watching
     val shape = RoundedCornerShape(Radius.menu)
-    BoxWithConstraints(modifier, contentAlignment = Alignment.Center) {
+    BoxWithConstraints(modifier, contentAlignment = if (top) Alignment.TopCenter else Alignment.Center) {
         val widthDp = maxWidth.value.roundToInt().coerceIn(240, 2560)
         val heightDp = maxHeight.value.roundToInt().coerceIn(160, 2160)
         LaunchedEffect(screen.ref, state.control.generation, state.ownsControl, state.pending, widthDp, heightDp) {
@@ -254,6 +254,10 @@ private fun Stage(state: LiveViewState, screen: ScreenInfo, actions: LiveActions
             .border(if (status == Status.Yours) 2.dp else 1.dp, if (status == Status.Watching || status == Status.Offline) color(borderColor) else status.tone.color(), shape)) {
             LiveCanvas(state.frame, state.interactive, actions.input, actions.drawn, actions.decodeFailed,
                 Modifier.fillMaxSize(), state.control.generation, "scroll" in screen.capabilities.inputs, onFocus)
+            if (state.frame == null && state.connected) Row(Modifier.align(Alignment.Center), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.space8)) {
+                Spinner()
+                Text("Loading ${screen.title}", style = TextStyles.secondary, color = color(mutedColor), singleLine = true)
+            }
             if (!state.connected) state.frameReceivedAt?.let { Text("Last frame · $it", Modifier.align(Alignment.BottomStart).padding(Spacing.space8), style = TextStyles.caption, color = color(mutedColor)) }
         }
     }

@@ -38,7 +38,7 @@ data class SidePanelState(
     fun showing(tab: PanelTab) = !collapsed && selected == tab
 }
 
-const val DefaultPanelWidth = 480f
+const val DefaultPanelWidth = 420f
 const val MinPanelWidth = 360f
 /** Dragging the panel narrower than this collapses it. */
 const val CollapsePanelWidth = 240f
