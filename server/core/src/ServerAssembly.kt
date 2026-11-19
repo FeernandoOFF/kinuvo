@@ -89,7 +89,7 @@ internal class ServerAssembly(
         NativeExecution(harness, runs, scope, { admin.agent(it) }, { hub.capabilities }, reflector::ran) { sessionId, text -> hub.notifyVoice(sessionId, text) }, executionManagement)
     private val subAgents = SubAgents(harness, dispatch, scope, runs::join).also { harness.subAgents = it; dispatch.subAgents = it; runs.onBegin = { _, id -> it.begin(id) }; runs.onFinish(it::finish); runs.onCancel = it::cancelChildren }
     val dispatcher = TaskDispatcher(harness, runs, scope)
-    private val sessions = SessionService(harness, admin)
+    private val sessions = SessionService(harness, admin, external)
     private val routines = RoutineService(harness, admin, sessions) { hub.scheduling }
     val browserAccess = BrowserAccess(harness, executions, admin)
     val voice = VoiceService(harness, hub::changedCapabilities)

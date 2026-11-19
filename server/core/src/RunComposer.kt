@@ -326,6 +326,13 @@ class RunComposer internal constructor(
         return NativeRun(e.agent, ScratchStorage(), selection(e), none, none, context = secrets.redact(system.orEmpty()), contextTokens = e.info?.context, profile = e.profile)
     }
 
+    suspend fun autoApproveHarness(agent: Agent, sessionId: SessionId, kind: RunKind): Boolean {
+        val configured = agent.with(store.session(agent.id, sessionId).settings)
+        val routine = (kind as? RunKind.Routine)?.turn
+        return if (routine == null) Tolerance.of(configured.config.approvals) == Tolerance.Full
+        else routine.routine.approvals == RoutineApprovals.Auto || routineTolerance(configured) == Tolerance.Full
+    }
+
     /** Routines run Relaxed, so only High-risk calls wait or are denied, unless the Agent never asks. */
     private fun routineTolerance(agent: Agent) = if (Tolerance.of(agent.config.approvals) == Tolerance.Full) Tolerance.Full else Tolerance.Relaxed
 

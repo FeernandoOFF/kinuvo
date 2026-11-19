@@ -58,7 +58,7 @@ class McpExecutionFactory(
                 val revision = lease.revision()
                 // External Agents have Server tool defaults; their private tool configuration stays in the harness.
                 val agent = registration.serverToolAgent()
-                val composed = harness.composer.compose(agent, state.sessionId, requireModel = false)
+                val composed = harness.composer.compose(agent, state.sessionId, routine = (input.kind as? RunKind.Routine)?.turn, requireModel = false)
                 val sink = state.boundSink()
                 val calls = mutableMapOf<ToolCallId, SessionEntry.ToolCall>()
                 val turn = ToolTurn(emit = { event ->

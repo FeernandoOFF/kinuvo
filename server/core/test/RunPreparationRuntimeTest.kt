@@ -1,6 +1,7 @@
 package kinuvo.server
 
 import kinuvo.server.rpc.serverRoutes
+import kinuvo.harness.RunKind
 import kinuvo.harness.ToolSpec
 import kinuvo.harness.requiredNames
 import ai.koog.agents.core.tools.ToolDescriptor
@@ -85,6 +86,20 @@ class RunPreparationRuntimeTest {
             assertTrue(events.none { it is AgentEvent.RunError })
             val entries = runtime.store.entries(agent.id, session.id)
             assertTrue(entries.indexOfLast { it is SessionEntry.ToolResult } < entries.indexOfLast { it is SessionEntry.UserMessage })
+        } finally { runtime.close() }
+    }
+
+    @Test fun externalPermissionToleranceFollowsSessionSettings() = runBlocking {
+        val fixture = RuntimeFixture()
+        val runtime = fixture.runtime()
+        try {
+            val agent = fixture.agent.copy(config = fixture.agent.config.copy(approvals = "full"))
+            val session = runtime.newSession(agent)
+            assertTrue(runtime.composer.autoApproveHarness(agent, session.id, RunKind.Chat()))
+            for (tolerance in listOf("strict", "default", "relaxed", "full")) {
+                runtime.configure(agent, session.id, SessionSettings(approvals = tolerance))
+                assertEquals(tolerance == "full", runtime.composer.autoApproveHarness(agent, session.id, RunKind.Chat()))
+            }
         } finally { runtime.close() }
     }
 

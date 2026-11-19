@@ -12,6 +12,7 @@ import kinuvo.protocol.capability.*
 import kinuvo.protocol.execution.*
 import kinuvo.protocol.plugin.PluginDefinition
 import kinuvo.server.plugin.*
+import kinuvo.server.execution.serverToolAgent
 import kotlinx.serialization.json.JsonObject
 import kinuvo.protocol.session.*
 import kinuvo.testing.server.*
@@ -76,9 +77,12 @@ class McpAcpTest {
                 elif m=='session/prompt':
                     text=r['params']['prompt'][0]['text']
                     if text=='disconnect': os._exit(0)
-                    if text=='private':
+                    if text.startswith('private'):
                         reply(r,{})
-                        emit({'jsonrpc':'2.0','id':'private-question','method':'session/request_permission','params':{'sessionId':'external','title':'Private tool','toolCall':{'rawInput':{'serverName':'private','toolName':'deploy'}},'options':[{'optionId':'yes','name':'Allow','kind':'allow_once'}]}})
+                        emit({'jsonrpc':'2.0','id':'private-question','method':'session/request_permission','params':{'sessionId':'external','title':'Private tool','toolCall':{'rawInput':{'serverName':'private','toolName':'deploy'}},'options':([{'optionId':'yes','name':'Always allow','kind':'allow_always'}] if text.endswith('always') else [
+                            {'optionId':'always','name':'Always allow','kind':'allow_always'},
+                            {'optionId':'yes','name':'Allow','kind':'allow_once'}
+                        ])}})
                         continue
                     cancelled.clear()
                     reply(r,{'messageId':str(r['id'])})
@@ -115,7 +119,9 @@ class McpAcpTest {
                     }
                 }))
             }),
-            executionFactory = { harness -> McpExecutionFactory(AcpExecutionFactory(), harness, access, { listener.url }) },
+            executionFactory = { harness -> McpExecutionFactory(AcpExecutionFactory(autoApprove = { registration, session, kind ->
+                harness.composer.autoApproveHarness(registration.serverToolAgent(), session, kind)
+            }), harness, access, { listener.url }) },
         )
         try {
             val client = server.client(token = server.auth.sessionToken()).also { it.connect() }
@@ -175,6 +181,12 @@ class McpAcpTest {
             }
             assertTrue(client.call(Api.Respond, RespondParams(session.id, privateQuestion.id, InteractionAnswer.Harness(buildJsonObject { put("optionId", "yes") }))))
             phase(ExecutionPhase.Idle)
+            client.call(Api.ConfigureSession, ConfigureSessionParams(agent, session.id, SessionSettings(approvals = "full")))
+            for (prompt in listOf("private", "private always")) {
+                client.call(Api.Send, SendParams(agent, session.id, prompt))
+                phase(ExecutionPhase.Idle)
+            }
+            client.call(Api.ConfigureSession, ConfigureSessionParams(agent, session.id, SessionSettings()))
             val history = client.call(Api.History, HistoryParams(agent, session.id, 100)).map { it.entry }
             val results = history.filterIsInstance<SessionEntry.ToolResult>().filter { it.output == "deployed" }
             assertEquals(2, results.size)
