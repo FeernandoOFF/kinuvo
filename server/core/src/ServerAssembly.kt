@@ -104,8 +104,8 @@ internal class ServerAssembly(
     init {
         harness.browser?.authorize { owner ->
             throwing<ServerError, Unit> {
-                browserAccess.validate(owner)
-                if ("browser" !in admin.agent(owner.agentId).config.tools) raise(BrowserError.Disabled)
+                val agent = browserAccess.validate(owner)
+                if ("browser" !in agent.config.tools) raise(BrowserError.Disabled)
             }
         }
         harness.log.executionMetadata = { info -> if (external.owns(info.id)) info.copy(legacyOrder = external.record(info.id).legacyOrder) else info }
