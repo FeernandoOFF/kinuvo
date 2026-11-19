@@ -105,11 +105,10 @@ class ExecutionCoordinator(
     suspend fun capabilities(agentId: AgentId, sessionId: SessionId?, readiness: ExecutionReadiness, server: ServerCapabilities, seq: Long): SessionCapabilities {
         val saved = sessionId?.let { session(agentId, it); record(it) }
         val registration = saved?.registration ?: registry.registration(agentId)
-        val support = saved?.support
-        val mcp = support?.mcp ?: registration?.let { agent ->
-            registry.catalog().connections.firstOrNull { it.config.id == agent.connectionId }?.capabilities?.mcp
+        val support = saved?.support ?: registration?.let { agent ->
+            registry.catalog().connections.firstOrNull { it.config.id == agent.connectionId }?.capabilities
         }
-        val tools = if (mcp == true && registration != null) toolCatalog(registration.serverToolAgent(), sessionId) else emptyList()
+        val tools = if (support?.mcp == true && registration != null) toolCatalog(registration.serverToolAgent(), sessionId) else emptyList()
         val availability = when {
             saved?.archived == true || readiness.reasonCode == "archived" -> CapabilityState.unavailable("Agent registration archived", "archived")
             saved?.failure != null -> CapabilityState.unavailable(saved.failure, "recovery_failed")
@@ -118,7 +117,7 @@ class ExecutionCoordinator(
             !readiness.online -> CapabilityState.unavailable(readiness.reason ?: "Check connection", readiness.reasonCode ?: "checking")
             else -> CapabilityState()
         }
-        return SessionCapabilities(seq, server, availability, tools = tools, attachments = support?.supportedMimeTypes.orEmpty().associateWith { availability }, execution = support)
+        return SessionCapabilities(seq, server, availability, tools = tools, attachments = support?.supportedMimeTypes.orEmpty().associateWith { availability }, execution = saved?.support)
     }
 
     suspend fun restore(agentId: AgentId) { lock.withLock { records.values.filter { it.agentId == agentId && it.archived } }.forEach { saved -> mutate(saved.sessionId) { it.copy(archived = false) } } }
