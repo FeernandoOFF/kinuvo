@@ -31,8 +31,8 @@ internal fun TitleBarRow(modifier: Modifier = Modifier, leading: Boolean = true,
 }
 
 @Composable
-internal fun HeaderButton(icon: ImageVector, label: String, onClick: () -> Unit, enabled: Boolean = true, plain: Boolean = false, selected: Boolean = false) {
-    Hint(label, TooltipSide.Bottom) {
+internal fun HeaderButton(icon: ImageVector, label: String, onClick: () -> Unit, enabled: Boolean = true, plain: Boolean = false, selected: Boolean = false, tooltip: TooltipSide = TooltipSide.Bottom) {
+    Hint(label, tooltip) {
         IconButton(
             onClick = onClick,
             enabled = enabled,

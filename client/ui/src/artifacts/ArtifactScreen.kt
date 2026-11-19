@@ -180,8 +180,11 @@ private fun ArtifactPane(state: ArtifactsState, agents: List<AgentInfo>, now: Lo
         val close = actions.onClose
         if (close != null) Column(Modifier.fillMaxWidth().background(background).onSizeChanged { controls = with(density) { it.height.toDp() } }) {
             TitleBarRow(leading = false) {
-                HeaderButton(Lucide.X, "Close artifact", close)
-                actions.onExpand?.let { HeaderButton(Lucide.Maximize2, "Expand artifact", it) }
+                // A draft is saved or cancelled before the tab can close or move.
+                if (!editing) {
+                    HeaderButton(Lucide.X, "Close artifact", close)
+                    actions.onExpand?.let { HeaderButton(Lucide.Maximize2, "Expand artifact", it) }
+                }
                 if (data != null && !editing) {
                     if (design?.artboards?.isNotEmpty() == true) HeaderButton(Lucide.Play, "Present", { present = 0 })
                     if (!data.info.isDesign) HeaderButton(Lucide.Pencil, "Edit", actions.onEdit)
@@ -233,7 +236,7 @@ internal fun FloatingBar(content: @Composable RowScope.() -> Unit) {
 @Composable
 internal fun FloatingButton(icon: ImageVector, label: String, onClick: () -> Unit) {
     val touch = LocalInteractionMode.current == InteractionMode.Touch
-    IconButton(onClick, Modifier.size(if (touch) 40.dp else PointerButtonSize), style = ButtonStyle.Ghost, shape = CircleShape, contentColor = color(if (touch) onBackgroundColor else mutedColor)) {
+    IconButton(onClick, Modifier.size(if (touch) 40.dp else PointerButtonSize).titleBarControl(), style = ButtonStyle.Ghost, shape = CircleShape, contentColor = color(if (touch) onBackgroundColor else mutedColor)) {
         Icon(icon, Modifier.size(17.dp), contentDescription = label)
     }
 }

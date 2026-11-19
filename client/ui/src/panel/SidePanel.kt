@@ -113,16 +113,21 @@ fun SidePanel(state: SidePanelState, actions: SidePanelActions, maxWidth: Dp, la
 
 @Composable
 private fun TabStrip(state: SidePanelState, actions: SidePanelActions, label: (PanelTab) -> PanelTabLabel) {
-    val chrome = LocalWindowChrome.current?.takeIf { it.trailingInset > 0.dp }
+    val chrome = LocalWindowChrome.current
     Column(
-        Modifier.width(StripWidth).fillMaxHeight().background(color(sidebarColor))
-            .padding(top = (chrome?.height ?: 0.dp) + Spacing.space8, bottom = Spacing.space8),
+        Modifier.width(StripWidth).fillMaxHeight().background(color(sidebarColor)).padding(bottom = Spacing.space8),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(Spacing.space4),
     ) {
-        HeaderButton(if (state.collapsed) Lucide.PanelRightOpen else Lucide.PanelRightClose,
-            if (state.collapsed) "Expand panel" else "Collapse panel", { actions.onCollapse(!state.collapsed) })
-        HorizontalSeparator(Modifier.width(24.dp).padding(vertical = Spacing.space4))
+        // Window buttons on the trailing edge keep the strip's top; elsewhere the toggle lines up with the tabs' headers.
+        if (chrome != null && chrome.trailingInset > 0.dp) Spacer(Modifier.height(chrome.height))
+        Column(Modifier.fillMaxWidth()) {
+            Box(Modifier.fillMaxWidth().height(chrome?.height ?: 52.dp), contentAlignment = Alignment.Center) {
+                HeaderButton(if (state.collapsed) Lucide.PanelRightOpen else Lucide.PanelRightClose,
+                    if (state.collapsed) "Expand panel" else "Collapse panel", { actions.onCollapse(!state.collapsed) }, tooltip = TooltipSide.Start)
+            }
+            HorizontalSeparator()
+        }
         state.tabs.forEach { tab -> StripTab(label(tab), state.showing(tab), { actions.onSelect(tab) }, { actions.onClose(tab) }) }
     }
 }

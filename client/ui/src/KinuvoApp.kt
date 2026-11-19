@@ -107,6 +107,7 @@ import com.composeunstyled.theme.Theme
 import com.composeunstyled.TooltipHost
 import kinuvo.ui.design.*
 import kinuvo.app.screen.LiveViewModel
+import kinuvo.app.panel.MinPanelWidth
 import kinuvo.app.panel.PanelTab
 import kinuvo.app.panel.SidePanelViewModel
 import kinuvo.protocol.screen.ScreenRef
@@ -313,10 +314,12 @@ fun KinuvoApp(app: AppViewModel = koinViewModel(), initialRoute: Route? = null, 
             // Settings keeps the rail on wide layouts, its sections taking the column's place; on phones it covers the screen.
             val withShell = (top !is Route.Settings || !compact || top.home) && top != Route.Connect && top != Route.NewAgent && (top as? Route.Artifacts)?.fullScreen != true
             val panelShown = !compact && withShell && top !is Route.Home && panelState.tabs.isNotEmpty()
-            // Narrow windows fold the column while the Side panel is expanded, keeping the rail and room for the screen.
-            val foldColumn = panelShown && !panelState.collapsed && maxWidth < 1100.dp
             val beside = !compact && (shell.open || top is Route.Settings && !top.home) && withShell
-            val panelMax = maxWidth - (if (beside) RailWidth + (if (foldColumn) 0.dp else ColumnWidth) else 0.dp) - ChatMinWidth - StripWidth - 8.dp
+            val room = maxWidth - (if (beside) RailWidth else 0.dp) - ChatMinWidth - StripWidth - 8.dp
+            // Narrow windows fold the column while the Side panel is expanded, keeping the rail and room for the screen.
+            val foldColumn = panelShown && !panelState.collapsed && beside && room - ColumnWidth < MinPanelWidth.dp
+            // The chat gives up its minimum before the panel narrows past its own.
+            val panelMax = (room - if (beside && !foldColumn) ColumnWidth else 0.dp).coerceAtLeast(MinPanelWidth.dp)
             val windowChrome = LocalWindowChrome.current
             val content = @Composable {
                 NavDisplay(
