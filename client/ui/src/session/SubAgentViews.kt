@@ -164,6 +164,7 @@ internal fun SubAgentReport(item: ChatItem.ToolReport, actions: ChatActions) {
     val shape = Theme[shapes][mediumShape]
     val one = item.children.singleOrNull()
     val failed = item.children.count { it.status == SubAgentStatus.Failed }
+    val live = LocalSubAgents.current.children
     Column(Modifier.fillMaxWidth().clip(shape).border(1.dp, color(borderColor), shape)) {
         Row(Modifier.fillMaxWidth().heightIn(min = 44.dp).padding(horizontal = Spacing.space10), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.space8)) {
             Icon(Lucide.Bell, Modifier.size(15.dp), tint = color(mutedColor))
@@ -177,8 +178,10 @@ internal fun SubAgentReport(item: ChatItem.ToolReport, actions: ChatActions) {
         item.children.forEach { child ->
             key(child.sessionId.value) {
                 val agent = actions.agents.firstOrNull { it.id == child.agentId }
+                // A delivered private child's Session is deleted, so there's nothing left to open.
+                val gone = child.private && live[child.sessionId]?.delivered == true
                 Row(
-                    Modifier.fillMaxWidth().clickable(role = Role.Button, onClickLabel = "Open the Sub-agent's Session") { actions.onOpenSession(child.agentId, child.sessionId) }
+                    Modifier.fillMaxWidth().then(if (gone) Modifier else Modifier.clickable(role = Role.Button, onClickLabel = "Open the Sub-agent's Session") { actions.onOpenSession(child.agentId, child.sessionId) })
                         .heightIn(min = 44.dp).padding(horizontal = Spacing.space10, vertical = Spacing.space6),
                     verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.space10),
                 ) {
@@ -186,7 +189,7 @@ internal fun SubAgentReport(item: ChatItem.ToolReport, actions: ChatActions) {
                     Text(child.name, Modifier.weight(1f), style = TextStyles.secondary, fontWeight = FontWeight.Medium, singleLine = true, overflow = TextOverflow.Ellipsis)
                     if (child.private) Badge("Private", Lucide.LockKeyhole)
                     StatusIcon(child.status)
-                    Icon(Lucide.ChevronRight, Modifier.size(14.dp), tint = color(mutedColor))
+                    if (!gone) Icon(Lucide.ChevronRight, Modifier.size(14.dp), tint = color(mutedColor))
                 }
             }
         }
