@@ -106,19 +106,21 @@ class SessionLog(private val store: Store, private val clock: () -> Long = { Clo
 
     var onDelete: suspend (AgentId, SessionId) -> Unit = { _, _ -> }
     override suspend fun deleteSession(agentId: AgentId, sessionId: SessionId) {
-        store.entries(agentId, sessionId)
-        onDelete(agentId, sessionId)
-        store.agents().flatMap { store.sessions(it.id) }.filter { it.parent?.sessionId == sessionId }
-            .forEach { deleteSession(it.agentId, it.id) }
-        lock.withLock {
-        store.deleteSession(agentId, sessionId)
-        counts -= sessionId
-        live -= sessionId
-        completions -= sessionId
-        runReplies -= sessionId
-        subscribers -= sessionId
-        Unit
+        val children = store.agents().flatMap { store.sessions(it.id) }.groupBy { it.parent?.sessionId }
+        suspend fun delete(agent: AgentId, id: SessionId) {
+            store.entries(agent, id)
+            onDelete(agent, id)
+            children[id].orEmpty().forEach { delete(it.agentId, it.id) }
+            lock.withLock {
+                store.deleteSession(agent, id)
+                counts -= id
+                live -= id
+                completions -= id
+                runReplies -= id
+                subscribers -= id
+            }
         }
+        delete(agentId, sessionId)
     }
 
     /** Drops entries from [size] on and sends subscribers a fresh window, since the entries they hold changed. */

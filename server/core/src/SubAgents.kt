@@ -29,6 +29,7 @@ sealed class SubAgentError(override val code: String, override val message: Stri
     data object Depth : SubAgentError(WireErrorCode.Conflict, "Sub-agent nesting limit is 2")
     data object Budget : SubAgentError(WireErrorCode.Conflict, "Activation budget exhausted")
     data class Privacy(val agent: String) : SubAgentError(WireErrorCode.Forbidden, "$agent has no on-device model; Private Sub-agents run in Hidden Sessions on this device’s model")
+    data object Delivering : SubAgentError(WireErrorCode.Conflict, "Private child delivery is in progress")
     data object Busy : SubAgentError(WireErrorCode.Conflict, "A follow-up is already queued")
 }
 
@@ -43,6 +44,8 @@ class SubAgents internal constructor(
     var onBudgetExhausted: suspend (SessionId) -> Unit = {}
     private class Budget(var left: Int)
     private val lock = Mutex()
+    private val deliveryLock = Mutex()
+    private val delivering = mutableSetOf<SessionId>()
     private val stopped = mutableSetOf<SessionId>()
     private val budgets = mutableMapOf<SessionId, Budget>()
     private val groups = mutableMapOf<SessionId, SessionId>()
@@ -160,10 +163,12 @@ class SubAgents internal constructor(
     suspend fun send(agent: AgentId, parent: SessionId, id: SessionId, callId: ToolCallId, text: String) {
         require(text.isNotBlank())
         val previous = child(agent, parent, id)
-        if (harness.store.sessions(previous.agentId).none { it.id == id }) raise(SubAgentError.Unknown(id))
-        val link = harness.store.session(previous.agentId, id).parent ?: raise(SubAgentError.Unknown(id))
-        lock.withLock { parents[id] = link; stopped -= id }
         lock.withLock {
+            if (id in delivering) raise(SubAgentError.Delivering)
+            if (previous.delivered) raise(SubAgentError.Unknown(id))
+            if (harness.store.sessions(previous.agentId).none { it.id == id }) raise(SubAgentError.Unknown(id))
+            val link = harness.store.session(previous.agentId, id).parent ?: raise(SubAgentError.Unknown(id))
+            parents[id] = link; stopped -= id
             if (queued[id]?.isActive == true) raise(SubAgentError.Busy)
             val job = scope.launch(start = CoroutineStart.LAZY) {
                 var started = false
@@ -216,7 +221,7 @@ class SubAgents internal constructor(
     private suspend fun reviewed(agent: AgentId, parent: SessionId, call: ToolCallId, states: List<SubAgentState>): List<SubAgentState> {
         if (harness.store.session(agent, parent).hidden) return states
         return states.map { state ->
-            if (!state.private || state.result == null || harness.store.sessions(state.agentId).none { it.id == state.sessionId }) return@map state
+            if (!state.private || state.delivered || state.result == null) return@map state
             val pending = harness.approvals.register()
             try {
                 harness.log.publish(agent, parent, AgentEvent.InteractionRequested(PendingInteraction.Approval(
@@ -226,7 +231,7 @@ class SubAgents internal constructor(
                     preview = ChangePreview("Share Sub-agent result", body = state.result),
                 ), state.sessionId))
                 val allowed = withTimeoutOrNull(1800_000) { pending.await() }?.let { it !is ApprovalDecision.Deny } == true
-                state.copy(result = if (allowed) state.result else "The user withheld the result")
+                state.copy(result = if (allowed) state.result else "The user withheld the result", delivered = true)
             } finally {
                 pending.close()
                 withContext(NonCancellable) { harness.log.publish(agent, parent, AgentEvent.InteractionResolved(pending.id)) }
@@ -234,17 +239,30 @@ class SubAgents internal constructor(
         }
     }
 
-    private suspend fun deliver(agent: AgentId, parent: SessionId, call: ToolCallId, states: List<SubAgentState>): List<SubAgentState> {
-        val delivered = reviewed(agent, parent, call, states)
-        delivered.filter { it.private && it.status != SubAgentStatus.Running }.forEach { state ->
-            join(state.sessionId)
-            if (harness.store.sessions(state.agentId).any { it.id == state.sessionId }) {
-                save(agent, parent, state)
-                harness.log.deleteSession(state.agentId, state.sessionId)
+    private suspend fun deliver(agent: AgentId, parent: SessionId, call: ToolCallId, states: List<SubAgentState>): List<SubAgentState> = deliveryLock.withLock {
+        states.map { snapshot ->
+            val (state, reserved) = lock.withLock {
+                val current = list(agent, parent).getValue(snapshot.sessionId)
+                val hidden = harness.store.sessions(current.agentId).any { it.id == current.sessionId && it.hidden }
+                val state = current.copy(private = current.private || hidden)
+                val reserve = state.private && !state.delivered && state.status != SubAgentStatus.Running && queued[state.sessionId]?.isActive != true
+                if (reserve) delivering += state.sessionId
+                state to reserve
+            }
+            if (!state.private || state.delivered) return@map state
+            if (!reserved) return@map state.copy(result = null)
+            try {
+                join(state.sessionId)
+                val result = reviewed(agent, parent, call, listOf(state.copy(private = true))).single().copy(delivered = true)
+                save(agent, parent, result)
+                if (harness.store.sessions(state.agentId).any { it.id == state.sessionId })
+                    harness.log.deleteSession(state.agentId, state.sessionId)
                 lock.withLock { parents.remove(state.sessionId) }
+                result
+            } finally {
+                lock.withLock { delivering -= state.sessionId }
             }
         }
-        return delivered
     }
 
     fun tools(agent: AgentId, parent: SessionId): List<Tool> = listOf(

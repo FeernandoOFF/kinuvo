@@ -18,5 +18,6 @@ data class SubAgentState(
     val goal: String,
     val status: SubAgentStatus = SubAgentStatus.Running,
     val result: String? = null,
-    val private: Boolean = false,
+    val private: Boolean = true,
+    val delivered: Boolean = false,
 )

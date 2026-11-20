@@ -9,7 +9,7 @@ Status: Accepted
 
 The Server tools `agents_spawn`, `agents_wait`, `agents_send` and `agents_list` manage child Sessions. Regular Sub-agents use the target Agent's configured provider, model, reasoning, approvals and tools, including plugins. Results return directly to the parent. Child identity is its Session ID, with a typed parent link and current tool-call ID.
 
-The optional `private` flag creates a Hidden Session: an on-device model is required, settings are pinned, and tools are restricted to Sub-agent tools, Session configuration and asking the user. Sharing its result with a non-hidden parent requires Approval. After delivery, including withholding, its transcript is deleted and the delivered result remains in the parent's notices. Deleted children reject follow-ups.
+The optional `private` flag creates a Hidden Session: an on-device model is required, settings are pinned, and tools are restricted to Sub-agent tools, Session configuration and asking the user. Sharing its result with a non-hidden parent requires Approval. After delivery, including withholding, its transcript is deleted and the delivered result remains in the parent's notices. Private children reject follow-ups while delivery is pending and after delivery. Legacy child notices are treated as private; a missing transcript does not waive Approval.
 
 Children of Hidden Sessions remain private. All child Sessions are excluded from chat listings, Reflection and Notifications. Deleting a parent deletes its descendants. Regular children retain their transcripts and support follow-ups.
 

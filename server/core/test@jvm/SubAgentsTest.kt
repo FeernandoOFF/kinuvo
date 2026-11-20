@@ -149,6 +149,14 @@ class SubAgentsTest {
             val composed = server.harness.composer.compose(local, child.sessionId)
             assertTrue(composed.tools.tools.none { it.name == "fixture_plugin" })
             assertTrue(composed.tools.tools.none { it.name in setOf("memory", "web_fetch", "generate_image", "run_code", "agent_get", "agent_update", "agent_create", "mcp_list", "mcp_add", "mcp_remove", "mcp_test", "mcp_login") })
+            val completed = children.list(cloud.id, parent.id).getValue(child.sessionId)
+            val notice = SessionEntry.Notice("legacy", "sub_agent", "", child = completed)
+            val json = ProtocolJson.encodeToJsonElement(SessionEntry.serializer(), notice).jsonObject
+            val legacy = ProtocolJson.decodeFromJsonElement(SessionEntry.serializer(), JsonObject(json + ("child" to
+                JsonObject(json.getValue("child").jsonObject - "private"))))
+            assertTrue(assertIs<SessionEntry.Notice>(legacy).child!!.private)
+            server.harness.log.append(cloud.id, parent.id, legacy)
+            server.harness.log.deleteSession(local.id, child.sessionId)
             val waitTool = children.tools(cloud.id, parent.id).single { it.descriptor.name == "agents_wait" }
             val delivery = async { waitTool.execute(buildJsonObject {
                 putJsonArray("session_ids") { add(child.sessionId.value) }
@@ -160,9 +168,16 @@ class SubAgentsTest {
                 }
                 error("unreachable")
             }
+            assertEquals(SubAgentError.Delivering, either {
+                children.send(cloud.id, parent.id, child.sessionId, ToolCallId("pending"), "again")
+            }.leftOrNull())
             val client = server.client(token = server.auth.sessionToken()); client.connect()
             assertTrue(client.call(Api.Respond, RespondParams(parent.id, approval.id, InteractionAnswer.Approval(ApprovalDecision.Deny()))))
             assertTrue(delivery.await().contains("withheld"))
+            assertTrue(waitTool.execute(buildJsonObject {
+                putJsonArray("session_ids") { add(child.sessionId.value) }
+            }, "repeat").contains("withheld"))
+            assertTrue(server.harness.log.pending(parent.id).isEmpty())
             assertTrue(server.harness.store.sessions(local.id).none { it.id == child.sessionId })
             assertEquals(SubAgentError.Unknown(child.sessionId), either {
                 children.send(cloud.id, parent.id, child.sessionId, ToolCallId("deleted"), "again")
