@@ -89,3 +89,9 @@ pre.out{flex:1 0 100%;box-sizing:border-box;margin:0;max-height:200px;overflow:a
 [hidden]{display:none!important}
 optgroup{color:var(--muted)}
 @media (max-width:480px){.drawflow .drawflow-node{width:250px}}
+
+.ins{display:flex;flex-direction:column;gap:6px}
+.in .lbl input{flex:1;min-width:0;font:inherit;font-size:12px;border:1px solid var(--border);border-radius:6px;background:var(--bg);color:var(--text);padding:2px 6px}
+.in .x{font:inherit;border:0;background:none;color:var(--muted);cursor:pointer;padding:0 4px;font-size:16px;line-height:1}
+.in .x:hover{color:var(--danger)}
+.hint{font-size:11px;color:var(--muted)}
