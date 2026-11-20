@@ -559,7 +559,7 @@ private fun SessionData.chatItems(): List<ChatItem> {
     projected.forEachIndexed { i, entry ->
         val seq = firstSeq + i
         when (entry) {
-            is SessionEntry.UserMessage -> items += ChatItem.User(key(entry.submissionId?.let { "user-$it" }, seq), entry.text, entry.routine?.name, entry.attachments, parseTaskPrompt(entry.text)?.second, voice = entry.voice, action = entry.action)
+            is SessionEntry.UserMessage -> items += ChatItem.User(key(entry.submissionId?.let { "user-$it" }, seq), entry.text, entry.routine?.name, entry.attachments, parseTaskPrompt(entry.text)?.second, voice = entry.voice, action = entry.action, inputs = entry.inputs)
             is SessionEntry.VoiceCall -> items += ChatItem.VoiceCall(entry.id, entry.turns, entry.startedAt, entry.durationMillis)
             is SessionEntry.AssistantMessage -> items += ChatItem.Assistant(key(entry.messageId?.let { "text-$it" }, seq), entry.text, at = entry.writtenAt)
             is SessionEntry.Reasoning -> items += ChatItem.Reasoning(key((entry.messageId ?: entry.id)?.let { "reasoning-$it" }, seq), entry.text)
@@ -577,6 +577,7 @@ private fun SessionData.chatItems(): List<ChatItem> {
             is SessionEntry.ReflectionReview -> entry.result?.takeIf { it.proposals.isNotEmpty() }?.let {
                 items += ChatItem.Reflection(key("reflection-review-${entry.proposalId}", seq), it, reviews, revised)
             }
+            is SessionEntry.ContextBreak -> items += ChatItem.Notice(key(null, seq), "context_break", "New context", emptyList())
             is SessionEntry.Notice -> if (entry.child == null) items += ChatItem.Notice(key("notice-${entry.id}", seq), entry.code, entry.message, SessionData(agentId, entries = entry.draft).items)
             is SessionEntry.Started, is SessionEntry.Settings, is SessionEntry.Details, is SessionEntry.Context, is SessionEntry.Outcome -> Unit
         }

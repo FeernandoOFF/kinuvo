@@ -1,5 +1,6 @@
 package kinuvo.harness
 
+import kinuvo.protocol.session.MessageInput
 import kinuvo.protocol.surface.modelText
 
 import kinuvo.protocol.session.SessionEntry
@@ -7,7 +8,7 @@ import kinuvo.protocol.session.SessionEntry
 /** What the model reads for a user turn: a Routine's prompt is labelled with the Routine's name, a voice turn as spoken. */
 val SessionEntry.UserMessage.modelText: String
     get() {
-        val content = action?.modelText(text) ?: text
+        val content = messageText(action?.modelText(text) ?: text, inputs)
         return routine?.let { "[Scheduled task: ${it.name}]\n\n$content" } ?: if (voice) "$VOICE_NOTE\n\n$content" else content
     }
 
@@ -17,3 +18,6 @@ private const val VOICE_NOTE = "[Voice chat: the user said this aloud and your r
 
 /** What a voice request adds to the instructions. */
 val liveVoiceInstructions = "This request comes from voice: reply briefly and speakably; for slow commands (builds, tests, servers), use shell with background=true and report that it started rather than blocking. Only report completion after checking the result."
+
+fun messageText(prompt: String, inputs: List<MessageInput>): String =
+    (listOf(prompt) + inputs.map { "<input name=\"${it.name}\">\n${it.text}\n</input>" }).joinToString("\n\n")

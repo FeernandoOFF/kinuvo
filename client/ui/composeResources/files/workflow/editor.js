@@ -76,20 +76,43 @@
   };
   const agentOptions = (current) => options(catalog.agents.map((a) => ({ value: a.id, label: a.name })), current);
   const modelValue = (m) => (m ? JSON.stringify([m.provider, m.model]) : '');
-  const modelOptions = (current) => options([{ value: '', label: "Agent's model" }].concat(catalog.models.map((m) => ({ value: modelValue(m), label: m.providerName + ' / ' + m.name }))), modelValue(current));
+  const modelLabel = (m) => { const c = catalog.models.find((x) => x.provider === m.provider && x.model === m.model); return c ? c.providerName + ' / ' + c.name : m.provider + ' / ' + m.model; };
+  const modelOptions = (current) => {
+    const list = catalog.models.map((m) => ({ value: modelValue(m), label: m.providerName + ' / ' + m.name }));
+    if (current && !list.some((o) => o.value === modelValue(current))) list.push({ value: modelValue(current), label: current.provider + ' / ' + current.model + ' (unavailable)' });
+    return options([{ value: '', label: "Agent's model" }].concat(list), modelValue(current));
+  };
 
   const refs = (f) => `<select class="ref" data-ref="${f}" aria-label="Insert an input or the output of an earlier step"></select>`;
   const area = (f, label, value, placeholder, opts) => `<div class="fld"><div class="lbl"><span>${label}</span>${opts && opts.refs ? refs(f) : ''}</div>` +
     `<textarea${opts && opts.mono ? ' class="mono" spellcheck="false"' : ''} data-f="${f}" placeholder="${esc(placeholder)}">${esc(value)}</textarea></div>`;
+
+  let inSeq = 0;
+  const inputRow = (name, value) => { const n = ++inSeq; return `<div class="in" data-in="${n}"><div class="lbl"><input data-f="inname-${n}" autocomplete="off" autocapitalize="off" spellcheck="false" value="${esc(name)}" placeholder="name" aria-label="Input name">` +
+    `${refs('in-' + n)}<button class="x" type="button" data-rmin="${n}" aria-label="Remove input">&times;</button></div>` +
+    `<textarea class="mono" spellcheck="false" data-f="in-${n}" placeholder="{{steps.….output}}">${esc(value)}</textarea></div>`; };
+  const inputsField = (s) => `<div class="fld"><div class="lbl"><span>Inputs</span><button class="ex" type="button" data-addin>+ Add</button></div>` +
+    `<div class="ins">${Object.entries(s.inputs || {}).map(([k, v]) => inputRow(k, v)).join('')}</div><div class="hint">Data sent with the prompt, collapsed in the chat</div></div>`;
+  function readInputs(card, s) {
+    const out = {};
+    card.querySelectorAll('.in').forEach((row) => {
+      const name = row.querySelector('[data-f^=inname-]').value.trim();
+      if (name) out[name] = row.querySelector('textarea').value;
+    });
+    if (Object.keys(out).length) s.inputs = out; else delete s.inputs;
+  }
 
   function fields(s) {
     switch (s.type) {
       case 'agent_turn': return `
         <label>Agent<select data-f="agentId">${agentOptions(s.agentId)}</select></label>
         ${area('prompt', 'Prompt', s.prompt, 'What should the Agent do?', { refs: true })}
+        ${inputsField(s)}
+        <label>Model<select data-f="model">${modelOptions(s.model)}</select></label>
         <label>Session<select data-f="session"><option value="New"${s.session !== 'Continue' ? ' selected' : ''}>New each run</option><option value="Continue"${s.session === 'Continue' ? ' selected' : ''}>Continue last</option></select></label>`;
       case 'model': return `
         ${area('prompt', 'Prompt', s.prompt, 'What should the model answer?', { refs: true })}
+        ${inputsField(s)}
         ${area('system', 'System prompt', s.system, 'Optional', { refs: true })}
         <label>Model<select data-f="model">${modelOptions(s.model)}</select></label>`;
       case 'tool': return `
@@ -103,7 +126,9 @@
       case 'text': return area('text', 'Text', s.text, 'Text or JSON for the next steps', { refs: true });
       case 'review': return `
         ${area('text', 'Question', s.text, 'Is this draft ready?', { refs: true })}
-        ${area('value', 'Value to review', s.value, 'A JSON object becomes one field per key', { refs: true, mono: true })}`;
+        ${area('value', 'Value to review', s.value, 'A JSON object becomes one field per key, an array of objects one group per item', { refs: true, mono: true })}
+        ${area('surface', 'Custom form (A2UI surface, optional)', s.surface ? JSON.stringify(s.surface, null, 2) : '', 'createSurface JSON; its data model is the output', { refs: true, mono: true })}
+        <div class="err" data-err="surface"></div>`;
       default: return area('text', 'Question', s.text, 'Publish the draft?', { refs: true });
     }
   }
@@ -149,7 +174,7 @@
     const at = el.dataset.touched ? [el.selectionStart, el.selectionEnd] : [el.value.length, el.value.length];
     const text = '{{' + ref + '}}';
     const inString = (el.value.slice(0, at[0]).replace(/\\./g, '').match(/"/g) || []).length % 2 === 1;
-    el.setRangeText(field === 'args' && !inString ? JSON.stringify(text) : text, at[0], at[1], 'end');
+    el.setRangeText((field === 'args' || field === 'surface') && !inString ? JSON.stringify(text) : text, at[0], at[1], 'end');
     el.dataset.touched = '1';
     el.focus();
     el.dispatchEvent(new Event('input', { bubbles: true }));
@@ -207,6 +232,7 @@
       };
       if (r && r.error) section('error', 'Error', r.error);
       if (r && r.output) section('output', 'Output', r.output);
+      if (r && r.model) parts.push(`<span class="used" title="Model used">${esc(modelLabel(r.model))}</span>`);
       if (r && r.sessionId) parts.push(`<button class="ex" type="button" data-open="${esc(s.id)}">Open session</button>`);
       const html = parts.join('');
       if (box.dataset.h !== html) { box.innerHTML = html; box.dataset.h = html; }
@@ -329,12 +355,21 @@
     if (!f || !card) return;
     const s = step(card.dataset.step);
     const v = e.target.value;
+    if (f.startsWith('in-') || f.startsWith('inname-')) { readInputs(card, s); emitSoon(); return; }
     if (f === 'args') {
       const err = card.querySelector('[data-err=args]');
       try {
         const parsed = JSON.parse(v.trim() || '{}');
         if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) throw new Error('Arguments must be a JSON object');
         s.args = parsed; err.textContent = ''; e.target.classList.remove('bad');
+      } catch (x) { err.textContent = 'Invalid JSON: ' + x.message; e.target.classList.add('bad'); return; }
+    } else if (f === 'surface') {
+      const err = card.querySelector('[data-err=surface]');
+      try {
+        const parsed = v.trim() ? JSON.parse(v) : null;
+        if (parsed !== null && (typeof parsed !== 'object' || Array.isArray(parsed))) throw new Error('The surface must be a JSON object');
+        if (parsed) s.surface = parsed; else delete s.surface;
+        err.textContent = ''; e.target.classList.remove('bad');
       } catch (x) { err.textContent = 'Invalid JSON: ' + x.message; e.target.classList.add('bad'); return; }
     } else if (f === 'system') { if (v) s.system = v; else delete s.system; }
     else if (f === 'model') { const m = v ? JSON.parse(v) : null; if (m) s.model = { provider: m[0], model: m[1] }; else delete s.model; }
@@ -358,6 +393,14 @@
     if (ex) { const k = ex.dataset.ex; expanded.has(k) ? expanded.delete(k) : expanded.add(k); applyRun(); return; }
     const sess = t.closest && t.closest('[data-open]');
     if (sess) { post('open_session', { step: sess.dataset.open }); return; }
+    const addIn = t.closest && t.closest('[data-addin]');
+    if (addIn) {
+      const card = addIn.closest('.card');
+      card.querySelector('.ins').insertAdjacentHTML('beforeend', inputRow('', ''));
+      fillRefs(); card.querySelector('.in:last-child [data-f^=inname-]').focus(); return;
+    }
+    const rmIn = t.closest && t.closest('[data-rmin]');
+    if (rmIn) { const card = rmIn.closest('.card'); rmIn.closest('.in').remove(); readInputs(card, step(card.dataset.step)); emit(); return; }
     const del = t.closest && t.closest('[data-del]');
     if (del) editor.removeNodeId('node-' + dfOf[del.closest('.card').dataset.step]);
   }

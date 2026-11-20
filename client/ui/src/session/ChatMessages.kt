@@ -1,5 +1,6 @@
 package kinuvo.ui.session
 
+import kinuvo.protocol.session.MessageInput
 import kinuvo.protocol.session.ToolCallId
 import kinuvo.protocol.tool.ToolNames
 import kinuvo.ui.surface.LocalSurfaceItems
@@ -250,6 +251,7 @@ internal fun ChatItemView(item: ChatItem, actions: ChatActions, spoken: Int? = n
                 contentPadding = PaddingValues(horizontal = Spacing.space14, vertical = Spacing.space10),
             ) { Column(verticalArrangement = Arrangement.spacedBy(Spacing.space8)) {
                 if (item.text.isNotBlank()) Markdown(item.text)
+                item.inputs.forEach { InputChip(it) }
                 item.attachments.forEach { a ->
                     LaunchedEffect(a.id) { if (a.mimeType.startsWith("image/")) actions.onLoadAttachment(a.id) }
                     AttachmentChip(a, actions.downloads[a.id]?.base64, onPreview = { actions.onPreviewAttachment(a.id) }, onOpen = { actions.onSaveAttachment(a.id) })
@@ -311,7 +313,9 @@ internal fun ChatItemView(item: ChatItem, actions: ChatActions, spoken: Int? = n
                 Text(item.message, color = color(destructiveColor), style = TextStyles.secondary)
             }
         }
-        is ChatItem.Notice -> if (item.code == WORKFLOW_NOTE) WorkflowMarker(item.message) else Expandable(Lucide.TriangleAlert, item.message, tint = color(warningColor)) {
+        is ChatItem.Notice -> if (item.code == WORKFLOW_NOTE) WorkflowMarker(item.message)
+        else if (item.code == CONTEXT_BREAK) WorkflowMarker("New context · earlier messages aren't sent to the model", Lucide.RotateCcw)
+        else Expandable(Lucide.TriangleAlert, item.message, tint = color(warningColor)) {
             // What it had written before stopping, quieter than a finished reply.
             Column(Modifier.alpha(0.85f), verticalArrangement = Arrangement.spacedBy(Spacing.space8)) { item.draft.forEach { ChatItemView(it, actions) } }
         }
@@ -322,6 +326,19 @@ internal fun ChatItemView(item: ChatItem, actions: ChatActions, spoken: Int? = n
         is ChatItem.Activation -> Expandable(Lucide.BookOpen, item.name, subtitle = "skill") { Markdown(item.content) }
     }
 }
+
+/** Data a Workflow step handed the Agent with its prompt, collapsed so the prompt reads as what was asked. */
+@Composable
+private fun InputChip(input: MessageInput) {
+    val lines = input.text.lines().size
+    val size = if (lines > 1) "$lines lines" else "${input.text.length} chars"
+    Expandable(Lucide.Braces, input.name, subtitle = size, titleStyle = TextStyles.label) {
+        val text = if (input.text.length > MAX_INPUT) input.text.take(MAX_INPUT) + "\n…" else input.text
+        Markdown("```\n$text\n```")
+    }
+}
+
+private const val MAX_INPUT = 20_000
 
 @Composable
 internal fun SurfaceActionLine(text: String) {
@@ -614,13 +631,15 @@ internal fun RequestMetricsView(metrics: RequestMetrics, initiallyExpanded: Bool
 
 /** The code of a Notice a Workflow run leaves in its Session. */
 private const val WORKFLOW_NOTE = "workflow"
+/** Where a Workflow's Agent turn started over without the history above it. */
+private const val CONTEXT_BREAK = "context_break"
 
 /** Something a Workflow run did, set apart from the conversation as a divider. */
 @Composable
-private fun WorkflowMarker(text: String) {
+private fun WorkflowMarker(text: String, icon: ImageVector = Lucide.Workflow) {
     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.space8)) {
         HorizontalSeparator(Modifier.weight(1f))
-        Icon(Lucide.Workflow, Modifier.size(13.dp), tint = color(mutedColor))
+        Icon(icon, Modifier.size(13.dp), tint = color(mutedColor))
         Text(text, Modifier.widthIn(max = 260.dp), style = TextStyles.caption, color = color(mutedColor), maxLines = 2, overflow = TextOverflow.Ellipsis)
         HorizontalSeparator(Modifier.weight(1f))
     }

@@ -1,5 +1,6 @@
 package kinuvo.protocol.session
 
+import kinuvo.protocol.workflow.WorkflowRef
 import kinuvo.protocol.team.TeamId
 import kinuvo.protocol.mcp.McpAppRef
 import kinuvo.protocol.plugin.ToolIdentity
@@ -39,8 +40,9 @@ data class SessionInfo(
     val settled: Boolean = false,
     /** The Session has a reply the user has yet to see. */
     val unread: Boolean = false,
+    val workflow: WorkflowRef? = null,
 ) {
-    /** The user's own Sessions, and a Routine's once it has something for the user or waits on them. */
+    /** The user's own Sessions and Workflow Sessions (made only when a step needs the user), and a Routine's once answered or waiting. */
     val inChats: Boolean get() = !hidden && parent == null && teamId == null && (routine == null || answered || status == SessionStatus.Waiting)
 }
 
@@ -80,6 +82,9 @@ sealed interface SessionEntry {
     @Serializable @SerialName("notice")
     data class Notice(val id: String, val code: String, val message: String, val draft: List<SessionEntry> = emptyList(), override val writtenAt: Long? = null, val child: SubAgentState? = null) : SessionEntry
 
+    @Serializable @SerialName("context_break")
+    data class ContextBreak(override val writtenAt: Long? = null) : SessionEntry
+
     /** Instructions frozen at Session start (Identity, Soul, Memory, User Notes). */
     @Serializable @SerialName("started")
     data class Started(val instructions: String, val routine: RoutineRef? = null, override val writtenAt: Long? = null) : SessionEntry
@@ -92,7 +97,7 @@ sealed interface SessionEntry {
 
     /** [routine] is set when a Routine sent [text] on its schedule; [voice] when [text] was transcribed from voice chat. */
     @Serializable @SerialName("user")
-    data class UserMessage(val text: String, val routine: RoutineRef? = null, val attachments: List<Attachment> = emptyList(), val voice: Boolean = false, val submissionId: String? = null, override val writtenAt: Long? = null, val action: SurfaceAction? = null) : SessionEntry
+    data class UserMessage(val text: String, val routine: RoutineRef? = null, val attachments: List<Attachment> = emptyList(), val voice: Boolean = false, val submissionId: String? = null, override val writtenAt: Long? = null, val action: SurfaceAction? = null, val inputs: List<MessageInput> = emptyList()) : SessionEntry
 
     /** [messageId] matches the run's streamed events, so clients keep one item from live text to saved message. */
     @Serializable @SerialName("assistant")
@@ -129,7 +134,7 @@ sealed interface SessionEntry {
 
     /** The user's name for the Session (null: from its first message) and whether it's a favorite, from here on; the model doesn't see it. */
     @Serializable @SerialName("details")
-    data class Details(val title: String? = null, val favorite: Boolean = false, override val writtenAt: Long? = null, val parent: SessionParent? = null, val hidden: Boolean = false, val teamId: TeamId? = null, val settled: Boolean = false, val unread: Boolean = false) : SessionEntry
+    data class Details(val title: String? = null, val favorite: Boolean = false, override val writtenAt: Long? = null, val parent: SessionParent? = null, val hidden: Boolean = false, val teamId: TeamId? = null, val settled: Boolean = false, val unread: Boolean = false, val workflow: WorkflowRef? = null) : SessionEntry
 
     /** How a Routine's run ended: [report] when it has [summary] for the user, else nothing was new; the model doesn't see it. */
     @Serializable @SerialName("outcome")
@@ -162,6 +167,7 @@ fun SessionEntry.identity(): SessionEntryIdentity? = when (this) {
 }
 
 fun SessionEntry.withWrittenAt(at: Long?): SessionEntry = when (this) {
+    is SessionEntry.ContextBreak -> copy(writtenAt = at)
     is SessionEntry.VoiceCall -> copy(writtenAt = at)
     is SessionEntry.Notice -> copy(writtenAt = at)
     is SessionEntry.Started -> copy(writtenAt = at)
@@ -181,3 +187,5 @@ fun SessionEntry.withWrittenAt(at: Long?): SessionEntry = when (this) {
     is SessionEntry.Outcome -> copy(writtenAt = at)
     is SessionEntry.ToolResult -> copy(writtenAt = at)
 }
+
+@Serializable data class MessageInput(val name: String, val text: String)

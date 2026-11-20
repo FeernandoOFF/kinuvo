@@ -1,5 +1,6 @@
 package kinuvo.harness
 
+import kinuvo.protocol.session.MessageInput
 import kinuvo.protocol.surface.SurfaceAction
 
 import kinuvo.protocol.session.AgentEvent
@@ -21,6 +22,7 @@ data class ExecutionInput(
     val runId: RunId? = null,
     val mcp: McpServerDescriptor? = null,
     val instructions: String? = null,
+    val inputs: List<MessageInput> = emptyList(),
     val steering: suspend () -> List<SessionEntry.UserMessage> = { emptyList() },
 )
 

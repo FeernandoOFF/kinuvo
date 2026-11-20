@@ -45,11 +45,11 @@ internal object WorkflowReferences {
     private val fence = Regex("^```[a-zA-Z0-9]*[ \\t]*\\r?\\n(.*?)\\r?\\n?```$", RegexOption.DOT_MATCHES_ALL)
 
     fun strings(step: WorkflowStep): List<String> = when (step) {
-        is WorkflowStep.AgentTurn -> listOf(step.prompt)
-        is WorkflowStep.Model -> listOfNotNull(step.prompt, step.system)
+        is WorkflowStep.AgentTurn -> listOf(step.prompt) + step.inputs.values
+        is WorkflowStep.Model -> listOfNotNull(step.prompt, step.system) + step.inputs.values
         is WorkflowStep.Tool -> strings(step.args)
         is WorkflowStep.Approval -> listOf(step.text)
-        is WorkflowStep.Review -> listOf(step.text, step.value)
+        is WorkflowStep.Review -> listOf(step.text, step.value) + (step.surface?.let(::strings) ?: emptyList())
         is WorkflowStep.Condition -> listOf(step.left, step.right)
         is WorkflowStep.Text -> listOf(step.text)
     }
@@ -60,8 +60,11 @@ internal object WorkflowReferences {
         is JsonObject -> element.values.flatMap(::strings)
     }
 
-    /** The steps [text] reads the output of. */
-    fun ids(text: String) = pattern.findAll(text).map { it.groupValues[1] }.filter { it.isNotEmpty() }.map(::StepId).toList()
+    fun outputs(text: String) = pattern.findAll(text).filter { it.groupValues[1].isNotEmpty() }
+        .map { it.value to StepId(it.groupValues[1]) }.toList()
+
+    fun inputs(text: String) = pattern.findAll(text).filter { it.groupValues[2] == "input" && it.groupValues[3].isNotEmpty() }
+        .map { it.value to it.groupValues[3].removePrefix(".").substringBefore('.') }.toList()
 
     /** [text] as JSON, also when a model wrapped it in one Markdown code fence; null when it is neither. */
     fun json(text: String): JsonElement? {

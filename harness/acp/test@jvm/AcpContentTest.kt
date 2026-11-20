@@ -12,6 +12,11 @@ import kotlinx.serialization.json.put
 import kotlin.test.*
 
 class AcpContentTest {
+    @Test fun namedInputsAreSentAsTextBlocks() {
+        val input = ExecutionInput("Read", inputs = listOf(MessageInput("data", "value")))
+        assertEquals("Read\n\n<input name=\"data\">\nvalue\n</input>", (input.content(ExecutionCapabilities()).single() as ContentBlock.Text).text)
+    }
+
     @Test fun surfaceActionIncludesResolvedContext() {
         val context = buildJsonObject { put("name", "Alex") }
         val action = SurfaceAction(ToolCallId("call"), "plan", "save", "submit", context, context)

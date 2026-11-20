@@ -95,7 +95,7 @@ class NativeExecution(
                 deliveryLock.withLock {
                     steering[p.session].orEmpty().map { pending ->
                         val kind = pending.input.kind as RunKind.Chat
-                        SessionEntry.UserMessage(pending.input.text, null, kind.attachments, kind.voice, action = pending.input.action)
+                        SessionEntry.UserMessage(pending.input.text, null, kind.attachments, kind.voice, action = pending.input.action, inputs = pending.input.inputs)
                     }.also { steering[p.session]?.clear() }
                 }
             }), onEvent = p.onEvent, onDone = { stopped ->

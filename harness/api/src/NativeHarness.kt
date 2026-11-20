@@ -1,5 +1,6 @@
 package kinuvo.harness
 
+import kinuvo.protocol.session.MessageInput
 import kinuvo.protocol.session.AgentEvent
 import kinuvo.protocol.execution.AgentRegistration
 import kinuvo.protocol.session.Attachment
@@ -31,6 +32,7 @@ interface AgentRunner {
         voice: Boolean = false,
         action: SurfaceAction? = null,
         report: SessionEntry.ToolReport? = null,
+        inputs: List<MessageInput> = emptyList(),
         steering: suspend () -> List<SessionEntry.UserMessage> = { emptyList() },
     ): Flow<AgentEvent>
 }

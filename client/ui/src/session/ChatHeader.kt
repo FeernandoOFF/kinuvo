@@ -300,11 +300,12 @@ fun ConnectionStrip(connection: ConnectionState, syncedAt: Long?) {
 private const val ReconnectingAfter = 3_000L
 private const val OfflineAfter = 8_000L
 
-/** Marks a Session an Agent started on its own: a Task run or a Routine's. */
+/** Marks a Session an Agent started on its own: a Task run, a Routine's or a Workflow's. */
 @Composable
 private fun SessionBadge(session: SessionInfo, compact: Boolean = false) = when {
     session.task != null -> if (compact) Icon(Lucide.SquareKanban, Modifier.size(14.dp), contentDescription = "Task run") else Badge("Task", Lucide.SquareKanban)
     session.routine != null -> if (compact) Icon(Lucide.AlarmClock, Modifier.size(14.dp), contentDescription = "Routine run") else Badge("Routine", Lucide.AlarmClock)
+    session.workflow != null -> if (compact) Icon(Lucide.Workflow, Modifier.size(14.dp), contentDescription = "Workflow") else Badge("Workflow", Lucide.Workflow)
     else -> Unit
 }
 

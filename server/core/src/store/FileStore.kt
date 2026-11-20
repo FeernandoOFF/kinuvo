@@ -126,7 +126,7 @@ class FileStore(
         val d = (summary(agentId, sessionId)?.digest ?: Digest())
         return SessionInfo(sessionId, agentId, d.details.title ?: d.routine?.name ?: d.title ?: NEW_TITLE, routine = d.routine, settings = d.settings,
             answered = d.answered, task = d.task, favorite = d.details.favorite, createdAt = createdAt(sessionId), parent = d.details.parent, hidden = d.details.hidden,
-            teamId = d.details.teamId, settled = d.details.settled, unread = d.details.unread)
+            workflow = d.details.workflow, teamId = d.details.teamId, settled = d.details.settled, unread = d.details.unread)
     }
 
     override suspend fun sessionDetails(agentId: AgentId, sessionId: SessionId): SessionEntry.Details =

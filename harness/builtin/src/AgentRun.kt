@@ -1,5 +1,6 @@
 package kinuvo.harness.builtin
 
+import kinuvo.protocol.session.MessageInput
 import kinuvo.harness.Agent
 import kinuvo.harness.AgentRunner
 import kinuvo.harness.ModelProfile
@@ -54,6 +55,7 @@ class AgentRun(
         voice: Boolean,
         action: SurfaceAction?,
         report: SessionEntry.ToolReport?,
+        inputs: List<MessageInput>,
         steering: suspend () -> List<SessionEntry.UserMessage>,
     ): Flow<AgentEvent> = channelFlow {
         send(AgentEvent.RunStarted(runId))
@@ -76,7 +78,7 @@ class AgentRun(
                 session.append(SessionEntry.Context(context))
             activation?.let { session.append(it) }
             report?.let { session.append(it) }
-            if (routine == null && (userText.isNotBlank() || attachments.isNotEmpty())) session.append(SessionEntry.UserMessage(userText, null, attachments, voice, action = action))
+            if (routine == null && (userText.isNotBlank() || attachments.isNotEmpty() || inputs.isNotEmpty())) session.append(SessionEntry.UserMessage(userText, null, attachments, voice, action = action, inputs = inputs))
             val koog = AIAgent(
                 id = agent.id.value,
                 promptExecutor = model.executor,

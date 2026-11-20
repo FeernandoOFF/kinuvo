@@ -1,5 +1,6 @@
 package kinuvo.app.session
 
+import kinuvo.protocol.session.MessageInput
 import kinuvo.protocol.surface.SurfaceAction
 
 import kinuvo.app.connection.*
@@ -51,7 +52,7 @@ sealed interface ChatItem {
     val id: String
 
     /** [routine] names the Routine that sent [text] on its schedule. */
-    data class User(override val id: String, val text: String, val routine: String? = null, val attachments: List<Attachment> = emptyList(), val task: String? = null, val voice: Boolean = false, val action: SurfaceAction? = null) : ChatItem
+    data class User(override val id: String, val text: String, val routine: String? = null, val attachments: List<Attachment> = emptyList(), val task: String? = null, val voice: Boolean = false, val action: SurfaceAction? = null, val inputs: List<MessageInput> = emptyList()) : ChatItem
     data class Assistant(override val id: String, val text: String, val at: Long? = null) : ChatItem
     data class Reasoning(override val id: String, val text: String) : ChatItem
     /** [callId] is the model's tool-call ID; [approval] or [questions] is set while the call waits on the user. */

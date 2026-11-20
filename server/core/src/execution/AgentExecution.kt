@@ -13,6 +13,7 @@ import kinuvo.server.AgentError
 import kinuvo.server.ServerError
 import kinuvo.server.SessionError
 import kinuvo.server.throwing
+import kotlin.uuid.Uuid
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 
@@ -23,6 +24,7 @@ class AgentExecution(
     private val native: NativeExecution,
     private val management: Mutex,
 ) : ExecutionDispatch {
+    var workflowSurface: suspend (AgentId, SessionId, SurfaceAction) -> Boolean = { _, _, _ -> false }
     var subAgents: SubAgents? = null
     private suspend fun forAgent(agentId: AgentId): ExecutionDispatch = if (registry.registration(agentId) != null) external else native
 
@@ -46,13 +48,18 @@ class AgentExecution(
 
     /** [catalogs] are the Surface catalogs of the client sending, for the built-in harness. */
     context(_: Raise<AgentError>, _: Raise<SessionError>)
-    suspend fun send(params: SendParams, catalogs: List<UiCatalog>?, onEvent: suspend (AgentEvent) -> Unit = {}): SendResult =
-        if (registry.registration(params.agentId) != null) management.withLock {
+    suspend fun send(params: SendParams, catalogs: List<UiCatalog>?, onEvent: suspend (AgentEvent) -> Unit = {}): SendResult {
+        val session = params.sessionId
+        val action = params.action
+        if (session != null && action != null && workflowSurface(params.agentId, session, action))
+            return SendResult(session, RunId(Uuid.random().toString()), params.text)
+        return if (registry.registration(params.agentId) != null) management.withLock {
             params.sessionId?.let { subAgents?.begin(it) }
             require(params.delivery == SendDelivery.Turn) { "This external harness does not support Queue or Steer" }
             external.send(params)
         }
         else native.send(params, catalogs, onEvent)
+    }
 
     suspend fun cancelQueued(params: CancelQueuedParams) = native.cancelQueued(params)
 

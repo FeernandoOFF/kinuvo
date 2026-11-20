@@ -287,6 +287,7 @@ private fun MetaLine(lead: String, rest: String, modifier: Modifier, style: Text
 private fun SessionInfo.kind() = when {
     task != null -> "Task run"
     routine != null -> "Routine run"
+    workflow != null -> "Workflow"
     else -> "Session"
 }
 

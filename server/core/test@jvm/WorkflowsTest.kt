@@ -1,9 +1,13 @@
 package kinuvo.server
 
+import ai.koog.prompt.message.MessagePart
 import kinuvo.app.connection.*
 import kinuvo.app.device.*
 import kinuvo.client.KinuvoClient
 import kinuvo.client.KinuvoException
+import kinuvo.protocol.model.ProviderModelRef
+import kinuvo.protocol.surface.*
+import kinuvo.protocol.ProtocolJson
 import kinuvo.protocol.Api
 import kinuvo.protocol.agent.AgentId
 import kinuvo.protocol.approval.*
@@ -13,6 +17,9 @@ import kinuvo.protocol.workflow.*
 import kinuvo.server.store.AgentFiles
 import kinuvo.server.store.FileStore
 import kinuvo.server.store.WorkflowData
+import kinuvo.testing.server.FakeModels
+import kinuvo.testing.server.FakeModelProvider
+import kinuvo.protocol.model.ModelInfo
 import kinuvo.testing.server.FakeTool
 import kinuvo.testing.server.FakeTools
 import kinuvo.testing.server.TestServer
@@ -28,6 +35,33 @@ import kotlin.test.*
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class WorkflowsTest {
+    @Test fun surfaceReviewConsumesSubmissionWithoutAnAgentTurn() = runBlocking<Unit> {
+        TestServer.start(scenario = { agent("work") }).use { server ->
+            val catalog = ProtocolJson.decodeFromString(UiCatalog.serializer(), javaClass.getResource("/a2ui-basic.json")!!.readText())
+            server.harness.uiCatalogs.connect(this, listOf(catalog))
+            val c = client(server)
+            val surface = Json.parseToJsonElement("""{"surfaceId":"review","catalogId":"${catalog.catalogId}","components":[{"id":"root","component":"Text","text":"Review"}],"dataModel":{"name":"old"}}""").jsonObject
+            c.run(c.call(Api.CreateWorkflow, workflow(WorkflowStep.Review(StepId("r"), "Check", surface = surface))).id)
+            val waiting = await(c, WorkflowId("test")) { it.steps[StepId("r")]?.status == StepStatus.WaitingApproval }
+            val session = waiting.steps.getValue(StepId("r")).sessionId!!
+            val call = server.harness.store.entries(agent, session).filterIsInstance<SessionEntry.ToolCall>().single()
+            val value = buildJsonObject { put("name", "edited") }
+            c.call(Api.Send, SendParams(agent, session, "Submit", action = SurfaceAction(call.id, "review", "submit", "root", JsonObject(emptyMap()), value)))
+            assertEquals(value.toString(), finished(c).steps.getValue(StepId("r")).output)
+            assertTrue(server.prompts.inputs.isEmpty())
+        }
+    }
+    @Test fun arrayReviewRebuildsTypedItems() {
+        for (input in listOf("""[{"name":"a","n":2,"ok":true},{"name":"b","n":3,"ok":false}]""", """{"rows":[{"name":"a","n":2,"ok":true},{"name":"b","n":3,"ok":false}]}""")) {
+            val form = ReviewForm.of(input)
+            assertEquals(6, form.questions.size)
+            assertEquals("Item 1 · name", form.questions.first().label)
+            val answers = form.questions.associate { it.id to it.default.orEmpty() }.toMutableMap()
+            answers["items.0.n"] = listOf("7")
+            assertEquals(Json.parseToJsonElement(input.replace("2", "7")), Json.parseToJsonElement(form.output(answers)))
+        }
+        assertEquals(1, ReviewForm.of(JsonArray(List(31) { buildJsonObject { put("n", it) } }).toString()).questions.size)
+    }
     private val agent = AgentId("work")
     private fun branch(from: String, to: String, on: Boolean) = WorkflowEdge(StepId(from), StepId(to), on)
     private fun turn(id: String, prompt: String = id) = WorkflowStep.AgentTurn(StepId(id), agent, prompt)
@@ -59,6 +93,25 @@ class WorkflowsTest {
         error("unreachable")
     }
 
+    @Test fun turnInputsKeepDataOutOfThePrompt() = runBlocking<Unit> {
+        val combined = "Summarize\n\n<input name=\"emails\">\nmail data\n</input>"
+        TestServer.start(script = { on(combined) { reply("summary") } }, scenario = { agent("work") }).use { server ->
+            val c = client(server)
+            val w = c.call(Api.CreateWorkflow, workflow(
+                WorkflowStep.Text(StepId("data"), "mail data"),
+                turn("summarize", "Summarize").copy(inputs = mapOf("emails" to "{{steps.data.output}}")),
+                edges = listOf(edge("data", "summarize")),
+            ))
+            c.run(w.id)
+            val done = finished(c)
+            assertEquals(WorkflowRunStatus.Done, done.status)
+            assertTrue(server.script.prompts.flatMap { it.messages }.flatMap { it.parts }.filterIsInstance<MessagePart.Text>().any { it.text == combined })
+            val message = server.harness.store.entries(agent, done.steps.getValue(StepId("summarize")).sessionId!!).filterIsInstance<SessionEntry.UserMessage>().single()
+            assertEquals("Summarize", message.text)
+            assertEquals(listOf(MessageInput("emails", "mail data")), message.inputs)
+        }
+    }
+
     @Test fun linearOutputAndContinueSession() = runBlocking<Unit> {
         TestServer.start(script = { on("first") { reply("one") }; on("using one") { reply("two") } }, scenario = { agent("work") }).use { server ->
             val c = client(server)
@@ -66,6 +119,10 @@ class WorkflowsTest {
             c.call(Api.RunWorkflow, RunWorkflowParams(w.id))
             val done = await(c, w.id) { it.status != WorkflowRunStatus.Running }
             assertEquals(WorkflowRunStatus.Done, done.status)
+            val session = done.steps.getValue(StepId("first")).sessionId!!
+            assertEquals(session, done.steps.getValue(StepId("second")).sessionId)
+            assertEquals(WorkflowRef(w.id, w.name), server.harness.store.session(agent, session).workflow)
+            assertEquals(1, server.harness.store.entries(agent, session).filterIsInstance<SessionEntry.ContextBreak>().size)
             assertEquals("one", done.steps[StepId("first")]?.output)
             assertEquals("two", done.steps[StepId("second")]?.output)
             assertTrue(server.prompts.inputs.any { it.text == "using one" })
@@ -74,6 +131,53 @@ class WorkflowsTest {
             val started = c.call(Api.RunWorkflow, RunWorkflowParams(w.id))
             val again = await(c, w.id) { it.id == started.id && it.status != WorkflowRunStatus.Running }
             assertEquals(done.steps[second.id]?.sessionId, again.steps[second.id]?.sessionId)
+        }
+    }
+
+    @Test fun contextBreakResetsModelHistoryAndContinueKeepsIt() = runBlocking<Unit> {
+        TestServer.start(script = { reply("reply") }, scenario = { agent("work") }).use { server ->
+            val c = client(server)
+            val w = c.call(Api.CreateWorkflow, workflow(
+                turn("a", "old context"), turn("b", "fresh context"),
+                turn("c", "continue context").copy(session = StepSession.Continue),
+                edges = listOf(edge("a", "b"), edge("b", "c")),
+            ))
+            c.run(w.id)
+            val done = finished(c)
+            assertEquals(WorkflowRunStatus.Done, done.status)
+            assertEquals(1, done.steps.values.map { it.sessionId }.distinct().size)
+            val prompts = server.script.prompts.map { it.toString() }
+            assertFalse(prompts[1].contains("old context"))
+            assertTrue(prompts[2].contains("fresh context"))
+            assertFalse(prompts[2].contains("old context"))
+            val session = done.steps.getValue(StepId("a")).sessionId!!
+            assertEquals(1, server.harness.store.entries(agent, session).filterIsInstance<SessionEntry.ContextBreak>().size)
+            c.call(Api.UpdateWorkflow, w.copy(name = "Renamed"))
+            val info = server.harness.store.session(agent, session)
+            assertEquals("Renamed", info.title)
+            assertEquals(WorkflowRef(w.id, "Renamed"), info.workflow)
+        }
+    }
+
+    @Test fun agentTurnUsesAndRecordsSessionModel() = runBlocking<Unit> {
+        TestServer.start(plugins = listOf(FakeModels(FakeModelProvider("test", "Test", listOf(ModelInfo("override"))))), script = { on("hi") { reply("ok") } }, scenario = { agent("work") }).use { server ->
+            val c = client(server)
+            val ref = ProviderModelRef("test", "override")
+            val w = c.call(Api.CreateWorkflow, workflow(turn("a", "hi").copy(model = ref), WorkflowStep.Model(StepId("m"), "hi", model = ref)))
+            c.run(w.id)
+            val done = finished(c)
+            assertEquals(WorkflowRunStatus.Done, done.status)
+            val step = done.steps.getValue(StepId("a"))
+            assertEquals(ref, step.model)
+            assertEquals(ref, done.steps.getValue(StepId("m")).model)
+            val settings = server.harness.store.session(agent, step.sessionId!!).settings
+            assertNull(settings.model)
+            assertNull(settings.provider)
+            c.call(Api.UpdateWorkflow, w.copy(steps = listOf(turn("a", "hi").copy(session = StepSession.Continue))))
+            val next = c.run(w.id)
+            val continued = await(c, w.id) { it.id == next.id && it.status != WorkflowRunStatus.Running }
+            assertEquals(step.sessionId, continued.steps.getValue(StepId("a")).sessionId)
+            assertNotEquals(ref, continued.steps.getValue(StepId("a")).model)
         }
     }
 
@@ -268,10 +372,43 @@ class WorkflowsTest {
         TestServer.start(scenario = { agent("work") }).use { server ->
             val c = client(server)
             for (w in listOf(workflow(turn("a"), edges = listOf(edge("a", "a"))),
-                workflow(turn("a"), edges = listOf(edge("a", "missing"))), workflow(turn("a", "{{steps.missing.output}}")))) {
+                workflow(turn("a"), edges = listOf(edge("a", "missing"))), workflow(turn("a", "{{steps.missing.output}}")),
+                workflow(turn("a").copy(inputs = mapOf("data" to "{{steps.missing.output}}"))),
+                workflow(turn("a").copy(inputs = mapOf("bad name" to "text"))),
+                workflow(WorkflowStep.Model(StepId("a"), "read", inputs = mapOf("data" to "{{steps.missing.output}}"))))) {
                 val error = assertFailsWith<KinuvoException> { c.call(Api.CreateWorkflow, w) }
                 assertEquals("invalid_params", error.code)
             }
+        }
+    }
+
+    @Test fun validationReportsIndependentProblemsTogether() = runBlocking<Unit> {
+        TestServer.start(scenario = { agent("work") }).use { server ->
+            val c = client(server)
+            val w = workflow(
+                WorkflowStep.AgentTurn(StepId("turn-1"), AgentId("missing-agent"), "{{steps.x.output}} {{input.missing}}"),
+                edges = listOf(edge("turn-1", "zz"), WorkflowEdge(StepId("unknown"), StepId("turn-1"), true)),
+            )
+            val error = assertFailsWith<KinuvoException> { c.call(Api.CreateWorkflow, w) }
+            assertEquals("invalid_params", error.code)
+            for (problem in listOf("step turn-1: unknown Agent 'missing-agent'; known ids: ${server.harness.store.agents().take(20).joinToString { it.id.value }} (use an id from the agents action, not a name)",
+                "step turn-1: {{steps.x.output}} names x, which is not an ancestor",
+                "step turn-1: {{input.missing}} names undeclared input 'missing'",
+                "edge turn-1 -> zz: unknown step zz", "edge unknown -> turn-1: unknown step unknown")) {
+                assertContains(error.message.orEmpty(), problem)
+            }
+
+        }
+    }
+
+    @Test fun unknownAgentHintsAreBounded() = runBlocking<Unit> {
+        TestServer.start(scenario = { repeat(22) { agent("agent-$it") } }).use { server ->
+            val agents = server.harness.store.agents()
+            val error = assertFailsWith<KinuvoException> {
+                client(server).call(Api.CreateWorkflow, workflow(WorkflowStep.AgentTurn(StepId("turn-1"), AgentId("missing"), "test")))
+            }
+            val hint = "known ids: ${agents.take(20).joinToString { it.id.value }}, ... (use an id from the agents action, not a name)"
+            assertContains(error.message.orEmpty(), hint)
         }
     }
 
@@ -346,13 +483,14 @@ class WorkflowsTest {
     }
 
     @Test fun modelStepRepliesWithoutASession() = runBlocking<Unit> {
-        TestServer.start(plugins = listOf(fakes), script = { on("hello Bob") { reply("greeted") } }, scenario = { agent("work") }).use { server ->
+        TestServer.start(plugins = listOf(fakes), script = { on("hello Bob\n\n<input name=\"count\">\n2\n</input>") { reply("greeted") } }, scenario = { agent("work") }).use { server ->
             val c = client(server)
             c.run(c.call(Api.CreateWorkflow, workflow(tool("a", "make"),
-                WorkflowStep.Model(StepId("m"), "hello {{steps.a.output.who}}", system = "Be brief for {{steps.a.output.count}}"), edges = listOf(edge("a", "m")))).id)
+                WorkflowStep.Model(StepId("m"), "hello {{steps.a.output.who}}", system = "Be brief for {{steps.a.output.count}}", inputs = mapOf("count" to "{{steps.a.output.count}}")), edges = listOf(edge("a", "m")))).id)
             val done = finished(c)
             assertEquals(WorkflowRunStatus.Done, done.status)
             assertEquals("greeted", done.steps[StepId("m")]?.output)
+            assertEquals(server.harness.store.agents().first { it.id == agent }.config.let { ProviderModelRef(it.provider, it.model) }, done.steps[StepId("m")]?.model)
             assertNull(done.steps[StepId("m")]?.sessionId)
             assertTrue(server.harness.store.sessions(agent).isEmpty())
             assertTrue("Be brief for 2" in server.script.prompts.last().toString())
@@ -545,8 +683,8 @@ class WorkflowsTest {
     @Test fun inputsFillReferencesWithDefaultsAndKeepTheirTypes() = runBlocking<Unit> {
         TestServer.start(plugins = listOf(fakes), scenario = { agent("work") }).use { server ->
             val c = client(server)
-            val args = buildJsonObject { put("who", "{{input.who}}"); put("n", "{{input.n}}"); put("text", "{{input.who}} x{{input.n}} {{input.missing}}!"); put("deep", "{{input.o.k}}"); put("gone", "{{input.missing}}") }
-            val w = c.call(Api.CreateWorkflow, workflow(tool("a", "echo", args)).copy(inputs = listOf(WorkflowInput("who", default = "Bob"), WorkflowInput("n", default = "2"))))
+            val args = buildJsonObject { put("who", "{{input.who}}"); put("n", "{{input.n}}"); put("text", "{{input.who}} x{{input.n}} {{input.o.missing}}!"); put("deep", "{{input.o.k}}"); put("gone", "{{input.o.missing}}") }
+            val w = c.call(Api.CreateWorkflow, workflow(tool("a", "echo", args)).copy(inputs = listOf(WorkflowInput("who", default = "Bob"), WorkflowInput("n", default = "2"), WorkflowInput("o", default = "{}"))))
             val started = c.run(w.id, buildJsonObject { put("who", "Ann"); putJsonObject("o") { put("k", true) } })
             assertEquals(JsonPrimitive(2), started.input["n"])
             val done = finished(c)
@@ -657,7 +795,7 @@ class WorkflowsTest {
         TestServer.start(plugins = listOf(fakes), scenario = { agent("work") }).use { server ->
             val c = client(server)
             val w = c.call(Api.CreateWorkflow, workflow(tool("a", "tick"), tool("b", "flaky"), tool("c", "echo", buildJsonObject { put("a", "{{steps.a.output}}"); put("b", "{{steps.b.output}}"); put("in", "{{input.v}}") }),
-                edges = listOf(edge("a", "b"), edge("b", "c"))))
+                edges = listOf(edge("a", "b"), edge("b", "c"))).copy(inputs = listOf(WorkflowInput("v"))))
             val first = c.run(w.id, buildJsonObject { put("v", 7) })
             val failed = await(c, w.id) { it.id == first.id && it.status != WorkflowRunStatus.Running }
             assertEquals(WorkflowRunStatus.Failed, failed.status)
@@ -712,7 +850,7 @@ class WorkflowsTest {
         TestServer.start(plugins = listOf(fakes), scenario = { agent("work") }).use { server ->
             val c = client(server)
             val w = c.call(Api.CreateWorkflow, workflow(tool("a", "make"), WorkflowStep.Approval(StepId("ok"), "Reply to {{steps.a.output.who}}?"),
-                WorkflowStep.Review(StepId("r"), "Note for {{input.team}}", "x"), edges = listOf(edge("a", "ok"), edge("ok", "r"))))
+                WorkflowStep.Review(StepId("r"), "Note for {{input.team}}", "x"), edges = listOf(edge("a", "ok"), edge("ok", "r"))).copy(inputs = listOf(WorkflowInput("team"))))
             c.run(w.id, buildJsonObject { put("team", "Support") })
             val ok = await(c, w.id) { it.steps[StepId("ok")]?.status == StepStatus.WaitingApproval }.steps.getValue(StepId("ok"))
             withTimeout(5000) { while (server.harness.log.pending(ok.sessionId!!).isEmpty()) yield() }
