@@ -109,9 +109,14 @@ class SessionLog(private val store: Store, private val clock: () -> Long = { Clo
     override suspend fun deleteSession(agentId: AgentId, sessionId: SessionId) {
         val children = store.agents().flatMap { store.sessions(it.id) }.groupBy { it.parent?.sessionId }
         suspend fun delete(agent: AgentId, id: SessionId) {
-            store.entries(agent, id)
+            val entries = store.entries(agent, id)
             onDelete(agent, id)
-            children[id].orEmpty().forEach { delete(it.agentId, it.id) }
+            val linked = entries.filterIsInstance<SessionEntry.Notice>().mapNotNull { it.child }
+                .map { it.agentId to it.sessionId } + children[id].orEmpty().map { it.agentId to it.id }
+            linked.distinct().forEach { (childAgent, childId) ->
+                if (store.sessions(childAgent).any { it.id == childId && it.parent?.sessionId == id })
+                    delete(childAgent, childId)
+            }
             lock.withLock {
                 store.deleteSession(agent, id)
                 counts -= id
@@ -225,6 +230,7 @@ class SessionLog(private val store: Store, private val clock: () -> Long = { Clo
         when(event) {
             is AgentEvent.RunStarted -> completions.remove(sessionId)
             is AgentEvent.RunFinished, is AgentEvent.RunError -> completions[sessionId] = event
+            is AgentEvent.ExecutionPhaseChanged -> if (event.phase == ExecutionPhase.Running && live[sessionId]?.executionPhase == ExecutionPhase.Idle) completions.remove(sessionId) else Unit
             else -> Unit
         }
         // A plain live event would only reach a subscriber watching at this exact moment, and render wherever the

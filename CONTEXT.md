@@ -204,7 +204,7 @@ A lasting conversation space with the user and one or more Agents as members; ea
 _Avoid_: Room, Chat, channel, group
 
 **Sub-agent**:
-An Agent run in a child Session started by another Agent's Session. It uses the target Agent's configured model and tools; private runs opt into a Hidden Session.
+An Agent run in a child Session started by another Agent's Session. It uses the target Agent's configured harness and tools. Completed work wakes the parent Session, and private runs use a Hidden Session.
 _Avoid_: Worker, child agent
 
 **Hidden Session**:

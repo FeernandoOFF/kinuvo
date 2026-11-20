@@ -67,7 +67,7 @@ internal class RunSession(
     val profile: ModelProfile,
     val emit: suspend (AgentEvent) -> Unit,
     private val voice: Boolean = false,
-    private val steering: suspend () -> List<SessionEntry.UserMessage> = { emptyList() },
+    private val steering: suspend () -> List<SessionEntry> = { emptyList() },
 ) {
     val tools = provider.advertised.map { it.toDescriptor() }
     val messages = SessionMessages(model, tools.any { it.name == ToolNames.GENERATE_IMAGE })

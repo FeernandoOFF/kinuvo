@@ -3,7 +3,6 @@ package kinuvo.server
 import arrow.core.raise.Raise
 import arrow.core.raise.context.raise
 import kinuvo.protocol.WireErrorCode
-import kinuvo.protocol.execution.ExecutionPhase
 import kinuvo.protocol.agent.AgentId
 import kinuvo.protocol.agent.AgentInfo
 import kinuvo.protocol.approval.*
@@ -57,11 +56,6 @@ class Teams internal constructor(
         when (event) {
             is AgentEvent.InteractionRequested -> turn.pending[event.interaction.id] = TeamInteraction(member.agentId, event.childSessionId ?: session, event.interaction)
             is AgentEvent.InteractionResolved -> turn.pending.remove(event.id)
-            is AgentEvent.RunFinished -> turn.done.complete(Unit)
-            is AgentEvent.RunError -> { turn.failure = event.message; turn.done.complete(Unit) }
-            is AgentEvent.ExecutionPhaseChanged -> if (event.phase == ExecutionPhase.Lost) {
-                turn.failure = "Member harness connection lost"; turn.done.complete(Unit)
-            } else return@withLock
             else -> return@withLock
         }
         throwing<TeamError, _> { publish(turn.team) }
@@ -187,9 +181,9 @@ class Teams internal constructor(
         turn.job?.start()
     }
 
-    suspend fun finished(session: SessionId, cancelled: Boolean) = lock.withLock {
+    suspend fun finished(session: SessionId, cancelled: Boolean, error: String?) = lock.withLock {
         turns.values.firstOrNull { it.member?.sessionId == session }?.let {
-            if (cancelled) it.job?.cancel() else it.done.complete(Unit)
+            if (cancelled) it.job?.cancel() else { it.failure = error; it.done.complete(Unit) }
         }
     }
 
