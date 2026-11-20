@@ -5,6 +5,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicText
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -60,6 +61,10 @@ private fun ChatItem.ToolCall.rows(children: Map<SessionId, SubAgentState>): Lis
     }
 }
 
+/** The call failed without reaching any child, e.g. an unknown Agent id: shown as a plain failed tool call. */
+internal fun ChatItem.ToolCall.failedBeforeChildren(children: Map<SessionId, SubAgentState>): Boolean =
+    isError && !denied && rows(children).none { it.state != null }
+
 /** An `agents_spawn`, `agents_wait` or `agents_send` call as the children it touches, each with its Agent, goal and live status, opening it on tap. */
 @Composable
 internal fun SubAgentCard(item: ChatItem.ToolCall, actions: ChatActions) {
@@ -87,11 +92,8 @@ internal fun SubAgentCard(item: ChatItem.ToolCall, actions: ChatActions) {
             }
         }
         rows.forEach { row -> key(row.id?.value) { ChildRowView(row, row.id in subAgents.waiting, showResult = item.name == ToolNames.AGENTS_WAIT, actions) } }
-        item.result?.takeIf { item.isError }?.let { error ->
-            Box(Modifier.padding(start = Spacing.space10, end = Spacing.space10, bottom = Spacing.space10)) {
-                Expandable(Lucide.CircleX, "Error", tint = color(destructiveColor)) { CodeBlock(error, language = "Error", error = true) }
-            }
-        }
+        item.result?.takeIf { item.isError && !item.denied && rows.none { it.state?.status == SubAgentStatus.Failed && it.state.result == item.result } }
+            ?.let { FailureReason(it) }
     }
 }
 
@@ -110,7 +112,7 @@ private fun ChildRowView(row: ChildRow, needsYou: Boolean, showResult: Boolean, 
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(Spacing.space2)) {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.space6)) {
                     Text(agent?.name ?: row.agentId?.value ?: "Agent", Modifier.weight(1f, fill = false), style = TextStyles.secondary, fontWeight = FontWeight.Medium, singleLine = true, overflow = TextOverflow.Ellipsis)
-                    Badge("Hidden", Lucide.LockKeyhole)
+                    if (row.state?.private == true) Badge("Private", Lucide.LockKeyhole)
                 }
                 Text(row.goal.lineSequence().firstOrNull().orEmpty(), style = TextStyles.caption, color = color(mutedColor), maxLines = 2, overflow = TextOverflow.Ellipsis)
             }
@@ -126,11 +128,33 @@ private fun ChildRowView(row: ChildRow, needsYou: Boolean, showResult: Boolean, 
             }
             if (open != null) Icon(Lucide.ChevronRight, Modifier.size(14.dp), tint = color(mutedColor))
         }
-        row.state?.result?.takeIf { showResult && row.state.status != SubAgentStatus.Running }?.let { result ->
+        row.state?.result?.takeIf { row.state.status == SubAgentStatus.Failed }?.let { FailureReason(it) }
+        row.state?.result?.takeIf { showResult && row.state.status in setOf(SubAgentStatus.Completed, SubAgentStatus.Cancelled) }?.let { result ->
             Box(Modifier.padding(start = Spacing.space10, end = Spacing.space10, bottom = Spacing.space10)) {
                 Expandable(Lucide.CornerDownLeft, "Result") { Markdown(result) }
             }
         }
+    }
+}
+
+/** Why a call or child failed, in the card itself; long reasons expand. */
+@Composable
+private fun FailureReason(text: String) {
+    var expanded by remember(text) { mutableStateOf(false) }
+    var clipped by remember(text) { mutableStateOf(false) }
+    val long = expanded || clipped
+    Row(
+        Modifier.fillMaxWidth().padding(start = Spacing.space10, end = Spacing.space10, bottom = Spacing.space10)
+            .clip(Theme[shapes][smallShape]).background(color(destructiveColor).copy(alpha = 0.08f))
+            .then(if (long) Modifier.clickable(role = Role.Button, onClickLabel = if (expanded) "Show less" else "Show the full error") { expanded = !expanded } else Modifier)
+            .padding(horizontal = Spacing.space10, vertical = Spacing.space8),
+        horizontalArrangement = Arrangement.spacedBy(Spacing.space8),
+    ) {
+        Icon(Lucide.CircleX, Modifier.size(14.dp).padding(top = Spacing.space2), tint = color(destructiveColor))
+        BasicText(text.trim(), Modifier.weight(1f), style = TextStyles.caption.copy(color = color(destructiveColor)),
+            maxLines = if (expanded) Int.MAX_VALUE else 2, overflow = TextOverflow.Ellipsis,
+            onTextLayout = { if (!expanded) clipped = it.hasVisualOverflow })
+        if (long) Icon(if (expanded) Lucide.ChevronUp else Lucide.ChevronDown, Modifier.size(14.dp), tint = color(mutedColor))
     }
 }
 
@@ -179,7 +203,7 @@ internal fun ParentBanner(info: SessionInfo, agents: List<AgentInfo>, onOpen: (A
         }
         if (info.hidden) Row(Modifier.padding(top = Spacing.space6), horizontalArrangement = Arrangement.spacedBy(Spacing.space8)) {
             Icon(Lucide.LockKeyhole, Modifier.size(14.dp).padding(top = Spacing.space2), tint = color(mutedColor))
-            Text("Hidden: no Agent can read this conversation. It runs on this device's model, and its result goes back only if you allow it.", style = TextStyles.caption, color = color(mutedColor))
+            Text("Private: runs on this device's model and no Agent can read it. Its result goes back only if you allow it, then this conversation is deleted.", style = TextStyles.caption, color = color(mutedColor))
         }
     }
 }
