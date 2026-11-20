@@ -137,6 +137,22 @@ jobs:
       # Chromium's sandbox needs unprivileged user namespaces on Ubuntu 24.04.
       - if: matrix.suite == 'server'
         run: sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+      - name: Fetch the JUnit launcher
+        # The toolchain downloads it from Maven Central on demand, which rate-limits CI runners.
+        run: |
+          jar=org/junit/platform/junit-platform-console-standalone/6.1.3/junit-platform-console-standalone-6.1.3.jar
+          url=https://repo1.maven.org/maven2/$jar
+          cache=~/.cache/JetBrains/Kotlin/download.cache
+          target=$cache/$(printf %s "${url}V1" | sha256sum | cut -c1-10)-${jar##*/}
+          [ -s "$target" ] && exit 0
+          mkdir -p "$cache"
+          for mirror in https://repo1.maven.org/maven2 https://maven-central.storage-download.googleapis.com/maven2 https://repo.maven.apache.org/maven2; do
+            if curl -fsSL --retry 4 --retry-all-errors --retry-delay 10 -o "$target.tmp" "$mirror/$jar" &&
+              [ "$(sha1sum < "$target.tmp" | cut -c1-40)" = "$(curl -fsSL --retry 4 --retry-all-errors "$mirror/$jar.sha1" | cut -c1-40)" ]; then
+              mv "$target.tmp" "$target"; exit 0
+            fi
+          done
+          echo '::warning::Could not prefetch the JUnit launcher'
       - name: Run JVM tests
         env:
           RESTORED_BUILD: ${{ steps.build.outputs.cache-matched-key }}
