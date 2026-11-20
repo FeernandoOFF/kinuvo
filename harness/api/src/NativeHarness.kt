@@ -33,7 +33,7 @@ interface AgentRunner {
         action: SurfaceAction? = null,
         report: SessionEntry.ToolReport? = null,
         inputs: List<MessageInput> = emptyList(),
-        steering: suspend () -> List<SessionEntry.UserMessage> = { emptyList() },
+        steering: suspend () -> List<SessionEntry> = { emptyList() },
     ): Flow<AgentEvent>
 }
 

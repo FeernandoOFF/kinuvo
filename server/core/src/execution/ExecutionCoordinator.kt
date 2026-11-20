@@ -44,6 +44,44 @@ class ExecutionCoordinator(
     private val states = mutableMapOf<SessionId, ExecutionState>()
     private val brokers = mutableMapOf<SessionId, ExecutionBroker>()
     private val dispatch = mutableMapOf<SessionId, Job>()
+    private class Turn {
+        val done = CompletableDeferred<Unit>()
+        val submitted = CompletableDeferred<Boolean>()
+        var cancelled = false
+        var finishing = false
+    }
+    private val turns = mutableMapOf<SessionId, Turn>()
+    internal var onFinish: suspend (AgentId, SessionId, Boolean, String?) -> Unit = { _, _, _, _ -> }
+
+    internal suspend fun isActive(id: SessionId) = lock.withLock { id in turns }
+
+    suspend fun join(id: SessionId) { lock.withLock { turns[id] }?.done?.await() }
+
+    @OptIn(DelicateCoroutinesApi::class)
+    private suspend fun finish(agent: AgentId, id: SessionId, lost: Boolean) {
+        val (turn, cancelled) = lock.withLock {
+            val turn = turns[id] ?: return
+            if (turn.finishing) return
+            turn.finishing = true
+            turn to turn.cancelled
+        }
+        scope.launch(start = CoroutineStart.ATOMIC) {
+            try {
+                val error = (log.completion(id) as? AgentEvent.RunError)?.message
+                    ?: if (lost) "Harness connection lost" else null
+                onFinish(agent, id, cancelled, error)
+            } finally {
+                withContext(NonCancellable) { release(id, turn) }
+            }
+        }
+    }
+
+    private suspend fun release(id: SessionId, turn: Turn) {
+        lock.withLock { if (turns[id] === turn) turns.remove(id) }
+        turn.submitted.complete(false)
+        turn.done.complete(Unit)
+    }
+
     private val opening = mutableSetOf<SessionId>()
 
     suspend fun reload() { val loaded = recovery.load(); lock.withLock { records.clear(); records.putAll(loaded.associateBy { it.sessionId }) } }
@@ -52,11 +90,11 @@ class ExecutionCoordinator(
         for (saved in records.values.toList()) {
             try {
                 var r = saved
-                r.inputCheckpoint?.let { log.appendAll(r.agentId, r.sessionId, listOf(it)) }
+                (r.inputCheckpoint ?: r.reportCheckpoint)?.let { log.appendAll(r.agentId, r.sessionId, listOf(it)) }
                 for (submission in r.submissions.keys - r.acceptedSubmissions) {
                     log.appendAll(r.agentId, r.sessionId, listOf(SessionEntry.Notice("submission-uncertain:$submission", "submission_uncertain", "The harness did not confirm this submission before the connection ended. It was not resent.")))
                 }
-                r = r.copy(inputCheckpoint = null)
+                r = r.copy(inputCheckpoint = null, reportCheckpoint = null)
                 if (r.checkpoint.isNotEmpty()) {
                     try { log.appendAll(r.agentId, r.sessionId, r.checkpoint) }
                     catch (_: SessionCommitConflict) {
@@ -131,11 +169,13 @@ class ExecutionCoordinator(
         return log.executionSnapshot(r.agentId, id).copy(externalSessionId = r.externalSessionId).let { if (r.lost || r.closed) it.copy(phase = ExecutionPhase.Lost) else it }
     }
     override suspend fun snapshot(agentId: AgentId, sessionId: SessionId): ExecutionSnapshot { session(agentId, sessionId); return snapshot(sessionId) }
-    override suspend fun create(agentId: AgentId): SessionInfo {
+    override suspend fun create(agentId: AgentId): SessionInfo = create(agentId, null)
+
+    internal suspend fun create(agentId: AgentId, child: SessionParent?): SessionInfo {
         val config = registry.configured(agentId)
         val registration = requireNotNull(registry.registration(agentId))
         require(Regex("[a-z0-9][a-z0-9-]{0,31}").matches(agentId.value))
-        val info = log.createSession(agentId, "")
+        val info = if (child == null) log.createSession(agentId, "") else log.createChild(agentId, child)
         save(ExecutionRecovery(agentId, info.id, config, registration, Uuid.random().toString()))
         open(record(info.id))
         return session(agentId, info.id)
@@ -159,7 +199,7 @@ class ExecutionCoordinator(
         var revision = 0L
         var draftFlush: Job? = null
         var written = TimeSource.Monotonic.markNow()
-        suspend fun persist() { r = mutate(id) { r.copy(submissions = it.submissions, acceptedSubmissions = it.acceptedSubmissions, inputCheckpoint = it.inputCheckpoint, archived = it.archived, closed = it.closed) }; written = TimeSource.Monotonic.markNow() }
+        suspend fun persist() { r = mutate(id) { r.copy(submissions = it.submissions, acceptedSubmissions = it.acceptedSubmissions, inputCheckpoint = it.inputCheckpoint, reportCheckpoint = it.reportCheckpoint, archived = it.archived, closed = it.closed) }; written = TimeSource.Monotonic.markNow() }
         val sink = object : ExecutionSink {
             override suspend fun publish(event: AgentEvent) {
                 revision++
@@ -176,7 +216,11 @@ class ExecutionCoordinator(
                     }
                 }
                 log.publish(r.agentId, id, event)
-                if (event is AgentEvent.ExecutionPhaseChanged && event.phase == ExecutionPhase.Lost) scope.launch { releaseLost(id, initial.generation); readinessChanged() }
+                if (event is AgentEvent.ExecutionPhaseChanged) {
+                    if (event.phase == ExecutionPhase.Idle || event.phase == ExecutionPhase.Lost)
+                        finish(r.agentId, id, event.phase == ExecutionPhase.Lost)
+                    if (event.phase == ExecutionPhase.Lost) scope.launch { releaseLost(id, initial.generation); readinessChanged() }
+                }
             }
             override suspend fun commit(entries: List<SessionEntry>) {
                 revision++; draftFlush?.cancel()
@@ -214,7 +258,9 @@ class ExecutionCoordinator(
         } catch (e: Throwable) { withContext(NonCancellable) { broker.lost(); discard(id) }; throw e }
         finally { lock.withLock { opening.remove(id) } }
     }
-    override suspend fun send(p: SendParams): SendResult {
+    override suspend fun send(params: SendParams): SendResult = send(params, null)
+
+    internal suspend fun send(p: SendParams, report: SessionEntry.ToolReport?): SendResult {
         require(p.delivery == SendDelivery.Turn) { "This external harness does not support Queue or Steer" }
         require(p.text.isNotBlank() || p.attachments.isNotEmpty())
         require(p.attachments.size <= MAX_ATTACHMENTS && p.attachments.distinct().size == p.attachments.size)
@@ -232,25 +278,49 @@ class ExecutionCoordinator(
         }
         check(!r.archived && !r.closed && !r.lost && r.failure == null)
         attachments.forEach { require(it.attachment.mimeType in r.support.supportedMimeTypes) { "Unsupported attachment type" } }
-        val (session, state) = lock.withLock { requireNotNull(live[id]) to states.getValue(id) }
-        state.begin()
-        state.boundSink().publish(AgentEvent.ExecutionPhaseChanged(ExecutionPhase.Running))
-        val input = SessionEntry.UserMessage(p.text, attachments = attachments.map { it.attachment }, voice = p.voice, submissionId = submission, action = p.action)
-        mutate(id) { current -> current.copy(submissions = current.submissions + (submission to null), inputCheckpoint = input) }
-        log.appendAll(p.agentId, id, listOf(input))
-        mutate(id) { it.copy(inputCheckpoint = null) }
-        val job = scope.launch(start = CoroutineStart.UNDISPATCHED) {
-            try {
-                val accepted = session.prompt(ExecutionInput(if (p.voice) "$liveVoiceInstructions\n\n${p.text}" else p.text, attachments, p.action))
-                if (lock.withLock { states[id] === state }) mutate(id) { current -> current.copy(submissions = current.submissions + (submission to accepted.messageId), acceptedSubmissions = current.acceptedSubmissions + submission) }
-            } catch (e: Exception) {
-                withContext(NonCancellable) { if (lock.withLock { states[id] === state }) lock.withLock { brokers[id] }?.lost() }
-            }
+        lock.withLock { turns[id]?.takeIf { it.finishing } }?.done?.await()
+        val turn = Turn()
+        val (session, state) = lock.withLock {
+            check(id !in turns) { "A run is already active in this session" }
+            (requireNotNull(live[id]) to states.getValue(id)).also { turns[id] = turn }
         }
-        lock.withLock { dispatch[id] = job }
+        try {
+            state.begin()
+            state.boundSink().publish(AgentEvent.ExecutionPhaseChanged(ExecutionPhase.Running))
+            val input = report ?: SessionEntry.UserMessage(p.text, attachments = attachments.map { it.attachment }, voice = p.voice, submissionId = submission, action = p.action)
+            mutate(id) { current -> current.copy(submissions = current.submissions + (submission to null), inputCheckpoint = input as? SessionEntry.UserMessage, reportCheckpoint = report) }
+            log.appendAll(p.agentId, id, listOf(input))
+            mutate(id) { it.copy(inputCheckpoint = null, reportCheckpoint = null) }
+            if (lock.withLock { turn.cancelled }) {
+                turn.submitted.complete(false)
+                state.boundSink().publish(AgentEvent.ExecutionPhaseChanged(ExecutionPhase.Idle))
+                return SendResult(id, RunId(submission), p.text)
+            }
+            val job = scope.launch(start = CoroutineStart.UNDISPATCHED) {
+                try {
+                    val accepted = session.prompt(ExecutionInput(if (p.voice) "$liveVoiceInstructions\n\n${p.text}" else p.text, attachments, p.action))
+                    if (lock.withLock { states[id] === state }) mutate(id) { current -> current.copy(submissions = current.submissions + (submission to accepted.messageId), acceptedSubmissions = current.acceptedSubmissions + submission) }
+                } catch (e: Exception) {
+                    withContext(NonCancellable) { lock.withLock { brokers[id]?.takeIf { states[id] === state && turns[id] === turn } }?.lost() }
+                }
+            }
+            lock.withLock { if (states[id] === state && turns[id] === turn) dispatch[id] = job }
+            turn.submitted.complete(true)
+        } catch (e: Throwable) {
+            withContext(NonCancellable) { release(id, turn) }
+            throw e
+        }
         return SendResult(id, RunId(submission), p.text)
     }
-    override suspend fun stop(id: SessionId) { lock.withLock { live[id] }?.cancel() }
+
+    override suspend fun stop(sessionId: SessionId) {
+        val (session, turn) = lock.withLock {
+            val turn = turns[sessionId]?.takeUnless { it.finishing } ?: return
+            turn.cancelled = true
+            live[sessionId] to turn
+        }
+        if (turn.submitted.await()) session?.cancel()
+    }
     suspend fun closeExecution(id: SessionId) { discard(id); sealInterrupted(id); mutate(id) { it.copy(closed = true, lost = true) }; readinessChanged() }
     private suspend fun sealInterrupted(id: SessionId) {
         val r = record(id)

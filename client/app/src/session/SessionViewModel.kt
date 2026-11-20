@@ -82,7 +82,7 @@ sealed interface ChatItem {
     data class Error(override val id: String, val message: String) : ChatItem
     data class Reflection(override val id: String, val result: ReflectionResult? = null, val reviews: Map<String, Boolean> = emptyMap(), val revised: Set<String> = emptySet()) : ChatItem
     data class Compaction(override val id: String, val summary: String) : ChatItem
-    data class ToolReport(override val id: String, val tool: String, val callId: ToolCallId?, val content: String) : ChatItem
+    data class ToolReport(override val id: String, val tool: String, val callId: ToolCallId?, val content: String, val children: List<SubAgentCompletion> = emptyList()) : ChatItem
 
     data class Activation(override val id: String, val name: String, val content: String) : ChatItem
 }

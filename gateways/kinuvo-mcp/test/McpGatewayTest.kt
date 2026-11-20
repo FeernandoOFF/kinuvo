@@ -66,7 +66,7 @@ class McpGatewayTest {
             val id = spawned.getValue("sessionId").jsonPrimitive.content
             val waiting = call("agents_wait", buildJsonObject { put("session_ids", JsonArray(listOf(JsonPrimitive(id)))); put("timeout_seconds", "5") })
             assertTrue(server.harness.log.pending(session.id).isEmpty())
-            val result = Json.parseToJsonElement(waiting).jsonArray.single().jsonObject
+            val result = Json.parseToJsonElement(waiting).jsonObject.getValue("children").jsonArray.single().jsonObject
             assertEquals(id, result.getValue("sessionId").jsonPrimitive.content)
             assertEquals("child answer", result.getValue("result").jsonPrimitive.content)
             access.revoke(credential); run.job.cancel()

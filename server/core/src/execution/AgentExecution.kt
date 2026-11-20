@@ -9,6 +9,8 @@ import kinuvo.protocol.agent.AgentId
 import arrow.core.raise.Raise
 import arrow.core.raise.context.raise
 import kinuvo.server.SubAgents
+import kinuvo.server.Runs
+import kinuvo.server.SessionLog
 import kinuvo.server.AgentError
 import kinuvo.server.ServerError
 import kinuvo.server.SessionError
@@ -23,9 +25,54 @@ class AgentExecution(
     private val external: ExecutionCoordinator,
     private val native: NativeExecution,
     private val management: Mutex,
+    private val runs: Runs,
+    private val log: SessionLog,
 ) : ExecutionDispatch {
     var workflowSurface: suspend (AgentId, SessionId, SurfaceAction) -> Boolean = { _, _, _ -> false }
     var subAgents: SubAgents? = null
+    private val finishListeners = mutableListOf<suspend (AgentId, SessionId, Boolean, String?) -> Unit>()
+
+    init {
+        external.onFinish = ::finished
+        runs.onBegin = { _, id -> subAgents?.begin(id) }
+        runs.onCancel = { subAgents?.cancelChildren(it) }
+        runs.onFinish { agent, id, cancelled ->
+            finished(agent, id, cancelled, (log.completion(id) as? AgentEvent.RunError)?.message)
+        }
+    }
+
+    private suspend fun finished(agent: AgentId, id: SessionId, cancelled: Boolean, error: String?) {
+        finishListeners.forEach { it(agent, id, cancelled, error) }
+    }
+
+    internal fun onFinish(listener: suspend (AgentId, SessionId, Boolean, String?) -> Unit) { finishListeners += listener }
+
+    suspend fun join(id: SessionId) = if (external.owns(id)) external.join(id) else runs.join(id)
+
+    internal suspend fun createChild(agent: AgentId, parent: SessionParent, settings: SessionSettings?): SessionInfo =
+        if (registry.registration(agent) != null) management.withLock { external.create(agent, parent) }
+        else log.createChild(agent, parent, settings)
+
+    internal suspend fun trySteer(params: SendParams, fallback: suspend () -> Unit): Boolean =
+        !external.owns(requireNotNull(params.sessionId)) && native.trySteer(params, fallback)
+
+    internal suspend fun report(agent: AgentId, id: SessionId, take: suspend () -> SessionEntry.ToolReport?) {
+        if (!external.owns(id)) native.report(agent, id, take)
+        else {
+            while (true) {
+                external.join(id)
+                val sent = management.withLock {
+                    if (external.isActive(id)) return@withLock false
+                    val report = take() ?: return
+                    subAgents?.begin(id)
+                    external.send(SendParams(agent, id, report.content), report)
+                    true
+                }
+                if (sent) return
+            }
+        }
+    }
+
     private suspend fun forAgent(agentId: AgentId): ExecutionDispatch = if (registry.registration(agentId) != null) external else native
 
     private suspend fun forSession(sessionId: SessionId): ExecutionDispatch = if (external.owns(sessionId)) external else native

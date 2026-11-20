@@ -25,6 +25,7 @@ data class ExecutionRecovery(
     val checkpoint: List<SessionEntry> = emptyList(),
     val legacyOrder: Long? = null,
     val migrationId: String? = null,
+    val reportCheckpoint: SessionEntry.ToolReport? = null,
 )
 
 /** Host-supplied atomic persistence; tests need no filesystem or process adapter. */
