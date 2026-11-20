@@ -44,7 +44,6 @@ class SubAgents internal constructor(
     var onBudgetExhausted: suspend (SessionId) -> Unit = {}
     private class Budget(var left: Int)
     private val lock = Mutex()
-    private val deliveryLock = Mutex()
     private val delivering = mutableSetOf<SessionId>()
     private val stopped = mutableSetOf<SessionId>()
     private val budgets = mutableMapOf<SessionId, Budget>()
@@ -239,13 +238,13 @@ class SubAgents internal constructor(
         }
     }
 
-    private suspend fun deliver(agent: AgentId, parent: SessionId, call: ToolCallId, states: List<SubAgentState>): List<SubAgentState> = deliveryLock.withLock {
+    private suspend fun deliver(agent: AgentId, parent: SessionId, call: ToolCallId, states: List<SubAgentState>): List<SubAgentState> =
         states.map { snapshot ->
             val (state, reserved) = lock.withLock {
                 val current = list(agent, parent).getValue(snapshot.sessionId)
                 val hidden = harness.store.sessions(current.agentId).any { it.id == current.sessionId && it.hidden }
                 val state = current.copy(private = current.private || hidden)
-                val reserve = state.private && !state.delivered && state.status != SubAgentStatus.Running && queued[state.sessionId]?.isActive != true
+                val reserve = state.private && !state.delivered && state.sessionId !in delivering && state.status != SubAgentStatus.Running && queued[state.sessionId]?.isActive != true
                 if (reserve) delivering += state.sessionId
                 state to reserve
             }
@@ -263,7 +262,6 @@ class SubAgents internal constructor(
                 lock.withLock { delivering -= state.sessionId }
             }
         }
-    }
 
     fun tools(agent: AgentId, parent: SessionId): List<Tool> = listOf(
         agentTool(ToolNames.AGENTS_SPAWN, "Start a Sub-agent using the Agent’s configured model and tools; private opts into an on-device Hidden Session. Returns its Session id. Call agents_list first when unsure of an Agent id.", listOf(ToolParameter("goal", "Task and context for the child", ParameterType.String)), listOf(ToolParameter("agent_id", "Exact Agent id from agents_list; omit to spawn yourself.", ParameterType.String), ToolParameter("private", "Private on-device Session; default false", ParameterType.Boolean))) { a, call ->
