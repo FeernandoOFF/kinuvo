@@ -119,6 +119,7 @@ jobs:
             ~/.cache/JetBrains/Kotlin/cli
             ~/.cache/JetBrains/Kotlin/extract.cache/*jdk*
             ~/.cache/JetBrains/Kotlin/extract.cache/*jbr*
+            ~/.cache/JetBrains/Kotlin/download.cache/*junit*
           key: kotlin-toolchain-v1-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('kotlin', '**/*.yaml') }}
           restore-keys: kotlin-toolchain-v1-${{ runner.os }}-${{ runner.arch }}-
       - id: dependencies
@@ -142,7 +143,10 @@ jobs:
         run: |
           set -o pipefail
           if ! ./kotlin test -p jvm $MODULES 2>&1 | tee "$RUNNER_TEMP/kotlin-tests.log"; then
-            if [ -z "$RESTORED_BUILD" ] && ! grep -q "Unable to download checksums" "$RUNNER_TEMP/kotlin-tests.log"; then
+            if grep -qE "HttpStatusException\(status=(404|429|5[0-9]{2})" "$RUNNER_TEMP/kotlin-tests.log"; then
+              echo '::warning::Retrying after a failed download'
+              sleep 30
+            elif [ -z "$RESTORED_BUILD" ] && ! grep -q "Unable to download checksums" "$RUNNER_TEMP/kotlin-tests.log"; then
               exit 1
             fi
             echo '::warning::Retrying with downloaded metadata and clean build state'
@@ -167,6 +171,7 @@ jobs:
             ~/.cache/JetBrains/Kotlin/cli
             ~/.cache/JetBrains/Kotlin/extract.cache/*jdk*
             ~/.cache/JetBrains/Kotlin/extract.cache/*jbr*
+            ~/.cache/JetBrains/Kotlin/download.cache/*junit*
           key: ${{ steps.toolchain.outputs.cache-primary-key }}
       - if: github.ref == 'refs/heads/main' && steps.dependencies.outputs.cache-hit != 'true'
         uses: actions/cache/save@v4
