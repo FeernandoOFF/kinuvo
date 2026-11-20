@@ -1,6 +1,9 @@
 package kinuvo.ui.artifacts
 
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.size
+import androidx.compose.ui.unit.dp
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
@@ -29,17 +32,17 @@ internal actual fun WebView(html: String, modifier: Modifier, onMessage: ((Strin
     val covered = LocalWebViewCovered.current
     val url = remember(html) { "data:text/html;charset=utf-8;base64," + Base64.encode(html.encodeToByteArray()) }
     DisposableEffect(channel) { onDispose { channel?.send = {} } }
-    SwingPanel(
+    // The panel draws above Compose, so a covered page shrinks to nothing (keeping its state) rather than just hiding.
+    Box(modifier) { SwingPanel(
         factory = {
             WebViewComponent.create().apply {
                 if (onMessage != null) addJavascriptCallback("kinuvoEdit") { args -> current?.invoke(editedHtml(args)) }
             }
         },
-        modifier = modifier,
+        modifier = if (covered) Modifier.size(0.dp) else Modifier.fillMaxSize(),
         update = {
             if (it.url != url) it.setUrl(url)
-            it.isVisible = !covered
             channel?.send = { message -> it.eval(pageDelivery(message)) }
         },
-    )
+    ) }
 }
