@@ -119,6 +119,7 @@ jobs:
             ~/.cache/JetBrains/Kotlin/cli
             ~/.cache/JetBrains/Kotlin/extract.cache/*jdk*
             ~/.cache/JetBrains/Kotlin/extract.cache/*jbr*
+            ~/.cache/JetBrains/Kotlin/download.cache/*junit*
           key: kotlin-toolchain-v1-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('kotlin', '**/*.yaml') }}
           restore-keys: kotlin-toolchain-v1-${{ runner.os }}-${{ runner.arch }}-
       - id: dependencies
@@ -136,13 +137,32 @@ jobs:
       # Chromium's sandbox needs unprivileged user namespaces on Ubuntu 24.04.
       - if: matrix.suite == 'server'
         run: sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+      - name: Fetch the JUnit launcher
+        # The toolchain downloads it from Maven Central on demand, which rate-limits CI runners.
+        run: |
+          jar=org/junit/platform/junit-platform-console-standalone/6.1.3/junit-platform-console-standalone-6.1.3.jar
+          url=https://repo1.maven.org/maven2/$jar
+          cache=~/.cache/JetBrains/Kotlin/download.cache
+          target=$cache/$(printf %s "${url}V1" | sha256sum | cut -c1-10)-${jar##*/}
+          [ -s "$target" ] && exit 0
+          mkdir -p "$cache"
+          for mirror in https://repo1.maven.org/maven2 https://maven-central.storage-download.googleapis.com/maven2 https://repo.maven.apache.org/maven2; do
+            if curl -fsSL --retry 4 --retry-all-errors --retry-delay 10 -o "$target.tmp" "$mirror/$jar" &&
+              [ "$(sha1sum < "$target.tmp" | cut -c1-40)" = "$(curl -fsSL --retry 4 --retry-all-errors "$mirror/$jar.sha1" | cut -c1-40)" ]; then
+              mv "$target.tmp" "$target"; exit 0
+            fi
+          done
+          echo '::warning::Could not prefetch the JUnit launcher'
       - name: Run JVM tests
         env:
           RESTORED_BUILD: ${{ steps.build.outputs.cache-matched-key }}
         run: |
           set -o pipefail
           if ! ./kotlin test -p jvm $MODULES 2>&1 | tee "$RUNNER_TEMP/kotlin-tests.log"; then
-            if [ -z "$RESTORED_BUILD" ] && ! grep -q "Unable to download checksums" "$RUNNER_TEMP/kotlin-tests.log"; then
+            if grep -qE "HttpStatusException\(status=(404|429|5[0-9]{2})" "$RUNNER_TEMP/kotlin-tests.log"; then
+              echo '::warning::Retrying after a failed download'
+              sleep 30
+            elif [ -z "$RESTORED_BUILD" ] && ! grep -q "Unable to download checksums" "$RUNNER_TEMP/kotlin-tests.log"; then
               exit 1
             fi
             echo '::warning::Retrying with downloaded metadata and clean build state'
@@ -167,6 +187,7 @@ jobs:
             ~/.cache/JetBrains/Kotlin/cli
             ~/.cache/JetBrains/Kotlin/extract.cache/*jdk*
             ~/.cache/JetBrains/Kotlin/extract.cache/*jbr*
+            ~/.cache/JetBrains/Kotlin/download.cache/*junit*
           key: ${{ steps.toolchain.outputs.cache-primary-key }}
       - if: github.ref == 'refs/heads/main' && steps.dependencies.outputs.cache-hit != 'true'
         uses: actions/cache/save@v4

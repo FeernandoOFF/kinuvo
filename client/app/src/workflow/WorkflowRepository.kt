@@ -23,6 +23,7 @@ data class WorkflowsState(val workflows: List<Workflow> = emptyList(), val runs:
 class WorkflowRepository(internal val connection: ConnectedServer) : ServerBound {
     val state: StateFlow<WorkflowsState>
         field = MutableStateFlow(WorkflowsState())
+    private var revision = 0L
     private val requested = mutableSetOf<WorkflowId>()
     private var attached: Job? = null
     private var loading: Job? = null
@@ -30,7 +31,7 @@ class WorkflowRepository(internal val connection: ConnectedServer) : ServerBound
     override fun attach(client: KinuvoClient) {
         attached?.cancel()
         attached = connection.scope.launch {
-            launch { client.events(Api.WorkflowsChanged).collect { workflows -> state.update { it.copy(workflows = workflows) } } }
+            launch { client.events(Api.WorkflowsChanged).collect { workflows -> revision++; state.update { it.copy(workflows = workflows) } } }
             launch { client.events(Api.WorkflowRunChanged).collect { run ->
                 state.update { it.copy(runs = it.runs + (run.workflowId to (it.runs[run.workflowId].orEmpty().filterNot { it.id == run.id } + run).sortedByDescending { it.startedAt })) }
             } }
@@ -49,16 +50,20 @@ class WorkflowRepository(internal val connection: ConnectedServer) : ServerBound
             state.update { it.copy(loading = true, error = null) }
             catching {
                 connection.call { client ->
+                    val version = revision
                     val workflows = client.call(Api.Workflows, Unit)
                     val histories = requested.toList().filter { id -> workflows.any { it.id == id } }.associateWith { client.call(Api.WorkflowRuns, it) }
-                    state.update { it.copy(workflows = workflows, runs = it.runs + histories, loading = false) }
+                    state.update { it.copy(workflows = if (version == revision) workflows else it.workflows, runs = it.runs + histories, loading = false) }
                 }
             }.onFailure { error -> state.update { it.copy(loading = false, error = error.message) } }
         }
     }
 
     suspend fun save(workflow: Workflow, create: Boolean = false): Workflow = connection.call {
-        it.call(if (create) Api.CreateWorkflow else Api.UpdateWorkflow, workflow)
+        val saved = it.call(if (create) Api.CreateWorkflow else Api.UpdateWorkflow, workflow)
+        revision++
+        state.update { data -> data.copy(workflows = data.workflows.filterNot { it.id == saved.id } + saved) }
+        saved
     }
     suspend fun models() = connection.config.models()
     suspend fun tools(agent: AgentId): List<String> = connection.call { it.call(Api.Capabilities, CapabilitiesParams(agent)).tools.map { tool -> tool.id } }
