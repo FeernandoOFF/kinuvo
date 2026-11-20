@@ -30,6 +30,17 @@ class ArtifactTest {
     }
 
     @Test
+    fun theAppThemeReachesThePageAndOnlyTheBrowserCopyMayFrame() {
+        val viewed = artifactDocument("<p>x</p>", dark = true)
+        assertTrue(viewed.contains("dataset.theme=&quot;dark&quot;"))
+        assertTrue(!viewed.contains("frame-src"))
+        val browser = browserDocument("<p>x</p>", dark = false)
+        assertTrue(browser.contains("document.documentElement.dataset.theme=\"light\""))
+        assertTrue(browser.contains("frame-src 'self' file: blob: data:;"))
+        assertTrue(!sandboxed("<p>x</p>").contains("data-theme") && !sandboxed("<p>x</p>").contains("dataset.theme"))
+    }
+
+    @Test
     fun aSavedEditorPolicyIsDropped() {
         val leaked = "<meta http-equiv=\"Content-Security-Policy\" content=\"default-src 'none'; script-src 'nonce-0123456789abcdef0123456789abcdef'; style-src https:\">"
         assertTrue(!sandboxed("<head>$leaked</head><p>x</p>").contains("0123456789abcdef"))

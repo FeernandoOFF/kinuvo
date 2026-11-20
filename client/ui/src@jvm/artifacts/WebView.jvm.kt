@@ -26,6 +26,7 @@ internal fun editedHtml(args: String): String =
 internal actual fun WebView(html: String, modifier: Modifier, onMessage: ((String) -> Unit)?, channel: PageChannel?) {
     if (!LocalNativeViews.current) return Box(modifier)
     val current by rememberUpdatedState(onMessage)
+    val covered = LocalWebViewCovered.current
     val url = remember(html) { "data:text/html;charset=utf-8;base64," + Base64.encode(html.encodeToByteArray()) }
     DisposableEffect(channel) { onDispose { channel?.send = {} } }
     SwingPanel(
@@ -37,6 +38,7 @@ internal actual fun WebView(html: String, modifier: Modifier, onMessage: ((Strin
         modifier = modifier,
         update = {
             if (it.url != url) it.setUrl(url)
+            it.isVisible = !covered
             channel?.send = { message -> it.eval(pageDelivery(message)) }
         },
     )
