@@ -28,7 +28,10 @@ class ArtifactTool(
             "charts, small interactive tools; inline CSS/JS or load them from https CDNs, no fetch/XHR), SVG, Markdown, CSV, " +
             "JSON or text. A design holds artboards, JSON {\"artboards\":[{\"id\",\"name\",\"width\",\"height\",\"html\"}]}, " +
             "each a self-contained HTML page at a fixed size, shown left to right; prefer artboard_set/artboard_remove for " +
-            "single-artboard changes. create returns its id; update replaces its content (only the latest is kept). " +
+            "single-artboard changes. HTML follows the app's light/dark theme: define colours as CSS variables on :root, override them under " +
+            ":root[data-theme=dark] (the app sets data-theme) and under @media (prefers-color-scheme: dark) for :root:not([data-theme=light]), " +
+            "and give body an explicit background; slide decks (e.g. reveal.js) keep speaker notes in <aside class=notes>, which the user sees from Open in browser. " +
+            "create returns its id; update replaces its content (only the latest is kept). " +
             "Artifacts are shared by all agents; list and read find earlier ones.",
         requiredParameters = listOf(ToolParameter("action", "create | update | list | read | artboard_set | artboard_remove", ParameterType.Enum(arrayOf("create", "update", "list", "read", "artboard_set", "artboard_remove")))),
         optionalParameters = listOf(

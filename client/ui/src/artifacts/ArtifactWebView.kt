@@ -1,13 +1,19 @@
 package kinuvo.ui.artifacts
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.staticCompositionLocalOf
+import com.composables.ui.theme.ColorScheme
+import com.composables.ui.theme.LocalColorScheme
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import kotlinx.serialization.json.JsonPrimitive
 
 /** False in hosts with no native view layer, such as the test scene, where [WebView] on the desktop draws nothing instead of failing. */
 internal val LocalNativeViews = staticCompositionLocalOf { true }
+
+/** True while a menu or popover covers the page: a desktop web view draws above Compose, so it hides (keeping its page) until it's uncovered. */
+internal val LocalWebViewCovered = compositionLocalOf { false }
 
 /** Where the app talks to a page after it loaded: [send] runs `window.kinuvoReceive(message)` in it, and does nothing until a web view wires it. */
 internal class PageChannel {
@@ -25,11 +31,12 @@ internal expect val visualEditing: Boolean
 
 /** [html] with scripts but no network requests of its own: only https scripts, styles, fonts and images load. [fade] fades its top edge in from that colour. */
 @Composable
-internal fun HtmlView(html: String, modifier: Modifier = Modifier, fade: Color? = null) = WebView(artifactDocument(html, fade), modifier)
+internal fun HtmlView(html: String, modifier: Modifier = Modifier, fade: Color? = null) =
+    WebView(artifactDocument(html, fade, LocalColorScheme.current == ColorScheme.Dark), modifier)
 
-private fun csp(script: String, remote: String) = "<meta data-kinuvo-editor http-equiv=\"Content-Security-Policy\" content=\"default-src 'none'; " +
+private fun csp(script: String, remote: String, frames: String) = "<meta data-kinuvo-editor http-equiv=\"Content-Security-Policy\" content=\"default-src 'none'; " +
     "script-src $script; style-src 'unsafe-inline'$remote; img-src data: blob:$remote; " +
-    "font-src data:$remote; media-src data: blob:; form-action 'none'; base-uri 'none'\">"
+    "font-src data:$remote; media-src data: blob:;${if (frames.isEmpty()) "" else " frame-src $frames;"} form-action 'none'; base-uri 'none'\">"
 
 private const val ARTIFACT_SCRIPTS = "'unsafe-inline' 'unsafe-eval' https:"
 
@@ -38,13 +45,23 @@ private const val ARTIFACT_SCRIPTS = "'unsafe-inline' 'unsafe-eval' https:"
  * nothing in it (comments, attributes) can move the policy, and it can only add stricter ones. Visual editing drops these
  * marked tags when it saves. [remote] lists the sources styles, images and fonts may also load from; empty blocks the network entirely.
  */
-internal fun sandboxed(html: String, script: String = ARTIFACT_SCRIPTS, remote: String = " https:") =
-    "<!doctype html><html><head><meta data-kinuvo-editor charset=\"utf-8\">${csp(script, remote)}</head>${html.replace(EDITOR_POLICY, "")}"
+internal fun sandboxed(html: String, script: String = ARTIFACT_SCRIPTS, remote: String = " https:", dark: Boolean? = null, frames: String = "") =
+    "<!doctype html><html><head><meta data-kinuvo-editor charset=\"utf-8\">${csp(script, remote, frames)}${dark?.let(::themeHint).orEmpty()}</head>${html.replace(EDITOR_POLICY, "")}"
 
 /** The visual editor's policy without its marker, as some saved Artifacts carry it; left in, it blocks every script. */
 private val EDITOR_POLICY = Regex("<meta http-equiv=\"Content-Security-Policy\" content=\"default-src 'none'; script-src 'nonce-[0-9a-f]{32}';[^>]*>")
 
-internal fun artifactDocument(html: String, fade: Color? = null) = framed(sandboxed(html), fade?.let(::topFade).orEmpty())
+/** The artifact as its own page for the system browser, where it may frame itself, as reveal.js speaker notes do. */
+internal fun browserDocument(html: String, dark: Boolean) = sandboxed(html, dark = dark, frames = "'self' file: blob: data:")
+
+internal fun artifactDocument(html: String, fade: Color? = null, dark: Boolean? = null) = framed(sandboxed(html, dark = dark), fade?.let(::topFade).orEmpty())
+
+/** The app's theme for the page: `data-theme` on its root and its `color-scheme`, which pages style with `:root[data-theme=dark]`. */
+internal fun themeHint(dark: Boolean): String {
+    val theme = if (dark) "dark" else "light"
+    return "<meta data-kinuvo-editor name=\"color-scheme\" content=\"$theme\">" +
+        "<script data-kinuvo-editor>document.documentElement.dataset.theme=\"$theme\"</script>"
+}
 
 internal fun topFade(c: Color): String {
     val rgb = "${(c.red * 255).toInt()},${(c.green * 255).toInt()},${(c.blue * 255).toInt()}"
