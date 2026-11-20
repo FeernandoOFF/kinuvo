@@ -86,7 +86,7 @@ internal class ServerAssembly(
     val logins = ProviderLogins(harness.modelProviders, scope) { hub.broadcast(Api.ProvidersChanged, it); hub.changedCapabilities() }
     private val reflector = Reflector(harness, scope, runs::isActive)
     val dispatch = AgentExecution(executions, external,
-        NativeExecution(harness, runs, scope, { admin.agent(it) }, { hub.capabilities }, reflector::ran) { sessionId, text -> hub.notifyVoice(sessionId, text) }, executionManagement)
+        NativeExecution(harness, runs, scope, { admin.agent(it) }, { hub.capabilities }, reflector::ran) { sessionId, text -> hub.notifyVoice(sessionId, text) }, executionManagement).also { it.workflowSurface = workflows::submitSurface }
     private val subAgents = SubAgents(harness, dispatch, scope, runs::join).also { harness.subAgents = it; dispatch.subAgents = it; runs.onBegin = { _, id -> it.begin(id) }; runs.onFinish(it::finish); runs.onCancel = it::cancelChildren }
     val dispatcher = TaskDispatcher(harness, runs, scope)
     private val sessions = SessionService(harness, admin, external)

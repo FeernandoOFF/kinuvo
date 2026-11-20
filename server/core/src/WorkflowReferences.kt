@@ -49,7 +49,7 @@ internal object WorkflowReferences {
         is WorkflowStep.Model -> listOfNotNull(step.prompt, step.system)
         is WorkflowStep.Tool -> strings(step.args)
         is WorkflowStep.Approval -> listOf(step.text)
-        is WorkflowStep.Review -> listOf(step.text, step.value)
+        is WorkflowStep.Review -> listOf(step.text, step.value) + (step.surface?.let(::strings) ?: emptyList())
         is WorkflowStep.Condition -> listOf(step.left, step.right)
         is WorkflowStep.Text -> listOf(step.text)
     }

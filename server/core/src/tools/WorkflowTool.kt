@@ -19,11 +19,11 @@ class WorkflowTool(private val workflows: Workflows, private val agentId: AgentI
     override val descriptor = toolSpec(ToolNames.WORKFLOWS,
         "Save proven work from chat as a Workflow: cheap Tool steps (run_code, MCP, web_fetch), small Model requests, and a Review where the user checks data. " +
             "Actions: models (available providers/models and Agent default; optional Workflow id), agents, list, get, validate, save, run, status, cancel, retry, delete. validate checks without saving and returns Valid or all errors. save/validate take workflow JSON: id,name,agentId (defaults to you),inputs:[{name,description,default}],steps,edges:[{from,to,branch?}]. " +
-            "Step type and fields: tool(id,tool,args), model(id,prompt,system?,model?), condition(id,left,op,right), review(id,text,value), approval(id,text), agent_turn(id,agentId,prompt,model?), text(id,text) whose output is its rendered text. " +
+            "Step type and fields: tool(id,tool,args), model(id,prompt,system?,model?), condition(id,left,op,right), review(id,text,value,surface?), approval(id,text), agent_turn(id,agentId,prompt,model?), text(id,text) whose output is its rendered text. " +
             "agentId is an Agent id from agents, not a display name; omitted Workflow agentId defaults to you. " +
             "model is {provider,model}; omit it to use the Agent default (or continued Session settings). Tool/Model/Condition need no Session. References: {{steps.ID.output[.path]}}, {{input.name}} and {{now}} (ISO time in the Workflow's timeZone; .date .time .weekday .timezone .utc .timestamp); exact argument references keep JSON types. " +
             "Condition ops: Equals,NotEquals,Contains,NotContains,Empty,NotEmpty,GreaterThan,LessThan. branch true/false edges leave Conditions; unused branches skip. " +
-            "run/retry wait up to wait_seconds (default 60, max 120); return the run id when still running or waiting for Review/Approval. Workflow Tool steps cannot start runs.",
+            "Review flattens small JSON arrays of flat objects into repeated fields (fixed item count). Optional surface is an A2UI createSurface spec, rendered with references and submitted through show_ui; output is the submitted dataModel JSON. run/retry wait up to wait_seconds (default 60, max 120); return the run id when still running or waiting for Review/Approval. Workflow Tool steps cannot start runs.",
         requiredParameters = listOf(ToolParameter("action", "models|agents|list|get|validate|save|run|status|cancel|retry|delete", ParameterType.String)),
         optionalParameters = listOf(
             ToolParameter("id", "Workflow id; run id for status/cancel/retry", ParameterType.String),

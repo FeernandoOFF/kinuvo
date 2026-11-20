@@ -1,5 +1,6 @@
 package kinuvo.server
 
+import kinuvo.protocol.surface.SurfaceAction
 import kinuvo.protocol.tool.ToolNames
 import kinuvo.server.tools.ToolScope
 import kinuvo.protocol.agent.AgentId
@@ -22,8 +23,8 @@ import kotlinx.coroutines.*
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.datetime.TimeZone
-import kotlinx.serialization.json.JsonObject
-import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.*
+import kinuvo.server.tools.ShowUiTool
 import kotlin.time.Clock
 import kotlin.uuid.Uuid
 
@@ -44,6 +45,16 @@ class Workflows internal constructor(
     private val lock = Mutex()
     private var data = WorkflowData()
     private val jobs = mutableMapOf<WorkflowRunId, Job>()
+    private data class SurfaceReview(val agent: AgentId, val session: SessionId, val surface: String, val answer: CompletableDeferred<JsonObject>)
+    private val surfaceReviews = mutableMapOf<ToolCallId, SurfaceReview>()
+    suspend fun submitSurface(agent: AgentId, session: SessionId, action: SurfaceAction): Boolean = lock.withLock {
+        val review = surfaceReviews[action.callId] ?: return@withLock false
+        if (review.agent != agent || review.session != session || review.surface != action.surfaceId) return@withLock false
+        if (review.answer.isCompleted) return@withLock true
+        harness.log.append(agent, session, SessionEntry.UserMessage(action.name, action = action))
+        review.answer.complete(action.dataModel)
+        true
+    }
     private val attentionLock = Mutex()
     private val turnLocks = mutableMapOf<SessionId, Mutex>()
     private val announced = mutableMapOf<WorkflowRunId, Pair<AgentId, SessionId>>()
@@ -58,7 +69,7 @@ class Workflows internal constructor(
                 s.status == StepStatus.WaitingApproval && !s.started -> s.copy(status = StepStatus.Pending, interactionId = null)
                 s.status == StepStatus.WaitingApproval -> s.copy(status = StepStatus.Failed, error = "Interrupted by a Server restart")
                 s.status != StepStatus.Running -> s
-                r.workflow.steps.find { it.id == id } is WorkflowStep.Model -> s.copy(status = StepStatus.Pending)
+                r.workflow.steps.find { it.id == id }.let { it is WorkflowStep.Model || it is WorkflowStep.Review } -> s.copy(status = StepStatus.Pending)
                 else -> s.copy(status = StepStatus.Failed, error = "Interrupted by a Server restart")
             } }
             if (steps.values.none { it.status == StepStatus.Failed }) r.copy(steps = steps)
@@ -288,6 +299,28 @@ class Workflows internal constructor(
                 is WorkflowStep.Review -> {
                     val agent = sessionAgent(run)
                     session = attention(run, agent, session)
+                    if (step.surface != null) {
+                        val spec = WorkflowReferences.render(requireNotNull(step.surface), outputs(run.id))
+                        val surfaceId = (spec["surfaceId"] as? JsonPrimitive)?.content ?: error("Review surface needs surfaceId")
+                        val args = buildJsonObject {
+                            put("messages", JsonArray(listOf(buildJsonObject { put("createSurface", spec) })))
+                        }
+                        val call = SessionEntry.ToolCall(ToolCallId(Uuid.random().toString()), ToolNames.SHOW_UI, args.toString())
+                        val answer = CompletableDeferred<JsonObject>()
+                        lock.withLock { surfaceReviews[call.id] = SurfaceReview(agent.id, session, surfaceId, answer) }
+                        try {
+                            val gate = harness.composer.compose(agent, sessionId = session, scope = ToolScope.only(ToolNames.SHOW_UI), requireModel = false).gate
+                            harness.log.append(agent.id, session, call)
+                            val result = gate.invoke(call, ToolTurn(emit = { harness.log.publish(agent.id, session, it) }))
+                            harness.log.append(agent.id, session, SessionEntry.ToolResult(call.id, ToolNames.SHOW_UI, result.output, result.isError))
+                            if (result.isError) error(result.output)
+                            update(run.id, step.id, StepRun(StepStatus.WaitingApproval, session))
+                            val output = answer.await().toString()
+                            note(agent, session, "Review submitted${render(run.id, step.text).quoted()}")
+                            update(run.id, step.id, StepRun(StepStatus.Done, session, output))
+                        } finally { withContext(NonCancellable) { lock.withLock { surfaceReviews.remove(call.id) } } }
+                        return
+                    }
                     val form = ReviewForm.of(render(run.id, step.value))
                     val text = render(run.id, step.text)
                     val pending = harness.questions.register()
@@ -465,6 +498,12 @@ class Workflows internal constructor(
                 val listed = catalog?.providers?.firstOrNull { it.id == provider }
                 if (listed != null && !listed.stale && listed.warning == null && listed.models.isNotEmpty())
                     check(listed.models.any { it.id == model.model }, "$label: unknown model '${model.model}' for '${model.provider}'; use models")
+            }
+            if (step is WorkflowStep.Review && step.surface != null && WorkflowReferences.strings(step).none { "{{" in it }) {
+                val catalogs = harness.uiCatalogs.forRun()
+                if (catalogs.isNotEmpty()) try {
+                    ShowUiTool(catalogs).execute(buildJsonObject { put("messages", JsonArray(listOf(buildJsonObject { put("createSurface", requireNotNull(step.surface)) }))) })
+                } catch (e: IllegalArgumentException) { problems += "$label: ${e.message}" }
             }
             val ancestors = mutableSetOf<StepId>()
             fun visit(id: StepId) { graph.edges.filter { it.to == id }.forEach { if (ancestors.add(it.from)) visit(it.from) } }

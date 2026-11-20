@@ -5,6 +5,8 @@ import kinuvo.app.device.*
 import kinuvo.client.KinuvoClient
 import kinuvo.client.KinuvoException
 import kinuvo.protocol.model.ProviderModelRef
+import kinuvo.protocol.surface.*
+import kinuvo.protocol.ProtocolJson
 import kinuvo.protocol.Api
 import kinuvo.protocol.agent.AgentId
 import kinuvo.protocol.approval.*
@@ -32,6 +34,33 @@ import kotlin.test.*
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class WorkflowsTest {
+    @Test fun surfaceReviewConsumesSubmissionWithoutAnAgentTurn() = runBlocking<Unit> {
+        TestServer.start(scenario = { agent("work") }).use { server ->
+            val catalog = ProtocolJson.decodeFromString(UiCatalog.serializer(), javaClass.getResource("/a2ui-basic.json")!!.readText())
+            server.harness.uiCatalogs.connect(this, listOf(catalog))
+            val c = client(server)
+            val surface = Json.parseToJsonElement("""{"surfaceId":"review","catalogId":"${catalog.catalogId}","components":[{"id":"root","component":"Text","text":"Review"}],"dataModel":{"name":"old"}}""").jsonObject
+            c.run(c.call(Api.CreateWorkflow, workflow(WorkflowStep.Review(StepId("r"), "Check", surface = surface))).id)
+            val waiting = await(c, WorkflowId("test")) { it.steps[StepId("r")]?.status == StepStatus.WaitingApproval }
+            val session = waiting.steps.getValue(StepId("r")).sessionId!!
+            val call = server.harness.store.entries(agent, session).filterIsInstance<SessionEntry.ToolCall>().single()
+            val value = buildJsonObject { put("name", "edited") }
+            c.call(Api.Send, SendParams(agent, session, "Submit", action = SurfaceAction(call.id, "review", "submit", "root", JsonObject(emptyMap()), value)))
+            assertEquals(value.toString(), finished(c).steps.getValue(StepId("r")).output)
+            assertTrue(server.prompts.inputs.isEmpty())
+        }
+    }
+    @Test fun arrayReviewRebuildsTypedItems() {
+        for (input in listOf("""[{"name":"a","n":2,"ok":true},{"name":"b","n":3,"ok":false}]""", """{"rows":[{"name":"a","n":2,"ok":true},{"name":"b","n":3,"ok":false}]}""")) {
+            val form = ReviewForm.of(input)
+            assertEquals(6, form.questions.size)
+            assertEquals("Item 1 · name", form.questions.first().label)
+            val answers = form.questions.associate { it.id to it.default.orEmpty() }.toMutableMap()
+            answers["items.0.n"] = listOf("7")
+            assertEquals(Json.parseToJsonElement(input.replace("2", "7")), Json.parseToJsonElement(form.output(answers)))
+        }
+        assertEquals(1, ReviewForm.of(JsonArray(List(31) { buildJsonObject { put("n", it) } }).toString()).questions.size)
+    }
     private val agent = AgentId("work")
     private fun branch(from: String, to: String, on: Boolean) = WorkflowEdge(StepId(from), StepId(to), on)
     private fun turn(id: String, prompt: String = id) = WorkflowStep.AgentTurn(StepId(id), agent, prompt)
