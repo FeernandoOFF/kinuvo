@@ -42,8 +42,8 @@ data class SessionInfo(
     val unread: Boolean = false,
     val workflow: WorkflowRef? = null,
 ) {
-    /** The user's own Sessions, and Routine or Workflow Sessions once answered or waiting. */
-    val inChats: Boolean get() = !hidden && parent == null && teamId == null && ((routine == null && workflow == null) || answered || status == SessionStatus.Waiting)
+    /** The user's own Sessions and Workflow Sessions (made only when a step needs the user), and a Routine's once answered or waiting. */
+    val inChats: Boolean get() = !hidden && parent == null && teamId == null && (routine == null || answered || status == SessionStatus.Waiting)
 }
 
 /** A Task run's prompt: this first line, then the Task's details. */
