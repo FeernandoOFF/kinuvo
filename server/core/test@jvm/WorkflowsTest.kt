@@ -1,5 +1,6 @@
 package kinuvo.server
 
+import ai.koog.prompt.message.MessagePart
 import kinuvo.app.connection.*
 import kinuvo.app.device.*
 import kinuvo.client.KinuvoClient
@@ -90,6 +91,25 @@ class WorkflowsTest {
             delay(20)
         }
         error("unreachable")
+    }
+
+    @Test fun turnInputsKeepDataOutOfThePrompt() = runBlocking<Unit> {
+        val combined = "Summarize\n\n<input name=\"emails\">\nmail data\n</input>"
+        TestServer.start(script = { on(combined) { reply("summary") } }, scenario = { agent("work") }).use { server ->
+            val c = client(server)
+            val w = c.call(Api.CreateWorkflow, workflow(
+                WorkflowStep.Text(StepId("data"), "mail data"),
+                turn("summarize", "Summarize").copy(inputs = mapOf("emails" to "{{steps.data.output}}")),
+                edges = listOf(edge("data", "summarize")),
+            ))
+            c.run(w.id)
+            val done = finished(c)
+            assertEquals(WorkflowRunStatus.Done, done.status)
+            assertTrue(server.script.prompts.flatMap { it.messages }.flatMap { it.parts }.filterIsInstance<MessagePart.Text>().any { it.text == combined })
+            val message = server.harness.store.entries(agent, done.steps.getValue(StepId("summarize")).sessionId!!).filterIsInstance<SessionEntry.UserMessage>().single()
+            assertEquals("Summarize", message.text)
+            assertEquals(listOf(MessageInput("emails", "mail data")), message.inputs)
+        }
     }
 
     @Test fun linearOutputAndContinueSession() = runBlocking<Unit> {
@@ -352,7 +372,10 @@ class WorkflowsTest {
         TestServer.start(scenario = { agent("work") }).use { server ->
             val c = client(server)
             for (w in listOf(workflow(turn("a"), edges = listOf(edge("a", "a"))),
-                workflow(turn("a"), edges = listOf(edge("a", "missing"))), workflow(turn("a", "{{steps.missing.output}}")))) {
+                workflow(turn("a"), edges = listOf(edge("a", "missing"))), workflow(turn("a", "{{steps.missing.output}}")),
+                workflow(turn("a").copy(inputs = mapOf("data" to "{{steps.missing.output}}"))),
+                workflow(turn("a").copy(inputs = mapOf("bad name" to "text"))),
+                workflow(WorkflowStep.Model(StepId("a"), "read", inputs = mapOf("data" to "{{steps.missing.output}}"))))) {
                 val error = assertFailsWith<KinuvoException> { c.call(Api.CreateWorkflow, w) }
                 assertEquals("invalid_params", error.code)
             }
@@ -460,10 +483,10 @@ class WorkflowsTest {
     }
 
     @Test fun modelStepRepliesWithoutASession() = runBlocking<Unit> {
-        TestServer.start(plugins = listOf(fakes), script = { on("hello Bob") { reply("greeted") } }, scenario = { agent("work") }).use { server ->
+        TestServer.start(plugins = listOf(fakes), script = { on("hello Bob\n\n<input name=\"count\">\n2\n</input>") { reply("greeted") } }, scenario = { agent("work") }).use { server ->
             val c = client(server)
             c.run(c.call(Api.CreateWorkflow, workflow(tool("a", "make"),
-                WorkflowStep.Model(StepId("m"), "hello {{steps.a.output.who}}", system = "Be brief for {{steps.a.output.count}}"), edges = listOf(edge("a", "m")))).id)
+                WorkflowStep.Model(StepId("m"), "hello {{steps.a.output.who}}", system = "Be brief for {{steps.a.output.count}}", inputs = mapOf("count" to "{{steps.a.output.count}}")), edges = listOf(edge("a", "m")))).id)
             val done = finished(c)
             assertEquals(WorkflowRunStatus.Done, done.status)
             assertEquals("greeted", done.steps[StepId("m")]?.output)

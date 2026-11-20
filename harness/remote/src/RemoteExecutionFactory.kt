@@ -1,5 +1,6 @@
 package kinuvo.harness.remote
 
+import kinuvo.harness.messageText
 import kinuvo.harness.*
 import kinuvo.client.KinuvoClient
 import kinuvo.client.ConnectionState
@@ -126,7 +127,7 @@ class RemoteExecutionFactory(private val link: (String) -> SaveRemoteLink, priva
                 override val capabilities = ExecutionCapabilities(cancel = true, questions = true, approvals = true)
                 override suspend fun prompt(input: ExecutionInput): ExecutionAcceptance = commands.withLock {
                     require(input.attachments.isEmpty()) { "Remote attachments are unsupported" }
-                    client.call(Api.RemoteExecution, RemoteExecutionCall(AgentId(agentId), sessionId, "send", input.text, surfaceAction = input.action))
+                    client.call(Api.RemoteExecution, RemoteExecutionCall(AgentId(agentId), sessionId, "send", messageText(input.text, input.inputs), surfaceAction = input.action))
                     ExecutionAcceptance()
                 }
                 override suspend fun cancel() { commands.withLock { client.call(Api.RemoteExecution, RemoteExecutionCall(AgentId(agentId), sessionId, "cancel")) } }

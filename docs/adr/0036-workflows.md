@@ -25,6 +25,8 @@ Tool and Model steps run as the Workflow's `agentId`, required when either is pr
 
 ## References and inputs
 
+Agent turns and Model steps accept named `inputs` (letters, digits, underscores or hyphens) with templated text. The model reads them after the prompt as `<input name="…">` blocks. Agent turns keep the prompt and inputs separately in the Session so clients can show the data collapsed; replay includes the same blocks. Use `prompt` for instructions and `inputs` for data.
+
 Outputs are strings. `{{steps.<id>.output}}` inserts one; `{{steps.<id>.output.<key or index>...}}` parses it as JSON (one Markdown fence allowed) and resolves the path, failing the step naming the reference when it can't. `{{input[.path]}}` reads the run's input: declared defaults (text, or the JSON value it parses as) overlaid with supplied JSON. `{{now}}` is the step's start time as ISO with offset in the Workflow's time zone; `{{now.date|time|weekday|timezone|utc|timestamp}}` gives one part. Missing inputs and skipped outputs render empty (null for a whole-value argument). An `args` string that is exactly one reference becomes that JSON value. A Done run exposes its Done sink's output, or an object keyed by step id for several sinks.
 
 ## Sessions

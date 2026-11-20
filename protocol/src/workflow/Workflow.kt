@@ -30,7 +30,7 @@ sealed interface WorkflowStep {
 
     @Serializable @SerialName("agent_turn")
     data class AgentTurn(override val id: StepId, val agentId: AgentId, val prompt: String,
-        val session: StepSession = StepSession.New, override val position: Position? = null, val model: ProviderModelRef? = null) : WorkflowStep
+        val session: StepSession = StepSession.New, override val position: Position? = null, val model: ProviderModelRef? = null, val inputs: Map<String, String> = emptyMap()) : WorkflowStep
 
     @Serializable @SerialName("approval")
     data class Approval(override val id: StepId, val text: String, override val position: Position? = null) : WorkflowStep
@@ -42,7 +42,7 @@ sealed interface WorkflowStep {
     data class Tool(override val id: StepId, val tool: String, val args: JsonObject = JsonObject(emptyMap()), override val position: Position? = null) : WorkflowStep
 
     @Serializable @SerialName("model")
-    data class Model(override val id: StepId, val prompt: String, val system: String? = null, val model: ProviderModelRef? = null, override val position: Position? = null) : WorkflowStep
+    data class Model(override val id: StepId, val prompt: String, val system: String? = null, val model: ProviderModelRef? = null, override val position: Position? = null, val inputs: Map<String, String> = emptyMap()) : WorkflowStep
 
     /** Compares [left] with [right]; its output is `true` or `false`, and each outgoing edge may follow only one [WorkflowEdge.branch]. */
     /** Fixed text, references rendered, as its output: a starting value for the steps after it. */

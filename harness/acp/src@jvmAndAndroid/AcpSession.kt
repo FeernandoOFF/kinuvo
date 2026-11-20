@@ -2,6 +2,7 @@
 
 package kinuvo.harness.acp
 
+import kinuvo.harness.messageText
 import kinuvo.protocol.surface.modelText
 
 import com.agentclientprotocol.client.v2.ClientSessionOperations
@@ -82,7 +83,7 @@ class AcpSession internal constructor(
 }
 
 internal fun ExecutionInput.content(capabilities: ExecutionCapabilities): List<ContentBlock> = buildList {
-    if (text.isNotEmpty()) add(ContentBlock.Text(action?.modelText(text) ?: text))
+    if (text.isNotEmpty() || inputs.isNotEmpty()) add(ContentBlock.Text(messageText(action?.modelText(text) ?: text, inputs)))
     require(attachments.size <= MAX_ATTACHMENTS)
     var total = 0
     attachments.forEach { data ->

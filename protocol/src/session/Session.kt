@@ -97,7 +97,7 @@ sealed interface SessionEntry {
 
     /** [routine] is set when a Routine sent [text] on its schedule; [voice] when [text] was transcribed from voice chat. */
     @Serializable @SerialName("user")
-    data class UserMessage(val text: String, val routine: RoutineRef? = null, val attachments: List<Attachment> = emptyList(), val voice: Boolean = false, val submissionId: String? = null, override val writtenAt: Long? = null, val action: SurfaceAction? = null) : SessionEntry
+    data class UserMessage(val text: String, val routine: RoutineRef? = null, val attachments: List<Attachment> = emptyList(), val voice: Boolean = false, val submissionId: String? = null, override val writtenAt: Long? = null, val action: SurfaceAction? = null, val inputs: List<MessageInput> = emptyList()) : SessionEntry
 
     /** [messageId] matches the run's streamed events, so clients keep one item from live text to saved message. */
     @Serializable @SerialName("assistant")
@@ -187,3 +187,5 @@ fun SessionEntry.withWrittenAt(at: Long?): SessionEntry = when (this) {
     is SessionEntry.Outcome -> copy(writtenAt = at)
     is SessionEntry.ToolResult -> copy(writtenAt = at)
 }
+
+@Serializable data class MessageInput(val name: String, val text: String)

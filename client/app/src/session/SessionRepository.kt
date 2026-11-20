@@ -559,7 +559,7 @@ private fun SessionData.chatItems(): List<ChatItem> {
     projected.forEachIndexed { i, entry ->
         val seq = firstSeq + i
         when (entry) {
-            is SessionEntry.UserMessage -> items += ChatItem.User(key(entry.submissionId?.let { "user-$it" }, seq), entry.text, entry.routine?.name, entry.attachments, parseTaskPrompt(entry.text)?.second, voice = entry.voice, action = entry.action)
+            is SessionEntry.UserMessage -> items += ChatItem.User(key(entry.submissionId?.let { "user-$it" }, seq), entry.text, entry.routine?.name, entry.attachments, parseTaskPrompt(entry.text)?.second, voice = entry.voice, action = entry.action, inputs = entry.inputs)
             is SessionEntry.VoiceCall -> items += ChatItem.VoiceCall(entry.id, entry.turns, entry.startedAt, entry.durationMillis)
             is SessionEntry.AssistantMessage -> items += ChatItem.Assistant(key(entry.messageId?.let { "text-$it" }, seq), entry.text, at = entry.writtenAt)
             is SessionEntry.Reasoning -> items += ChatItem.Reasoning(key((entry.messageId ?: entry.id)?.let { "reasoning-$it" }, seq), entry.text)

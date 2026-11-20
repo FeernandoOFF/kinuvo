@@ -45,8 +45,8 @@ internal object WorkflowReferences {
     private val fence = Regex("^```[a-zA-Z0-9]*[ \\t]*\\r?\\n(.*?)\\r?\\n?```$", RegexOption.DOT_MATCHES_ALL)
 
     fun strings(step: WorkflowStep): List<String> = when (step) {
-        is WorkflowStep.AgentTurn -> listOf(step.prompt)
-        is WorkflowStep.Model -> listOfNotNull(step.prompt, step.system)
+        is WorkflowStep.AgentTurn -> listOf(step.prompt) + step.inputs.values
+        is WorkflowStep.Model -> listOfNotNull(step.prompt, step.system) + step.inputs.values
         is WorkflowStep.Tool -> strings(step.args)
         is WorkflowStep.Approval -> listOf(step.text)
         is WorkflowStep.Review -> listOf(step.text, step.value) + (step.surface?.let(::strings) ?: emptyList())

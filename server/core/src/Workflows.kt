@@ -1,5 +1,7 @@
 package kinuvo.server
 
+import kinuvo.harness.messageText
+import kinuvo.protocol.session.MessageInput
 import kinuvo.protocol.surface.SurfaceAction
 import kinuvo.protocol.tool.ToolNames
 import kinuvo.server.tools.ToolScope
@@ -265,7 +267,7 @@ class Workflows internal constructor(
                             val prompt = render(run.id, step.prompt)
                             var failure: String? = null
                             var stopped = false
-                            val active = runs.start(agent, session, ExecutionInput(prompt), onEvent = { if (it is AgentEvent.RunError) failure = it.message }, onDone = { stopped = it })
+                            val active = runs.start(agent, session, ExecutionInput(prompt, inputs = step.inputs.map { (name, text) -> MessageInput(name, render(run.id, text)) }), onEvent = { if (it is AgentEvent.RunError) failure = it.message }, onDone = { stopped = it })
                             active.job.join()
                             if (stopped) error("Step Session was cancelled")
                             failure?.let { error(it) }
@@ -396,7 +398,7 @@ class Workflows internal constructor(
                     update(run.id, step.id, StepRun(StepStatus.Running, model = model))
                     val scratch = SessionId(Uuid.random().toString())
                     var failure: String? = null
-                    harness.native.runner(request).run(scratch, WorkflowReferences.render(step.prompt, refs)).collect { if (it is AgentEvent.RunError) failure = it.message }
+                    harness.native.runner(request).run(scratch, messageText(WorkflowReferences.render(step.prompt, refs), step.inputs.map { (name, text) -> MessageInput(name, WorkflowReferences.render(text, refs)) })).collect { if (it is AgentEvent.RunError) failure = it.message }
                     failure?.let { error(it) }
                     val output = request.store.entries(request.agent.id, scratch).filterIsInstance<SessionEntry.AssistantMessage>().lastOrNull()?.text.orEmpty()
                     update(run.id, step.id, StepRun(StepStatus.Done, output = output, model = model))
@@ -489,6 +491,12 @@ class Workflows internal constructor(
         val catalog = if (w.steps.any { it is WorkflowStep.Model && it.model != null || it is WorkflowStep.AgentTurn && it.model != null }) models() else null
         for (step in w.steps) {
             val label = "step ${step.id.value}"
+            val names = when (step) {
+                is WorkflowStep.AgentTurn -> step.inputs.keys
+                is WorkflowStep.Model -> step.inputs.keys
+                else -> emptySet()
+            }
+            check(names.all { it.matches(Regex("[a-zA-Z0-9_-]+")) }, "$label: input names must be letters, digits, underscores or hyphens")
             if (step is WorkflowStep.AgentTurn) check(step.agentId in agents, "$label: ${unknownAgent(step.agentId)}")
             if (step is WorkflowStep.Tool || step is WorkflowStep.Model) check(w.agentId != null, "$label: Tool and Model steps need the Agent the Workflow runs as")
             val model = when (step) { is WorkflowStep.Model -> step.model; is WorkflowStep.AgentTurn -> step.model; else -> null }

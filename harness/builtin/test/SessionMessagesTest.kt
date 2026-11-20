@@ -2,6 +2,7 @@ package kinuvo.harness.builtin
 
 import ai.koog.prompt.message.MessagePart
 import kinuvo.testing.harness.scriptedModel
+import kinuvo.protocol.session.MessageInput
 import kinuvo.protocol.session.Attachment
 import kinuvo.protocol.session.SessionEntry
 import kinuvo.protocol.surface.SurfaceAction
@@ -12,6 +13,15 @@ import kotlinx.coroutines.flow.emptyFlow
 import kotlin.test.*
 
 class SessionMessagesTest {
+    @Test fun inputsAreSeparateInHistoryAndIncludedInModelMessages() {
+        val entry = SessionEntry.UserMessage("Summarize", inputs = listOf(MessageInput("emails", "message data")))
+        val prompt = messages.prompt("", listOf(entry))
+        assertEquals("Summarize\n\n<input name=\"emails\">\nmessage data\n</input>", prompt.messages.single().parts.filterIsInstance<MessagePart.Text>().single().text)
+        assertEquals("Summarize", entry.text)
+        assertEquals(listOf(entry), messages.entries(prompt.messages))
+    }
+
+
     @Test fun contextBreakDropsCompactionAndActivations() {
         val old = listOf(SessionEntry.UserMessage("old"), SessionEntry.Activation("skill", "old skill"))
         val fresh = SessionEntry.UserMessage("fresh")
