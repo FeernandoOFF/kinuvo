@@ -65,6 +65,19 @@ class WorkflowToolTest {
             val run = call("""{"action":"run","id":"test"}""")
             assertFalse(run.isError, run.output)
             assertEquals("true", Json.parseToJsonElement(run.output).jsonObject["output"]?.jsonPrimitive?.content)
+            val long = "x".repeat(3000)
+            assertFalse(call("""{"action":"save","workflow":{"id":"debug","name":"Debug","steps":[{"type":"text","id":"big","text":"$long"},{"type":"condition","id":"bad","left":"{{steps.big.output}}","op":"GreaterThan","right":"1"}],"edges":[{"from":"big","to":"bad"}]}}""").isError)
+            val failedRun = Json.parseToJsonElement(call("""{"action":"run","id":"debug"}""").output).jsonObject
+            assertEquals("Failed", failedRun.getValue("status").jsonPrimitive.content)
+            assertTrue(failedRun.getValue("steps").jsonObject.getValue("big").jsonObject.getValue("output").jsonPrimitive.content.length < 2100)
+            val runs = Json.parseToJsonElement(call("""{"action":"runs","id":"debug"}""").output).jsonArray
+            val latest = runs.single().jsonObject
+            assertEquals(failedRun.getValue("id"), latest.getValue("id"))
+            val failure = latest.getValue("failed").jsonArray.single().jsonObject
+            assertEquals("bad", failure.getValue("step").jsonPrimitive.content)
+            assertContains(failure.getValue("error").jsonPrimitive.content, "Condition needs numbers")
+            val full = call("""{"action":"status","id":"${latest.getValue("id").jsonPrimitive.content}","step":"big"}""")
+            assertEquals(long, Json.parseToJsonElement(full.output).jsonObject.getValue("output").jsonPrimitive.content)
             val invalidAgent = call("""{"action":"validate","workflow":{"id":"bad-agent","name":"Bad Agent","agentId":"Research","steps":[{"type":"agent_turn","id":"turn-1","agentId":"Research","prompt":"test"}]}}""")
             assertTrue(invalidAgent.isError)
             val knownIds = server.harness.store.agents().take(20).joinToString { it.id.value }
