@@ -110,6 +110,7 @@ class SubAgents internal constructor(
         val agent = agents.firstOrNull { it.id == target }
             ?: agents.singleOrNull { it.name.equals(target.value, ignoreCase = true) }
             ?: raise(SubAgentError.Target(target.value, agents.joinToString { "${it.id.value} (${it.name})" }))
+        if (isPrivate) harness.composer.requireOnDevice(agent)
         val link = SessionParent(agentId, parentId, callId, depth)
         val info = harness.log.createChild(agent.id, link, if (isPrivate) SessionSettings(model = agent.config.model,
             reasoning = agent.config.reasoning, approvals = agent.config.approvals, provider = agent.config.provider) else null)
@@ -117,7 +118,6 @@ class SubAgents internal constructor(
         val child = SubAgentState(info.id, agent.id, callId, goal, private = isPrivate)
         save(agentId, parentId, child)
         try {
-            if (isPrivate) harness.composer.requireOnDevice(agent)
             dispatch.send(SendParams(agent.id, info.id, goal))
         }
         catch (e: CancellationException) { withContext(NonCancellable) { finish(agent.id, info.id, true) }; throw e }
