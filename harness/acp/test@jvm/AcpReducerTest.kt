@@ -8,9 +8,11 @@ import java.util.Base64
 
 import kinuvo.harness.*
 import kinuvo.protocol.*
+import kinuvo.protocol.agent.AgentId
 import kinuvo.protocol.execution.*
 import kinuvo.protocol.session.*
-import kotlinx.coroutines.runBlocking
+import kinuvo.testing.harness.TemporaryDirectories
+import kotlinx.coroutines.*
 import kotlinx.serialization.json.*
 import kotlin.test.*
 
@@ -23,6 +25,44 @@ class AcpReducerTest {
         override suspend fun commit(entries: List<SessionEntry>) { batches += entries; order += "commit" }
     }
     private fun raw(json: String) = ProtocolJson.parseToJsonElement(json).jsonObject
+
+    @Test fun retryOfRejectedFirstPromptStillCarriesInstructions() = runBlocking {
+        TemporaryDirectories().use { directories ->
+            val dir = directories.create("kinuvo-acp-rejection").toFile()
+            val script = dir.resolve("agent.py")
+            script.writeText("""
+                import json,sys
+                prompts=0
+                for line in sys.stdin:
+                    r=json.loads(line)
+                    response={'jsonrpc':'2.0','id':r.get('id')}
+                    method=r.get('method')
+                    if method=='initialize':
+                        response['result']={'protocolVersion':2,'info':{'name':'mock','version':'1'},'capabilities':{}}
+                    elif method=='session/new':
+                        response['result']={'sessionId':'external'}
+                    elif method=='session/prompt':
+                        prompts+=1
+                        if prompts==1: response['error']={'code':-32000,'message':'Rejected'}
+                        else: response['result']={'messageId':r['params']['prompt'][0]['text']}
+                    else: continue
+                    print(json.dumps(response),flush=True)
+            """.trimIndent())
+            val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+            try {
+                withTimeout(10_000) {
+                    val state = ExecutionState(SessionId("local"), sink = Recording())
+                    val config = HarnessConnection("mock", "Mock", ExecutionConnection.Acp(listOf("/usr/bin/env", "python3", script.path)))
+                    val session = AcpExecutionFactory().open(config, AgentRegistration(AgentId("a"), "Agent", "mock", cwd = dir.path), state, ExecutionBroker(state), scope)
+                    try {
+                        val input = ExecutionInput("work", instructions = "context")
+                        assertFailsWith<ExecutionRejected> { session.prompt(input) }
+                        assertEquals("<kinuvo_context>\ncontext\n</kinuvo_context>", session.prompt(input).messageId)
+                    } finally { session.close() }
+                }
+            } finally { scope.cancel() }
+        }
+    }
 
     @Test fun interleavingTypedToolsCommitBeforeCompletionAndNoEcho() = runBlocking {
         val sink = Recording()

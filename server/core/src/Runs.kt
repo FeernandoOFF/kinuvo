@@ -38,13 +38,15 @@ data class RunActivity(val runs: Int = 0, val steps: Long = 0)
 class Runs(private val log: SessionLog, private val scope: CoroutineScope, private val factory: ExecutionFactory) {
     class Run(val id: RunId, val job: Job)
 
+    enum class Kind { User, Child, Routine, Workflow, Report, Wake, Task }
+
     val activity: StateFlow<RunActivity>
         field = MutableStateFlow(RunActivity())
 
     /** The run was stopped while it was being set up, so nothing ran; its onDone has been called. */
     class StoppedBeforeStart : IllegalStateException("Stopped before it started")
 
-    var onBegin: suspend (AgentId, SessionId, Boolean, Boolean) -> Unit = { _, _, _, _ -> }
+    var onBegin: suspend (AgentId, SessionId, Kind) -> Unit = { _, _, _ -> }
     private val finishListeners = mutableListOf<suspend (AgentId, SessionId, Boolean) -> Unit>()
 
     /** Adds a listener told when a run ends, [Boolean] being whether it was stopped; listeners run in the order added. */
@@ -82,8 +84,7 @@ class Runs(private val log: SessionLog, private val scope: CoroutineScope, priva
         sessionId: SessionId,
         input: ExecutionInput,
         queued: Boolean = false,
-        userTurn: Boolean = false,
-        wake: Boolean = false,
+        kind: Kind = Kind.User,
         reserved: suspend () -> Unit = {},
         onEvent: suspend (AgentEvent) -> Unit = {},
         onDone: suspend (stopped: Boolean) -> Unit = {},
@@ -105,7 +106,7 @@ class Runs(private val log: SessionLog, private val scope: CoroutineScope, priva
         val counted = Job().also { activity.update { a -> a.copy(runs = a.runs + 1) } }
         counted.invokeOnCompletion { activity.update { a -> a.copy(runs = a.runs - 1) } }
         try {
-            onBegin(agent.id, sessionId, userTurn, wake)
+            onBegin(agent.id, sessionId, kind)
             reserved()
             val sink = object : ExecutionSink {
                 override suspend fun publish(event: AgentEvent) {
@@ -149,6 +150,7 @@ class Runs(private val log: SessionLog, private val scope: CoroutineScope, priva
                 try { session.close() } finally {
                     sink.publish(AgentEvent.RunFinished(runId, cancelled = true))
                     onCancel(sessionId)
+                    finishListeners.forEach { it(agent.id, sessionId, true) }
                     onDone(true)
                 }
                 throw StoppedBeforeStart()

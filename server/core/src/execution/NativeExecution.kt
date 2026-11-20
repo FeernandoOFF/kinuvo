@@ -44,11 +44,11 @@ class NativeExecution(
     private val ran: (Agent, SessionId) -> Unit,
     private val reported: suspend (sessionId: SessionId, text: String) -> Unit,
 ) : ExecutionDispatch {
-    private data class Pending(val agent: Agent, val session: SessionId, val input: ExecutionInput, val message: QueuedMessage, val onEvent: suspend (AgentEvent) -> Unit, val userTurn: Boolean, val unsteered: (suspend () -> Unit)? = null)
+    private data class Pending(val agent: Agent, val session: SessionId, val input: ExecutionInput, val message: QueuedMessage, val onEvent: suspend (AgentEvent) -> Unit, val kind: Runs.Kind, val unsteered: (suspend () -> Unit)? = null)
     private val deliveryLock = Mutex()
     private val queued = mutableMapOf<SessionId, MutableList<Pending>>()
     private val steering = mutableMapOf<SessionId, MutableList<Pending>>()
-    private class ChildReport(val agent: Agent, val take: suspend () -> SessionEntry.ToolReport?, val restore: suspend (SessionEntry.ToolReport) -> Unit)
+    private class ChildReport(val agent: Agent, val take: suspend () -> SessionEntry.ToolReport?, val restore: suspend (SessionEntry.ToolReport, Exception) -> Unit)
     private val childReports = mutableMapOf<SessionId, ChildReport>()
     private val paused = mutableSetOf<SessionId>()
     private val pumping = mutableSetOf<SessionId>()
@@ -79,7 +79,7 @@ class NativeExecution(
                                     return@withLock true
                                 } catch (e: Exception) {
                                     ensureActive()
-                                    pending.restore(report)
+                                    pending.restore(report, e)
                                     log.warn(e) { "Sub-agent report could not start in Session $session" }
                                 }
                             }
@@ -116,7 +116,7 @@ class NativeExecution(
                         harness.store.entries(p.agent.id, p.session).any { it.identity() == report.identity() }
                     })
                 }
-            }), userTurn = p.userTurn, wake = wake != null, reserved = {
+            }), kind = p.kind, reserved = {
                 wake?.let { harness.log.appendAll(p.agent.id, p.session, listOf(it)) }
             }, onEvent = p.onEvent, onDone = { stopped ->
                 deliveryLock.withLock {
@@ -169,15 +169,15 @@ class NativeExecution(
     override suspend fun send(params: SendParams): SendResult = throwing<ServerError, _> { send(params, null) {} }
 
     context(_: Raise<AgentError>, _: Raise<SessionError>)
-    suspend fun send(p: SendParams, requested: List<UiCatalog>?, userTurn: Boolean = true, onEvent: suspend (AgentEvent) -> Unit): SendResult =
-        requireNotNull(send(p, requested, onEvent, userTurn, unsteered = null))
+    suspend fun send(p: SendParams, requested: List<UiCatalog>?, runKind: Runs.Kind = Runs.Kind.User, onEvent: suspend (AgentEvent) -> Unit): SendResult =
+        requireNotNull(send(p, requested, onEvent, runKind, unsteered = null))
 
     suspend fun trySteer(p: SendParams, allowed: suspend () -> Boolean, fallback: suspend () -> Unit): Boolean = throwing<ServerError, _> {
-        send(p.copy(delivery = SendDelivery.Steer), null, {}, false, unsteered = fallback, steerAllowed = allowed) != null
+        send(p.copy(delivery = SendDelivery.Steer), null, {}, Runs.Kind.Child, unsteered = fallback, steerAllowed = allowed) != null
     }
 
     context(_: Raise<AgentError>, _: Raise<SessionError>)
-    private suspend fun send(p: SendParams, requested: List<UiCatalog>?, onEvent: suspend (AgentEvent) -> Unit, userTurn: Boolean, unsteered: (suspend () -> Unit)?, steerAllowed: suspend () -> Boolean = { true }): SendResult? {
+    private suspend fun send(p: SendParams, requested: List<UiCatalog>?, onEvent: suspend (AgentEvent) -> Unit, runKind: Runs.Kind, unsteered: (suspend () -> Unit)?, steerAllowed: suspend () -> Boolean = { true }): SendResult? {
         val catalogs = requested ?: harness.uiCatalogs.forRun()
         val agent = agent(p.agentId)
         require(p.text.isNotBlank() || p.attachments.isNotEmpty()) { "Add a message or attachment" }
@@ -196,7 +196,7 @@ class NativeExecution(
         return deliveryLock.withLock {
             if (unsteered != null && (sessionId in paused || sessionId !in steering || !runs.isActive(sessionId) || !steerAllowed())) return@withLock null
             val id = RunId(Uuid.random().toString())
-            val pending = Pending(agent, sessionId, ExecutionInput(message, action = p.action, kind = kind, runId = id), QueuedMessage(id.value, message, attachments), onEvent, userTurn, unsteered)
+            val pending = Pending(agent, sessionId, ExecutionInput(message, action = p.action, kind = kind, runId = id), QueuedMessage(id.value, message, attachments), onEvent, runKind, unsteered)
             when {
                 p.delivery == SendDelivery.Steer && runs.isActive(sessionId) -> {
                     val inbox = steering[sessionId] ?: error("This run cannot take steering input")
@@ -218,7 +218,7 @@ class NativeExecution(
         }
     }
 
-    suspend fun report(agentId: AgentId, sessionId: SessionId, take: suspend () -> SessionEntry.ToolReport?, restore: suspend (SessionEntry.ToolReport) -> Unit) {
+    suspend fun report(agentId: AgentId, sessionId: SessionId, take: suspend () -> SessionEntry.ToolReport?, restore: suspend (SessionEntry.ToolReport, Exception) -> Unit) {
         val agent = throwing<AgentError, _> { agent(agentId) }
         deliveryLock.withLock {
             childReports[sessionId] = ChildReport(agent, take, restore)
@@ -230,7 +230,7 @@ class NativeExecution(
         val kind = RunKind.Chat(report = report, catalogs = catalogs, reports = toolReports(agent, sessionId, catalogs))
         if (report != null) {
             try {
-                runs.start(agent, sessionId, ExecutionInput("", kind = kind), queued = true, onEvent = { event ->
+                runs.start(agent, sessionId, ExecutionInput("", kind = kind), queued = true, kind = Runs.Kind.Report, onEvent = { event ->
                     if (event is AgentEvent.TextMessageEnd) reported(sessionId, event.text)
                 })
             } catch (e: CancellationException) { throw e }
@@ -239,7 +239,7 @@ class NativeExecution(
             val input = ExecutionInput("", kind = kind)
             start(Pending(agent, sessionId, input, QueuedMessage(Uuid.random().toString(), ""), { event ->
                 if (event is AgentEvent.TextMessageEnd) reported(sessionId, event.text)
-            }, userTurn = false), wake)
+            }, Runs.Kind.Wake), wake)
         }
     }
 

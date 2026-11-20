@@ -138,7 +138,7 @@ class Scheduler(
         var report: String? = null
         val routineRun = RoutineRun(routine, clock) { onRan(RoutineRan(agent.id, ref, RunStatus.Ok, sessionId, summary = it.summary)) }
         // Cleans up while the Session is still reserved, so truncating can't take a turn that starts right after.
-        val run = try { runs.start(agent, sessionId, ExecutionInput(prompt, kind = RunKind.Routine(routineRun)), reserved = { record(agent, routine, RunStatus.Running, null, startedAt, sessionId) }, onEvent = { if (it is AgentEvent.RunError) error = it.message }, onDone = { stopped ->
+        val run = try { runs.start(agent, sessionId, ExecutionInput(prompt, kind = RunKind.Routine(routineRun)), kind = Runs.Kind.Routine, reserved = { record(agent, routine, RunStatus.Running, null, startedAt, sessionId) }, onEvent = { if (it is AgentEvent.RunError) error = it.message }, onDone = { stopped ->
             val added = harness.store.entries(agent.id, sessionId).drop(before)
             val outcome = added.filterIsInstance<SessionEntry.Outcome>().lastOrNull()
             report = outcome?.summary?.takeIf { outcome.report }
