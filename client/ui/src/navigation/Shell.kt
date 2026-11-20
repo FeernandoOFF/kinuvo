@@ -560,6 +560,7 @@ private fun SessionRow(session: SessionInfo, selected: Boolean, finished: Boolea
     val icon = when {
         session.task != null -> Lucide.SquareKanban
         session.routine != null -> Lucide.AlarmClock
+        session.workflow != null -> Lucide.Workflow
         else -> Lucide.Hash
     }
     ShellRow(icon, session.title, session.status, selected, finished, settle, onClick)

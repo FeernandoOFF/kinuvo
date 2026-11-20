@@ -311,7 +311,9 @@ internal fun ChatItemView(item: ChatItem, actions: ChatActions, spoken: Int? = n
                 Text(item.message, color = color(destructiveColor), style = TextStyles.secondary)
             }
         }
-        is ChatItem.Notice -> if (item.code == WORKFLOW_NOTE) WorkflowMarker(item.message) else Expandable(Lucide.TriangleAlert, item.message, tint = color(warningColor)) {
+        is ChatItem.Notice -> if (item.code == WORKFLOW_NOTE) WorkflowMarker(item.message)
+        else if (item.code == CONTEXT_BREAK) WorkflowMarker("New context · earlier messages aren't sent to the model", Lucide.RotateCcw)
+        else Expandable(Lucide.TriangleAlert, item.message, tint = color(warningColor)) {
             // What it had written before stopping, quieter than a finished reply.
             Column(Modifier.alpha(0.85f), verticalArrangement = Arrangement.spacedBy(Spacing.space8)) { item.draft.forEach { ChatItemView(it, actions) } }
         }
@@ -614,13 +616,15 @@ internal fun RequestMetricsView(metrics: RequestMetrics, initiallyExpanded: Bool
 
 /** The code of a Notice a Workflow run leaves in its Session. */
 private const val WORKFLOW_NOTE = "workflow"
+/** Where a Workflow's Agent turn started over without the history above it. */
+private const val CONTEXT_BREAK = "context_break"
 
 /** Something a Workflow run did, set apart from the conversation as a divider. */
 @Composable
-private fun WorkflowMarker(text: String) {
+private fun WorkflowMarker(text: String, icon: ImageVector = Lucide.Workflow) {
     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.space8)) {
         HorizontalSeparator(Modifier.weight(1f))
-        Icon(Lucide.Workflow, Modifier.size(13.dp), tint = color(mutedColor))
+        Icon(icon, Modifier.size(13.dp), tint = color(mutedColor))
         Text(text, Modifier.widthIn(max = 260.dp), style = TextStyles.caption, color = color(mutedColor), maxLines = 2, overflow = TextOverflow.Ellipsis)
         HorizontalSeparator(Modifier.weight(1f))
     }
