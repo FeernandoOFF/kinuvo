@@ -217,6 +217,12 @@ class ExecutionCoordinator(
                 }
                 log.publish(r.agentId, id, event)
                 if (event is AgentEvent.ExecutionPhaseChanged) {
+                    if (event.phase == ExecutionPhase.Running || event.phase == ExecutionPhase.RequiresAction) {
+                        lock.withLock {
+                            if (states[id]?.generation == initial.generation)
+                                turns.getOrPut(id) { Turn().also { it.submitted.complete(true) } }
+                        }
+                    }
                     if (event.phase == ExecutionPhase.Idle || event.phase == ExecutionPhase.Lost)
                         finish(r.agentId, id, event.phase == ExecutionPhase.Lost)
                     if (event.phase == ExecutionPhase.Lost) scope.launch { releaseLost(id, initial.generation); readinessChanged() }
@@ -260,7 +266,7 @@ class ExecutionCoordinator(
     }
     override suspend fun send(params: SendParams): SendResult = send(params, null)
 
-    internal suspend fun send(p: SendParams, report: SessionEntry.ToolReport?): SendResult {
+    internal suspend fun send(p: SendParams, report: SessionEntry.ToolReport?, onBegin: suspend (SessionId) -> Unit = {}): SendResult {
         require(p.delivery == SendDelivery.Turn) { "This external harness does not support Queue or Steer" }
         require(p.text.isNotBlank() || p.attachments.isNotEmpty())
         require(p.attachments.size <= MAX_ATTACHMENTS && p.attachments.distinct().size == p.attachments.size)
@@ -285,6 +291,7 @@ class ExecutionCoordinator(
             (requireNotNull(live[id]) to states.getValue(id)).also { turns[id] = turn }
         }
         try {
+            onBegin(id)
             state.begin()
             state.boundSink().publish(AgentEvent.ExecutionPhaseChanged(ExecutionPhase.Running))
             val input = report ?: SessionEntry.UserMessage(p.text, attachments = attachments.map { it.attachment }, voice = p.voice, submissionId = submission, action = p.action)
@@ -315,11 +322,12 @@ class ExecutionCoordinator(
 
     override suspend fun stop(sessionId: SessionId) {
         val (session, turn) = lock.withLock {
-            val turn = turns[sessionId]?.takeUnless { it.finishing } ?: return
-            turn.cancelled = true
+            val turn = turns[sessionId]
+            if (turn?.finishing == true) return
+            turn?.cancelled = true
             live[sessionId] to turn
         }
-        if (turn.submitted.await()) session?.cancel()
+        if (turn == null || turn.submitted.await()) session?.cancel()
     }
     suspend fun closeExecution(id: SessionId) { discard(id); sealInterrupted(id); mutate(id) { it.copy(closed = true, lost = true) }; readinessChanged() }
     private suspend fun sealInterrupted(id: SessionId) {
@@ -330,11 +338,14 @@ class ExecutionCoordinator(
         }
     }
     suspend fun discard(id: SessionId) = withContext(NonCancellable) {
-        val broker = lock.withLock { brokers[id] }
-        broker?.lost()
-        val pair = lock.withLock { states.remove(id); brokers.remove(id); live.remove(id) to dispatch.remove(id) }
-        pair.second?.cancel()
-        pair.first?.close()
+        val (broker, session, job) = lock.withLock {
+            states.remove(id)
+            Triple(brokers.remove(id), live.remove(id), dispatch.remove(id))
+        }
+        try { broker?.lost() } finally {
+            job?.cancel()
+            session?.close()
+        }
     }
     private suspend fun releaseLost(id: SessionId, generation: String) {
         val pair = lock.withLock {
@@ -347,7 +358,10 @@ class ExecutionCoordinator(
     suspend fun delete(agentId: AgentId, id: SessionId) {
         if (!owns(id)) return
         require(record(id).agentId == agentId)
-        discard(id); recovery.delete(agentId, id); lock.withLock { records.remove(id) }
+        discard(id)
+        join(id)
+        recovery.delete(agentId, id)
+        lock.withLock { records.remove(id) }
     }
     override suspend fun answer(answer: RespondParams): Boolean = lock.withLock { live[answer.sessionId] }?.respond(answer.requestId, answer.answer)
         ?: (lock.withLock { brokers[answer.sessionId] }?.answer(answer.requestId, answer.answer.toHarnessJson()) ?: false)

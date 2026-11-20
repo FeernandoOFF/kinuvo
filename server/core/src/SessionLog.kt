@@ -17,6 +17,7 @@ import kinuvo.protocol.session.SessionOrder
 import kinuvo.protocol.session.SessionPage
 import kinuvo.protocol.session.SessionStatus
 import kinuvo.protocol.session.SessionUpdate
+import kinuvo.protocol.session.SubAgentState
 import kinuvo.protocol.session.isLive
 import kinuvo.protocol.agent.AgentId
 import kinuvo.protocol.session.SessionId
@@ -109,8 +110,9 @@ class SessionLog(private val store: Store, private val clock: () -> Long = { Clo
     override suspend fun deleteSession(agentId: AgentId, sessionId: SessionId) {
         val children = store.agents().flatMap { store.sessions(it.id) }.groupBy { it.parent?.sessionId }
         suspend fun delete(agent: AgentId, id: SessionId) {
-            val entries = store.entries(agent, id)
+            store.entryCount(agent, id)
             onDelete(agent, id)
+            val entries = store.entries(agent, id)
             val linked = entries.filterIsInstance<SessionEntry.Notice>().mapNotNull { it.child }
                 .map { it.agentId to it.sessionId } + children[id].orEmpty().map { it.agentId to it.id }
             linked.distinct().forEach { (childAgent, childId) ->
@@ -204,12 +206,13 @@ class SessionLog(private val store: Store, private val clock: () -> Long = { Clo
                 else -> reply
             }
         }
+        val visible = entry.forClient()
         live[sessionId]?.let {
-            val state = it.on(entry)
+            val state = it.on(visible)
             if (state.queued.isNotEmpty() || state.running || state.reflectionId != null || state.executionPhase != null || state.entries.isNotEmpty() || state.pending.isNotEmpty() || state.children.isNotEmpty())
                 live[sessionId] = state else live.remove(sessionId)
         }
-        deliver(SessionUpdate(agentId, sessionId, SessionChange.Entry(seq, entry)))
+        deliver(SessionUpdate(agentId, sessionId, SessionChange.Entry(seq, visible)))
     }
 
     /** Persists [event]'s text as a [SessionEntry.Notice] so it gets a real seq, instead of only ever reaching a client that was subscribed at the instant it fired. */
@@ -225,7 +228,12 @@ class SessionLog(private val store: Store, private val clock: () -> Long = { Clo
             changed(store.session(agentId, sessionId).copy(status = statusOf(sessionId)))
     }
 
-    suspend fun publish(agentId: AgentId, sessionId: SessionId, event: AgentEvent) = lock.withLock {
+    suspend fun publish(agentId: AgentId, sessionId: SessionId, update: AgentEvent) = lock.withLock {
+        val event = when (update) {
+            is AgentEvent.SubAgentChanged -> update.copy(child = update.child.forClient())
+            is AgentEvent.ExecutionEntryChanged -> update.copy(entry = update.entry.forClient())
+            else -> update
+        }
         store.entryCount(agentId, sessionId)
         when(event) {
             is AgentEvent.RunStarted -> completions.remove(sessionId)
@@ -319,8 +327,9 @@ class SessionLog(private val store: Store, private val clock: () -> Long = { Clo
         val from = if (after == null || after > entries.size || entries.size - after > limit) maxOf(0, entries.size - limit) else after
         val changes = buildList {
             if (from != after) add(SessionChange.Reset(from))
-            entries.drop(from).forEachIndexed { i, entry -> add(SessionChange.Entry(from + i, entry)) }
-            val children = entries.filterIsInstance<SessionEntry.Notice>().mapNotNull { it.child }.associateBy { it.sessionId }
+            entries.drop(from).forEachIndexed { i, entry -> add(SessionChange.Entry(from + i, entry.forClient())) }
+            val children = entries.filterIsInstance<SessionEntry.Notice>().filterNot { it.code == "sub_agent_delivery" }
+                .mapNotNull { it.child?.forClient() }.associateBy { it.sessionId }
             add(SessionChange.Live((live[sessionId] ?: LiveState()).let { it.copy(children = children + it.children) }))
         }
         for (change in changes) if (!subscriber.offer(SessionUpdate(agentId, sessionId, change))) return removeEverywhere(subscriber)
@@ -339,7 +348,7 @@ class SessionLog(private val store: Store, private val clock: () -> Long = { Clo
         val entries = store.entries(agentId, sessionId)
         val to = before.coerceIn(0, entries.size)
         val from = maxOf(0, to - limit)
-        return entries.subList(from, to).mapIndexed { i, entry -> SessionChange.Entry(from + i, entry) }
+        return entries.subList(from, to).mapIndexed { i, entry -> SessionChange.Entry(from + i, entry.forClient()) }
     }
 
     private fun statusOf(sessionId: SessionId) = live[sessionId]?.status ?: SessionStatus.Idle
@@ -363,5 +372,10 @@ class SessionLog(private val store: Store, private val clock: () -> Long = { Clo
         const val RESYNC_LIMIT = 100
     }
 }
+
+internal fun SubAgentState.forClient() = if (private && !delivered && result != null) copy(result = null) else this
+
+private fun SessionEntry.forClient(): SessionEntry = if (this is SessionEntry.Notice)
+    copy(child = child?.forClient(), draft = draft.map { it.forClient() }) else this
 
 internal const val MAX_SESSION_TITLE = 100
