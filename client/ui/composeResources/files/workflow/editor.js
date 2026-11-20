@@ -76,6 +76,7 @@
   };
   const agentOptions = (current) => options(catalog.agents.map((a) => ({ value: a.id, label: a.name })), current);
   const modelValue = (m) => (m ? JSON.stringify([m.provider, m.model]) : '');
+  const modelLabel = (m) => { const c = catalog.models.find((x) => x.provider === m.provider && x.model === m.model); return c ? c.providerName + ' / ' + c.name : m.provider + ' / ' + m.model; };
   const modelOptions = (current) => options([{ value: '', label: "Agent's model" }].concat(catalog.models.map((m) => ({ value: modelValue(m), label: m.providerName + ' / ' + m.name }))), modelValue(current));
 
   const refs = (f) => `<select class="ref" data-ref="${f}" aria-label="Insert an input or the output of an earlier step"></select>`;
@@ -87,6 +88,7 @@
       case 'agent_turn': return `
         <label>Agent<select data-f="agentId">${agentOptions(s.agentId)}</select></label>
         ${area('prompt', 'Prompt', s.prompt, 'What should the Agent do?', { refs: true })}
+        <label>Model<select data-f="model">${modelOptions(s.model)}</select></label>
         <label>Session<select data-f="session"><option value="New"${s.session !== 'Continue' ? ' selected' : ''}>New each run</option><option value="Continue"${s.session === 'Continue' ? ' selected' : ''}>Continue last</option></select></label>`;
       case 'model': return `
         ${area('prompt', 'Prompt', s.prompt, 'What should the model answer?', { refs: true })}
@@ -207,6 +209,7 @@
       };
       if (r && r.error) section('error', 'Error', r.error);
       if (r && r.output) section('output', 'Output', r.output);
+      if (r && r.model) parts.push(`<span class="used" title="Model used">${esc(modelLabel(r.model))}</span>`);
       if (r && r.sessionId) parts.push(`<button class="ex" type="button" data-open="${esc(s.id)}">Open session</button>`);
       const html = parts.join('');
       if (box.dataset.h !== html) { box.innerHTML = html; box.dataset.h = html; }
