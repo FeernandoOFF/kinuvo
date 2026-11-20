@@ -367,6 +367,7 @@ fun ChatContent(
         val blur = remember(background) { HazeBlurStyle { blurRadius(24.dp); backgroundColor(background) } }
         val gaze = if (composerFocused) Gaze.Down else Gaze.Forward
         val haze = rememberHazeState()
+        val blurEnabled = backdropBlurEnabled()
         val density = LocalDensity.current
         var composerHeight by remember { mutableStateOf(0.dp) }
         Column(Modifier.fillMaxSize().onFocusChanged { rootFocused = it.isFocused }.focusRequester(root).focusable().onPreviewKeyEvent(::onKey)) {
@@ -391,7 +392,7 @@ fun ChatContent(
                 var shownVoice by remember { mutableStateOf(voice) }
                 voice?.let { shownVoice = it }
                 CompositionLocalProvider(LocalRiveGaze provides gaze) {
-                    Messages(state, messages, follow, Modifier.fillMaxSize().then(if (LocalBackdropBlur.current) Modifier.hazeSource(haze) else Modifier), actions, if (composerHidden) 0.dp else composerHeight,
+                    Messages(state, messages, follow, Modifier.fillMaxSize().then(if (blurEnabled) Modifier.hazeSource(haze) else Modifier), actions, if (composerHidden) 0.dp else composerHeight,
                         top = (if (floating) FloatingBarHeight else 0.dp) + (if (voice != null) VoiceStatusHeight else 0.dp))
                 }
                 state.voice?.takeIf { !it.live }?.let { VoiceGlow(it, Modifier.align(Alignment.BottomCenter)) }
@@ -481,7 +482,7 @@ fun ChatContent(
                             attachments = attachments,
                             controls = settings,
                             containerColor = color(fieldColor).copy(alpha = 0.7f),
-                            backdrop = if (composerBlurred && LocalBackdropBlur.current) Modifier.hazeBlur(HazeInput.Sources(haze), blur) else Modifier,
+                            backdrop = if (composerBlurred && blurEnabled) Modifier.hazeBlur(HazeInput.Sources(haze), blur) else Modifier,
                             onVoice = actions.onVoice?.let { start -> { follow.value = true; start() } },
                             notice = if ((state.external && (state.prompts.isNotEmpty() || (state.chatBlocked != null && state.ended == null))) || state.dictation?.error != null) ({
                                 state.dictation?.error?.let { Text(it, style = TextStyles.secondary, color = color(destructiveColor)) }

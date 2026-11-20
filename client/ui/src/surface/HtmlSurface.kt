@@ -99,7 +99,7 @@ private fun HtmlSurface(
         onDispose { if (showing) surfaces.remove(id) }
     }
     val desktop = htmlSurfacePlatform == "desktop"
-    val live = !desktop && visible && surfaces.indexOf(id) in 0 until MAX_LIVE
+    val live = visible && surfaces.indexOf(id) in 0 until MAX_LIVE
     val opener = LocalUriHandler.current
     val theme = htmlTheme()
     val latestSend by rememberUpdatedState(send)
