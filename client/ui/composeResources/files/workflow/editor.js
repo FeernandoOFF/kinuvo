@@ -105,7 +105,9 @@
       case 'text': return area('text', 'Text', s.text, 'Text or JSON for the next steps', { refs: true });
       case 'review': return `
         ${area('text', 'Question', s.text, 'Is this draft ready?', { refs: true })}
-        ${area('value', 'Value to review', s.value, 'A JSON object becomes one field per key', { refs: true, mono: true })}`;
+        ${area('value', 'Value to review', s.value, 'A JSON object becomes one field per key, an array of objects one group per item', { refs: true, mono: true })}
+        ${area('surface', 'Custom form (A2UI surface, optional)', s.surface ? JSON.stringify(s.surface, null, 2) : '', 'createSurface JSON; its data model is the output', { refs: true, mono: true })}
+        <div class="err" data-err="surface"></div>`;
       default: return area('text', 'Question', s.text, 'Publish the draft?', { refs: true });
     }
   }
@@ -151,7 +153,7 @@
     const at = el.dataset.touched ? [el.selectionStart, el.selectionEnd] : [el.value.length, el.value.length];
     const text = '{{' + ref + '}}';
     const inString = (el.value.slice(0, at[0]).replace(/\\./g, '').match(/"/g) || []).length % 2 === 1;
-    el.setRangeText(field === 'args' && !inString ? JSON.stringify(text) : text, at[0], at[1], 'end');
+    el.setRangeText((field === 'args' || field === 'surface') && !inString ? JSON.stringify(text) : text, at[0], at[1], 'end');
     el.dataset.touched = '1';
     el.focus();
     el.dispatchEvent(new Event('input', { bubbles: true }));
@@ -338,6 +340,14 @@
         const parsed = JSON.parse(v.trim() || '{}');
         if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) throw new Error('Arguments must be a JSON object');
         s.args = parsed; err.textContent = ''; e.target.classList.remove('bad');
+      } catch (x) { err.textContent = 'Invalid JSON: ' + x.message; e.target.classList.add('bad'); return; }
+    } else if (f === 'surface') {
+      const err = card.querySelector('[data-err=surface]');
+      try {
+        const parsed = v.trim() ? JSON.parse(v) : null;
+        if (parsed !== null && (typeof parsed !== 'object' || Array.isArray(parsed))) throw new Error('The surface must be a JSON object');
+        if (parsed) s.surface = parsed; else delete s.surface;
+        err.textContent = ''; e.target.classList.remove('bad');
       } catch (x) { err.textContent = 'Invalid JSON: ' + x.message; e.target.classList.add('bad'); return; }
     } else if (f === 'system') { if (v) s.system = v; else delete s.system; }
     else if (f === 'model') { const m = v ? JSON.parse(v) : null; if (m) s.model = { provider: m[0], model: m[1] }; else delete s.model; }
