@@ -111,7 +111,7 @@ private class NativeExecutionSession(private val factory: NativeExecutionFactory
                     run.run(sessionId, input.text, chat?.activation, runId, chat?.attachments.orEmpty(), chat?.voice ?: false, input.action, chat?.report, input.inputs, input.steering)
                         .collect { if (it !is AgentEvent.RunStarted || it.runId != runId) sink.publish(it) }
                 } catch (e: CancellationException) {
-                    withContext(NonCancellable) { sink.publish(AgentEvent.RunFinished(runId)) }
+                    withContext(NonCancellable) { sink.publish(AgentEvent.RunFinished(runId, cancelled = true)) }
                     throw e
                 }
             }

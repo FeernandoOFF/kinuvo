@@ -48,6 +48,7 @@ class ExecutionCoordinator(
         val done = CompletableDeferred<Unit>()
         val submitted = CompletableDeferred<Boolean>()
         var cancelled = false
+        var rejected = false
         var finishing = false
     }
     private val turns = mutableMapOf<SessionId, Turn>()
@@ -59,17 +60,19 @@ class ExecutionCoordinator(
 
     @OptIn(DelicateCoroutinesApi::class)
     private suspend fun finish(agent: AgentId, id: SessionId, lost: Boolean) {
-        val (turn, cancelled) = lock.withLock {
+        val (turn, cancelled, rejected) = lock.withLock {
             val turn = turns[id] ?: return
             if (turn.finishing) return
             turn.finishing = true
-            turn to turn.cancelled
+            Triple(turn, turn.cancelled, turn.rejected)
         }
         scope.launch(start = CoroutineStart.ATOMIC) {
             try {
-                val error = (log.completion(id) as? AgentEvent.RunError)?.message
+                if (rejected && !cancelled && !lost) return@launch
+                val completion = log.completion(id)
+                val error = (completion as? AgentEvent.RunError)?.message
                     ?: if (lost) "Harness connection lost" else null
-                onFinish(agent, id, cancelled, error)
+                onFinish(agent, id, cancelled || (completion as? AgentEvent.RunFinished)?.cancelled == true, error)
             } finally {
                 withContext(NonCancellable) { release(id, turn) }
             }
@@ -266,7 +269,12 @@ class ExecutionCoordinator(
     }
     override suspend fun send(params: SendParams): SendResult = send(params, null)
 
-    internal suspend fun send(p: SendParams, report: SessionEntry.ToolReport?, onBegin: suspend (SessionId) -> Unit = {}): SendResult {
+    internal suspend fun send(
+        p: SendParams,
+        report: SessionEntry.ToolReport?,
+        onRejected: suspend () -> Unit = {},
+        onBegin: suspend (SessionId) -> Unit = {},
+    ): SendResult {
         require(p.delivery == SendDelivery.Turn) { "This external harness does not support Queue or Steer" }
         require(p.text.isNotBlank() || p.attachments.isNotEmpty())
         require(p.attachments.size <= MAX_ATTACHMENTS && p.attachments.distinct().size == p.attachments.size)
@@ -308,7 +316,18 @@ class ExecutionCoordinator(
                     val accepted = session.prompt(ExecutionInput(if (p.voice) "$liveVoiceInstructions\n\n${p.text}" else p.text, attachments, p.action))
                     if (lock.withLock { states[id] === state }) mutate(id) { current -> current.copy(submissions = current.submissions + (submission to accepted.messageId), acceptedSubmissions = current.acceptedSubmissions + submission) }
                 } catch (e: Exception) {
-                    withContext(NonCancellable) { lock.withLock { brokers[id]?.takeIf { states[id] === state && turns[id] === turn } }?.lost() }
+                    withContext(NonCancellable) {
+                        val rejected = e is ExecutionRejected && report != null
+                        val broker = lock.withLock {
+                            brokers[id]?.takeIf { states[id] === state && turns[id] === turn && !turn.finishing }
+                                ?.also { turn.rejected = rejected }
+                        } ?: return@withContext
+                        if (rejected) {
+                            mutate(id) { it.copy(submissions = it.submissions - submission) }
+                            onRejected()
+                            state.boundSink().publish(AgentEvent.ExecutionPhaseChanged(ExecutionPhase.Idle))
+                        } else broker.lost()
+                    }
                 }
             }
             lock.withLock { if (states[id] === state && turns[id] === turn) dispatch[id] = job }

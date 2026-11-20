@@ -18,6 +18,9 @@ interface ExecutionSession {
     suspend fun answer(requestId: InteractionId, answer: InteractionAnswer)
 }
 
+/** The harness confirmed that it did not accept the prompt. */
+class ExecutionRejected(message: String, cause: Throwable? = null) : IllegalStateException(message, cause)
+
 /** Execution-owned reducer. Client disconnection never changes execution state or pending requests. */
 class ExecutionState(
     val sessionId: SessionId,

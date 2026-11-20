@@ -58,6 +58,8 @@ class SubAgents internal constructor(
         if (root != null && root !in groups.values) budgets.remove(root)
     }
     private val wakes = mutableMapOf<SessionId, MutableList<SubAgentState>>()
+    private val retryWakes = mutableMapOf<SessionId, SessionEntry.ToolReport>()
+    private val retried = mutableSetOf<SessionId>()
     private val waking = mutableSetOf<SessionId>()
     private val waiters = mutableMapOf<SessionId, Int>()
     private val parents = mutableMapOf<SessionId, SessionParent>()
@@ -97,11 +99,12 @@ class SubAgents internal constructor(
     suspend fun begin(agent: AgentId, id: SessionId, userTurn: Boolean, wake: Boolean) = lock.withLock {
         if (id in deleting) throw CancellationException("Session is being deleted")
         val link = parents[id] ?: harness.store.session(agent, id).parent
-        if (userTurn) {
+        if (userTurn || (link == null && !wake)) {
             stopped -= id
-            if (link == null && id !in groups) budgets[id] = Budget(activationLimit)
+            retried -= id
+            if (link == null && id !in groups && !wake) budgets[id] = Budget(activationLimit)
             scheduleWake(agent, id)
-        } else if ((wake || link != null) && (id in stopped || ancestors(id).any { it in stopped })) {
+        } else if (id in stopped) {
             throw CancellationException("Parent run cancelled")
         }
         if (link != null) {
@@ -113,8 +116,6 @@ class SubAgents internal constructor(
             }
         }
     }
-
-    private fun ancestors(id: SessionId): List<SessionId> = parents[id]?.sessionId?.let { listOf(it) + ancestors(it) }.orEmpty()
 
     private fun root(id: SessionId): SessionId = parents[id]?.sessionId?.let(::root) ?: groups[id] ?: id
 
@@ -133,7 +134,10 @@ class SubAgents internal constructor(
     context(_: Raise<SubAgentError>)
     suspend fun spawn(agentId: AgentId, parentId: SessionId, callId: ToolCallId, target: AgentId, goal: String, private: Boolean = false): SubAgentState {
         require(goal.isNotBlank())
-        val parent = harness.store.session(agentId, parentId)
+        val parent = lock.withLock {
+            ensureAvailable(parentId)
+            harness.store.session(agentId, parentId)
+        }
         val isPrivate = private || parent.hidden
         val depth = (parent.parent?.depth ?: 0) + 1
         if (depth > 2) raise(SubAgentError.Depth)
@@ -145,20 +149,37 @@ class SubAgents internal constructor(
             ?: raise(SubAgentError.Privacy(agent.name)) else null
         local?.let { harness.composer.requireOnDevice(it) }
         val link = SessionParent(agentId, parentId, callId, depth)
-        val info = dispatch.createChild(agent.id, link, local?.config?.let {
-            SessionSettings(model = it.model, reasoning = it.reasoning, approvals = it.approvals, provider = it.provider)
-        })
+        val info = withContext(NonCancellable) {
+            dispatch.createChild(agent.id, link, local?.config?.let {
+                SessionSettings(model = it.model, reasoning = it.reasoning, approvals = it.approvals, provider = it.provider)
+            })
+        }
         val child = SubAgentState(info.id, agent.id, callId, goal, private = isPrivate, turnId = Uuid.random().toString())
-        lock.withLock {
-            parents[info.id] = link
-            save(agentId, parentId, child)
-        }
+        var registered = false
         try {
+            lock.withLock {
+                currentCoroutineContext().ensureActive()
+                ensureAvailable(parentId)
+                if (info.id in deleting) throw CancellationException("Child Session is being deleted")
+                save(agentId, parentId, child)
+                parents[info.id] = link
+                registered = true
+            }
             dispatch.sendChild(SendParams(agent.id, info.id, goal))
+        } catch (e: CancellationException) {
+            if (registered) withContext(NonCancellable) { finish(agent.id, info.id, true, null) }
+            throw e
+        } catch (e: Exception) {
+            if (registered) finish(agent.id, info.id, false, e.message ?: "Child failed to start", wakeParent = false)
+            throw e
+        } finally {
+            if (!registered) withContext(NonCancellable) { harness.log.deleteChildIfPresent(agent.id, info.id) }
         }
-        catch (e: CancellationException) { withContext(NonCancellable) { finish(agent.id, info.id, true, null) }; throw e }
-        catch (e: Exception) { finish(agent.id, info.id, false, e.message ?: "Child failed to start", wakeParent = false); throw e }
         return child
+    }
+
+    private fun ensureAvailable(id: SessionId) {
+        if (id in deleting || id in stopped) throw CancellationException("Parent run cancelled")
     }
 
     private suspend fun save(agent: AgentId, parent: SessionId, child: SubAgentState, historical: Boolean = false) {
@@ -254,13 +275,13 @@ class SubAgents internal constructor(
         require(text.isNotBlank())
         val previous = child(agent, parent, id)
         lock.withLock {
-            if (steer && (id in stopped || previous.status == SubAgentStatus.Cancelled)) raise(SubAgentError.Stopped)
             if (id in delivering) raise(SubAgentError.Delivering)
             if (previous.delivered) raise(SubAgentError.Unknown(id))
+            if (steer && (id in stopped || previous.status == SubAgentStatus.Cancelled)) raise(SubAgentError.Stopped)
             if (queued[id]?.isActive == true) raise(SubAgentError.Busy)
         }
-        val info = harness.log.session(previous.agentId, id)
-        val link = info.parent ?: raise(SubAgentError.Unknown(id))
+        val link = harness.store.sessions(previous.agentId).firstOrNull { it.id == id }?.parent
+            ?: raise(SubAgentError.Unknown(id))
         val input = SendParams(previous.agentId, id, text)
         if (steer && previous.status == SubAgentStatus.Running && dispatch.trySteer(input, allowed = { lock.withLock { id !in stopped } }) {
                 throwing<SubAgentError, _> { followUp(agent, parent, id, callId, text, false, previous) }
@@ -332,9 +353,12 @@ class SubAgents internal constructor(
 
     // Called under lock. Keep one pending report per parent until a model request or a new turn takes it.
     private fun scheduleWake(agent: AgentId, parent: SessionId) {
-        if (parent in stopped || parent in delivering || wakes[parent].orEmpty().none { it.sessionId !in waiters } || !waking.add(parent)) return
+        if (parent in deleting || parent in stopped || parent in delivering) return
+        val retry = retryWakes[parent] != null
+        if (!retry && wakes[parent].orEmpty().none { it.sessionId !in waiters }) return
+        if (!waking.add(parent)) return
         scope.launch {
-            delay(25)
+            delay(if (retry) 250 else 25)
             lock.withLock { waking -= parent }
             try {
                 dispatch.report(agent, parent, { takeWake(parent) }, { restoreWake(agent, parent, it) })
@@ -347,11 +371,13 @@ class SubAgents internal constructor(
 
     private suspend fun takeWake(parent: SessionId): SessionEntry.ToolReport? {
         val completed = lock.withLock {
-            if (parent in stopped || parent in delivering) return null
+            if (parent in deleting || parent in stopped || parent in delivering) return null
+            retryWakes.remove(parent)?.let { return it }
             val pending = wakes[parent] ?: return null
             val ready = pending.filter { it.sessionId !in waiters }
             pending.removeAll(ready.toSet())
             if (pending.isEmpty()) wakes.remove(parent)
+            if (ready.isNotEmpty()) retried -= parent
             ready
         }
         if (completed.isEmpty()) return null
@@ -376,11 +402,9 @@ class SubAgents internal constructor(
 
     private suspend fun restoreWake(agent: AgentId, parent: SessionId, report: SessionEntry.ToolReport) = lock.withLock {
         if (parent in deleting) return@withLock
-        val restored = childTurns(agent, parent).filter { state ->
-            report.children.any { it.sessionId == state.sessionId && it.turnId == state.turnId && it.callId == state.callId }
-        }
-        val pending = wakes.getOrPut(parent) { mutableListOf() }
-        pending.addAll(0, restored.filterNot { state -> pending.any { sameTurn(it, state) } })
+        retryWakes[parent] = report
+        // Retry once automatically. A later turn can still take the saved report.
+        if (retried.add(parent)) scheduleWake(agent, parent)
     }
 
     context(_: Raise<SubAgentError>)
@@ -393,12 +417,16 @@ class SubAgents internal constructor(
         dispatch.stop(id)
     }
 
+    internal suspend fun markStopped(id: SessionId) = lock.withLock { stopped += id }
+
     suspend fun cancelChildren(id: SessionId, includeSelf: Boolean = true, deletingSession: Boolean = false) {
         val children = lock.withLock {
             if (includeSelf) stopped += id
             if (deletingSession) {
                 deleting += id
                 wakes.remove(id)
+                retryWakes.remove(id)
+                retried -= id
                 parents[id]?.let { parent -> wakes[parent.sessionId]?.removeAll { it.sessionId == id } }
             }
             queued.remove(id)?.cancel()
@@ -421,7 +449,7 @@ class SubAgents internal constructor(
 
     private fun privateResultId(state: SubAgentState) = "child-result:${turnKey(state)}"
 
-    private suspend fun reviewed(agent: AgentId, parent: SessionId, call: ToolCallId, state: SubAgentState): SubAgentState {
+    private suspend fun reviewed(agent: AgentId, parent: SessionId, call: ToolCallId, state: SubAgentState, transcriptExists: Boolean): SubAgentState {
         if (state.result == null || harness.store.session(agent, parent).hidden) return state
         val pending = harness.approvals.register()
         try {
@@ -429,8 +457,10 @@ class SubAgents internal constructor(
                 pending.id, call, ToolNames.AGENTS_WAIT,
                 ProtocolJson.encodeToString(SubAgentState.serializer(), state.copy(result = null)),
                 risk = Risk.Medium, reason = "Share this Hidden Session result with the parent Agent", trustable = false,
-                preview = ChangePreview("Share Sub-agent result", note = "Open the child Session ${state.sessionId.value} in this conversation to read its result before sharing."),
-            ), state.sessionId))
+                preview = if (transcriptExists)
+                    ChangePreview("Share Sub-agent result", note = "Open the child Session ${state.sessionId.value} in this conversation to read its result before sharing.")
+                else ChangePreview("Share Sub-agent result", body = state.result),
+            ), state.sessionId.takeIf { transcriptExists }))
             val allowed = withTimeoutOrNull(1800_000) { pending.await() }?.let { it !is ApprovalDecision.Deny } == true
             return state.copy(result = if (allowed) state.result else "The user withheld the result")
         } finally {
@@ -456,18 +486,24 @@ class SubAgents internal constructor(
                 val exists = harness.store.sessions(state.agentId).any { it.id == id }
                 val raw = if (exists) harness.store.entries(state.agentId, id).filterIsInstance<SessionEntry.Notice>()
                     .lastOrNull { it.id == privateResultId(state) }?.message ?: state.result else state.result
-                val result = reviewed(agent, parent, call, state.copy(result = raw)).copy(delivered = true)
+                val result = reviewed(agent, parent, call, state.copy(result = raw), exists).copy(delivered = true)
                 withContext(NonCancellable) {
                     val remove = lock.withLock {
+                        if (parent in deleting) return@withLock false
                         val turns = childTurns(agent, parent).filter { it.sessionId == id }
-                        if (parent in deleting || turns.isEmpty()) return@withLock false
+                        if (turns.isEmpty()) return@withLock false
                         val historical = !sameTurn(turns.last(), state)
                         save(agent, parent, result, historical)
                         turns.none { !sameTurn(it, state) && !it.delivered && it.status != SubAgentStatus.Cancelled }
                     }
                     if (remove) {
-                        if (exists) harness.log.deleteSession(state.agentId, id)
-                        lock.withLock { parents.remove(id) }
+                        if (exists) harness.log.deleteChildIfPresent(state.agentId, id)
+                        lock.withLock {
+                            parents.remove(id)
+                            if (parent in deleting) return@withLock
+                            val latest = savedChildren(agent, parent)[id]
+                            if (latest != null && !latest.delivered) save(agent, parent, latest.copy(delivered = true))
+                        }
                     }
                 }
                 result
