@@ -1,6 +1,17 @@
 package kinuvo.app
 
 import androidx.lifecycle.ViewModelStore
+import kinuvo.protocol.Frame
+import kinuvo.protocol.ProtocolJson
+import kinuvo.protocol.connection.ConnectResult
+import kinuvo.protocol.capability.ServerCapabilities
+import kinuvo.protocol.FrameConnection
+import kinuvo.client.KinuvoClient
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.flow.receiveAsFlow
+import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.test.runCurrent
+import kotlinx.coroutines.test.StandardTestDispatcher
 import kinuvo.app.connection.*
 import kinuvo.app.device.*
 import kinuvo.app.team.NewTeamViewModel
@@ -93,6 +104,55 @@ class WorkflowStateTest {
             vm.state.first { it.workflow?.steps?.single()?.position == Position(1f, 2f) }
             assertFalse(vm.state.value.dirty)
         } finally { stores.clear() }
+    }
+
+    @Test fun saveSurvivesAnOlderRefreshWithoutAChangeEvent() = runTest {
+        val dispatcher = StandardTestDispatcher(testScheduler)
+        Dispatchers.setMain(dispatcher)
+        val frames = Channel<Frame>(Channel.UNLIMITED)
+        var history: Frame.Request? = null
+        val renamed = seed.copy(name = "Renamed")
+        val transport = object : FrameConnection {
+            override val incoming = frames.receiveAsFlow()
+            override suspend fun send(frame: Frame) {
+                val request = frame as Frame.Request
+                val result = when (request.method) {
+                    Api.Connect.name -> ProtocolJson.encodeToJsonElement(Api.Connect.result,
+                        ConnectResult("token", "Server", capabilities = ServerCapabilities("server"), management = true))
+                    Api.Workflows.name -> ProtocolJson.encodeToJsonElement(Api.Workflows.result, listOf(seed))
+                    Api.WorkflowRuns.name -> { history = request; return }
+                    Api.UpdateWorkflow.name -> ProtocolJson.encodeToJsonElement(Api.UpdateWorkflow.result, renamed)
+                    else -> buildJsonObject {}
+                }
+                frames.send(Frame.Response(request.id, true, result))
+            }
+            override suspend fun close() { frames.close() }
+        }
+        val client = KinuvoClient("local:test", "test", connection = { transport }, dispatcher = dispatcher)
+        val reader = object : DeviceReader {
+            override val kinds = emptyList<String>()
+            override fun authorize(kind: String, completion: (String?) -> Unit) = completion(null)
+            override fun read(requestJson: String, completion: (String) -> Unit) = error("Unused")
+        }
+        val owner = ConnectedServer(Notifications(emptyList()), DeviceAccess(MemoryPreferences(), reader))
+        try {
+            owner.open(client, "local:test")
+            client.connect()
+            owner.workflows.load(seed.id)
+            runCurrent()
+            assertNotNull(history)
+            owner.workflows.save(renamed)
+            assertEquals(renamed, owner.workflows.state.value.workflows.single())
+            frames.send(Frame.Response(history!!.id, true,
+                ProtocolJson.encodeToJsonElement(Api.WorkflowRuns.result, emptyList())))
+            runCurrent()
+            assertFalse(owner.workflows.state.value.loading)
+            assertEquals(renamed, owner.workflows.state.value.workflows.single())
+        } finally {
+            owner.close()
+            runCurrent()
+            Dispatchers.resetMain()
+        }
     }
 
     @Test fun savedDraftBecomesTheWorkflow() = withServer { owner, _ ->

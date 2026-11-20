@@ -8,6 +8,7 @@ import kotlinx.coroutines.*
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
 import java.io.File
+import java.io.IOException
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import java.nio.file.Files
@@ -37,11 +38,12 @@ class Inference(private val executable: File) {
             args += listOf(operation, directory.path, language)
             if (operation == "transcribe") args += variant
             val process = ProcessBuilder(args).redirectError(ProcessBuilder.Redirect.DISCARD).start()
-            val cancellation = currentCoroutineContext().job.invokeOnCompletion(onCancelling = true, invokeImmediately = true) { if (it != null) process.destroyForcibly() }
+            val job = currentCoroutineContext().job
+            val cancellation = job.invokeOnCompletion(onCancelling = true, invokeImmediately = true) { if (it != null) process.destroyForcibly() }
             try {
                 coroutineScope {
-                    val writer = launch(Dispatchers.IO) { process.outputStream.use { it.write(input) } }
-                    val output = runInterruptible { process.inputStream.use { stream ->
+                    val writer = launch(Dispatchers.IO) { io(job) { process.outputStream.use { it.write(input) } } }
+                    val output = io(job) { process.inputStream.use { stream ->
                         val bytes = stream.readNBytes(8 * 1024 * 1024 + 1)
                         check(bytes.size <= 8 * 1024 * 1024) { "Voice output too large" }; bytes
                     } }
@@ -56,6 +58,14 @@ class Inference(private val executable: File) {
             }
         } } }
     }
+    private suspend fun <T> io(job: Job, block: () -> T): T = try {
+        runInterruptible { block() }
+    } catch (error: IOException) {
+        job.ensureActive()
+        currentCoroutineContext().ensureActive()
+        throw error
+    }
+
     companion object {
         fun bundled(): File {
             val worker = if (currentPlatform == Platform.MacOS) "MacOS/KinuvoVoiceInference"

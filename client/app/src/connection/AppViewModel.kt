@@ -463,6 +463,7 @@ class AppViewModel(
     }
 
     private fun ready(client: KinuvoClient, server: Server, snapshot: Snapshot?) {
+        if (owner.client !== client) return
         state.update {
             it.copy(connection = Connection.Ready(client, server), servers = servers.all, usage = client.lastConnect?.usage, pendingPair = null, returnTo = null,
                 capabilities = client.lastConnect?.capabilities ?: snapshot?.capabilities, sharing = servers.sharing?.enabled, sharingOptions = sharingStates(),
