@@ -67,7 +67,7 @@ class ModelCatalog(
                 } else failed += provider.id
             }
             val stale = saved == null || now - saved.at >= HOUR || provider.id in failed
-            ProviderModels(provider.id, provider.name, saved?.models.orEmpty().map { enrich(it, provider.catalogId).let { m -> m.copy(tier = inferTier(m)) } }, stale,
+            ProviderModels(provider.id, provider.name, saved?.models.orEmpty().map { enrich(it, provider.catalogId).let { m -> m.copy(tier = inferTier(m), state = provider.availability(m.id)) } }, stale,
                 if (stale) "Couldn't refresh models; saved models and custom IDs remain available." else null)
         }
         if (dirty) writeAtomically(file, ProtocolJson.encodeToString(cache), private = true)

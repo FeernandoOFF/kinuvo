@@ -168,7 +168,7 @@ private fun AgentForm(d: AgentDetails, p: Pane, section: SettingsSection) {
                         Picker(catalog.providers.map { it.id }, provider,
                             { id -> catalog.providers.firstOrNull { it.id == id }?.name ?: id }, { id ->
                                 provider = id
-                                catalog.providers.firstOrNull { it.id == id }?.chatModels?.firstOrNull()?.let {
+                                catalog.providers.firstOrNull { it.id == id }?.chatModels?.let { m -> m.firstOrNull { it.state.actionable } ?: m.firstOrNull() }?.let {
                                     model.setTextAndPlaceCursorAtEnd(it.id)
                                     reasoning = it.reasoningFor(reasoning)
                                 }
@@ -176,7 +176,7 @@ private fun AgentForm(d: AgentDetails, p: Pane, section: SettingsSection) {
                     }
                     if (!group?.chatModels.isNullOrEmpty()) DetailRow("Model") {
                         Picker(group.chatModels.map { it.id } + listOf(model.value()).filter { it.isNotEmpty() && it !in group.chatModels.map { m -> m.id } }, model.value(),
-                            { id -> group.chatModels.firstOrNull { it.id == id }?.name ?: id }, { id ->
+                            { id -> group.chatModels.firstOrNull { it.id == id }?.let { if (it.state.actionable) it.name else "${it.name} (${if (it.state.reasonCode == "not-downloaded") "not downloaded" else "unavailable"})" } ?: id }, { id ->
                                 model.setTextAndPlaceCursorAtEnd(id)
                                 group.chatModels.firstOrNull { it.id == id }?.let { reasoning = it.reasoningFor(reasoning) }
                             })
