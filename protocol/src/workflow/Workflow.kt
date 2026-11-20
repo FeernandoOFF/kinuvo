@@ -82,3 +82,6 @@ fun inputValue(text: String): JsonElement {
     val status: WorkflowRunStatus, val startedAt: Long, val endedAt: Long? = null,
     val steps: Map<StepId, StepRun>, val workflow: Workflow,
     val input: JsonObject = JsonObject(emptyMap()), val output: String? = null, val retryOf: WorkflowRunId? = null)
+
+@Serializable
+data class WorkflowRef(val id: WorkflowId, val name: String)

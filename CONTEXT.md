@@ -220,6 +220,9 @@ _Avoid_: Takeover, transfer
 **Session**:
 One bounded conversation with an Agent, including one per member of a Team; its transcript does not carry into the next Session, only Memory does.
 
+**Context break**:
+A divider in a Session that starts fresh model history while keeping the earlier transcript visible.
+
 **Settled**:
 A Session the user has set aside from the open inbox.
 

@@ -70,6 +70,10 @@ class WorkflowsTest {
             c.call(Api.RunWorkflow, RunWorkflowParams(w.id))
             val done = await(c, w.id) { it.status != WorkflowRunStatus.Running }
             assertEquals(WorkflowRunStatus.Done, done.status)
+            val session = done.steps.getValue(StepId("first")).sessionId!!
+            assertEquals(session, done.steps.getValue(StepId("second")).sessionId)
+            assertEquals(WorkflowRef(w.id, w.name), server.harness.store.session(agent, session).workflow)
+            assertEquals(1, server.harness.store.entries(agent, session).filterIsInstance<SessionEntry.ContextBreak>().size)
             assertEquals("one", done.steps[StepId("first")]?.output)
             assertEquals("two", done.steps[StepId("second")]?.output)
             assertTrue(server.prompts.inputs.any { it.text == "using one" })
@@ -78,6 +82,31 @@ class WorkflowsTest {
             val started = c.call(Api.RunWorkflow, RunWorkflowParams(w.id))
             val again = await(c, w.id) { it.id == started.id && it.status != WorkflowRunStatus.Running }
             assertEquals(done.steps[second.id]?.sessionId, again.steps[second.id]?.sessionId)
+        }
+    }
+
+    @Test fun contextBreakResetsModelHistoryAndContinueKeepsIt() = runBlocking<Unit> {
+        TestServer.start(script = { reply("reply") }, scenario = { agent("work") }).use { server ->
+            val c = client(server)
+            val w = c.call(Api.CreateWorkflow, workflow(
+                turn("a", "old context"), turn("b", "fresh context"),
+                turn("c", "continue context").copy(session = StepSession.Continue),
+                edges = listOf(edge("a", "b"), edge("b", "c")),
+            ))
+            c.run(w.id)
+            val done = finished(c)
+            assertEquals(WorkflowRunStatus.Done, done.status)
+            assertEquals(1, done.steps.values.map { it.sessionId }.distinct().size)
+            val prompts = server.script.prompts.map { it.toString() }
+            assertFalse(prompts[1].contains("old context"))
+            assertTrue(prompts[2].contains("fresh context"))
+            assertFalse(prompts[2].contains("old context"))
+            val session = done.steps.getValue(StepId("a")).sessionId!!
+            assertEquals(1, server.harness.store.entries(agent, session).filterIsInstance<SessionEntry.ContextBreak>().size)
+            c.call(Api.UpdateWorkflow, w.copy(name = "Renamed"))
+            val info = server.harness.store.session(agent, session)
+            assertEquals("Renamed", info.title)
+            assertEquals(WorkflowRef(w.id, "Renamed"), info.workflow)
         }
     }
 
@@ -93,13 +122,13 @@ class WorkflowsTest {
             assertEquals(ref, step.model)
             assertEquals(ref, done.steps.getValue(StepId("m")).model)
             val settings = server.harness.store.session(agent, step.sessionId!!).settings
-            assertEquals(ref.model, settings.model)
-            assertEquals(ref.provider, settings.provider)
+            assertNull(settings.model)
+            assertNull(settings.provider)
             c.call(Api.UpdateWorkflow, w.copy(steps = listOf(turn("a", "hi").copy(session = StepSession.Continue))))
             val next = c.run(w.id)
             val continued = await(c, w.id) { it.id == next.id && it.status != WorkflowRunStatus.Running }
             assertEquals(step.sessionId, continued.steps.getValue(StepId("a")).sessionId)
-            assertEquals(ref, continued.steps.getValue(StepId("a")).model)
+            assertNotEquals(ref, continued.steps.getValue(StepId("a")).model)
         }
     }
 

@@ -13,7 +13,7 @@ Workflows are Server-owned DAGs with multiple roots. A step waits for all its pr
 
 A step is an Agent turn, an Approval, a Review, a Tool call, a Model request, a Condition or a Text step.
 
-- **Agent turn** starts an ordinary Session through the run executor, keeping its tool policy and pending interactions. `New` creates a Session each run; `Continue` reuses the step's Session from the latest finished run. Optional `model: {provider, model}` sets its Session settings before the turn; otherwise the Session follows its own settings or the Agent default. Runs record the effective provider and model.
+- **Agent turn** starts an ordinary Session through the run executor, keeping its tool policy and pending interactions. `Continue` keeps the Workflow Session’s context; `New` inserts a Context break and starts fresh model history in the same Session. Optional `model: {provider, model}` sets its Session settings before the turn; otherwise the Session follows its own settings or the Agent default. Runs record the effective provider and model.
 - **Tool** makes one call to any tool the Agent could call, with templated JSON arguments and no model. It passes the same gate as a run: tool scope, Deny and Trust rules, Approvals, redaction and limits. An unknown or refused tool fails the step with the refusal.
 - **Model** makes one model request with no tools, using the Agent's provider and model unless the step names another. Runs record the effective provider and model. Its only context is the step's `system` text; its transcript is discarded and never listed.
 - **Condition** compares templated text. Equals and NotEquals trim and compare numbers numerically when both parse; Contains and NotContains test substrings; Empty and NotEmpty treat blank text, null, [], {} and false as empty; GreaterThan and LessThan need numbers. Its output is true or false, and only its edges carry a `branch`; unlabelled edges follow any Done source.
@@ -29,7 +29,9 @@ Outputs are strings. `{{steps.<id>.output}}` inserts one; `{{steps.<id>.output.<
 
 ## Sessions
 
-A Workflow asks for the user in one Session, kept across its runs, titled with its name and found again by its id (a new one if the user deleted it). Approvals, Reviews, tools' Approvals and Surfaces all land there. Runs write Notices with the code `workflow` ("Run started", "Review “…”: submitted", "Run done"), drawn as dividers and never sent to the model. A tool call that needed an Approval is recorded there with its result.
+A Workflow keeps one Session per Agent, shared by Agent turns and user interactions, kept across its runs, titled with its name and found again by its id (a new one if the user deleted it). Approvals, Reviews, tools' Approvals and Surfaces all land there. Runs write Notices with the code `workflow` ("Run started", "Review “…”: submitted", "Run done"), drawn as dividers and never sent to the model. A tool call that needed an Approval is recorded there with its result. Sessions carry a Workflow reference and follow its name, including renames. Like Routines, they appear in Chats once answered or waiting on the user.
+
+Agent turns sharing a Session serialize through a mutex. Step model overrides are restored after the turn, including failure and cancellation. A Context break preserves the visible transcript but discards earlier model history, Compaction and Skill activations; empty contexts get no extra break. ACP and remote harnesses retain their external session mapping: their execution API has no context-reset operation, so `New` currently resets model context only in the built-in harness. Restart recovery remains unchanged.
 
 ## Durability and retry
 

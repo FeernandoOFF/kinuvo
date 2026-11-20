@@ -12,6 +12,15 @@ import kotlinx.coroutines.flow.emptyFlow
 import kotlin.test.*
 
 class SessionMessagesTest {
+    @Test fun contextBreakDropsCompactionAndActivations() {
+        val old = listOf(SessionEntry.UserMessage("old"), SessionEntry.Activation("skill", "old skill"))
+        val fresh = SessionEntry.UserMessage("fresh")
+        val history = old + SessionEntry.Compaction(history = old) + SessionEntry.ContextBreak() + fresh
+        assertEquals(listOf(fresh), history.activeHistory())
+        assertTrue(history.activations().isEmpty())
+        assertEquals(messages.prompt("", listOf(fresh)).messages, messages.prompt("", history).messages)
+    }
+
     @Test fun nestedDisplayEntriesStayOutOfModelHistory() {
         val parent = ToolCallId("script")
         val call = SessionEntry.ToolCall(ToolCallId("script-1"), "show_ui", "{}", parent = parent)

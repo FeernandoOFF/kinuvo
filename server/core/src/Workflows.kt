@@ -45,6 +45,7 @@ class Workflows internal constructor(
     private var data = WorkflowData()
     private val jobs = mutableMapOf<WorkflowRunId, Job>()
     private val attentionLock = Mutex()
+    private val turnLocks = mutableMapOf<SessionId, Mutex>()
     private val announced = mutableMapOf<WorkflowRunId, Pair<AgentId, SessionId>>()
 
     /** Unfinished runs keep their state except interrupted Tool and Agent steps, which may have had side effects and fail instead of replaying. */
@@ -96,7 +97,15 @@ class Workflows internal constructor(
             data = data.copy(workflows = data.workflows.filterNot { it.id == saved.id } + saved,
                 next = if (old != null && old.trigger == saved.trigger && old.timeZone == saved.timeZone && saved.id in data.next) data.next
                     else data.next + (saved.id to ((saved.trigger as? Trigger.Once)?.at ?: next(saved, clock() - 1))))
-            persist(); changed(data.workflows); wakeScheduler(); saved
+            persist()
+            if (old?.name != saved.name) {
+                for (agent in harness.store.agents()) for (session in harness.store.sessions(agent.id)) {
+                    if (session.workflow?.id == saved.id) harness.log.updateDetails(agent.id, session.id) {
+                        it.copy(title = saved.name, workflow = WorkflowRef(saved.id, saved.name))
+                    }
+                }
+            }
+            changed(data.workflows); wakeScheduler(); saved
         }
     }
 
@@ -104,7 +113,7 @@ class Workflows internal constructor(
     suspend fun delete(id: WorkflowId) = lock.withLock {
         find(id)
         if (data.runs.any { it.workflowId == id && it.status == WorkflowRunStatus.Running }) raise(WorkflowError.Conflict("Cancel the active run first"))
-        data = data.copy(workflows = data.workflows.filterNot { it.id == id }, next = data.next - id, sessions = data.sessions - id)
+        data = data.copy(workflows = data.workflows.filterNot { it.id == id }, next = data.next - id, sessions = data.sessions - id, agentSessions = data.agentSessions - id)
         persist(); changed(data.workflows)
     }
 
@@ -227,28 +236,35 @@ class Workflows internal constructor(
             when (step) {
                 is WorkflowStep.AgentTurn -> {
                     val agent = harness.store.agents().first { it.id == step.agentId }
-                    val previous = if (step.session == StepSession.Continue) lock.withLock {
-                        data.runs.filter { it.id != run.id && it.workflowId == run.workflowId && it.status != WorkflowRunStatus.Running }
-                            .maxByOrNull { it.startedAt }?.steps?.get(step.id)?.sessionId
-                    } else null
-                    session = previous ?: harness.newSession(agent).id
-                    step.model?.let { ref ->
+                    session = attention(run, agent, session)
+                    val turnLock = attentionLock.withLock { turnLocks.getOrPut(session) { Mutex() } }
+                    turnLock.withLock {
                         val settings = harness.store.session(agent.id, session).settings
-                        harness.configure(agent, session, settings.copy(model = ref.model, provider = ref.provider))
+                        try {
+                            if (step.session == StepSession.New && harness.store.entries(agent.id, session)
+                                    .takeLastWhile { it !is SessionEntry.ContextBreak }.any { it is SessionEntry.UserMessage || it is SessionEntry.AssistantMessage || it is SessionEntry.ToolCall }) {
+                                harness.log.append(agent.id, session, SessionEntry.ContextBreak())
+                            }
+                            step.model?.let { ref ->
+                                harness.configure(agent, session, settings.copy(model = ref.model, provider = ref.provider))
+                            }
+                            val configured = agent.with(harness.store.session(agent.id, session).settings)
+                            model = ProviderModelRef(harness.providerId(configured.config.provider), configured.config.model)
+                            update(run.id, step.id, StepRun(StepStatus.Running, session, model = model))
+                            val prompt = render(run.id, step.prompt)
+                            var failure: String? = null
+                            var stopped = false
+                            val active = runs.start(agent, session, ExecutionInput(prompt), onEvent = { if (it is AgentEvent.RunError) failure = it.message }, onDone = { stopped = it })
+                            active.job.join()
+                            if (stopped) error("Step Session was cancelled")
+                            failure?.let { error(it) }
+                            val output = harness.store.entries(agent.id, session).takeLastWhile { it !is SessionEntry.UserMessage }
+                                .filterIsInstance<SessionEntry.AssistantMessage>().lastOrNull()?.text.orEmpty()
+                            update(run.id, step.id, StepRun(StepStatus.Done, session, output, model = model))
+                        } finally {
+                            if (step.model != null) withContext(NonCancellable) { harness.configure(agent, session, settings) }
+                        }
                     }
-                    val configured = agent.with(harness.store.session(agent.id, session).settings)
-                    model = ProviderModelRef(harness.providerId(configured.config.provider), configured.config.model)
-                    update(run.id, step.id, StepRun(StepStatus.Running, session, model = model))
-                    val prompt = render(run.id, step.prompt)
-                    var failure: String? = null
-                    var stopped = false
-                    val active = runs.start(agent, session, ExecutionInput(prompt), onEvent = { if (it is AgentEvent.RunError) failure = it.message }, onDone = { stopped = it })
-                    active.job.join()
-                    if (stopped) error("Step Session was cancelled")
-                    failure?.let { error(it) }
-                    val output = harness.store.entries(agent.id, session).takeLastWhile { it !is SessionEntry.UserMessage }
-                        .filterIsInstance<SessionEntry.AssistantMessage>().lastOrNull()?.text.orEmpty()
-                    update(run.id, step.id, StepRun(StepStatus.Done, session, output, model = model))
                 }
                 is WorkflowStep.Approval -> {
                     val agent = sessionAgent(run)
@@ -366,11 +382,13 @@ class Workflows internal constructor(
     private suspend fun attention(run: WorkflowRun, agent: Agent, earlier: SessionId? = null): SessionId = attentionLock.withLock {
         val existing = harness.store.sessions(agent.id).map { it.id }
         // A Workflow from before it had a Session of its own adopts the one its step last asked in.
-        val known = lock.withLock { data.sessions[run.workflowId] }?.takeIf { it in existing }
+        val known = lock.withLock { data.agentSessions[run.workflowId]?.get(agent.id) ?: data.sessions[run.workflowId] }?.takeIf { it in existing }
         val session = known ?: (earlier?.takeIf { it in existing } ?: harness.newSession(agent).id).also { adopted ->
             harness.log.updateDetails(agent.id, adopted) { it.copy(title = run.workflow.name) }
-            lock.withLock { data = data.copy(sessions = data.sessions + (run.workflowId to adopted)); persist() }
+            lock.withLock { data = data.copy(agentSessions = data.agentSessions + (run.workflowId to (data.agentSessions[run.workflowId].orEmpty() + (agent.id to adopted)))); persist() }
         }
+        val workflow = lock.withLock { data.workflows.find { it.id == run.workflowId } } ?: run.workflow
+        harness.log.updateDetails(agent.id, session) { it.copy(title = workflow.name, workflow = WorkflowRef(workflow.id, workflow.name)) }
         if (announced.put(run.id, agent.id to session) == null) note(agent, session, if (run.retryOf != null) "Run retried" else "Run started")
         session
     }

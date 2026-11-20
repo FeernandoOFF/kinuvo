@@ -14,8 +14,9 @@ import kinuvo.harness.SCREENSHOT_PREFIX
 
 /** The latest compressed history followed by the Session's subsequent model entries. */
 fun List<SessionEntry>.activeHistory(): List<SessionEntry> {
-    val at = indexOfLast { it is SessionEntry.Compaction && it.history.isNotEmpty() }
-    val history = (if (at < 0) this else (this[at] as SessionEntry.Compaction).history + drop(at + 1)).flatMap { entry ->
+    val current = drop(indexOfLast { it is SessionEntry.ContextBreak } + 1)
+    val at = current.indexOfLast { it is SessionEntry.Compaction && it.history.isNotEmpty() }
+    val history = (if (at < 0) current else (current[at] as SessionEntry.Compaction).history + current.drop(at + 1)).flatMap { entry ->
         if (entry is SessionEntry.VoiceCall) entry.turns.map { if (it.user) SessionEntry.UserMessage(it.text, voice = true) else SessionEntry.AssistantMessage(it.text) } else listOf(entry)
     }
     val contextAt = history.indexOfLast { it is SessionEntry.Context }
@@ -72,7 +73,7 @@ fun List<SessionEntry>.estimatedTokens(instructions: String, tools: List<ToolDes
             is SessionEntry.Compaction -> it.history.estimatedTokens("") * 4
             is SessionEntry.Activation -> it.content.length
             is SessionEntry.ToolReport -> it.tool.length + (it.callId?.value?.length ?: 0) + it.content.length
-            is SessionEntry.Started, is SessionEntry.Settings, is SessionEntry.Details, is SessionEntry.Reflection, is SessionEntry.ReflectionReview, is SessionEntry.Measurement, is SessionEntry.Outcome, is SessionEntry.Notice -> 0
+            is SessionEntry.ContextBreak, is SessionEntry.Started, is SessionEntry.Settings, is SessionEntry.Details, is SessionEntry.Reflection, is SessionEntry.ReflectionReview, is SessionEntry.Measurement, is SessionEntry.Outcome, is SessionEntry.Notice -> 0
         }
     }) / 4
 
@@ -80,9 +81,10 @@ private fun List<Attachment>.estimatedChars() = sumOf { a -> if (a.mimeType.star
 
 /** Skills activated in [this] history (user activations, activate_skill results, earlier compactions), latest per name. */
 fun List<SessionEntry>.activations(): List<SessionEntry.Activation> {
-    val calls = filterIsInstance<SessionEntry.ToolCall>().filter { it.identity?.instance?.pluginId == "kinuvo.core" && it.identity?.localId == ToolNames.ACTIVATE_SKILL }.associateBy { it.id }
+    val current = drop(indexOfLast { it is SessionEntry.ContextBreak } + 1)
+    val calls = current.filterIsInstance<SessionEntry.ToolCall>().filter { it.identity?.instance?.pluginId == "kinuvo.core" && it.identity?.localId == ToolNames.ACTIVATE_SKILL }.associateBy { it.id }
     val found = linkedMapOf<String, SessionEntry.Activation>()
-    for (e in this) when (e) {
+    for (e in current) when (e) {
         is SessionEntry.Compaction -> e.history.activations().forEach { found[it.name] = it }
         is SessionEntry.Activation -> found[e.name] = e
         is SessionEntry.ToolResult -> if (!e.isError) calls[e.id]?.let { call ->
