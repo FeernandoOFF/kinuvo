@@ -388,7 +388,8 @@ class Workflows internal constructor(
             lock.withLock { data = data.copy(agentSessions = data.agentSessions + (run.workflowId to (data.agentSessions[run.workflowId].orEmpty() + (agent.id to adopted)))); persist() }
         }
         val workflow = lock.withLock { data.workflows.find { it.id == run.workflowId } } ?: run.workflow
-        harness.log.updateDetails(agent.id, session) { it.copy(title = workflow.name, workflow = WorkflowRef(workflow.id, workflow.name)) }
+        val ref = WorkflowRef(workflow.id, workflow.name)
+        if (harness.store.session(agent.id, session).workflow != ref) harness.log.updateDetails(agent.id, session) { it.copy(title = workflow.name, workflow = ref) }
         if (announced.put(run.id, agent.id to session) == null) note(agent, session, if (run.retryOf != null) "Run retried" else "Run started")
         session
     }
