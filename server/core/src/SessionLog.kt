@@ -97,26 +97,30 @@ class SessionLog(private val store: Store, private val clock: () -> Long = { Clo
     override suspend fun createSession(agentId: AgentId, instructions: String, routine: RoutineRef?): SessionInfo =
         store.createSession(agentId, instructions, routine).also { info -> lock.withLock { changed(info) } }
 
-    suspend fun createHidden(agentId: AgentId, parent: SessionParent, settings: SessionSettings): SessionInfo = lock.withLock {
+    suspend fun createChild(agentId: AgentId, parent: SessionParent, settings: SessionSettings? = null): SessionInfo = lock.withLock {
         val info = store.createSession(agentId, "")
-        store.append(agentId, info.id, SessionEntry.Settings(settings))
-        store.append(agentId, info.id, SessionEntry.Details(parent = parent, hidden = true))
+        if (settings != null) store.append(agentId, info.id, SessionEntry.Settings(settings))
+        store.append(agentId, info.id, SessionEntry.Details(parent = parent, hidden = settings != null))
         store.session(agentId, info.id).also { changed(it) }
     }
 
     var onDelete: suspend (AgentId, SessionId) -> Unit = { _, _ -> }
     override suspend fun deleteSession(agentId: AgentId, sessionId: SessionId) {
-        store.entries(agentId, sessionId)
-        onDelete(agentId, sessionId)
-        lock.withLock {
-        store.deleteSession(agentId, sessionId)
-        counts -= sessionId
-        live -= sessionId
-        completions -= sessionId
-        runReplies -= sessionId
-        subscribers -= sessionId
-        Unit
+        val children = store.agents().flatMap { store.sessions(it.id) }.groupBy { it.parent?.sessionId }
+        suspend fun delete(agent: AgentId, id: SessionId) {
+            store.entries(agent, id)
+            onDelete(agent, id)
+            children[id].orEmpty().forEach { delete(it.agentId, it.id) }
+            lock.withLock {
+                store.deleteSession(agent, id)
+                counts -= id
+                live -= id
+                completions -= id
+                runReplies -= id
+                subscribers -= id
+            }
         }
+        delete(agentId, sessionId)
     }
 
     /** Drops entries from [size] on and sends subscribers a fresh window, since the entries they hold changed. */

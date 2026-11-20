@@ -41,7 +41,7 @@ data class SessionInfo(
     val unread: Boolean = false,
 ) {
     /** The user's own Sessions, and a Routine's once it has something for the user or waits on them. */
-    val inChats: Boolean get() = !hidden && teamId == null && (routine == null || answered || status == SessionStatus.Waiting)
+    val inChats: Boolean get() = !hidden && parent == null && teamId == null && (routine == null || answered || status == SessionStatus.Waiting)
 }
 
 /** A Task run's prompt: this first line, then the Task's details. */

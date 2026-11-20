@@ -38,7 +38,7 @@ class Notifications(private val harness: AgentRuntime, private val scope: Corout
         // Read now, while the run is still active.
         val routine = routineOf(sessionId)
         scope.launch {
-            if (harness.store.session(agentId, sessionId).hidden) return@launch
+            if (harness.store.session(agentId, sessionId).let { it.hidden || it.parent != null }) return@launch
             val agent = harness.store.agents().firstOrNull { it.id == agentId }
             val name = agent?.name ?: externalName(agentId.value) ?: return@launch
             if (harness.log.watched(sessionId)) return@launch

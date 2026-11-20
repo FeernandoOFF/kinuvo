@@ -102,3 +102,7 @@ The `agent_manage` Toolset lets an Agent read its own settings, propose changes 
 `session_configure` changes only the current Session's model, reasoning or Risk tolerance. It can lower Risk tolerance, never raise it. Hidden Sessions retain their pinned settings and receive no other management tools.
 
 Agent changes, new Agents and MCP additions/removals always ask for Approval and cannot be trusted for future calls. Risk tolerance for the Agent, Trust and Deny rules, Exec backend, Workspace and tools unavailable on the Server must be changed in Settings. Shared MCP servers can only be removed there. External Agents do not receive this Toolset yet.
+
+`agents_list` shows available Agent ids, names and whether their configured model runs on-device. Use its exact id with `agents_spawn`, or omit the id to spawn yourself. An unambiguous Agent name also works.
+
+Sub-agents use the selected Agent's configured model and tools, including cloud models and plugins. `agents_spawn` accepts `private: true` to use an on-device Hidden Session with pinned settings and restricted tools. You approve sharing a private result with a non-hidden parent; after delivery its transcript is deleted. Regular children support follow-ups through `agents_send`. Child Sessions stay out of Chats and send no Notifications.

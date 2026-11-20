@@ -289,7 +289,7 @@ class RunComposer internal constructor(
         val memory = if (style == PromptStyle.Full && requireModel) docs.read(agent.id, AgentDoc.Memory) else ""
         val userNotes = if (style == PromptStyle.Full && requireModel) docs.read(agent.id, AgentDoc.UserNotes) else ""
         val firstSession = e.profile.tier == ModelTier.Frontier && discovery && requireModel && routine == null && taskId == null && sessionId != null &&
-            store.session(agent.id, sessionId).let { !it.hidden && it.routine == null && it.teamId == null } &&
+            store.session(agent.id, sessionId).let { !it.hidden && it.parent == null && it.routine == null && it.teamId == null } &&
             memory.isBlank() && userNotes.isBlank() &&
             // The current user message is appended by the runner after composition.
             store.entries(agent.id, sessionId).all {

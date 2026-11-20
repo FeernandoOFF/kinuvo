@@ -204,11 +204,11 @@ A lasting conversation space with the user and one or more Agents as members; ea
 _Avoid_: Room, Chat, channel, group
 
 **Sub-agent**:
-An Agent run in a Hidden Session started by another Agent's Session, which waits for or is notified of its result.
+An Agent run in a child Session started by another Agent's Session. It uses the target Agent's configured model and tools; private runs opt into a Hidden Session.
 _Avoid_: Worker, child agent
 
 **Hidden Session**:
-A private Session used by a Sub-agent, kept on-device and out of normal Session listings. Sharing its result with a parent Agent requires the user's Approval.
+A private Sub-agent Session, kept on-device with pinned settings and restricted tools. Sharing its result with a non-hidden parent Agent requires the user's Approval. Its transcript is deleted after result delivery. All child Sessions stay out of normal chat listings.
 
 **Activation budget**:
 The shared limit on tool executions by one root run and all its Sub-agents. Exhausting it stops the whole tree.

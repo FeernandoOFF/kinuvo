@@ -1,6 +1,7 @@
 package kinuvo.ui.session
 
 import kinuvo.protocol.session.ToolCallId
+import kinuvo.protocol.tool.ToolNames
 import kinuvo.ui.surface.LocalSurfaceItems
 
 import kinuvo.ui.surface.LocalSurfaceRenderers
@@ -61,6 +62,7 @@ import com.composeunstyled.theme.Theme
 import kinuvo.ui.design.*
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.builtins.ListSerializer
 import kinuvo.protocol.ProtocolJson
 import kinuvo.protocol.approval.Question
@@ -295,7 +297,7 @@ internal fun ChatItemView(item: ChatItem, actions: ChatActions, spoken: Int? = n
             item.name == "show_html" && item.result != null && !item.isError -> HtmlSurface(item, actions.onSend) { ToolCallView(item, actions = actions) }
             item.app != null && item.result != null && !item.isError -> McpAppSurface(item, actions.onAppResource, actions.onAppTool, actions.onSend) { ToolCallView(item, actions = actions) }
             item.name == "show_ui" && item.result != null && !item.isError -> SurfaceCall(item, actions.onSurfaceAction) { ToolCallView(item, actions = actions) }
-            item.name in SUB_AGENT_TOOLS -> SubAgentCard(item, actions)
+            item.name in SUB_AGENT_TOOLS && !item.failedBeforeChildren(LocalSubAgents.current.children) -> SubAgentCard(item, actions)
             item.name == "artifact" && item.result != null && !item.isError -> Column { ArtifactCard(item, actions.onOpenArtifact); ToolAttachments(item.attachments, actions) }
             else -> ToolCallView(item, actions = actions)
         }
@@ -388,12 +390,22 @@ internal fun Expandable(
 
 private class ToolLabel(val icon: ImageVector, val title: String, val subtitle: String?, val skill: Boolean = false)
 
+private fun subAgentTarget(args: String): String? {
+    val json = runCatching { ProtocolJson.parseToJsonElement(args).jsonObject }.getOrNull() ?: return null
+    return listOf("agent_id", "session_id", "session_ids").firstNotNullOfOrNull { key -> when (val value = json[key]) {
+        is JsonPrimitive -> value.content
+        is JsonArray -> value.mapNotNull { (it as? JsonPrimitive)?.content }.joinToString().ifEmpty { null }
+        else -> null
+    } }
+}
+
 private fun ChatItem.ToolCall.label(): ToolLabel {
     val identity = identity
     val local = identity?.localId ?: name
     val skill = if (identity?.instance?.pluginId == "kinuvo.core" && local == "activate_skill") Regex("\"name\"\\s*:\\s*\"([^\"]+)\"").find(args)?.groupValues?.get(1) else null
     return when {
         skill != null -> ToolLabel(Lucide.BookOpen, skill, "skill", skill = true)
+        name in SUB_AGENT_TOOLS -> ToolLabel(if (name == ToolNames.AGENTS_SEND) Lucide.MessageSquareReply else Lucide.Split, name, subAgentTarget(args))
         identity?.instance?.pluginId == "kinuvo.exec" && local == "shell" -> ToolLabel(Lucide.Terminal, local, commandOf(args)?.lineSequence()?.firstOrNull()?.take(80))
         identity != null -> ToolLabel(Lucide.Plug, local, identity.instance.let { "${it.pluginId} · ${it.instanceId}" })
         else -> ToolLabel(Lucide.Wrench, name, null)

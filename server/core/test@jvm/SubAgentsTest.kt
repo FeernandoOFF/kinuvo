@@ -6,11 +6,14 @@ import kinuvo.harness.Agent
 import kinuvo.server.tools.AgentManageScope
 import kinuvo.server.tools.AgentManageTools
 import kotlinx.serialization.json.jsonObject
+import kinuvo.protocol.agent.AgentId
 import kinuvo.protocol.Api
 import kinuvo.protocol.ProtocolJson
 import kinuvo.protocol.approval.*
 import kinuvo.protocol.session.*
 import kinuvo.testing.server.TestServer
+import kinuvo.testing.server.FakeTool
+import kinuvo.testing.server.FakeTools
 import kinuvo.testing.server.FakeModels
 import kinuvo.testing.server.FakeModelProvider
 import kinuvo.protocol.model.ModelInfo
@@ -23,6 +26,28 @@ import kotlin.test.*
 
 class SubAgentsTest {
     private suspend fun <T> value(block: suspend context(Raise<SubAgentError>) () -> T): T = either { block() }.getOrNull() ?: error("Sub-agent operation failed")
+
+    @Test fun targetsResolveByIdOrUnambiguousNameAndUnknownLeavesNoChild() = runBlocking {
+        lateinit var agent: Agent
+        TestServer.start(scenario = { agent = agent("dev", "Developer") { it.copy(approvals = "full") } }).use { server ->
+            val parent = server.startSession(agent.id)
+            val children = server.harness.subAgents!!
+            val error = either { children.spawn(agent.id, parent.id, ToolCallId("bad"), AgentId("missing"), "task") }.leftOrNull()
+            assertIs<SubAgentError.Target>(error)
+            assertTrue(error.message.contains("dev (Developer)"))
+            assertTrue(children.list(agent.id, parent.id).isEmpty())
+            assertEquals(listOf(parent.id), server.harness.store.sessions(agent.id).map { it.id })
+            val child = value { children.spawn(agent.id, parent.id, ToolCallId("name"), AgentId("dEVELOPER"), "task") }
+            assertEquals(agent.id, child.agentId)
+            value { children.wait(agent.id, parent.id, listOf(child.sessionId), 5) }
+            val catalog = children.tools(agent.id, parent.id).single { it.descriptor.name == "agents_list" }
+                .execute(buildJsonObject {}, "list")
+            val entry = ProtocolJson.parseToJsonElement(catalog).jsonObject.getValue("agents").jsonArray.single { it.jsonObject.getValue("id").jsonPrimitive.content == "dev" }.jsonObject
+            assertEquals("dev", entry.getValue("id").jsonPrimitive.content)
+            assertEquals("Developer", entry.getValue("name").jsonPrimitive.content)
+            assertTrue(entry.getValue("on_device").jsonPrimitive.boolean)
+        }
+    }
 
     @Test fun resultsAreDurableAndBatchIdentityDoesNotDependOnCompletionOrder() = runBlocking {
         val home = Files.createTempDirectory("subagents").toFile()
@@ -96,26 +121,70 @@ class SubAgentsTest {
         val models = FakeModels(FakeModelProvider("test", "Models", listOf(
             ModelInfo("local", location = ExecutionLocation.ServerHost), ModelInfo("cloud", location = ExecutionLocation.External),
         )))
-        TestServer.start(plugins = listOf(models), scenario = {
+        TestServer.start(plugins = listOf(models, FakeTools(FakeTool("fixture_plugin"))), scenario = {
             local = agent("local") { it.copy(provider = "test", model = "local", approvals = "full") }
             cloud = agent("cloud") { it.copy(provider = "test", model = "cloud", approvals = "full") }
         }).use { server ->
             val parent = server.startSession(cloud.id)
             val children = server.harness.subAgents!!
-            val error = assertFailsWith<ServerException> { value { children.spawn(cloud.id, parent.id, ToolCallId("cloud"), cloud.id, "task") } }
+            val regular = value { children.spawn(cloud.id, parent.id, ToolCallId("regular"), cloud.id, "task") }
+            assertFalse(server.harness.store.session(cloud.id, regular.sessionId).hidden)
+            assertFalse(regular.private)
+            assertTrue(server.harness.composer.compose(cloud, regular.sessionId).tools.tools.any { it.name == "fixture_plugin" })
+            children.tools(cloud.id, parent.id).single { it.descriptor.name == "agents_wait" }.execute(buildJsonObject {
+                putJsonArray("session_ids") { add(regular.sessionId.value) }
+            }, "regular-delivery")
+            assertEquals(SubAgentStatus.Completed, value { children.wait(cloud.id, parent.id, listOf(regular.sessionId), 5) }.single().status)
+            assertTrue(server.harness.log.pending(parent.id).isEmpty())
+            assertTrue(server.harness.log.page(cloud.id, null, 100).sessions.none { it.id == regular.sessionId })
+            val error = assertFailsWith<ServerException> { value { children.spawn(cloud.id, parent.id, ToolCallId("cloud"), cloud.id, "task", private = true) } }
             assertEquals(SubAgentError.Privacy(cloud.name), error.error)
             assertTrue(error.message.orEmpty().contains("has no on-device model"))
-            val failed = children.list(cloud.id, parent.id).values.single()
-            assertEquals(SubAgentStatus.Failed, failed.status)
-            assertEquals(error.message, failed.result)
-            assertEquals(failed, value { children.wait(cloud.id, parent.id, listOf(failed.sessionId), 0) }.single())
-            val child = value { children.spawn(cloud.id, parent.id, ToolCallId("local"), local.id, "task") }
+            assertTrue(children.list(cloud.id, parent.id).values.none { it.private })
+            val child = value { children.spawn(cloud.id, parent.id, ToolCallId("local"), local.id, "task", private = true) }
             assertEquals(SubAgentStatus.Completed, value { children.wait(cloud.id, parent.id, listOf(child.sessionId), 5) }.single().status)
             assertFailsWith<IllegalArgumentException> { server.harness.configure(local, child.sessionId, SessionSettings(provider = "test", model = "cloud")) }
             val configure = AgentManageTools(server.harness.agentManagement!!).tools(AgentManageScope(local.id, child.sessionId), hidden = true).single()
             assertFailsWith<IllegalArgumentException> { configure.preview(ProtocolJson.parseToJsonElement("""{"provider":"test","model":"cloud"}""").jsonObject) }
             val composed = server.harness.composer.compose(local, child.sessionId)
+            assertTrue(composed.tools.tools.none { it.name == "fixture_plugin" })
             assertTrue(composed.tools.tools.none { it.name in setOf("memory", "web_fetch", "generate_image", "run_code", "agent_get", "agent_update", "agent_create", "mcp_list", "mcp_add", "mcp_remove", "mcp_test", "mcp_login") })
+            val completed = children.list(cloud.id, parent.id).getValue(child.sessionId)
+            val notice = SessionEntry.Notice("legacy", "sub_agent", "", child = completed)
+            val json = ProtocolJson.encodeToJsonElement(SessionEntry.serializer(), notice).jsonObject
+            val legacy = ProtocolJson.decodeFromJsonElement(SessionEntry.serializer(), JsonObject(json + ("child" to
+                JsonObject(json.getValue("child").jsonObject - "private"))))
+            assertTrue(assertIs<SessionEntry.Notice>(legacy).child!!.private)
+            server.harness.log.append(cloud.id, parent.id, legacy)
+            server.harness.log.deleteSession(local.id, child.sessionId)
+            val waitTool = children.tools(cloud.id, parent.id).single { it.descriptor.name == "agents_wait" }
+            val delivery = async { waitTool.execute(buildJsonObject {
+                putJsonArray("session_ids") { add(child.sessionId.value) }
+            }, "delivery") }
+            val approval = withTimeout(5000) {
+                while (true) {
+                    server.harness.log.pending(parent.id).filterIsInstance<PendingInteraction.Approval>().firstOrNull()?.let { return@withTimeout it }
+                    yield()
+                }
+                error("unreachable")
+            }
+            assertEquals(SubAgentError.Delivering, either {
+                children.send(cloud.id, parent.id, child.sessionId, ToolCallId("pending"), "again")
+            }.leftOrNull())
+            val client = server.client(token = server.auth.sessionToken()); client.connect()
+            assertTrue(client.call(Api.Respond, RespondParams(parent.id, approval.id, InteractionAnswer.Approval(ApprovalDecision.Deny()))))
+            assertTrue(delivery.await().contains("withheld"))
+            assertTrue(waitTool.execute(buildJsonObject {
+                putJsonArray("session_ids") { add(child.sessionId.value) }
+            }, "repeat").contains("withheld"))
+            assertTrue(server.harness.log.pending(parent.id).isEmpty())
+            assertTrue(server.harness.store.sessions(local.id).none { it.id == child.sessionId })
+            assertEquals(SubAgentError.Unknown(child.sessionId), either {
+                children.send(cloud.id, parent.id, child.sessionId, ToolCallId("deleted"), "again")
+            }.leftOrNull())
+            server.harness.log.deleteSession(cloud.id, parent.id)
+            assertTrue(server.harness.store.sessions(cloud.id).none { it.id == regular.sessionId })
+
         }
     }
 
