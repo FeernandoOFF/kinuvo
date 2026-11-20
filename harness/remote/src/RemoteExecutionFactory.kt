@@ -56,19 +56,18 @@ class RemoteExecutionFactory(private val link: (String) -> SaveRemoteLink, priva
             val sessionId = snapshot.sessionId
             state.reference(sessionId.value)
             val sink = state.boundSink()
-            val queue = Mutex()
             val commands = Mutex()
             val committed = mutableMapOf<String, ExecutionMessage>()
             var pending = emptyList<PendingInteraction>()
             var activeTurn = false
-            suspend fun reconcile(snapshot: ExecutionSnapshot) = queue.withLock {
+            suspend fun reconcile(snapshot: ExecutionSnapshot) {
                 require(committed.keys.all { key -> snapshot.messages.any { it.id == key } }) { "Remote committed history disappeared" }
                 val fresh = snapshot.messages.filter { it.id !in committed }
                 require(snapshot.messages.none { committed[it.id]?.let { old -> old != it } == true }) { "Remote committed history changed" }
                 pending.filter { old -> snapshot.pending.none { it.id == old.id } }.forEach { state.resolve(it.id) }
                 snapshot.pending.filter { request -> pending.none { it.id == request.id } }.forEach { state.request(it) }
                 pending = snapshot.pending
-                if (snapshot.phase == ExecutionPhase.Lost) { broker.lost(); return@withLock }
+                if (snapshot.phase == ExecutionPhase.Lost) { broker.lost(); return }
                 if (fresh.isNotEmpty() || snapshot.phase != ExecutionPhase.Idle) {
                     if (!activeTurn) { sink.publish(AgentEvent.ExecutionPhaseChanged(ExecutionPhase.Running)); activeTurn = true }
                     val entries = remoteEntries(fresh, state.generation)
@@ -106,9 +105,12 @@ class RemoteExecutionFactory(private val link: (String) -> SaveRemoteLink, priva
                         delay(200)
                         if (client.state.value is ConnectionState.Connected) {
                             try {
-                                val snapshot = requireNotNull(withTimeout(10_000) { client.call(Api.RemoteExecution, RemoteExecutionCall(AgentId(agentId), sessionId, "snapshot")) }.snapshot)
-                                reconcile(snapshot)
-                                if (snapshot.phase != ExecutionPhase.Lost) readiness(config.id, true, "")
+                                val phase = commands.withLock {
+                                    val snapshot = requireNotNull(withTimeout(10_000) { client.call(Api.RemoteExecution, RemoteExecutionCall(AgentId(agentId), sessionId, "snapshot")) }.snapshot)
+                                    reconcile(snapshot)
+                                    snapshot.phase
+                                }
+                                if (phase != ExecutionPhase.Lost) readiness(config.id, true, "")
                             }
                             catch (_: DisconnectedException) { readiness(config.id, false, "host_offline") }
                             catch (_: TimeoutCancellationException) { readiness(config.id, false, "host_offline") }
@@ -128,6 +130,7 @@ class RemoteExecutionFactory(private val link: (String) -> SaveRemoteLink, priva
                 override suspend fun prompt(input: ExecutionInput): ExecutionAcceptance = commands.withLock {
                     require(input.attachments.isEmpty()) { "Remote attachments are unsupported" }
                     client.call(Api.RemoteExecution, RemoteExecutionCall(AgentId(agentId), sessionId, "send", messageText(input.text, input.inputs), surfaceAction = input.action))
+                    activeTurn = true
                     ExecutionAcceptance()
                 }
                 override suspend fun cancel() { commands.withLock { client.call(Api.RemoteExecution, RemoteExecutionCall(AgentId(agentId), sessionId, "cancel")) } }

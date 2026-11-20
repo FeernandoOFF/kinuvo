@@ -16,6 +16,10 @@ import kinuvo.server.ServerError
 import kinuvo.server.SessionError
 import kinuvo.server.throwing
 import kotlin.uuid.Uuid
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 
@@ -34,7 +38,7 @@ class AgentExecution(
 
     init {
         external.onFinish = ::finished
-        runs.onBegin = { _, id -> subAgents?.begin(id) }
+        runs.onBegin = { agent, id, userTurn, wake -> subAgents?.begin(agent, id, userTurn, wake) }
         runs.onCancel = { subAgents?.cancelChildren(it) }
         runs.onFinish { agent, id, cancelled ->
             finished(agent, id, cancelled, (log.completion(id) as? AgentEvent.RunError)?.message)
@@ -53,10 +57,10 @@ class AgentExecution(
         if (registry.registration(agent) != null) management.withLock { external.create(agent, parent) }
         else log.createChild(agent, parent, settings)
 
-    internal suspend fun trySteer(params: SendParams, fallback: suspend () -> Unit): Boolean =
-        !external.owns(requireNotNull(params.sessionId)) && native.trySteer(params, fallback)
+    internal suspend fun trySteer(params: SendParams, allowed: suspend () -> Boolean, fallback: suspend () -> Unit): Boolean =
+        !external.owns(requireNotNull(params.sessionId)) && native.trySteer(params, allowed, fallback)
 
-    internal suspend fun report(agent: AgentId, id: SessionId, take: suspend () -> SessionEntry.ToolReport?) {
+    internal suspend fun report(agent: AgentId, id: SessionId, take: suspend () -> SessionEntry.ToolReport?, restore: suspend (SessionEntry.ToolReport) -> Unit) {
         if (!external.owns(id)) native.report(agent, id, take)
         else {
             while (true) {
@@ -64,8 +68,14 @@ class AgentExecution(
                 val sent = management.withLock {
                     if (external.isActive(id)) return@withLock false
                     val report = take() ?: return
-                    subAgents?.begin(id)
-                    external.send(SendParams(agent, id, report.content), report)
+                    try {
+                        external.send(SendParams(agent, id, report.content), report) {
+                            subAgents?.begin(agent, id, userTurn = false, wake = true)
+                        }
+                    } catch (e: Exception) {
+                        withContext(NonCancellable) { restore(report) }
+                        throw e
+                    }
                     true
                 }
                 if (sent) return
@@ -93,22 +103,44 @@ class AgentExecution(
 
     override suspend fun send(params: SendParams): SendResult = throwing<ServerError, _> { send(params, null) }
 
+    internal suspend fun sendChild(params: SendParams): SendResult =
+        throwing<ServerError, _> { send(params, null, userTurn = false) }
+
     /** [catalogs] are the Surface catalogs of the client sending, for the built-in harness. */
     context(_: Raise<AgentError>, _: Raise<SessionError>)
-    suspend fun send(params: SendParams, catalogs: List<UiCatalog>?, onEvent: suspend (AgentEvent) -> Unit = {}): SendResult {
+    suspend fun send(params: SendParams, catalogs: List<UiCatalog>?, userTurn: Boolean = true, onEvent: suspend (AgentEvent) -> Unit = {}): SendResult {
         val session = params.sessionId
         val action = params.action
         if (session != null && action != null && workflowSurface(params.agentId, session, action))
             return SendResult(session, RunId(Uuid.random().toString()), params.text)
         return if (registry.registration(params.agentId) != null) management.withLock {
-            params.sessionId?.let { subAgents?.begin(it) }
-            require(params.delivery == SendDelivery.Turn) { "This external harness does not support Queue or Steer" }
-            external.send(params)
+            external.send(params, null) { id -> subAgents?.begin(params.agentId, id, userTurn, wake = false) }
         }
-        else native.send(params, catalogs, onEvent)
+        else native.send(params, catalogs, userTurn, onEvent)
     }
 
     suspend fun cancelQueued(params: CancelQueuedParams) = native.cancelQueued(params)
 
-    override suspend fun stop(sessionId: SessionId) { subAgents?.cancelChildren(sessionId); forSession(sessionId).stop(sessionId) }
+    override suspend fun stop(sessionId: SessionId) {
+        if (external.owns(sessionId)) {
+            subAgents?.cancelChildren(sessionId)
+            external.stop(sessionId)
+        } else {
+            native.stop(sessionId)
+            subAgents?.cancelChildren(sessionId)
+        }
+    }
+
+    internal suspend fun delete(agent: AgentId, id: SessionId) {
+        subAgents?.cancelChildren(id, deletingSession = true)
+        if (external.owns(id)) management.withLock {
+            try { withTimeoutOrNull(1_000) { external.stop(id) } }
+            catch (e: CancellationException) { throw e }
+            catch (_: Exception) { /* Discard the connection even if the harness rejected cancellation. */ }
+            external.delete(agent, id)
+        } else {
+            native.stop(id)
+            runs.join(id)
+        }
+    }
 }

@@ -3,14 +3,30 @@ package kinuvo.server
 import arrow.core.raise.Raise
 import arrow.core.raise.context.either
 import kinuvo.harness.Agent
+import kinuvo.harness.ExecutionBroker
+import kinuvo.harness.ExecutionInput
+import kinuvo.harness.ExecutionSession
+import kinuvo.harness.ExecutionFactory
+import kinuvo.harness.ExecutionState
 import kinuvo.server.tools.AgentManageScope
 import kinuvo.server.tools.AgentManageTools
 import kotlinx.serialization.json.jsonObject
 import kinuvo.protocol.agent.AgentId
 import kinuvo.protocol.Api
+import kinuvo.protocol.Frame
 import kinuvo.protocol.ProtocolJson
 import kinuvo.protocol.approval.*
+import kinuvo.protocol.execution.AgentRegistration
+import kinuvo.protocol.execution.ExecutionCapabilities
+import kinuvo.protocol.execution.ExecutionConnection
+import kinuvo.protocol.execution.ExecutionPhase
+import kinuvo.protocol.execution.ExposureGrant
+import kinuvo.protocol.execution.HarnessConnection
+import kinuvo.protocol.execution.SaveRemoteLink
 import kinuvo.protocol.session.*
+import kinuvo.server.execution.RemoteLinks
+import kinuvo.server.rpc.serverRoutes
+import kinuvo.testing.harness.ModelScript
 import kinuvo.testing.server.TestServer
 import kinuvo.testing.server.FakeHarness
 import kinuvo.testing.server.FakeTool
@@ -37,7 +53,7 @@ class SubAgentsTest {
 
     @Test fun externalChildWakesAnIdleParentAndItsLargeResultRemainsReadable() = runBlocking {
         val large = "é".repeat(9_000)
-        val external = FakeHarness { reply(large) }
+        val external = FakeHarness { text -> reply(if (text == "follow up") "new answer" else large) }
         lateinit var agent: Agent
         TestServer.start(harnesses = listOf(external), script = { reply("parent awake") }, scenario = {
             agent = agent("work") { it.copy(approvals = "full") }
@@ -52,11 +68,20 @@ class SubAgentsTest {
             assertEquals(SubAgentStatus.Completed, report.children.single().status)
             assertContains(report.content, "Use agents_wait")
             assertFalse(report.content.contains(large))
+            assertContains(report.content, "turn_id \"${child.turnId}\"")
             assertTrue(server.harness.store.entries(agent.id, parent.id).none { it is SessionEntry.UserMessage })
             repeat(2) {
                 assertEquals(large, value { children.wait(agent.id, parent.id, listOf(child.sessionId), 0) }.single().result)
             }
             assertEquals(1, reports(server, agent, parent).size)
+            value { children.send(agent.id, parent.id, child.sessionId, ToolCallId("follow"), "follow up") }
+            assertEquals("new answer", value { children.wait(agent.id, parent.id, listOf(child.sessionId), 5) }.single().result)
+            val original = children.tools(agent.id, parent.id).single { it.descriptor.name == "agents_wait" }.execute(buildJsonObject {
+                putJsonArray("session_ids") { add(child.sessionId.value) }
+                put("turn_id", child.turnId)
+            }, "exact")
+            assertEquals(large, ProtocolJson.parseToJsonElement(original).jsonObject.getValue("children").jsonArray
+                .single().jsonObject.getValue("result").jsonPrimitive.content)
             server.harness.log.deleteSession(agent.id, parent.id)
             assertTrue(server.harness.store.sessions(child.agentId).none { it.id == child.sessionId })
         }
@@ -121,6 +146,196 @@ class SubAgentsTest {
             untilReady { children.list(agent.id, parent.id).getValue(cancelled.sessionId).status == SubAgentStatus.Cancelled }
             delay(100)
             assertTrue(reports(server, agent, parent).isEmpty())
+        }
+    }
+
+    @Test fun stopKeepsPendingWakesAndQueuedMessagesPausedUntilUserSend() = runBlocking {
+        lateinit var agent: Agent
+        TestServer.start(script = {
+            on("hold") { toolCall("ask_user", """{"questions":[{"id":"ok","label":"Wait","kind":"text"}]}""") }
+            on("child") { reply("child answer") }
+        }, scenario = { agent = agent("work") { it.copy(approvals = "full") } }).use { server ->
+            val parent = server.startSession(agent.id, "hold")
+            val client = server.client(token = server.auth.sessionToken()); client.connect()
+            untilReady { server.harness.log.pending(parent.id).isNotEmpty() }
+            client.call(Api.Send, SendParams(agent.id, parent.id, "queued", delivery = SendDelivery.Queue))
+            val children = server.harness.subAgents!!
+            val child = value { children.spawn(agent.id, parent.id, ToolCallId("child"), agent.id, "child") }
+            untilReady { children.list(agent.id, parent.id)[child.sessionId]?.status == SubAgentStatus.Completed }
+            client.call(Api.Stop, StopParams(parent.id))
+            untilReady { server.harness.log.pending(parent.id).isEmpty() }
+            delay(100)
+            assertTrue(reports(server, agent, parent).isEmpty())
+            assertEquals(listOf("hold"), server.harness.store.entries(agent.id, parent.id)
+                .filterIsInstance<SessionEntry.UserMessage>().map { it.text })
+            client.call(Api.Send, SendParams(agent.id, parent.id, "resume"))
+            untilReady { reports(server, agent, parent).isNotEmpty() }
+            assertEquals(child.sessionId, reports(server, agent, parent).single().children.single().sessionId)
+            untilReady { server.harness.store.entries(agent.id, parent.id).filterIsInstance<SessionEntry.UserMessage>().size == 3 }
+        }
+    }
+
+    @Test fun deletingAnIdleParentDropsAPendingWake() = runBlocking {
+        lateinit var agent: Agent
+        TestServer.start(scenario = { agent = agent("work") { it.copy(approvals = "full") } }).use { server ->
+            val parent = server.startSession(agent.id)
+            val children = server.harness.subAgents!!
+            val child = value { children.spawn(agent.id, parent.id, ToolCallId("child"), agent.id, "work") }
+            untilReady { children.list(agent.id, parent.id)[child.sessionId]?.status == SubAgentStatus.Completed }
+            server.harness.log.deleteSession(agent.id, parent.id)
+            delay(100)
+            assertTrue(server.harness.store.sessions(agent.id).none { it.id == parent.id || it.id == child.sessionId })
+        }
+    }
+
+    @Test fun grandchildWakeFinishesANewChildTurnWithoutResettingTheRootBudget(): Unit = runBlocking {
+        val releaseChild = CompletableDeferred<Unit>()
+        val releaseGrandchild = CompletableDeferred<Unit>()
+        val external = FakeHarness { text ->
+            when (text) {
+                "child work" -> { releaseChild.await(); reply("child first answer") }
+                "grandchild work" -> { releaseGrandchild.await(); reply("grandchild answer") }
+                else -> if ("grandchild answer" in text) reply("wake answer")
+            }
+        }
+        lateinit var agent: Agent
+        TestServer.start(harnesses = listOf(external), scenario = {
+            agent = agent("work") { it.copy(approvals = "full") }
+            externalAgent(external, "external", "External")
+        }).use { server ->
+            val parent = server.startSession(agent.id)
+            val children = server.harness.subAgents!!
+            children.consume(parent.id)
+            val child = value { children.spawn(agent.id, parent.id, ToolCallId("child"), AgentId("external"), "child work") }
+            value { children.spawn(child.agentId, child.sessionId, ToolCallId("grandchild"), child.agentId, "grandchild work") }
+            releaseChild.complete(Unit)
+            untilReady { reports(server, agent, parent).any { "child first answer" in it.content } }
+            releaseGrandchild.complete(Unit)
+            untilReady { children.list(agent.id, parent.id)[child.sessionId]?.let {
+                it.turnId != child.turnId && it.status == SubAgentStatus.Completed
+            } == true }
+            val finished = children.list(agent.id, parent.id).getValue(child.sessionId)
+            assertEquals("wake answer", finished.result)
+            untilReady { reports(server, agent, parent).any { it.children.any { completion -> completion.turnId == finished.turnId } } }
+            repeat(63) { children.consume(parent.id) }
+            assertFailsWith<CancellationException> { children.consume(parent.id) }
+        }
+    }
+
+    @Test fun failedSpawnSavesItsStatusWithoutWakingTheParent() = runBlocking {
+        lateinit var agent: Agent
+        val external = FakeHarness()
+        val busyHarness = object : ExecutionFactory by external {
+            override suspend fun open(config: HarnessConnection, registration: AgentRegistration, state: ExecutionState, broker: ExecutionBroker, scope: CoroutineScope) =
+                external.open(config, registration, state, broker, scope).also { state.update(ExecutionPhase.Running) }
+        }
+        TestServer.start(executionFactory = { busyHarness }, scenario = {
+            agent = agent("work") { it.copy(approvals = "full") }
+            externalAgent(external, "external")
+        }).use { server ->
+            val parent = server.startSession(agent.id)
+            val children = server.harness.subAgents!!
+            assertFailsWith<IllegalStateException> {
+                value { children.spawn(agent.id, parent.id, ToolCallId("bad"), AgentId("external"), "work") }
+            }
+            assertEquals(SubAgentStatus.Failed, children.list(agent.id, parent.id).values.single().status)
+            delay(100)
+            assertTrue(reports(server, agent, parent).isEmpty())
+        }
+    }
+
+    @Test fun remoteChildSettlesWhenSourceCancelsBeforeWritingEntries(): Unit = runBlocking {
+        val fixture = RuntimeFixture()
+        val source = fixture.runtime(ModelScript().model)
+        val directory = Files.createTempDirectory("subagent-remote-source").toFile()
+        val auth = DeviceAuth(Path(directory.path, "devices.json"))
+        val links = RemoteLinks()
+        val token = links.grant(ExposureGrant("test", setOf(fixture.agent.id)))
+        val sourceSending = CompletableDeferred<Unit>()
+        val sourceSession = CompletableDeferred<SessionId>()
+        val routeTable = serverRoutes()
+        val cancelOnSend = object : Routes by routeTable {
+            override suspend fun dispatch(call: Call, request: Frame.Request): Frame.Response {
+                if (request.method != Api.RemoteExecution.name) return routeTable.dispatch(call, request)
+                val input = ProtocolJson.decodeFromJsonElement(Api.RemoteExecution.params, request.params)
+                if (input.action == "send") sourceSending.complete(Unit)
+                if (input.action == "snapshot" && sourceSending.isCompleted) sourceSession.await()
+                val response = routeTable.dispatch(call, request)
+                if (response.ok && input.action == "send") {
+                    val id = requireNotNull(input.sessionId)
+                    call.server.dispatch.stop(id)
+                    call.server.dispatch.join(id)
+                    sourceSession.complete(id)
+                }
+                return response
+            }
+        }
+        val factory = object : ExecutionFactory {
+            override suspend fun open(config: HarnessConnection, registration: AgentRegistration, state: ExecutionState, broker: ExecutionBroker, scope: CoroutineScope) =
+                object : ExecutionSession {
+                    override val capabilities = ExecutionCapabilities()
+                    override suspend fun prompt(input: ExecutionInput): Nothing = awaitCancellation()
+                    override suspend fun cancel() {}
+                    override suspend fun answer(requestId: InteractionId, answer: InteractionAnswer) {}
+                }
+        }
+        val runtime = ServerRuntime(source, auth, cancelOnSend, nativeFactory = factory, remoteLinks = links)
+        val listener = NetworkListener(runtime, auth)
+        try {
+            runtime.start(schedule = false)
+            val port = listener.start("127.0.0.1", emptyList())
+            lateinit var agent: Agent
+            TestServer.start(scenario = { agent = agent("work") { it.copy(approvals = "full") } }).use { server ->
+                val client = server.client(); client.connect()
+                client.call(Api.SaveRemoteLink, SaveRemoteLink("source", "ws://127.0.0.1:$port/ws", token))
+                client.call(Api.SaveHarnessConnection, HarnessConnection("remote", "Remote", ExecutionConnection.Remote("source")))
+                val alias = AgentId("alias")
+                client.call(Api.RegisterExternalAgent, AgentRegistration(alias, "Alias", "remote", remoteAgentId = fixture.agent.id.value))
+                val parent = server.startSession(agent.id)
+                val children = server.harness.subAgents!!
+                val child = value { children.spawn(agent.id, parent.id, ToolCallId("remote"), alias, "work") }
+                val id = withTimeout(5_000) { sourceSession.await() }
+                assertTrue(source.store.entries(fixture.agent.id, id).all { it is SessionEntry.Started || it is SessionEntry.Details })
+                val result = value { children.wait(agent.id, parent.id, listOf(child.sessionId), 5) }.single()
+                assertEquals(SubAgentStatus.Completed, result.status)
+                assertNull(result.result)
+            }
+        } finally {
+            listener.stop()
+            runtime.close()
+            directory.deleteRecursively()
+        }
+    }
+
+    @Test fun failedExternalWakeCanBeDeliveredAfterAUserSend() = runBlocking {
+        lateinit var agent: Agent
+        lateinit var parentState: ExecutionState
+        val external = FakeHarness()
+        val busyHarness = object : ExecutionFactory by external {
+            override suspend fun open(config: HarnessConnection, registration: AgentRegistration, state: ExecutionState, broker: ExecutionBroker, scope: CoroutineScope) =
+                external.open(config, registration, state, broker, scope).also {
+                    parentState = state
+                    state.update(ExecutionPhase.Running)
+                }
+        }
+        TestServer.start(executionFactory = { busyHarness }, scenario = {
+            agent = agent("work") { it.copy(approvals = "full") }
+            externalAgent(external, "external")
+        }).use { server ->
+            val parent = server.startSession(AgentId("external"))
+            val externalSession = external.sessions.single()
+            val children = server.harness.subAgents!!
+            val child = value { children.spawn(parent.agentId, parent.id, ToolCallId("child"), agent.id, "work") }
+            untilReady { children.list(parent.agentId, parent.id)[child.sessionId]?.status == SubAgentStatus.Completed }
+            delay(200)
+            assertTrue(externalSession.prompts.isEmpty())
+            parentState.update(ExecutionPhase.Idle)
+
+            val client = server.client(token = server.auth.sessionToken()); client.connect()
+            client.call(Api.Send, SendParams(parent.agentId, parent.id, "resume"))
+            untilReady { externalSession.prompts.size == 2 }
+            assertEquals("resume", externalSession.prompts.first().text)
+            assertContains(externalSession.prompts.last().text, child.sessionId.value)
         }
     }
 
@@ -279,6 +494,15 @@ class SubAgentsTest {
                 JsonObject(json.getValue("child").jsonObject - "private"))))
             assertTrue(assertIs<SessionEntry.Notice>(legacy).child!!.private)
             server.harness.log.append(cloud.id, parent.id, legacy)
+            val catchUp = mutableListOf<SessionChange>()
+            val subscriber = SessionLog.Subscriber { catchUp.add(it.change); true }
+            server.harness.log.subscribe(cloud.id, parent.id, null, 100, subscriber)
+            server.harness.log.unsubscribe(parent.id, subscriber)
+            val replayed = catchUp.filterIsInstance<SessionChange.Entry>().map { it.entry }.filterIsInstance<SessionEntry.Notice>()
+            assertNull(replayed.single { it.id == "legacy" }.child?.result)
+            assertNull(catchUp.filterIsInstance<SessionChange.Live>().single().state.children.getValue(child.sessionId).result)
+            val past = server.harness.log.history(cloud.id, parent.id, Int.MAX_VALUE, 100)
+            assertNull(past.map { it.entry }.filterIsInstance<SessionEntry.Notice>().single { it.id == "legacy" }.child?.result)
             server.harness.log.deleteSession(local.id, child.sessionId)
             val waitTool = children.tools(cloud.id, parent.id).single { it.descriptor.name == "agents_wait" }
             val delivery = async { waitTool.execute(buildJsonObject {
@@ -292,6 +516,7 @@ class SubAgentsTest {
                 error("unreachable")
             }
             assertFalse(ProtocolJson.encodeToString(PendingInteraction.serializer(), approval).contains("legacy private result"))
+            assertContains(assertIs<PendingInteraction.Approval>(approval).preview?.note.orEmpty(), child.sessionId.value)
             assertEquals(SubAgentError.Delivering, either {
                 children.send(cloud.id, parent.id, child.sessionId, ToolCallId("pending"), "again")
             }.leftOrNull())
@@ -326,6 +551,11 @@ class SubAgentsTest {
             client.call(Api.Stop, StopParams(first.sessionId))
             assertEquals(SubAgentStatus.Cancelled, value { children.wait(agent.id, parent.id, listOf(first.sessionId), 5) }.single().status)
             assertEquals(SubAgentStatus.Cancelled, value { children.wait(agent.id, first.sessionId, listOf(grandchild.sessionId), 5) }.single().status)
+            assertEquals(SubAgentError.Stopped, either {
+                children.send(agent.id, parent.id, first.sessionId, ToolCallId("steer"), "adjust", steer = true)
+            }.leftOrNull())
+            client.call(Api.Send, SendParams(agent.id, first.sessionId, "restart"))
+            untilReady { children.list(agent.id, parent.id)[first.sessionId]?.status == SubAgentStatus.Completed }
             val next = value { children.spawn(agent.id, parent.id, ToolCallId("next"), agent.id, "hold") }
             try { children.consume(parent.id); repeat(64) { children.consume(next.sessionId) }; fail("Budget should cancel the tree") } catch (_: CancellationException) { }
             assertEquals(SubAgentStatus.Cancelled, value { children.wait(agent.id, parent.id, listOf(next.sessionId), 5) }.single().status)

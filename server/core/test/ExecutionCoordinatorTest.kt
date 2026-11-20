@@ -131,6 +131,44 @@ class ExecutionCoordinatorTest {
         coordinator.close()
     }
 
+    @Test fun stopCancelsUntrackedHarnessWorkAndDeleteSettlesAnUnconfirmedTurn() = runTest {
+        val agent = AgentId("a")
+        val log = SessionLog(InMemoryStore())
+        lateinit var sink: ExecutionSink
+        var cancellations = 0
+        val factory = object : ExecutionFactory {
+            override suspend fun open(config: HarnessConnection, registration: AgentRegistration, state: ExecutionState, broker: ExecutionBroker, scope: CoroutineScope): ExecutionSession {
+                sink = state.boundSink()
+                return object : ExecutionSession {
+                    override val capabilities = ExecutionCapabilities(cancel = true)
+                    override suspend fun prompt(input: ExecutionInput) = ExecutionAcceptance()
+                    override suspend fun cancel() { cancellations++ }
+                    override suspend fun answer(requestId: InteractionId, answer: InteractionAnswer) {}
+                }
+            }
+        }
+        val coordinator = ExecutionCoordinator(registry(), factory, backgroundScope, log)
+        val finished = mutableListOf<Pair<Boolean, String?>>()
+        coordinator.onFinish = { _, _, cancelled, error -> finished += cancelled to error }
+        val id = coordinator.create(agent).id
+        coordinator.stop(id)
+        assertEquals(1, cancellations)
+
+        sink.publish(AgentEvent.ExecutionPhaseChanged(ExecutionPhase.Running))
+        coordinator.stop(id)
+        assertEquals(2, cancellations)
+        sink.publish(AgentEvent.ExecutionPhaseChanged(ExecutionPhase.Idle))
+        withTimeout(1_000) { coordinator.join(id) }
+        assertEquals(true to null, finished.single())
+
+        coordinator.send(SendParams(agent, id, "unconfirmed"))
+        coordinator.stop(id)
+        withTimeout(1_000) { coordinator.delete(agent, id) }
+        assertFalse(coordinator.owns(id))
+        assertEquals(true to "Harness connection lost", finished.last())
+        assertFailsWith<IllegalStateException> { sink.commit(listOf(SessionEntry.AssistantMessage("late"))) }
+    }
+
     @Test fun linkedNativeToolsKeepTheirOriginalResult() {
         val result = SessionEntry.ToolResult(ToolCallId("call"), "Read", "contents", isError = false)
         val message = ExecutionMessage("result:4", "tool", "contents", ProtocolJson.encodeToJsonElement(SessionEntry.serializer(), result))

@@ -44,7 +44,7 @@ class Runs(private val log: SessionLog, private val scope: CoroutineScope, priva
     /** The run was stopped while it was being set up, so nothing ran; its onDone has been called. */
     class StoppedBeforeStart : IllegalStateException("Stopped before it started")
 
-    var onBegin: suspend (AgentId, SessionId) -> Unit = { _, _ -> }
+    var onBegin: suspend (AgentId, SessionId, Boolean, Boolean) -> Unit = { _, _, _, _ -> }
     private val finishListeners = mutableListOf<suspend (AgentId, SessionId, Boolean) -> Unit>()
 
     /** Adds a listener told when a run ends, [Boolean] being whether it was stopped; listeners run in the order added. */
@@ -82,6 +82,8 @@ class Runs(private val log: SessionLog, private val scope: CoroutineScope, priva
         sessionId: SessionId,
         input: ExecutionInput,
         queued: Boolean = false,
+        userTurn: Boolean = false,
+        wake: Boolean = false,
         reserved: suspend () -> Unit = {},
         onEvent: suspend (AgentEvent) -> Unit = {},
         onDone: suspend (stopped: Boolean) -> Unit = {},
@@ -103,7 +105,7 @@ class Runs(private val log: SessionLog, private val scope: CoroutineScope, priva
         val counted = Job().also { activity.update { a -> a.copy(runs = a.runs + 1) } }
         counted.invokeOnCompletion { activity.update { a -> a.copy(runs = a.runs - 1) } }
         try {
-            onBegin(agent.id, sessionId)
+            onBegin(agent.id, sessionId, userTurn, wake)
             reserved()
             val sink = object : ExecutionSink {
                 override suspend fun publish(event: AgentEvent) {

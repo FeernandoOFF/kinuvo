@@ -113,7 +113,7 @@ internal class ServerAssembly(
             }
         }
         harness.log.executionMetadata = { info -> if (external.owns(info.id)) info.copy(legacyOrder = external.record(info.id).legacyOrder) else info }
-        harness.log.onDelete = { a, id -> subAgents.cancelChildren(id); dispatch.stop(id); dispatch.join(id); external.delete(a, id) }; harness.computers.browserService = { harness.browser }; harness.devices.paired = auth::toolDevices; harness.computers.paired = auth::toolDevices
+        harness.log.onDelete = dispatch::delete; harness.computers.browserService = { harness.browser }; harness.devices.paired = auth::toolDevices; harness.computers.paired = auth::toolDevices
     }
 
     private suspend fun catalogChanged() { execution.catalogChanged() }
