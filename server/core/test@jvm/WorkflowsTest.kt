@@ -284,13 +284,24 @@ class WorkflowsTest {
             )
             val error = assertFailsWith<KinuvoException> { c.call(Api.CreateWorkflow, w) }
             assertEquals("invalid_params", error.code)
-            for (problem in listOf("step turn-1: unknown Agent 'missing-agent'",
+            for (problem in listOf("step turn-1: unknown Agent 'missing-agent'; known ids: ${server.harness.store.agents().take(20).joinToString { it.id.value }} (use an id from the agents action, not a name)",
                 "step turn-1: {{steps.x.output}} names x, which is not an ancestor",
                 "step turn-1: {{input.missing}} names undeclared input 'missing'",
                 "edge turn-1 -> zz: unknown step zz", "edge unknown -> turn-1: unknown step unknown")) {
                 assertContains(error.message.orEmpty(), problem)
             }
 
+        }
+    }
+
+    @Test fun unknownAgentHintsAreBounded() = runBlocking<Unit> {
+        TestServer.start(scenario = { repeat(22) { agent("agent-$it") } }).use { server ->
+            val agents = server.harness.store.agents()
+            val error = assertFailsWith<KinuvoException> {
+                client(server).call(Api.CreateWorkflow, workflow(WorkflowStep.AgentTurn(StepId("turn-1"), AgentId("missing"), "test")))
+            }
+            val hint = "known ids: ${agents.take(20).joinToString { it.id.value }}, ... (use an id from the agents action, not a name)"
+            assertContains(error.message.orEmpty(), hint)
         }
     }
 

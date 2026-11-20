@@ -70,6 +70,7 @@ class Workflows internal constructor(
         for (r in data.runs.filter { it.status == WorkflowRunStatus.Running && it.id !in jobs }) jobs[r.id] = scope.launch(start = CoroutineStart.ATOMIC) { execute(r) }
     }
 
+    suspend fun agents() = harness.store.agents()
     suspend fun list() = lock.withLock { data.workflows }
     context(_: Raise<WorkflowError>)
     suspend fun get(id: WorkflowId) = lock.withLock { find(id) }
@@ -414,10 +415,11 @@ class Workflows internal constructor(
         try { w.trigger?.let(Schedule::validate) }
         catch (e: IllegalArgumentException) { problems += "trigger: ${e.message ?: "Invalid schedule"}" }
         val agents = harness.store.agents().map { it.id }
-        w.agentId?.let { check(it in agents, "workflow agentId: unknown Agent '${it.value}'") }
+        fun unknownAgent(id: AgentId) = "unknown Agent '${id.value}'; known ids: ${agents.take(20).joinToString { it.value }}${if (agents.size > 20) ", ..." else ""} (use an id from the agents action, not a name)"
+        w.agentId?.let { check(it in agents, "workflow agentId: ${unknownAgent(it)}") }
         for (step in w.steps) {
             val label = "step ${step.id.value}"
-            if (step is WorkflowStep.AgentTurn) check(step.agentId in agents, "$label: unknown Agent '${step.agentId.value}'")
+            if (step is WorkflowStep.AgentTurn) check(step.agentId in agents, "$label: ${unknownAgent(step.agentId)}")
             if (step is WorkflowStep.Tool || step is WorkflowStep.Model) check(w.agentId != null, "$label: Tool and Model steps need the Agent the Workflow runs as")
             val ancestors = mutableSetOf<StepId>()
             fun visit(id: StepId) { graph.edges.filter { it.to == id }.forEach { if (ancestors.add(it.from)) visit(it.from) } }
