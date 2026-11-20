@@ -25,9 +25,10 @@ import kotlinx.serialization.json.*
 
 sealed class SubAgentError(override val code: String, override val message: String) : ServerError {
     data class Unknown(val id: SessionId) : SubAgentError(WireErrorCode.NotFound, "No child '$id' in this Session")
+    data class Target(val target: String, val valid: String) : SubAgentError(WireErrorCode.NotFound, "Unknown or ambiguous Agent '$target'. Valid Agents: $valid")
     data object Depth : SubAgentError(WireErrorCode.Conflict, "Sub-agent nesting limit is 2")
     data object Budget : SubAgentError(WireErrorCode.Conflict, "Activation budget exhausted")
-    data class Privacy(val agent: String) : SubAgentError(WireErrorCode.Forbidden, "$agent has no on-device model; Sub-agents run in Hidden Sessions on this device’s model")
+    data class Privacy(val agent: String) : SubAgentError(WireErrorCode.Forbidden, "$agent has no on-device model; Private Sub-agents run in Hidden Sessions on this device’s model")
     data object Busy : SubAgentError(WireErrorCode.Conflict, "A follow-up is already queued")
 }
 
@@ -99,23 +100,27 @@ class SubAgents internal constructor(
     }
 
     context(_: Raise<SubAgentError>)
-    suspend fun spawn(agentId: AgentId, parentId: SessionId, callId: ToolCallId, target: AgentId, goal: String): SubAgentState {
+    suspend fun spawn(agentId: AgentId, parentId: SessionId, callId: ToolCallId, target: AgentId, goal: String, private: Boolean = false): SubAgentState {
         require(goal.isNotBlank())
         val parent = harness.store.session(agentId, parentId)
+        val isPrivate = private || parent.hidden
         val depth = (parent.parent?.depth ?: 0) + 1
         if (depth > 2) raise(SubAgentError.Depth)
-        val agent = harness.store.agents().firstOrNull { it.id == target } ?: throw ServerException(AgentError.NotFound(target))
+        val agents = harness.store.agents()
+        val agent = agents.firstOrNull { it.id == target }
+            ?: agents.singleOrNull { it.name.equals(target.value, ignoreCase = true) }
+            ?: raise(SubAgentError.Target(target.value, agents.joinToString { "${it.id.value} (${it.name})" }))
         val link = SessionParent(agentId, parentId, callId, depth)
-        val info = harness.log.createHidden(target, link, SessionSettings(model = agent.config.model,
-            reasoning = agent.config.reasoning, approvals = agent.config.approvals, provider = agent.config.provider))
+        val info = harness.log.createChild(agent.id, link, if (isPrivate) SessionSettings(model = agent.config.model,
+            reasoning = agent.config.reasoning, approvals = agent.config.approvals, provider = agent.config.provider) else null)
         lock.withLock { parents[info.id] = link }
-        val child = SubAgentState(info.id, target, callId, goal)
+        val child = SubAgentState(info.id, agent.id, callId, goal, private = isPrivate)
         save(agentId, parentId, child)
         try {
-            harness.composer.requireOnDevice(agent)
-            dispatch.send(SendParams(target, info.id, goal))
+            if (isPrivate) harness.composer.requireOnDevice(agent)
+            dispatch.send(SendParams(agent.id, info.id, goal))
         }
-        catch (e: CancellationException) { withContext(NonCancellable) { finish(target, info.id, true) }; throw e }
+        catch (e: CancellationException) { withContext(NonCancellable) { finish(agent.id, info.id, true) }; throw e }
         catch (e: Exception) { save(agentId, parentId, child.copy(status = SubAgentStatus.Failed, result = e.message)); throw e }
         return child
     }
@@ -155,6 +160,7 @@ class SubAgents internal constructor(
     suspend fun send(agent: AgentId, parent: SessionId, id: SessionId, callId: ToolCallId, text: String) {
         require(text.isNotBlank())
         val previous = child(agent, parent, id)
+        if (harness.store.sessions(previous.agentId).none { it.id == id }) raise(SubAgentError.Unknown(id))
         val link = harness.store.session(previous.agentId, id).parent ?: raise(SubAgentError.Unknown(id))
         lock.withLock { parents[id] = link; stopped -= id }
         lock.withLock {
@@ -210,7 +216,7 @@ class SubAgents internal constructor(
     private suspend fun reviewed(agent: AgentId, parent: SessionId, call: ToolCallId, states: List<SubAgentState>): List<SubAgentState> {
         if (harness.store.session(agent, parent).hidden) return states
         return states.map { state ->
-            if (state.result == null) return@map state
+            if (!state.private || state.result == null || harness.store.sessions(state.agentId).none { it.id == state.sessionId }) return@map state
             val pending = harness.approvals.register()
             try {
                 harness.log.publish(agent, parent, AgentEvent.InteractionRequested(PendingInteraction.Approval(
@@ -228,20 +234,47 @@ class SubAgents internal constructor(
         }
     }
 
+    private suspend fun deliver(agent: AgentId, parent: SessionId, call: ToolCallId, states: List<SubAgentState>): List<SubAgentState> {
+        val delivered = reviewed(agent, parent, call, states)
+        delivered.filter { it.private && it.status != SubAgentStatus.Running }.forEach { state ->
+            join(state.sessionId)
+            if (harness.store.sessions(state.agentId).any { it.id == state.sessionId }) {
+                save(agent, parent, state)
+                harness.log.deleteSession(state.agentId, state.sessionId)
+                lock.withLock { parents.remove(state.sessionId) }
+            }
+        }
+        return delivered
+    }
+
     fun tools(agent: AgentId, parent: SessionId): List<Tool> = listOf(
-        agentTool(ToolNames.AGENTS_SPAWN, "Start a Sub-agent in a private on-device Hidden Session; returns its Session id.", listOf(ToolParameter("goal", "Task and context for the child", ParameterType.String)), listOf(ToolParameter("agent_id", "Agent id; default yourself", ParameterType.String))) { a, call ->
-            ProtocolJson.encodeToString(SubAgentState.serializer(), spawn(agent, parent, call, AgentId(a.string("agent_id") ?: agent.value), a.requireString("goal")))
+        agentTool(ToolNames.AGENTS_SPAWN, "Start a Sub-agent using the Agent’s configured model and tools; private opts into an on-device Hidden Session. Returns its Session id. Call agents_list first when unsure of an Agent id.", listOf(ToolParameter("goal", "Task and context for the child", ParameterType.String)), listOf(ToolParameter("agent_id", "Exact Agent id from agents_list; omit to spawn yourself.", ParameterType.String), ToolParameter("private", "Private on-device Session; default false", ParameterType.Boolean))) { a, call ->
+            ProtocolJson.encodeToString(SubAgentState.serializer(), spawn(agent, parent, call, AgentId(a.string("agent_id") ?: agent.value), a.requireString("goal"), a["private"]?.jsonPrimitive?.booleanOrNull ?: false))
         },
         agentTool(ToolNames.AGENTS_WAIT, "Wait for children, up to 1800 seconds. Results are repeatable and keyed by Session id.", listOf(ToolParameter("session_ids", "Child Session ids", ParameterType.List(ParameterType.String))), listOf(ToolParameter("timeout_seconds", "Default 120; maximum 1800", ParameterType.String))) { a, call ->
             val ids = a.getValue("session_ids").jsonArray.map { SessionId(it.jsonPrimitive.content) }
-            ProtocolJson.encodeToString(ListSerializer(SubAgentState.serializer()), reviewed(agent, parent, call, wait(agent, parent, ids, a.string("timeout_seconds")?.toLongOrNull() ?: 120)))
+            ProtocolJson.encodeToString(ListSerializer(SubAgentState.serializer()), deliver(agent, parent, call, wait(agent, parent, ids, a.string("timeout_seconds")?.toLongOrNull() ?: 120)))
         },
         agentTool(ToolNames.AGENTS_SEND, "Continue a child. A message to a running child queues behind its current turn.", listOf(ToolParameter("session_id", "Child Session id", ParameterType.String), ToolParameter("text", "Follow-up message", ParameterType.String))) { a, call ->
             send(agent, parent, SessionId(a.requireString("session_id")), call, a.requireString("text")); "Queued"
         },
-        agentTool(ToolNames.AGENTS_LIST, "List this Session's children or cancel one.", optional = listOf(ToolParameter("cancel", "Child Session id to cancel", ParameterType.String))) { a, _ ->
+        agentTool(ToolNames.AGENTS_LIST, "List spawnable Agents (id, name, on_device) and this Session’s children, or cancel a child.", optional = listOf(ToolParameter("cancel", "Child Session id to cancel", ParameterType.String))) { a, _ ->
             a.string("cancel")?.let { val id = SessionId(it); child(agent, parent, id); dispatch.stop(id) }
-            ProtocolJson.encodeToString(ListSerializer(SubAgentState.serializer()), list(agent, parent).values.map { it.copy(result = null) })
+            val agents = harness.store.agents().map { candidate ->
+                val local = try { harness.composer.requireOnDevice(candidate); true }
+                catch (e: CancellationException) { throw e }
+                catch (_: Exception) { false }
+                buildJsonObject {
+                    put("id", candidate.id.value)
+                    put("name", candidate.name)
+                    put("on_device", local)
+                }
+            }
+            val children = list(agent, parent).values.map { it.copy(result = null) }
+            buildJsonObject {
+                put("agents", JsonArray(agents))
+                put("children", ProtocolJson.encodeToJsonElement(ListSerializer(SubAgentState.serializer()), children))
+            }.toString()
         },
     )
 

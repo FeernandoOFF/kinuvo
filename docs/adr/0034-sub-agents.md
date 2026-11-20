@@ -1,22 +1,20 @@
 ---
 title: "Sub-agents"
-description: "Server-owned child Sessions with durable results, shared limits and parent Approvals."
+description: "Child Sessions using any model, with opt-in private on-device execution."
 ---
 
 Status: Accepted
 
 ## Decision
 
-`agents_spawn`, `agents_wait`, `agents_send` and `agents_list` are Server tools invoked through ToolService, including through KinuvoMCP. A Sub-agent runs in a Hidden Session with a typed parent Session and starting tool-call ID. Each update carries its child Session ID and current call ID; clients key children by Session ID, never batch order.
+The Server tools `agents_spawn`, `agents_wait`, `agents_send` and `agents_list` manage child Sessions. Regular Sub-agents use the target Agent's configured provider, model, reasoning, approvals and tools, including plugins. Results return directly to the parent. Child identity is its Session ID, with a typed parent link and current tool-call ID.
 
-Hidden Sessions use on-device models, pin their settings, have no external plugin, Memory or egress tools, skip Reflection and send no Notifications. They are absent from normal Session listings and broadcasts. The parent supplies the child's task and context explicitly. Returning a Hidden Session's answer to a normal parent Agent requires an Approval showing that result; withholding it returns no private content to the model.
+The optional `private` flag creates a Hidden Session: an on-device model is required, settings are pinned, and tools are restricted to Sub-agent tools, Session configuration and asking the user. Sharing its result with a non-hidden parent requires Approval. After delivery, including withholding, its transcript is deleted and the delivered result remains in the parent's notices. Deleted children reject follow-ups.
 
-Child states and results are persisted as structured Session notices in the parent's log. `SUB_AGENT_CHANGED` delivers live updates; catch-up reads the persisted states. Waits are repeatable and bounded to 30 minutes. After restart an unfinished child is reported cancelled; completed results remain available. A follow-up queues behind a running child.
+Children of Hidden Sessions remain private. All child Sessions are excluded from chat listings, Reflection and Notifications. Deleting a parent deletes its descendants. Regular children retain their transcripts and support follow-ups.
 
-Pending interactions are relayed through the parent's existing pipeline with the originating child Session ID. Answers on the parent route back to the child. Cancellation stops descendants recursively and records a cancelled result. Cancellation exceptions propagate after cleanup.
-
-The root run and its descendants share an Activation budget of 64 tool executions. A root run resets it; child turns and follow-ups do not. Exhaustion cancels the tree. Nesting is limited to two child levels. Model calls remain bounded by each harness's existing step limit.
+Interactions relay through the parent. Cancellation stops descendants. The root and children share an Activation budget of 64 tool executions and nesting is limited to two child levels. Waits are repeatable and bounded to 30 minutes; unfinished children are reported cancelled after restart.
 
 ## Consequences
 
-External Agents can start and wait for on-device Sub-agents through KinuvoMCP under the same policy and Approvals. External harnesses cannot execute Hidden Sessions. Hidden Sessions deliberately have a narrower tool inventory. Restart resumes observation of durable outcomes, not interrupted execution.
+Sub-agents work with cloud and local models by default. Privacy is explicit and restricts execution and result sharing. Durable parent notices retain outcomes; restarting does not resume interrupted execution.

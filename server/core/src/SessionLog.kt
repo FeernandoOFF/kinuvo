@@ -97,10 +97,10 @@ class SessionLog(private val store: Store, private val clock: () -> Long = { Clo
     override suspend fun createSession(agentId: AgentId, instructions: String, routine: RoutineRef?): SessionInfo =
         store.createSession(agentId, instructions, routine).also { info -> lock.withLock { changed(info) } }
 
-    suspend fun createHidden(agentId: AgentId, parent: SessionParent, settings: SessionSettings): SessionInfo = lock.withLock {
+    suspend fun createChild(agentId: AgentId, parent: SessionParent, settings: SessionSettings? = null): SessionInfo = lock.withLock {
         val info = store.createSession(agentId, "")
-        store.append(agentId, info.id, SessionEntry.Settings(settings))
-        store.append(agentId, info.id, SessionEntry.Details(parent = parent, hidden = true))
+        if (settings != null) store.append(agentId, info.id, SessionEntry.Settings(settings))
+        store.append(agentId, info.id, SessionEntry.Details(parent = parent, hidden = settings != null))
         store.session(agentId, info.id).also { changed(it) }
     }
 
@@ -108,6 +108,8 @@ class SessionLog(private val store: Store, private val clock: () -> Long = { Clo
     override suspend fun deleteSession(agentId: AgentId, sessionId: SessionId) {
         store.entries(agentId, sessionId)
         onDelete(agentId, sessionId)
+        store.agents().flatMap { store.sessions(it.id) }.filter { it.parent?.sessionId == sessionId }
+            .forEach { deleteSession(it.agentId, it.id) }
         lock.withLock {
         store.deleteSession(agentId, sessionId)
         counts -= sessionId
