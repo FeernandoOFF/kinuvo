@@ -77,7 +77,7 @@ private val LocalAccent = compositionLocalOf<Color?> { null }
 internal val LocalForcedInteractionMode = compositionLocalOf<InteractionMode?> { null }
 
 /** Whether sheets blur the screen behind them; JVM UI tests turn it off, since software rendering redraws it every frame. */
-internal val LocalBackdropBlur = compositionLocalOf { true }
+internal val LocalBackdropBlur = compositionLocalOf { currentPlatform != Platform.MacOS && currentPlatform != Platform.Windows && currentPlatform != Platform.Linux }
 
 /**
  * The type scale, each a step larger on touch screens. Headings and body set in Libron, the brand serif; the small print

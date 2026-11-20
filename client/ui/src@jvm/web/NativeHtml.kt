@@ -10,13 +10,15 @@ import dev.nucleusframework.webview.jsbridge.WebViewJsBridge
 import dev.nucleusframework.webview.web.WebView
 import dev.nucleusframework.webview.web.WebViewNavigator
 import dev.nucleusframework.webview.web.rememberWebViewNavigator
-import dev.nucleusframework.webview.web.rememberWebViewStateWithHTMLData
+import dev.nucleusframework.webview.web.rememberWebViewState
+import kotlin.io.encoding.Base64
 
 @Composable
 internal fun NativeHtml(document: String, script: String, modifier: Modifier, receive: (String) -> Unit, connect: @Composable (WebViewNavigator) -> Unit) {
     val current = rememberUpdatedState(receive)
     val navigator = rememberWebViewNavigator()
-    val state = rememberWebViewStateWithHTMLData(document)
+    val url = remember(document) { "data:text/html;charset=utf-8;base64," + Base64.encode(document.encodeToByteArray()) }
+    val state = rememberWebViewState(url)
     val bridge = remember(navigator) {
         WebViewJsBridge(navigator).apply {
             register(object : IJsMessageHandler {

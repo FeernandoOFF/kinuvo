@@ -155,7 +155,7 @@ private fun ArtifactPane(state: ArtifactsState, agents: List<AgentInfo>, now: Lo
                     if (visualEditing) actions.onSaveDesign else null,
                 )
             }
-            data.info.web -> key(data.info.updated) {
+            data.info.web -> {
                 HtmlView(data.info.page(data.content), Modifier.fillMaxSize().padding(top = controls), fade = color(backgroundColor))
             }
             else -> SelectionContainer(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(start = Spacing.space24, end = Spacing.space24, top = controls + Spacing.space8, bottom = Spacing.space24)) {

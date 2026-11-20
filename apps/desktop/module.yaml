@@ -6,8 +6,8 @@ dependencies:
   - ../../libs/tailcat
   - ../../plugins/cua
   - $compose.desktop.currentOs
-  - dev.nucleusframework:nucleus.nucleus-application:2.5.5
-  - dev.nucleusframework:nucleus.decorated-window-tao:2.5.5
+  - dev.nucleusframework:nucleus.nucleus-application:3.0.0-dev-202611161221
+  - dev.nucleusframework:nucleus.decorated-window-tao:3.0.0-dev-202611161221
 
 test-dependencies:
   - $kotlin.test

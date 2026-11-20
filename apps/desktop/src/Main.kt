@@ -7,7 +7,6 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import dev.nucleusframework.application.NucleusWindow
-import dev.nucleusframework.application.NucleusBackend
 import dev.nucleusframework.application.DecoratedWindow
 import dev.nucleusframework.application.nucleusApplication
 import dev.nucleusframework.window.TitleBar
@@ -123,7 +122,7 @@ fun main(args: Array<String>) {
         single<ComputerDriver> { CuaComputerDriver() }
         single<TailcatForwarder> { Tailcat }
     })
-    nucleusApplication(args = args, backend = NucleusBackend.Tao, enableSingleInstance = false) {
+    nucleusApplication(args = args, enableSingleInstance = false) {
         val state = rememberWindowState(width = 1100.dp, height = 760.dp)
         var frame by remember { mutableStateOf<NucleusWindow?>(null) }
         val show: () -> Unit = {
