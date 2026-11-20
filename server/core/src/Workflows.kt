@@ -5,6 +5,8 @@ import kinuvo.server.tools.ToolScope
 import kinuvo.protocol.agent.AgentId
 import arrow.core.raise.Raise
 import arrow.core.raise.context.raise
+import kinuvo.protocol.model.ProviderModelRef
+import kinuvo.harness.with
 import kinuvo.harness.Agent
 import kinuvo.harness.ExecutionInput
 import kinuvo.harness.ToolTurn
@@ -72,6 +74,12 @@ class Workflows internal constructor(
 
     suspend fun agents() = harness.store.agents()
     suspend fun list() = lock.withLock { data.workflows }
+    suspend fun models() = harness.modelCatalog()
+    suspend fun defaultModel(agentId: AgentId): ProviderModelRef {
+        val agent = harness.store.agents().first { it.id == agentId }
+        return ProviderModelRef(harness.providerId(agent.config.provider), agent.config.model)
+    }
+
     context(_: Raise<WorkflowError>)
     suspend fun get(id: WorkflowId) = lock.withLock { find(id) }
     context(_: Raise<WorkflowError>)
@@ -214,6 +222,7 @@ class Workflows internal constructor(
 
     private suspend fun step(run: WorkflowRun, step: WorkflowStep) {
         var session = run.steps[step.id]?.sessionId
+        var model: ProviderModelRef? = null
         try {
             when (step) {
                 is WorkflowStep.AgentTurn -> {
@@ -223,7 +232,13 @@ class Workflows internal constructor(
                             .maxByOrNull { it.startedAt }?.steps?.get(step.id)?.sessionId
                     } else null
                     session = previous ?: harness.newSession(agent).id
-                    update(run.id, step.id, StepRun(StepStatus.Running, session))
+                    step.model?.let { ref ->
+                        val settings = harness.store.session(agent.id, session).settings
+                        harness.configure(agent, session, settings.copy(model = ref.model, provider = ref.provider))
+                    }
+                    val configured = agent.with(harness.store.session(agent.id, session).settings)
+                    model = ProviderModelRef(harness.providerId(configured.config.provider), configured.config.model)
+                    update(run.id, step.id, StepRun(StepStatus.Running, session, model = model))
                     val prompt = render(run.id, step.prompt)
                     var failure: String? = null
                     var stopped = false
@@ -233,7 +248,7 @@ class Workflows internal constructor(
                     failure?.let { error(it) }
                     val output = harness.store.entries(agent.id, session).takeLastWhile { it !is SessionEntry.UserMessage }
                         .filterIsInstance<SessionEntry.AssistantMessage>().lastOrNull()?.text.orEmpty()
-                    update(run.id, step.id, StepRun(StepStatus.Done, session, output))
+                    update(run.id, step.id, StepRun(StepStatus.Done, session, output, model = model))
                 }
                 is WorkflowStep.Approval -> {
                     val agent = sessionAgent(run)
@@ -328,18 +343,20 @@ class Workflows internal constructor(
                     update(run.id, step.id, StepRun(StepStatus.Running))
                     val refs = outputs(run.id)
                     val request = harness.composer.completion(agent, step.system?.let { WorkflowReferences.render(it, refs) }, step.model)
+                    model = ProviderModelRef(request.agent.config.provider, request.agent.config.model)
+                    update(run.id, step.id, StepRun(StepStatus.Running, model = model))
                     val scratch = SessionId(Uuid.random().toString())
                     var failure: String? = null
                     harness.native.runner(request).run(scratch, WorkflowReferences.render(step.prompt, refs)).collect { if (it is AgentEvent.RunError) failure = it.message }
                     failure?.let { error(it) }
                     val output = request.store.entries(request.agent.id, scratch).filterIsInstance<SessionEntry.AssistantMessage>().lastOrNull()?.text.orEmpty()
-                    update(run.id, step.id, StepRun(StepStatus.Done, output = output))
+                    update(run.id, step.id, StepRun(StepStatus.Done, output = output, model = model))
                 }
             }
         } catch (e: CancellationException) {
-            withContext(NonCancellable) { session?.let { runs.stop(it); runs.join(it) }; update(run.id, step.id, StepRun(StepStatus.Cancelled, session)) }
+            withContext(NonCancellable) { session?.let { runs.stop(it); runs.join(it) }; update(run.id, step.id, StepRun(StepStatus.Cancelled, session, model = model)) }
             throw e
-        } catch (e: Exception) { update(run.id, step.id, StepRun(StepStatus.Failed, session, error = e.message)); throw e }
+        } catch (e: Exception) { update(run.id, step.id, StepRun(StepStatus.Failed, session, error = e.message, model = model)); throw e }
     }
 
     /**
@@ -417,10 +434,19 @@ class Workflows internal constructor(
         val agents = harness.store.agents().map { it.id }
         fun unknownAgent(id: AgentId) = "unknown Agent '${id.value}'; known ids: ${agents.take(20).joinToString { it.value }}${if (agents.size > 20) ", ..." else ""} (use an id from the agents action, not a name)"
         w.agentId?.let { check(it in agents, "workflow agentId: ${unknownAgent(it)}") }
+        val catalog = if (w.steps.any { it is WorkflowStep.Model && it.model != null || it is WorkflowStep.AgentTurn && it.model != null }) models() else null
         for (step in w.steps) {
             val label = "step ${step.id.value}"
             if (step is WorkflowStep.AgentTurn) check(step.agentId in agents, "$label: ${unknownAgent(step.agentId)}")
             if (step is WorkflowStep.Tool || step is WorkflowStep.Model) check(w.agentId != null, "$label: Tool and Model steps need the Agent the Workflow runs as")
+            val model = when (step) { is WorkflowStep.Model -> step.model; is WorkflowStep.AgentTurn -> step.model; else -> null }
+            if (model != null) {
+                val provider = harness.providerId(model.provider)
+                check(provider in harness.providers, "$label: unknown provider '${model.provider}'; use models")
+                val listed = catalog?.providers?.firstOrNull { it.id == provider }
+                if (listed != null && !listed.stale && listed.warning == null && listed.models.isNotEmpty())
+                    check(listed.models.any { it.id == model.model }, "$label: unknown model '${model.model}' for '${model.provider}'; use models")
+            }
             val ancestors = mutableSetOf<StepId>()
             fun visit(id: StepId) { graph.edges.filter { it.to == id }.forEach { if (ancestors.add(it.from)) visit(it.from) } }
             visit(step.id)

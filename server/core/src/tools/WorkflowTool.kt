@@ -18,13 +18,13 @@ import kotlin.time.Duration.Companion.seconds
 class WorkflowTool(private val workflows: Workflows, private val agentId: AgentId, private val sessionId: SessionId?) : CoreTool {
     override val descriptor = toolSpec(ToolNames.WORKFLOWS,
         "Save proven work from chat as a Workflow: cheap Tool steps (run_code, MCP, web_fetch), small Model requests, and a Review where the user checks data. " +
-            "Actions: agents, list, get, validate, save, run, status, cancel, retry, delete. validate checks without saving and returns Valid or all errors. save/validate take workflow JSON: id,name,agentId (defaults to you),inputs:[{name,description,default}],steps,edges:[{from,to,branch?}]. " +
-            "Step type and fields: tool(id,tool,args), model(id,prompt,system?), condition(id,left,op,right), review(id,text,value), approval(id,text), agent_turn(id,agentId,prompt), text(id,text) whose output is its rendered text. " +
+            "Actions: models (available providers/models and Agent default; optional Workflow id), agents, list, get, validate, save, run, status, cancel, retry, delete. validate checks without saving and returns Valid or all errors. save/validate take workflow JSON: id,name,agentId (defaults to you),inputs:[{name,description,default}],steps,edges:[{from,to,branch?}]. " +
+            "Step type and fields: tool(id,tool,args), model(id,prompt,system?,model?), condition(id,left,op,right), review(id,text,value), approval(id,text), agent_turn(id,agentId,prompt,model?), text(id,text) whose output is its rendered text. " +
             "agentId is an Agent id from agents, not a display name; omitted Workflow agentId defaults to you. " +
-            "Tool/Model/Condition need no Session. References: {{steps.ID.output[.path]}}, {{input.name}} and {{now}} (ISO time in the Workflow's timeZone; .date .time .weekday .timezone .utc .timestamp); exact argument references keep JSON types. " +
+            "model is {provider,model}; omit it to use the Agent default (or continued Session settings). Tool/Model/Condition need no Session. References: {{steps.ID.output[.path]}}, {{input.name}} and {{now}} (ISO time in the Workflow's timeZone; .date .time .weekday .timezone .utc .timestamp); exact argument references keep JSON types. " +
             "Condition ops: Equals,NotEquals,Contains,NotContains,Empty,NotEmpty,GreaterThan,LessThan. branch true/false edges leave Conditions; unused branches skip. " +
             "run/retry wait up to wait_seconds (default 60, max 120); return the run id when still running or waiting for Review/Approval. Workflow Tool steps cannot start runs.",
-        requiredParameters = listOf(ToolParameter("action", "agents|list|get|validate|save|run|status|cancel|retry|delete", ParameterType.String)),
+        requiredParameters = listOf(ToolParameter("action", "models|agents|list|get|validate|save|run|status|cancel|retry|delete", ParameterType.String)),
         optionalParameters = listOf(
             ToolParameter("id", "Workflow id; run id for status/cancel/retry", ParameterType.String),
             ToolParameter("workflow", "Workflow JSON object for save/validate", ParameterType.Object(emptyList(), additionalProperties = true)),
@@ -33,7 +33,7 @@ class WorkflowTool(private val workflows: Workflows, private val agentId: AgentI
         ))
 
     override fun assess(args: JsonObject): Assessment {
-        val read = args.string("action") in setOf("agents", "list", "get", "status", "validate")
+        val read = args.string("action") in setOf("models", "agents", "list", "get", "status", "validate")
         return Assessment(listOf(Action(if (read) Risk.Low else Risk.High, listOf(descriptor.name),
             if (read) null else "Changes or runs a Workflow", trustable = false, alwaysAsk = !read)))
     }
@@ -49,6 +49,11 @@ class WorkflowTool(private val workflows: Workflows, private val agentId: AgentI
         // The graph is the caller's own; repeating it in every result would only cost tokens.
         fun encode(run: WorkflowRun) = JsonObject(ProtocolJson.encodeToJsonElement(WorkflowRun.serializer(), run).jsonObject - "workflow").toString()
         when (action) {
+            "models" -> buildJsonObject {
+                put("providers", ProtocolJson.encodeToJsonElement(workflows.models().providers))
+                val owner = args.string("id")?.let { workflows.get(WorkflowId(it)).agentId } ?: agentId
+                put("default", ProtocolJson.encodeToJsonElement(workflows.defaultModel(owner)))
+            }.toString()
             "agents" -> JsonArray(workflows.agents().map { agent -> buildJsonObject {
                 put("id", agent.id.value); put("name", agent.name)
                 if (agent.id == agentId) put("you", true)

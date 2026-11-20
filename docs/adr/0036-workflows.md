@@ -13,9 +13,9 @@ Workflows are Server-owned DAGs with multiple roots. A step waits for all its pr
 
 A step is an Agent turn, an Approval, a Review, a Tool call, a Model request, a Condition or a Text step.
 
-- **Agent turn** starts an ordinary Session through the run executor, keeping its tool policy and pending interactions. `New` creates a Session each run; `Continue` reuses the step's Session from the latest finished run.
+- **Agent turn** starts an ordinary Session through the run executor, keeping its tool policy and pending interactions. `New` creates a Session each run; `Continue` reuses the step's Session from the latest finished run. Optional `model: {provider, model}` sets its Session settings before the turn; otherwise the Session follows its own settings or the Agent default. Runs record the effective provider and model.
 - **Tool** makes one call to any tool the Agent could call, with templated JSON arguments and no model. It passes the same gate as a run: tool scope, Deny and Trust rules, Approvals, redaction and limits. An unknown or refused tool fails the step with the refusal.
-- **Model** makes one model request with no tools, using the Agent's provider and model unless the step names another. Its only context is the step's `system` text; its transcript is discarded and never listed.
+- **Model** makes one model request with no tools, using the Agent's provider and model unless the step names another. Runs record the effective provider and model. Its only context is the step's `system` text; its transcript is discarded and never listed.
 - **Condition** compares templated text. Equals and NotEquals trim and compare numbers numerically when both parse; Contains and NotContains test substrings; Empty and NotEmpty treat blank text, null, [], {} and false as empty; GreaterThan and LessThan need numbers. Its output is true or false, and only its edges carry a `branch`; unlabelled edges follow any Done source.
 - **Text** outputs its own text with references filled in, a starting value for later steps.
 - **Approval** publishes the same pending interaction as tools, answered through `session.respond`. It cannot create Trust rules. Denial fails the step and run.
@@ -41,7 +41,7 @@ The Scheduler checks Workflow schedules as well as Routines; missed recurring sl
 
 ## Agents
 
-The `workflows` tool group has schedule's action interface: agents, list, get, validate, save, run, status, cancel, retry, delete. It is on by default, respects tool scope, and is not given to hidden Sessions. Save and validate default an omitted `agentId` to the caller and return every validation problem, one per line naming the step, edge or input, so the model can repair its graph. Validate checks without persisting and needs no Approval. The agents action lists ids and names, marking the caller; agentId uses an id, and unknown-Agent errors suggest up to 20 known ids. Reads need no Approval; changes always ask and cannot create Trust rules. Run and retry wait up to 120 seconds (60 by default), returning early when the user is needed. A Workflow's own Tool steps cannot run or retry Workflows, including through `run_code` and the tool catalog.
+The `workflows` tool group has schedule's action interface: models, agents, list, get, validate, save, run, status, cancel, retry, delete. It is on by default, respects tool scope, and is not given to hidden Sessions. Save and validate default an omitted `agentId` to the caller and return every validation problem, one per line naming the step, edge or input, so the model can repair its graph. Validate checks without persisting and needs no Approval. The agents action lists ids and names, marking the caller; agentId uses an id, and unknown-Agent errors suggest up to 20 known ids. `models` lists available providers and models and the Workflow Agent default (the caller without a Workflow id). Reads need no Approval; changes always ask and cannot create Trust rules. Run and retry wait up to 120 seconds (60 by default), returning early when the user is needed. A Workflow's own Tool steps cannot run or retry Workflows, including through `run_code` and the tool catalog.
 
 ## Editor
 

@@ -30,7 +30,7 @@ sealed interface WorkflowStep {
 
     @Serializable @SerialName("agent_turn")
     data class AgentTurn(override val id: StepId, val agentId: AgentId, val prompt: String,
-        val session: StepSession = StepSession.New, override val position: Position? = null) : WorkflowStep
+        val session: StepSession = StepSession.New, override val position: Position? = null, val model: ProviderModelRef? = null) : WorkflowStep
 
     @Serializable @SerialName("approval")
     data class Approval(override val id: StepId, val text: String, override val position: Position? = null) : WorkflowStep
@@ -77,7 +77,7 @@ fun inputValue(text: String): JsonElement {
 @Serializable data class StepRun(val status: StepStatus = StepStatus.Pending, val sessionId: SessionId? = null,
     val output: String? = null, val error: String? = null, val interactionId: InteractionId? = null,
     /** The tool is running and waits on a call it made, so a restart can't replay it. */
-    val started: Boolean = false)
+    val started: Boolean = false, val model: ProviderModelRef? = null)
 @Serializable data class WorkflowRun(val id: WorkflowRunId, val workflowId: WorkflowId,
     val status: WorkflowRunStatus, val startedAt: Long, val endedAt: Long? = null,
     val steps: Map<StepId, StepRun>, val workflow: Workflow,

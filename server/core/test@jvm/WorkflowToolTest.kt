@@ -83,6 +83,15 @@ class WorkflowToolTest {
                 else assertNull(item["you"])
             }
             assertFalse(call("""{"action":"list"}""").isError)
+            val models = call("""{"action":"models","id":"test"}""")
+            assertFalse(models.isError, models.output)
+            val catalog = Json.parseToJsonElement(models.output).jsonObject
+            assertNotNull(catalog["providers"])
+            assertEquals(agent.config.model, catalog["default"]?.jsonObject?.get("model")?.jsonPrimitive?.content)
+            val invalidModel = call("""{"action":"validate","workflow":{"id":"bad-model","name":"Bad","steps":[{"type":"agent_turn","id":"a","agentId":"work","prompt":"hi","model":{"provider":"missing","model":"nope"}}]}}""")
+            assertTrue(invalidModel.isError)
+            assertContains(invalidModel.output, "missing")
+            assertContains(invalidModel.output, "models")
             assertEquals(before, approvals)
             val scoped = server.harness.composer.compose(agent, session.id, scope = ToolScope.only("memory")).gate
             assertTrue(scoped.invoke(SessionEntry.ToolCall(ToolCallId("scope"), "workflows", """{"action":"list"}"""), turn).isError)

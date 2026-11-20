@@ -4,6 +4,7 @@ import kinuvo.app.connection.*
 import kinuvo.app.device.*
 import kinuvo.client.KinuvoClient
 import kinuvo.client.KinuvoException
+import kinuvo.protocol.model.ProviderModelRef
 import kinuvo.protocol.Api
 import kinuvo.protocol.agent.AgentId
 import kinuvo.protocol.approval.*
@@ -13,6 +14,9 @@ import kinuvo.protocol.workflow.*
 import kinuvo.server.store.AgentFiles
 import kinuvo.server.store.FileStore
 import kinuvo.server.store.WorkflowData
+import kinuvo.testing.server.FakeModels
+import kinuvo.testing.server.FakeModelProvider
+import kinuvo.protocol.model.ModelInfo
 import kinuvo.testing.server.FakeTool
 import kinuvo.testing.server.FakeTools
 import kinuvo.testing.server.TestServer
@@ -74,6 +78,28 @@ class WorkflowsTest {
             val started = c.call(Api.RunWorkflow, RunWorkflowParams(w.id))
             val again = await(c, w.id) { it.id == started.id && it.status != WorkflowRunStatus.Running }
             assertEquals(done.steps[second.id]?.sessionId, again.steps[second.id]?.sessionId)
+        }
+    }
+
+    @Test fun agentTurnUsesAndRecordsSessionModel() = runBlocking<Unit> {
+        TestServer.start(plugins = listOf(FakeModels(FakeModelProvider("test", "Test", listOf(ModelInfo("override"))))), script = { on("hi") { reply("ok") } }, scenario = { agent("work") }).use { server ->
+            val c = client(server)
+            val ref = ProviderModelRef("test", "override")
+            val w = c.call(Api.CreateWorkflow, workflow(turn("a", "hi").copy(model = ref), WorkflowStep.Model(StepId("m"), "hi", model = ref)))
+            c.run(w.id)
+            val done = finished(c)
+            assertEquals(WorkflowRunStatus.Done, done.status)
+            val step = done.steps.getValue(StepId("a"))
+            assertEquals(ref, step.model)
+            assertEquals(ref, done.steps.getValue(StepId("m")).model)
+            val settings = server.harness.store.session(agent, step.sessionId!!).settings
+            assertEquals(ref.model, settings.model)
+            assertEquals(ref.provider, settings.provider)
+            c.call(Api.UpdateWorkflow, w.copy(steps = listOf(turn("a", "hi").copy(session = StepSession.Continue))))
+            val next = c.run(w.id)
+            val continued = await(c, w.id) { it.id == next.id && it.status != WorkflowRunStatus.Running }
+            assertEquals(step.sessionId, continued.steps.getValue(StepId("a")).sessionId)
+            assertEquals(ref, continued.steps.getValue(StepId("a")).model)
         }
     }
 
@@ -383,6 +409,7 @@ class WorkflowsTest {
             val done = finished(c)
             assertEquals(WorkflowRunStatus.Done, done.status)
             assertEquals("greeted", done.steps[StepId("m")]?.output)
+            assertEquals(server.harness.store.agents().first { it.id == agent }.config.let { ProviderModelRef(it.provider, it.model) }, done.steps[StepId("m")]?.model)
             assertNull(done.steps[StepId("m")]?.sessionId)
             assertTrue(server.harness.store.sessions(agent).isEmpty())
             assertTrue("Be brief for 2" in server.script.prompts.last().toString())
