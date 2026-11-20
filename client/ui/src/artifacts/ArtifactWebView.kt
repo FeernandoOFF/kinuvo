@@ -1,7 +1,6 @@
 package kinuvo.ui.artifacts
 
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.staticCompositionLocalOf
 import com.composables.ui.theme.ColorScheme
 import com.composables.ui.theme.LocalColorScheme
@@ -11,9 +10,6 @@ import kotlinx.serialization.json.JsonPrimitive
 
 /** False in hosts with no native view layer, such as the test scene, where [WebView] on the desktop draws nothing instead of failing. */
 internal val LocalNativeViews = staticCompositionLocalOf { true }
-
-/** True while a menu or popover covers the page: a desktop web view draws above Compose, so it hides (keeping its page) until it's uncovered. */
-internal val LocalWebViewCovered = compositionLocalOf { false }
 
 /** Where the app talks to a page after it loaded: [send] runs `window.kinuvoReceive(message)` in it, and does nothing until a web view wires it. */
 internal class PageChannel {

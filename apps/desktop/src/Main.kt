@@ -6,11 +6,17 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.awt.ComposeWindow
+import dev.nucleusframework.application.NucleusWindow
+import dev.nucleusframework.application.NucleusBackend
+import dev.nucleusframework.application.DecoratedWindow
+import dev.nucleusframework.application.nucleusApplication
+import dev.nucleusframework.window.TitleBar
+import dev.nucleusframework.window.WindowScaffold
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.padding
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Tray
-import androidx.compose.ui.window.Window
-import androidx.compose.ui.window.application
 import androidx.compose.ui.window.rememberWindowState
 import kinuvo.server.jvm.JvmAgentRuntime
 import kinuvo.server.jvm.JvmServerHost
@@ -117,9 +123,9 @@ fun main(args: Array<String>) {
         single<ComputerDriver> { CuaComputerDriver() }
         single<TailcatForwarder> { Tailcat }
     })
-    application {
+    nucleusApplication(args = args, backend = NucleusBackend.Tao, enableSingleInstance = false) {
         val state = rememberWindowState(width = 1100.dp, height = 760.dp)
-        var frame by remember { mutableStateOf<ComposeWindow?>(null) }
+        var frame by remember { mutableStateOf<NucleusWindow?>(null) }
         val show: () -> Unit = {
             state.isMinimized = false
             frame?.run { toFront(); requestFocus() }
@@ -132,9 +138,13 @@ fun main(args: Array<String>) {
                 Item("Quit Kinuvo", onClick = ::exitApplication)
             }
         }
-        Window(onCloseRequest = ::exitApplication, title = "Kinuvo", icon = appIcon(), state = state) {
-            LaunchedEffect(window) { frame = window }
-            CompositionLocalProvider(LocalWindowChrome provides rememberWindowChrome()) { KinuvoApp() }
+        DecoratedWindow(onCloseRequest = ::exitApplication, title = "Kinuvo", icon = appIcon(), state = state) {
+            LaunchedEffect(nucleusWindow) { frame = nucleusWindow }
+            WindowScaffold(titleBar = { TitleBar() }) { padding ->
+                Box(Modifier.padding(padding)) {
+                    CompositionLocalProvider(LocalWindowChrome provides null) { KinuvoApp() }
+                }
+            }
         }
     }
 }

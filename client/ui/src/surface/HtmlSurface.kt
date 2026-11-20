@@ -98,7 +98,8 @@ private fun HtmlSurface(
         if (showing) surfaces.add(id)
         onDispose { if (showing) surfaces.remove(id) }
     }
-    val live = visible && surfaces.indexOf(id) in 0 until MAX_LIVE
+    val desktop = htmlSurfacePlatform == "desktop"
+    val live = !desktop && visible && surfaces.indexOf(id) in 0 until MAX_LIVE
     val opener = LocalUriHandler.current
     val theme = htmlTheme()
     val latestSend by rememberUpdatedState(send)
@@ -121,10 +122,10 @@ private fun HtmlSurface(
         Box(Modifier.fillMaxWidth().height(state.height.dp).semantics { contentDescription = "$title, $caption" }
             .onGloballyPositioned { visible = it.boundsInWindow().let { b -> b.width > 0 && b.height > 0 } }) {
             if (live && !expanded) HtmlSurfaceView(html, policy, theme, host, false, Modifier.fillMaxSize())
-            else Column(Modifier.fillMaxSize().clip(shape).background(color(subtleColor)).clickable(enabled = !expanded) { surfaces.remove(id); surfaces.add(0, id) },
+            else Column(Modifier.fillMaxSize().clip(shape).background(color(subtleColor)).clickable(enabled = !expanded) { if (desktop) host.displayMode("fullscreen") else { surfaces.remove(id); surfaces.add(0, id) } },
                 verticalArrangement = Arrangement.spacedBy(Spacing.space6, Alignment.CenterVertically), horizontalAlignment = Alignment.CenterHorizontally) {
                 Icon(icon, Modifier.size(20.dp), tint = color(mutedColor))
-                Text(if (expanded) title else "Tap to load $title", style = TextStyles.caption, color = color(mutedColor), singleLine = true, overflow = TextOverflow.Ellipsis)
+                Text(if (expanded) title else if (desktop) "Open $title" else "Tap to load $title", style = TextStyles.caption, color = color(mutedColor), singleLine = true, overflow = TextOverflow.Ellipsis)
             }
             if (!expanded) Box(Modifier.align(Alignment.TopEnd).padding(Spacing.space6).size(28.dp).clip(CircleShape)
                 .background(color(panelColor).copy(alpha = 0.72f)).border(1.dp, color(borderColor).copy(alpha = 0.6f), CircleShape)

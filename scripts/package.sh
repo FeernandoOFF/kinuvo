@@ -186,10 +186,9 @@ package_desktop() {
   fi
   case $os in
     macos)
+      args+=(--java-options -XstartOnFirstThread)
       ./scripts/build-mac-speech.sh >/dev/null
-      ./scripts/build-mac-web.sh >/dev/null
       ./scripts/build-mac-apple.sh >/dev/null
-      cp build/libKinuvoWeb.dylib "$work/input/"
       cp build/libKinuvoSpeech.dylib "$work/input/"
       ./scripts/build-mac-service.sh >/dev/null
       cp build/libKinuvoService.dylib "$work/input/"

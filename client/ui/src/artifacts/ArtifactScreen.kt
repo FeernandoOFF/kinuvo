@@ -144,8 +144,7 @@ private fun ArtifactPane(state: ArtifactsState, agents: List<AgentInfo>, now: Lo
         var focus by remember(data?.info?.id) { mutableStateOf<String?>(null) }
         val background = color(backgroundColor)
         var controls by remember { mutableStateOf(ControlsHeight) }
-        var covered by remember { mutableStateOf(false) }
-        CompositionLocalProvider(LocalWebViewCovered provides covered) { when {
+        when {
             data == null -> (if (state.missing) "This artifact was deleted." else state.errors.lastOrNull())
                 ?.let { ErrorMessage(it, Modifier.align(Alignment.Center).padding(Spacing.space24)) } ?: Spinner(Modifier.align(Alignment.Center))
             editing -> ArtifactEditor(data, state, actions, tab, wide, Modifier.padding(top = controls))
@@ -163,7 +162,7 @@ private fun ArtifactPane(state: ArtifactsState, agents: List<AgentInfo>, now: Lo
                 if (data.info.type == "md") Markdown(data.content, Modifier.fillMaxWidth())
                 else CodeBlock(data.content, language = data.info.type)
             }
-        } }
+        }
         if (data?.info?.isDesign == true && !editing) state.errors.lastOrNull()?.let { Pill(it, Modifier.align(Alignment.BottomCenter).padding(Spacing.space16), tone = Tone.Danger, icon = Lucide.CircleX) }
         val chrome = LocalWindowChrome.current
         val leading = back != null || state.route.fullScreen
@@ -191,7 +190,7 @@ private fun ArtifactPane(state: ArtifactsState, agents: List<AgentInfo>, now: Lo
                     if (design?.artboards?.isNotEmpty() == true) HeaderButton(Lucide.Play, "Present", { present = 0 })
                     if (!data.info.isDesign) HeaderButton(Lucide.Pencil, "Edit", actions.onEdit)
                     data.info.sessionId?.let { s -> HeaderButton(Lucide.MessageSquare, "Open the chat", { actions.onOpenSession(data.info.agentId, s) }) }
-                    ArtifactMenu(data, agents, now, state.route.fullScreen, actions) { covered = it }
+                    ArtifactMenu(data, agents, now, state.route.fullScreen, actions)
                 }
                 Icon(data?.info?.type?.icon() ?: Lucide.Shapes, Modifier.padding(start = Spacing.space6).size(16.dp), tint = color(mutedColor))
                 Text(data?.info?.title ?: "Artifact", Modifier.weight(1f).padding(start = Spacing.space4), singleLine = true, overflow = TextOverflow.Ellipsis)
@@ -210,7 +209,7 @@ private fun ArtifactPane(state: ArtifactsState, agents: List<AgentInfo>, now: Lo
                     if (design?.artboards?.isNotEmpty() == true) FloatingButton(Lucide.Play, "Present") { present = 0 }
                     if (data.info.isDesign.not()) FloatingButton(Lucide.Pencil, "Edit", actions.onEdit)
                     data.info.sessionId?.let { s -> FloatingButton(Lucide.MessageSquare, "Open the chat", { actions.onOpenSession(data.info.agentId, s) }) }
-                    ArtifactMenu(data, agents, now, state.route.fullScreen, actions) { covered = it }
+                    ArtifactMenu(data, agents, now, state.route.fullScreen, actions)
                 }
             }
         }
@@ -245,12 +244,11 @@ internal fun FloatingButton(icon: ImageVector, label: String, onClick: () -> Uni
 
 @Suppress("DEPRECATION")
 @Composable
-private fun ArtifactMenu(data: ArtifactData, agents: List<AgentInfo>, now: Long, full: Boolean, actions: ArtifactsActions, onCover: (Boolean) -> Unit) {
+private fun ArtifactMenu(data: ArtifactData, agents: List<AgentInfo>, now: Long, full: Boolean, actions: ArtifactsActions) {
     var open by remember { mutableStateOf(false) }
     var asking by remember { mutableStateOf(false) }
     val browser = rememberOpenInBrowser()
     val dark = LocalColorScheme.current == ColorScheme.Dark
-    LaunchedEffect(open || asking) { onCover(open || asking) }
     val clipboard = LocalClipboardManager.current
     val info = data.info
     DropdownMenu(

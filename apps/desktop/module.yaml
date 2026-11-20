@@ -6,7 +6,8 @@ dependencies:
   - ../../libs/tailcat
   - ../../plugins/cua
   - $compose.desktop.currentOs
-  - com.jetbrains:jbr-api:1.5.0
+  - dev.nucleusframework:nucleus.nucleus-application:2.5.5
+  - dev.nucleusframework:nucleus.decorated-window-tao:2.5.5
 
 test-dependencies:
   - $kotlin.test

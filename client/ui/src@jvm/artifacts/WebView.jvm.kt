@@ -1,48 +1,20 @@
 package kinuvo.ui.artifacts
 
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.size
-import androidx.compose.ui.unit.dp
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.awt.SwingPanel
-import ca.weblite.webview.swing.WebViewComponent
-import kotlin.io.encoding.Base64
-import kotlinx.serialization.json.Json
-import kotlinx.serialization.json.jsonArray
-import kotlinx.serialization.json.jsonObject
-import kotlinx.serialization.json.jsonPrimitive
+import kinuvo.ui.web.NativeHtml
 
 internal actual val visualEditing = true
 
-/** The callback gets `{"name","seq","args":[…]}`, with what the page passed in `args`. */
-internal fun editedHtml(args: String): String =
-    runCatching { Json.parseToJsonElement(args).jsonObject.getValue("args").jsonArray.first().jsonPrimitive.content }.getOrDefault(args)
-
-/** The OS web view (WKWebView, WebView2, WebKitGTK) through swingwebview; it draws above Compose content. */
 @Composable
 internal actual fun WebView(html: String, modifier: Modifier, onMessage: ((String) -> Unit)?, channel: PageChannel?) {
     if (!LocalNativeViews.current) return Box(modifier)
-    val current by rememberUpdatedState(onMessage)
-    val covered = LocalWebViewCovered.current
-    val url = remember(html) { "data:text/html;charset=utf-8;base64," + Base64.encode(html.encodeToByteArray()) }
-    DisposableEffect(channel) { onDispose { channel?.send = {} } }
-    // The panel draws above Compose, so a covered page shrinks to nothing (keeping its state) rather than just hiding.
-    Box(modifier) { SwingPanel(
-        factory = {
-            WebViewComponent.create().apply {
-                if (onMessage != null) addJavascriptCallback("kinuvoEdit") { args -> current?.invoke(editedHtml(args)) }
-            }
-        },
-        modifier = if (covered) Modifier.size(0.dp) else Modifier.fillMaxSize(),
-        update = {
-            if (it.url != url) it.setUrl(url)
-            channel?.send = { message -> it.eval(pageDelivery(message)) }
-        },
-    ) }
+    NativeHtml(html, "window.kinuvoEdit=m=>window.kmpJsBridge.callNative('message',m);", modifier, { onMessage?.invoke(it) }) { navigator ->
+        DisposableEffect(channel, navigator) {
+            channel?.send = { navigator.evaluateJavaScript(pageDelivery(it)) }
+            onDispose { channel?.send = {} }
+        }
+    }
 }
