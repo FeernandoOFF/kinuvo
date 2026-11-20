@@ -86,7 +86,7 @@ class WorkflowToolTest {
             val models = call("""{"action":"models","id":"test"}""")
             assertFalse(models.isError, models.output)
             val catalog = Json.parseToJsonElement(models.output).jsonObject
-            assertNotNull(catalog["providers"])
+            assertNotNull(catalog["models"]?.jsonArray)
             assertEquals(agent.config.model, catalog["default"]?.jsonObject?.get("model")?.jsonPrimitive?.content)
             val invalidModel = call("""{"action":"validate","workflow":{"id":"bad-model","name":"Bad","steps":[{"type":"agent_turn","id":"a","agentId":"work","prompt":"hi","model":{"provider":"missing","model":"nope"}}]}}""")
             assertTrue(invalidModel.isError)

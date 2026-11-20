@@ -20,7 +20,7 @@ data class EditorCatalog(val agents: List<EditorAgent> = emptyList(), val models
     companion object {
         fun of(agents: List<AgentInfo>, models: ModelsCatalog, tools: List<String>, inputs: List<String> = emptyList()) = EditorCatalog(
             agents.map { EditorAgent(it.id, it.name) },
-            models.providers.flatMap { p -> p.models.map { EditorModel(p.id, it.id, it.name, p.name) } },
+            models.providers.flatMap { p -> p.models.filter { it.state.actionable }.map { EditorModel(p.id, it.id, it.name, p.name) } },
             tools, inputs,
         )
     }
