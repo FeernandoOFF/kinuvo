@@ -211,12 +211,13 @@ internal fun RowScope.ComposerSettings(
             models.providers.forEach { group ->
                 SectionLabel(group.name)
                 group.chatModels.forEach { model ->
-                    ListRow(false, { listing = false; onChange(settings.select(group.id, model, defaults)) }) {
-                        Column(Modifier.weight(1f)) {
+                    val current = provider == group.id && settings.model == model.id
+                    ListRow(false, { listing = false; onChange(settings.select(group.id, model, defaults)) }, enabled = model.state.actionable || current) {
+                        Column(Modifier.weight(1f).alpha(if (model.state.actionable) 1f else 0.6f)) {
                             ModelName(model)
                             model.state.reason?.let { Text(it, fontSize = 12.sp, color = color(mutedColor)) }
                         }
-                        if (provider == group.id && settings.model == model.id) Icon(Lucide.Check, Modifier.size(14.dp))
+                        if (current) Icon(Lucide.Check, Modifier.size(14.dp))
                     }
                 }
                 group.warning?.let { Text(it, Modifier.padding(Spacing.space8), style = TextStyles.caption, color = color(mutedColor)) }

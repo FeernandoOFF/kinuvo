@@ -62,6 +62,18 @@ class ModelCatalogTest {
     }
 
     @Test
+    fun modelsCarryTheirProvidersAvailability() = runBlocking {
+        val plugin = object : TestModelProvider {
+            override val id = "local"
+            override fun model(config: AgentConfig) = scriptedModel { _, _ -> emptyFlow() }
+            override suspend fun models() = listOf(ModelInfo("downloaded"), ModelInfo("missing"))
+            override suspend fun availability(model: String) = if (model == "missing") CapabilityState.unavailable("Download it", "not-downloaded") else CapabilityState()
+        }
+        val models = ModelCatalog(Path(home, "availability.json"), listOf(plugin), { error("No metadata needed") }).list().providers.single().models
+        assertEquals(mapOf("downloaded" to true, "missing" to false), models.associate { it.id to it.state.actionable })
+    }
+
+    @Test
     fun discoveryOwnsAvailabilityAndMetadataOnlyFillsMissingFields() = runBlocking {
         val file = Path(home, "catalog.json")
         val plugin = object : TestModelProvider {

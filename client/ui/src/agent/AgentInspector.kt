@@ -22,6 +22,7 @@ import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Color
 import com.composeunstyled.theme.Theme
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -291,8 +292,8 @@ private fun ModelPage(state: InspectorState, draft: AgentDraft, actions: Inspect
                 ListRow(picked, {
                     actions.onEdit { it.copy(provider = group.id, model = model.id, reasoning = model.reasoningFor(it.reasoning)) }
                     actions.onBack()
-                }) {
-                    Column(Modifier.weight(1f)) {
+                }, enabled = model.state.actionable || picked) {
+                    Column(Modifier.weight(1f).alpha(if (model.state.actionable) 1f else 0.6f)) {
                         ModelName(model)
                         model.state.reason?.let { Text(it, fontSize = 12.sp, color = color(mutedColor)) }
                     }
