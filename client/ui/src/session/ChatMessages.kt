@@ -325,7 +325,7 @@ internal fun ChatItemView(item: ChatItem, actions: ChatActions, spoken: Int? = n
         is ChatItem.Measurement -> Unit
         is ChatItem.Reflection -> ReflectionView(item, onReview = actions.onReviewReflection)
         is ChatItem.Compaction -> CompactionMarker(item)
-        is ChatItem.ToolReport -> ToolReportView(item)
+        is ChatItem.ToolReport -> if (item.children.isNotEmpty()) SubAgentReport(item, actions) else ToolReportView(item)
         is ChatItem.Activation -> Expandable(Lucide.BookOpen, item.name, subtitle = "skill") { Markdown(item.content) }
     }
 }
@@ -425,7 +425,7 @@ private fun ChatItem.ToolCall.label(): ToolLabel {
     val skill = if (identity?.instance?.pluginId == "kinuvo.core" && local == "activate_skill") Regex("\"name\"\\s*:\\s*\"([^\"]+)\"").find(args)?.groupValues?.get(1) else null
     return when {
         skill != null -> ToolLabel(Lucide.BookOpen, skill, "skill", skill = true)
-        name in SUB_AGENT_TOOLS -> ToolLabel(if (name == ToolNames.AGENTS_SEND) Lucide.MessageSquareReply else Lucide.Split, name, subAgentTarget(args))
+        name in SUB_AGENT_TOOLS -> ToolLabel(when (name) { ToolNames.AGENTS_SEND -> Lucide.MessageSquareReply; ToolNames.AGENTS_CANCEL -> Lucide.CircleSlash; else -> Lucide.Split }, name, subAgentTarget(args))
         identity?.instance?.pluginId == "kinuvo.exec" && local == "shell" -> ToolLabel(Lucide.Terminal, local, commandOf(args)?.lineSequence()?.firstOrNull()?.take(80))
         identity != null -> ToolLabel(Lucide.Plug, local, identity.instance.let { "${it.pluginId} · ${it.instanceId}" })
         else -> ToolLabel(Lucide.Wrench, name, null)

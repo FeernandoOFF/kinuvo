@@ -21,6 +21,7 @@ import com.composables.ui.components.*
 import com.composables.ui.theme.*
 import com.composeunstyled.theme.Theme
 import kinuvo.app.session.ChatItem
+import kinuvo.app.session.waitTimedOut
 import kinuvo.protocol.ProtocolJson
 import kinuvo.protocol.agent.AgentId
 import kinuvo.protocol.agent.AgentInfo
@@ -75,18 +76,21 @@ internal fun SubAgentCard(item: ChatItem.ToolCall, actions: ChatActions) {
     val shape = Theme[shapes][mediumShape]
     Column(Modifier.fillMaxWidth().clip(shape).border(1.dp, if (needs > 0) color(warningColor).copy(alpha = 0.6f) else color(borderColor), shape)) {
         Row(Modifier.fillMaxWidth().heightIn(min = 44.dp).padding(horizontal = Spacing.space10), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.space8)) {
-            Icon(if (item.name == ToolNames.AGENTS_SEND) Lucide.MessageSquareReply else Lucide.Split, Modifier.size(15.dp), tint = color(mutedColor))
+            Icon(when (item.name) { ToolNames.AGENTS_SEND -> Lucide.MessageSquareReply; ToolNames.AGENTS_CANCEL -> Lucide.CircleSlash; else -> Lucide.Split }, Modifier.size(15.dp), tint = color(mutedColor))
             val one = rows.singleOrNull()
             val who = agentName(one?.agentId, actions.agents)
             Text(when (item.name) {
                 ToolNames.AGENTS_SPAWN -> "Sub-agent: $who"
                 ToolNames.AGENTS_SEND -> "Follow-up to $who"
+                ToolNames.AGENTS_CANCEL -> "Cancelled $who"
                 else -> if (one != null) "Waiting on $who" else "Waiting on ${rows.size} Sub-agents"
             }, Modifier.weight(1f), style = TextStyles.callout, singleLine = true, overflow = TextOverflow.Ellipsis)
             when {
                 item.waiting || needs > 0 -> Pill(if (rows.size > 1 && needs > 1) "$needs need you" else "Needs you", tone = Tone.Warning)
                 (item.isError && !item.denied) || rows.any { it.state?.status == SubAgentStatus.Failed } -> Pill("Failed", tone = Tone.Danger)
                 item.denied -> Pill("Denied")
+                item.name == ToolNames.AGENTS_CANCEL && item.result != null -> Pill("Cancelled")
+                item.waitTimedOut() && running > 0 -> Pill("Still running")
                 running > 0 -> Pill(if (rows.size > 1) "$running working" else "Working", tone = Tone.Accent, loading = true)
                 else -> Pill("Done", tone = Tone.Success)
             }
@@ -118,13 +122,7 @@ private fun ChildRowView(row: ChildRow, needsYou: Boolean, showResult: Boolean, 
             }
             when {
                 needsYou -> Pill("Needs you", tone = Tone.Warning)
-                else -> when (row.state?.status) {
-                    null -> Text("Starting…", style = TextStyles.caption, color = color(mutedColor), singleLine = true)
-                    SubAgentStatus.Running -> Spinner(size = 13.dp, tint = color(accentColor))
-                    SubAgentStatus.Completed -> Icon(Lucide.CircleCheck, Modifier.size(15.dp), tint = color(successColor), contentDescription = "Completed")
-                    SubAgentStatus.Failed -> Icon(Lucide.CircleX, Modifier.size(15.dp), tint = color(destructiveColor), contentDescription = "Failed")
-                    SubAgentStatus.Cancelled -> Icon(Lucide.CircleSlash, Modifier.size(15.dp), tint = color(mutedColor), contentDescription = "Cancelled")
-                }
+                else -> row.state?.status?.let { StatusIcon(it) } ?: Text("Starting…", style = TextStyles.caption, color = color(mutedColor), singleLine = true)
             }
             if (open != null) Icon(Lucide.ChevronRight, Modifier.size(14.dp), tint = color(mutedColor))
         }
@@ -159,6 +157,63 @@ private fun FailureReason(text: String) {
 }
 
 private fun agentName(id: AgentId?, agents: List<AgentInfo>) = agents.firstOrNull { it.id == id }?.name ?: id?.value ?: "an Agent"
+
+/** Sub-agents that finished while the parent wasn't waiting, delivered to it as one report: who, how it ended, and what they returned. */
+@Composable
+internal fun SubAgentReport(item: ChatItem.ToolReport, actions: ChatActions) {
+    val shape = Theme[shapes][mediumShape]
+    val one = item.children.singleOrNull()
+    val failed = item.children.count { it.status == SubAgentStatus.Failed }
+    Column(Modifier.fillMaxWidth().clip(shape).border(1.dp, color(borderColor), shape)) {
+        Row(Modifier.fillMaxWidth().heightIn(min = 44.dp).padding(horizontal = Spacing.space10), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.space8)) {
+            Icon(Lucide.Bell, Modifier.size(15.dp), tint = color(mutedColor))
+            Text(if (one != null) "${one.name} ${one.status.verb()}" else "${item.children.size} Sub-agents finished", Modifier.weight(1f), style = TextStyles.callout, singleLine = true, overflow = TextOverflow.Ellipsis)
+            when {
+                failed > 0 -> Pill(if (one == null) "$failed failed" else "Failed", tone = Tone.Danger)
+                one?.status == SubAgentStatus.Cancelled -> Pill("Stopped")
+                else -> Pill("Done", tone = Tone.Success)
+            }
+        }
+        item.children.forEach { child ->
+            key(child.sessionId.value) {
+                val agent = actions.agents.firstOrNull { it.id == child.agentId }
+                Row(
+                    Modifier.fillMaxWidth().clickable(role = Role.Button, onClickLabel = "Open the Sub-agent's Session") { actions.onOpenSession(child.agentId, child.sessionId) }
+                        .heightIn(min = 44.dp).padding(horizontal = Spacing.space10, vertical = Spacing.space6),
+                    verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.space10),
+                ) {
+                    AgentAvatar(agent, 24.dp)
+                    Text(child.name, Modifier.weight(1f), style = TextStyles.secondary, fontWeight = FontWeight.Medium, singleLine = true, overflow = TextOverflow.Ellipsis)
+                    if (child.private) Badge("Private", Lucide.LockKeyhole)
+                    StatusIcon(child.status)
+                    Icon(Lucide.ChevronRight, Modifier.size(14.dp), tint = color(mutedColor))
+                }
+            }
+        }
+        val results = item.content.lines().filterNot { HEADING.matches(it) }.joinToString("\n").trim()
+        if (results.isNotBlank()) Box(Modifier.padding(start = Spacing.space10, end = Spacing.space10, bottom = Spacing.space10)) {
+            Expandable(Lucide.CornerDownLeft, if (item.children.size > 1) "Results" else "Result") { Markdown(results) }
+        }
+    }
+}
+
+/** The model-facing line that opens each child's part of a report. */
+private val HEADING = Regex("""Sub-agent .+ \(.+\) \[\w+\]\..*""")
+
+private fun SubAgentStatus.verb() = when (this) {
+    SubAgentStatus.Running -> "is working"
+    SubAgentStatus.Completed -> "finished"
+    SubAgentStatus.Failed -> "failed"
+    SubAgentStatus.Cancelled -> "stopped"
+}
+
+@Composable
+private fun StatusIcon(status: SubAgentStatus) = when (status) {
+    SubAgentStatus.Running -> Spinner(size = 13.dp, tint = color(accentColor))
+    SubAgentStatus.Completed -> Icon(Lucide.CircleCheck, Modifier.size(15.dp), tint = color(successColor), contentDescription = "Completed")
+    SubAgentStatus.Failed -> Icon(Lucide.CircleX, Modifier.size(15.dp), tint = color(destructiveColor), contentDescription = "Failed")
+    SubAgentStatus.Cancelled -> Icon(Lucide.CircleSlash, Modifier.size(15.dp), tint = color(mutedColor), contentDescription = "Cancelled")
+}
 
 /** Above the composer while this Session's Sub-agents run: how many, and a way to the first that waits on the user. */
 @Composable
