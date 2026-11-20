@@ -77,7 +77,11 @@
   const agentOptions = (current) => options(catalog.agents.map((a) => ({ value: a.id, label: a.name })), current);
   const modelValue = (m) => (m ? JSON.stringify([m.provider, m.model]) : '');
   const modelLabel = (m) => { const c = catalog.models.find((x) => x.provider === m.provider && x.model === m.model); return c ? c.providerName + ' / ' + c.name : m.provider + ' / ' + m.model; };
-  const modelOptions = (current) => options([{ value: '', label: "Agent's model" }].concat(catalog.models.map((m) => ({ value: modelValue(m), label: m.providerName + ' / ' + m.name }))), modelValue(current));
+  const modelOptions = (current) => {
+    const list = catalog.models.map((m) => ({ value: modelValue(m), label: m.providerName + ' / ' + m.name }));
+    if (current && !list.some((o) => o.value === modelValue(current))) list.push({ value: modelValue(current), label: current.provider + ' / ' + current.model + ' (unavailable)' });
+    return options([{ value: '', label: "Agent's model" }].concat(list), modelValue(current));
+  };
 
   const refs = (f) => `<select class="ref" data-ref="${f}" aria-label="Insert an input or the output of an earlier step"></select>`;
   const area = (f, label, value, placeholder, opts) => `<div class="fld"><div class="lbl"><span>${label}</span>${opts && opts.refs ? refs(f) : ''}</div>` +
