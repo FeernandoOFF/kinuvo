@@ -25,6 +25,7 @@ import kinuvo.protocol.execution.ExposureGrant
 import kinuvo.protocol.execution.HarnessConnection
 import kinuvo.protocol.execution.SaveRemoteLink
 import kinuvo.protocol.session.*
+import kinuvo.protocol.workflow.*
 import kinuvo.server.execution.RemoteLinks
 import kinuvo.server.execution.executionSnapshot
 import kinuvo.harness.ExecutionRejected
@@ -179,6 +180,35 @@ class SubAgentsTest {
         }
     }
 
+    @Test fun cancellingAWorkflowStepWithoutAnActiveTurnCancelsItsChildren() = runBlocking {
+        val agent = AgentId("work")
+        val turn = StepId("turn")
+        val approval = StepId("approval")
+        TestServer.start(script = {
+            on("hold child") { toolCall("ask_user", """{"questions":[{"id":"ok","label":"Wait","kind":"text"}]}""") }
+        }, scenario = { agent("work") { it.copy(approvals = "full") } }).use { server ->
+            val client = server.client(token = server.auth.sessionToken()); client.connect()
+            val workflow = client.call(Api.CreateWorkflow, Workflow(WorkflowId("w"), "Workflow",
+                listOf(WorkflowStep.AgentTurn(turn, agent, "first"), WorkflowStep.Approval(approval, "Continue?")),
+                listOf(WorkflowEdge(turn, approval)), agentId = agent))
+            val run = client.call(Api.RunWorkflow, RunWorkflowParams(workflow.id))
+            var session: SessionId? = null
+            untilReady {
+                val step = client.call(Api.WorkflowRuns, workflow.id).single().steps.getValue(approval)
+                session = step.sessionId
+                step.status == StepStatus.WaitingApproval
+            }
+            val id = assertNotNull(session)
+            val children = server.harness.subAgents!!
+            val child = value { children.spawn(agent, id, ToolCallId("child"), agent, "hold child") }
+            untilReady { server.harness.log.pending(child.sessionId).isNotEmpty() }
+
+            assertEquals(WorkflowRunStatus.Cancelled, client.call(Api.CancelWorkflow, run.id).status)
+            untilReady { children.list(agent, id).getValue(child.sessionId).status == SubAgentStatus.Cancelled }
+            assertTrue(server.harness.store.entries(agent, id).filterIsInstance<SessionEntry.ToolReport>().none { it.children.isNotEmpty() })
+        }
+    }
+
     @Test fun deletingAnIdleParentDropsAPendingWake() = runBlocking {
         lateinit var agent: Agent
         TestServer.start(scenario = { agent = agent("work") { it.copy(approvals = "full") } }).use { server ->
@@ -226,16 +256,23 @@ class SubAgentsTest {
         }
     }
 
-    @Test fun topLevelNonWakeRunResetsAnExhaustedBudget() = runBlocking {
+    @Test fun onlyUserRoutineAndWorkflowTurnsResetTheRootBudget() = runBlocking {
         lateinit var agent: Agent
         TestServer.start(scenario = { agent = agent("work") { it.copy(approvals = "full") } }).use { server ->
             val parent = server.startSession(agent.id)
             val children = server.harness.subAgents!!
-            repeat(64) { children.consume(parent.id) }
-            assertFailsWith<CancellationException> { children.consume(parent.id) }
             val runs = Runs(server.harness.log, this, server.harness.native).also { it.onBegin = children::begin }
-            runs.start(agent, parent.id, ExecutionInput("scheduled turn")).job.join()
-            repeat(63) { children.consume(parent.id) }
+            val background = listOf(Runs.Kind.Report, Runs.Kind.Task)
+            repeat(32) { children.consume(parent.id) }
+            for (kind in background) runs.start(agent, parent.id, ExecutionInput("background turn"), kind = kind).job.join()
+            repeat(32) { children.consume(parent.id) }
+            assertFailsWith<CancellationException> { children.consume(parent.id) }
+            for (kind in background)
+                assertFailsWith<CancellationException> { runs.start(agent, parent.id, ExecutionInput("background turn"), kind = kind) }
+            for (kind in listOf(Runs.Kind.Routine, Runs.Kind.Workflow, Runs.Kind.User)) {
+                runs.start(agent, parent.id, ExecutionInput("new turn"), kind = kind).job.join()
+                repeat(63) { children.consume(parent.id) }
+            }
             val child = value { children.spawn(agent.id, parent.id, ToolCallId("child"), agent.id, "work") }
             assertEquals(SubAgentStatus.Completed, value { children.wait(agent.id, parent.id, listOf(child.sessionId), 5) }.single().status)
         }
@@ -288,6 +325,40 @@ class SubAgentsTest {
             val report = harness.store.entries(agent.id, parent.id).filterIsInstance<SessionEntry.ToolReport>().single()
             assertEquals(child.sessionId, report.children.single().sessionId)
             assertEquals(2, attempts)
+        } finally {
+            runtime.close()
+            directory.deleteRecursively()
+        }
+    }
+
+    @Test fun nativeChildSettlesAfterBothWakeStartupsFail() = runBlocking {
+        val fixture = RuntimeFixture()
+        val harness = fixture.runtime(ModelScript().apply { reply("reply") }.model)
+        val agent = fixture.agent
+        val parent = harness.newSession(agent)
+        val fail = CompletableDeferred<SessionId>()
+        var attempts = 0
+        val factory = object : ExecutionFactory by harness.native {
+            override suspend fun open(config: HarnessConnection, registration: AgentRegistration, state: ExecutionState, broker: ExecutionBroker, scope: CoroutineScope): ExecutionSession {
+                if (fail.isCompleted && state.sessionId == fail.await()) {
+                    attempts++
+                    error("Wake startup failed")
+                }
+                return harness.native.open(config, registration, state, broker, scope)
+            }
+        }
+        val directory = Files.createTempDirectory("native-wake").toFile()
+        val runtime = ServerRuntime(harness, DeviceAuth(Path(directory.path, "devices.json")), serverRoutes(), nativeFactory = factory)
+        try {
+            runtime.start()
+            val children = harness.subAgents!!
+            val child = value { children.spawn(agent.id, parent.id, ToolCallId("child"), agent.id, "work") }
+            untilReady { children.list(agent.id, parent.id)[child.sessionId]?.status == SubAgentStatus.Completed }
+            fail.complete(child.sessionId)
+            value { children.spawn(agent.id, child.sessionId, ToolCallId("grandchild"), agent.id, "grandchild") }
+            untilReady { children.list(agent.id, parent.id)[child.sessionId]?.status == SubAgentStatus.Failed }
+            assertEquals(2, attempts)
+            assertEquals("Wake startup failed", value { children.wait(agent.id, parent.id, listOf(child.sessionId), 1) }.single().result)
         } finally {
             runtime.close()
             directory.deleteRecursively()
@@ -425,7 +496,7 @@ class SubAgentsTest {
         }
     }
 
-    @Test fun asyncExternalRejectionRestoresTheWakeWithoutDuplicatingTheReport() = runBlocking {
+    @Test fun asyncExternalRejectionRetriesTheReportAndDrainsNewerCompletions() = runBlocking {
         lateinit var agent: Agent
         lateinit var parentState: ExecutionState
         val prompted = CompletableDeferred<Unit>()
@@ -454,12 +525,44 @@ class SubAgentsTest {
             val children = server.harness.subAgents!!
             val child = value { children.spawn(parent.agentId, parent.id, ToolCallId("child"), agent.id, "work") }
             withTimeout(5_000) { prompted.await() }
+            val newer = value { children.spawn(parent.agentId, parent.id, ToolCallId("newer"), agent.id, "new work") }
+            untilReady { children.list(parent.agentId, parent.id)[newer.sessionId]?.status == SubAgentStatus.Completed }
             reject.complete(Unit)
             untilReady {
-                external.sessions.single().prompts.isNotEmpty() && parentState.snapshot().phase == ExecutionPhase.Idle
+                external.sessions.single().prompts.size == 2 && parentState.snapshot().phase == ExecutionPhase.Idle
             }
-            val saved = server.harness.store.entries(parent.agentId, parent.id).filterIsInstance<SessionEntry.ToolReport>().single()
-            assertEquals(child.sessionId, saved.children.single().sessionId)
+            val saved = server.harness.store.entries(parent.agentId, parent.id).filterIsInstance<SessionEntry.ToolReport>()
+            assertEquals(listOf(child.sessionId, newer.sessionId), saved.map { it.children.single().sessionId })
+        }
+    }
+
+    @Test fun externalChildSettlesAfterBothWakePromptsAreRejected() = runBlocking {
+        lateinit var agent: Agent
+        val external = FakeHarness()
+        val rejectsWake = object : ExecutionFactory by external {
+            override suspend fun open(config: HarnessConnection, registration: AgentRegistration, state: ExecutionState, broker: ExecutionBroker, scope: CoroutineScope): ExecutionSession {
+                val delegate = external.open(config, registration, state, broker, scope)
+                return object : ExecutionSession by delegate {
+                    override suspend fun prompt(input: ExecutionInput): ExecutionAcceptance {
+                        if (input.text.startsWith("Sub-agent ")) throw ExecutionRejected("Wake rejected")
+                        return delegate.prompt(input)
+                    }
+                }
+            }
+        }
+        TestServer.start(executionFactory = { rejectsWake }, scenario = {
+            agent = agent("work") { it.copy(approvals = "full") }
+            externalAgent(external, "external")
+        }).use { server ->
+            val parent = server.startSession(agent.id)
+            val children = server.harness.subAgents!!
+            val child = value { children.spawn(agent.id, parent.id, ToolCallId("child"), AgentId("external"), "work") }
+            untilReady { children.list(agent.id, parent.id)[child.sessionId]?.status == SubAgentStatus.Completed }
+            value { children.spawn(child.agentId, child.sessionId, ToolCallId("grandchild"), agent.id, "grandchild") }
+            untilReady { children.list(agent.id, parent.id)[child.sessionId]?.status == SubAgentStatus.Failed }
+            val failed = value { children.wait(agent.id, parent.id, listOf(child.sessionId), 1) }.single()
+            assertEquals(SubAgentStatus.Failed, failed.status)
+            assertEquals("Wake rejected", failed.result)
         }
     }
 

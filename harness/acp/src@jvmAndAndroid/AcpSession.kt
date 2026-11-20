@@ -66,8 +66,10 @@ class AcpSession internal constructor(
             async(start = CoroutineStart.UNDISPATCHED) {
                 try { connection.prompt(session, prompt) }
                 catch (e: JsonRpcException) {
-                    if (!reducer.rejected()) throw e
-                    firstPrompt = initial
+                    commands.withLock {
+                        if (!reducer.rejected()) throw e
+                        firstPrompt = initial
+                    }
                     throw ExecutionRejected(e.message, e)
                 }
             }

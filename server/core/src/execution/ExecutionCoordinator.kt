@@ -272,7 +272,7 @@ class ExecutionCoordinator(
     internal suspend fun send(
         p: SendParams,
         report: SessionEntry.ToolReport?,
-        onRejected: suspend () -> Unit = {},
+        onRejected: suspend (ExecutionRejected) -> Unit = {},
         onBegin: suspend (SessionId) -> Unit = {},
     ): SendResult {
         require(p.delivery == SendDelivery.Turn) { "This external harness does not support Queue or Steer" }
@@ -324,7 +324,7 @@ class ExecutionCoordinator(
                         } ?: return@withContext
                         if (rejected) {
                             mutate(id) { it.copy(submissions = it.submissions - submission) }
-                            onRejected()
+                            onRejected(e)
                             state.boundSink().publish(AgentEvent.ExecutionPhaseChanged(ExecutionPhase.Idle))
                         } else broker.lost()
                     }

@@ -38,7 +38,7 @@ class AgentExecution(
 
     init {
         external.onFinish = ::finished
-        runs.onBegin = { agent, id, userTurn, wake -> subAgents?.begin(agent, id, userTurn, wake) }
+        runs.onBegin = { agent, id, kind -> subAgents?.begin(agent, id, kind) }
         runs.onCancel = { subAgents?.cancelChildren(it) }
         runs.onFinish { agent, id, cancelled ->
             finished(agent, id, cancelled, (log.completion(id) as? AgentEvent.RunError)?.message)
@@ -60,7 +60,7 @@ class AgentExecution(
     internal suspend fun trySteer(params: SendParams, allowed: suspend () -> Boolean, fallback: suspend () -> Unit): Boolean =
         !external.owns(requireNotNull(params.sessionId)) && native.trySteer(params, allowed, fallback)
 
-    internal suspend fun report(agent: AgentId, id: SessionId, take: suspend () -> SessionEntry.ToolReport?, restore: suspend (SessionEntry.ToolReport) -> Unit) {
+    internal suspend fun report(agent: AgentId, id: SessionId, take: suspend () -> SessionEntry.ToolReport?, restore: suspend (SessionEntry.ToolReport, Exception) -> Unit) {
         if (!external.owns(id)) native.report(agent, id, take, restore)
         else {
             while (true) {
@@ -69,11 +69,11 @@ class AgentExecution(
                     if (external.isActive(id)) return@withLock false
                     val report = take() ?: return
                     try {
-                        external.send(SendParams(agent, id, report.content), report, onRejected = { restore(report) }) {
-                            subAgents?.begin(agent, id, userTurn = false, wake = true)
+                        external.send(SendParams(agent, id, report.content), report, onRejected = { restore(report, it) }) {
+                            subAgents?.begin(agent, id, Runs.Kind.Wake)
                         }
                     } catch (e: Exception) {
-                        withContext(NonCancellable) { restore(report) }
+                        withContext(NonCancellable) { restore(report, e) }
                         throw e
                     }
                     true
@@ -104,19 +104,19 @@ class AgentExecution(
     override suspend fun send(params: SendParams): SendResult = throwing<ServerError, _> { send(params, null) }
 
     internal suspend fun sendChild(params: SendParams): SendResult =
-        throwing<ServerError, _> { send(params, null, userTurn = false) }
+        throwing<ServerError, _> { send(params, null, Runs.Kind.Child) }
 
     /** [catalogs] are the Surface catalogs of the client sending, for the built-in harness. */
     context(_: Raise<AgentError>, _: Raise<SessionError>)
-    suspend fun send(params: SendParams, catalogs: List<UiCatalog>?, userTurn: Boolean = true, onEvent: suspend (AgentEvent) -> Unit = {}): SendResult {
+    suspend fun send(params: SendParams, catalogs: List<UiCatalog>?, kind: Runs.Kind = Runs.Kind.User, onEvent: suspend (AgentEvent) -> Unit = {}): SendResult {
         val session = params.sessionId
         val action = params.action
         if (session != null && action != null && workflowSurface(params.agentId, session, action))
             return SendResult(session, RunId(Uuid.random().toString()), params.text)
         return if (registry.registration(params.agentId) != null) management.withLock {
-            external.send(params, null) { id -> subAgents?.begin(params.agentId, id, userTurn, wake = false) }
+            external.send(params, null) { id -> subAgents?.begin(params.agentId, id, kind) }
         }
-        else native.send(params, catalogs, userTurn, onEvent)
+        else native.send(params, catalogs, kind, onEvent)
     }
 
     suspend fun cancelQueued(params: CancelQueuedParams) = native.cancelQueued(params)

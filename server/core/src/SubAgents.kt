@@ -96,20 +96,20 @@ class SubAgents internal constructor(
         }
     }
 
-    suspend fun begin(agent: AgentId, id: SessionId, userTurn: Boolean, wake: Boolean) = lock.withLock {
+    suspend fun begin(agent: AgentId, id: SessionId, kind: Runs.Kind) = lock.withLock {
         if (id in deleting) throw CancellationException("Session is being deleted")
         val link = parents[id] ?: harness.store.session(agent, id).parent
-        if (userTurn || (link == null && !wake)) {
+        if (kind == Runs.Kind.User || kind == Runs.Kind.Routine || kind == Runs.Kind.Workflow) {
             stopped -= id
             retried -= id
-            if (link == null && id !in groups && !wake) budgets[id] = Budget(activationLimit)
+            if (link == null && id !in groups) budgets[id] = Budget(activationLimit)
             scheduleWake(agent, id)
         } else if (id in stopped) {
             throw CancellationException("Parent run cancelled")
         }
         if (link != null) {
             parents[id] = link
-            if (wake || userTurn) {
+            if (kind == Runs.Kind.Wake || kind == Runs.Kind.User) {
                 val child = savedChildren(link.agentId, link.sessionId)[id]
                 if (child != null && child.status != SubAgentStatus.Running && !child.delivered)
                     save(link.agentId, link.sessionId, child.copy(status = SubAgentStatus.Running, result = null, turnId = Uuid.random().toString()))
@@ -321,11 +321,13 @@ class SubAgents internal constructor(
     suspend fun finish(agent: AgentId, id: SessionId, cancelled: Boolean, error: String?) =
         finish(agent, id, cancelled, error, wakeParent = true)
 
-    private suspend fun finish(agent: AgentId, id: SessionId, cancelled: Boolean, error: String?, wakeParent: Boolean) {
+    private suspend fun finish(agent: AgentId, id: SessionId, cancelled: Boolean, error: String?, wakeParent: Boolean, drainEvents: Boolean = true) {
         val parent = lock.withLock { parents[id] } ?: return
-        val barrier = CompletableDeferred<Unit>()
-        events.send { barrier.complete(Unit) }
-        barrier.await()
+        if (drainEvents) {
+            val barrier = CompletableDeferred<Unit>()
+            events.send { barrier.complete(Unit) }
+            barrier.await()
+        }
         val pending = lock.withLock {
             if (parent.sessionId in deleting) return
             val state = list(parent.agentId, parent.sessionId)[id] ?: return
@@ -352,7 +354,7 @@ class SubAgents internal constructor(
     }
 
     // Called under lock. Keep one pending report per parent until a model request or a new turn takes it.
-    private fun scheduleWake(agent: AgentId, parent: SessionId) {
+    private fun scheduleWake(agent: AgentId, parent: SessionId, afterRetry: SessionEntry.ToolReport? = null) {
         if (parent in deleting || parent in stopped || parent in delivering) return
         val retry = retryWakes[parent] != null
         if (!retry && wakes[parent].orEmpty().none { it.sessionId !in waiters }) return
@@ -361,7 +363,9 @@ class SubAgents internal constructor(
             delay(if (retry) 250 else 25)
             lock.withLock { waking -= parent }
             try {
-                dispatch.report(agent, parent, { takeWake(parent) }, { restoreWake(agent, parent, it) })
+                dispatch.report(agent, parent, { takeWake(agent, parent, afterRetry) }, { report, error ->
+                    restoreWake(agent, parent, report, error)
+                })
             } catch (e: CancellationException) { throw e }
             catch (e: Exception) {
                 logger.warn(e) { "Sub-agent report could not start in Session $parent" }
@@ -369,10 +373,14 @@ class SubAgents internal constructor(
         }
     }
 
-    private suspend fun takeWake(parent: SessionId): SessionEntry.ToolReport? {
+    private suspend fun takeWake(agent: AgentId, parent: SessionId, afterRetry: SessionEntry.ToolReport?): SessionEntry.ToolReport? {
         val completed = lock.withLock {
             if (parent in deleting || parent in stopped || parent in delivering) return null
-            retryWakes.remove(parent)?.let { return it }
+            if (afterRetry != null && retryWakes[parent] == afterRetry) return null
+            retryWakes.remove(parent)?.let {
+                scheduleWake(agent, parent, afterRetry = it)
+                return it
+            }
             val pending = wakes[parent] ?: return null
             val ready = pending.filter { it.sessionId !in waiters }
             pending.removeAll(ready.toSet())
@@ -400,11 +408,18 @@ class SubAgents internal constructor(
         return SessionEntry.ToolReport(ToolNames.AGENTS_SPAWN, null, content, children = children)
     }
 
-    private suspend fun restoreWake(agent: AgentId, parent: SessionId, report: SessionEntry.ToolReport) = lock.withLock {
-        if (parent in deleting) return@withLock
-        retryWakes[parent] = report
-        // Retry once automatically. A later turn can still take the saved report.
-        if (retried.add(parent)) scheduleWake(agent, parent)
+    private suspend fun restoreWake(agent: AgentId, parent: SessionId, report: SessionEntry.ToolReport, error: Exception) {
+        val exhausted = lock.withLock {
+            if (parent in deleting) return
+            retryWakes[parent] = report
+            // Retry once automatically. A later turn can still take the saved report.
+            if (retried.add(parent)) {
+                scheduleWake(agent, parent)
+                false
+            } else true
+        }
+        if (exhausted)
+            finish(agent, parent, false, error.message ?: "Sub-agent wake failed to start", wakeParent = true, drainEvents = false)
     }
 
     context(_: Raise<SubAgentError>)
