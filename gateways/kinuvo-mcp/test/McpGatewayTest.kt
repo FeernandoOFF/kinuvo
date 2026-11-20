@@ -64,19 +64,9 @@ class McpGatewayTest {
             }
             val spawned = Json.parseToJsonElement(call("agents_spawn", buildJsonObject { put("goal", "work"); put("agent_id", agent.id.value) })).jsonObject
             val id = spawned.getValue("sessionId").jsonPrimitive.content
-            val waiting = async { call("agents_wait", buildJsonObject { put("session_ids", JsonArray(listOf(JsonPrimitive(id)))); put("timeout_seconds", "5") }) }
-            val review = withTimeout(5000) {
-                while (true) {
-                    server.harness.log.pending(session.id).filterIsInstance<PendingInteraction.Approval>().firstOrNull()?.let { return@withTimeout it }
-                    yield()
-                }
-                error("unreachable")
-            }
-            assertTrue(review.args.contains("child answer"))
-            assertEquals("child answer", review.preview?.body)
-            val client = server.client(token = server.auth.sessionToken()).also { it.connect() }
-            assertTrue(client.call(Api.Respond, RespondParams(session.id, review.id, InteractionAnswer.Approval(ApprovalDecision.AllowOnce))))
-            val result = Json.parseToJsonElement(waiting.await()).jsonArray.single().jsonObject
+            val waiting = call("agents_wait", buildJsonObject { put("session_ids", JsonArray(listOf(JsonPrimitive(id)))); put("timeout_seconds", "5") })
+            assertTrue(server.harness.log.pending(session.id).isEmpty())
+            val result = Json.parseToJsonElement(waiting).jsonArray.single().jsonObject
             assertEquals(id, result.getValue("sessionId").jsonPrimitive.content)
             assertEquals("child answer", result.getValue("result").jsonPrimitive.content)
             access.revoke(credential); run.job.cancel()
