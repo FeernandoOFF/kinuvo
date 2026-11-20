@@ -38,6 +38,13 @@ internal class AcpReducer(private val state: ExecutionState,
 
     suspend fun submitted() = queue.withLock { check(!lost); start() }
 
+    suspend fun rejected(): Boolean = queue.withLock {
+        if (lost || !active || entries.isNotEmpty() || currentSources.isNotEmpty() || state.snapshot().pending.isNotEmpty())
+            return@withLock false
+        active = false
+        true
+    }
+
     suspend fun update(raw: JsonObject) = queue.withLock {
         if (lost) return@withLock
         val kind = raw.string("sessionUpdate") ?: return@withLock
@@ -144,7 +151,11 @@ internal class AcpReducer(private val state: ExecutionState,
         val batch = entries.values.toList()
         sink.commit(if (interrupted) listOf(SessionEntry.Notice("${runId()}:interrupted", "interrupted",
             "The harness stopped this turn ($reason).", batch)) else batch)
-        sink.publish(if (interrupted) AgentEvent.RunError(RunId(runId()), "The harness stopped this turn ($reason).") else AgentEvent.RunFinished(RunId(runId())))
+        sink.publish(when {
+            reason == "cancelled" -> AgentEvent.RunFinished(RunId(runId()), cancelled = true)
+            interrupted -> AgentEvent.RunError(RunId(runId()), "The harness stopped this turn ($reason).")
+            else -> AgentEvent.RunFinished(RunId(runId()))
+        })
         sink.publish(AgentEvent.ExecutionPhaseChanged(ExecutionPhase.Idle))
         state.update(ExecutionPhase.Idle, reason)
         finalized.putAll(currentSources)

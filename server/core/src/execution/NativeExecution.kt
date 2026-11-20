@@ -20,6 +20,7 @@ import kinuvo.protocol.execution.*
 import kinuvo.protocol.session.*
 import kinuvo.protocol.surface.*
 import kinuvo.protocol.agent.AgentId
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -47,7 +48,8 @@ class NativeExecution(
     private val deliveryLock = Mutex()
     private val queued = mutableMapOf<SessionId, MutableList<Pending>>()
     private val steering = mutableMapOf<SessionId, MutableList<Pending>>()
-    private val childReports = mutableMapOf<SessionId, Pair<Agent, suspend () -> SessionEntry.ToolReport?>>()
+    private class ChildReport(val agent: Agent, val take: suspend () -> SessionEntry.ToolReport?, val restore: suspend (SessionEntry.ToolReport) -> Unit)
+    private val childReports = mutableMapOf<SessionId, ChildReport>()
     private val paused = mutableSetOf<SessionId>()
     private val pumping = mutableSetOf<SessionId>()
 
@@ -69,14 +71,20 @@ class NativeExecution(
                     runs.join(session)
                     val started = deliveryLock.withLock {
                         if (runs.isActive(session)) return@withLock true
-                        if (session in paused) return@withLock false
-                        childReports.remove(session)?.let { (agent, take) ->
-                            val report = take()
+                        childReports.remove(session)?.let { pending ->
+                            val report = pending.take()
                             if (report != null) {
-                                startReport(agent, session, harness.uiCatalogs.forRun(), wake = report)
-                                return@withLock true
+                                try {
+                                    startReport(pending.agent, session, harness.uiCatalogs.forRun(), wake = report)
+                                    return@withLock true
+                                } catch (e: Exception) {
+                                    ensureActive()
+                                    pending.restore(report)
+                                    log.warn(e) { "Sub-agent report could not start in Session $session" }
+                                }
                             }
                         }
+                        if (session in paused) return@withLock false
                         val next = queued[session]?.removeFirstOrNull() ?: return@withLock false
                         publishQueue(next.agent, session)
                         try { start(next) }
@@ -89,7 +97,7 @@ class NativeExecution(
             } finally {
                 deliveryLock.withLock {
                     pumping.remove(session)
-                    if (session !in paused && (session in childReports || queued[session].orEmpty().isNotEmpty())) pump(session)
+                    if (session in childReports || (session !in paused && queued[session].orEmpty().isNotEmpty())) pump(session)
                 }
             }
         }
@@ -104,10 +112,12 @@ class NativeExecution(
                     steering[p.session].orEmpty().map { pending ->
                         val kind = pending.input.kind as RunKind.Chat
                         SessionEntry.UserMessage(pending.input.text, null, kind.attachments, kind.voice, action = pending.input.action, inputs = pending.input.inputs)
-                    }.also { steering[p.session]?.clear() } + listOfNotNull(childReports.remove(p.session)?.second?.invoke())
+                    }.also { steering[p.session]?.clear() } + listOfNotNull(childReports.remove(p.session)?.take?.invoke()?.takeUnless { report ->
+                        harness.store.entries(p.agent.id, p.session).any { it.identity() == report.identity() }
+                    })
                 }
             }), userTurn = p.userTurn, wake = wake != null, reserved = {
-                wake?.let { harness.log.append(p.agent.id, p.session, it) }
+                wake?.let { harness.log.appendAll(p.agent.id, p.session, listOf(it)) }
             }, onEvent = p.onEvent, onDone = { stopped ->
                 deliveryLock.withLock {
                     val remaining = steering.remove(p.session).orEmpty()
@@ -205,30 +215,29 @@ class NativeExecution(
         }
     }
 
-    suspend fun report(agentId: AgentId, sessionId: SessionId, take: suspend () -> SessionEntry.ToolReport?) {
+    suspend fun report(agentId: AgentId, sessionId: SessionId, take: suspend () -> SessionEntry.ToolReport?, restore: suspend (SessionEntry.ToolReport) -> Unit) {
         val agent = throwing<AgentError, _> { agent(agentId) }
         deliveryLock.withLock {
-            if (sessionId in paused) return
-            childReports[sessionId] = agent to take
+            childReports[sessionId] = ChildReport(agent, take, restore)
             pump(sessionId)
         }
     }
 
     private suspend fun startReport(agent: Agent, sessionId: SessionId, catalogs: List<UiCatalog>, report: SessionEntry.ToolReport? = null, wake: SessionEntry.ToolReport? = null) {
-        try {
-            val kind = RunKind.Chat(report = report, catalogs = catalogs, reports = toolReports(agent, sessionId, catalogs))
-            if (report != null) {
+        val kind = RunKind.Chat(report = report, catalogs = catalogs, reports = toolReports(agent, sessionId, catalogs))
+        if (report != null) {
+            try {
                 runs.start(agent, sessionId, ExecutionInput("", kind = kind), queued = true, onEvent = { event ->
                     if (event is AgentEvent.TextMessageEnd) reported(sessionId, event.text)
                 })
-            } else {
-                val input = ExecutionInput("", kind = kind)
-                start(Pending(agent, sessionId, input, QueuedMessage(Uuid.random().toString(), ""), { event ->
-                    if (event is AgentEvent.TextMessageEnd) reported(sessionId, event.text)
-                }, userTurn = false), wake)
-            }
-        } catch (e: CancellationException) { throw e }
-        catch (e: Exception) { log.warn(e) { "Background report could not start in Session $sessionId" } }
+            } catch (e: CancellationException) { throw e }
+            catch (e: Exception) { log.warn(e) { "Background report could not start in Session $sessionId" } }
+        } else {
+            val input = ExecutionInput("", kind = kind)
+            start(Pending(agent, sessionId, input, QueuedMessage(Uuid.random().toString(), ""), { event ->
+                if (event is AgentEvent.TextMessageEnd) reported(sessionId, event.text)
+            }, userTurn = false), wake)
+        }
     }
 
     private fun toolReports(agent: Agent, sessionId: SessionId, catalogs: List<UiCatalog>): ToolReports =

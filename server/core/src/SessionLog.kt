@@ -21,6 +21,8 @@ import kinuvo.protocol.session.SubAgentState
 import kinuvo.protocol.session.isLive
 import kinuvo.protocol.agent.AgentId
 import kinuvo.protocol.session.SessionId
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlin.concurrent.atomics.AtomicReference
@@ -106,18 +108,25 @@ class SessionLog(private val store: Store, private val clock: () -> Long = { Clo
     }
 
     var onDelete: suspend (AgentId, SessionId) -> Unit = { _, _ -> }
-    override suspend fun deleteSession(agentId: AgentId, sessionId: SessionId) {
-        val children = store.agents().flatMap { store.sessions(it.id) }.groupBy { it.parent?.sessionId }
-        suspend fun delete(agent: AgentId, id: SessionId) {
+    private val deleting = mutableSetOf<SessionId>()
+
+    override suspend fun deleteSession(agentId: AgentId, sessionId: SessionId) = delete(agentId, sessionId)
+    internal suspend fun deleteChildIfPresent(agentId: AgentId, sessionId: SessionId) = delete(agentId, sessionId, ifPresent = true)
+
+    private suspend fun delete(agent: AgentId, id: SessionId, ifPresent: Boolean = false) {
+        lock.withLock {
+            if (ifPresent && store.sessions(agent).none { it.id == id }) return
             store.entryCount(agent, id)
+            if (!deleting.add(id)) return
+        }
+        try {
             onDelete(agent, id)
-            val entries = store.entries(agent, id)
-            val linked = entries.filterIsInstance<SessionEntry.Notice>().mapNotNull { it.child }
-                .map { it.agentId to it.sessionId } + children[id].orEmpty().map { it.agentId to it.id }
-            linked.distinct().forEach { (childAgent, childId) ->
-                if (store.sessions(childAgent).any { it.id == childId && it.parent?.sessionId == id })
-                    delete(childAgent, childId)
+            val children = lock.withLock {
+                val linkedOwners = store.entries(agent, id).filterIsInstance<SessionEntry.Notice>().mapNotNull { it.child?.agentId }
+                val owners = (linkedOwners + store.agents().map { it.id }).distinct()
+                owners.flatMap { store.sessions(it) }.filter { it.parent?.sessionId == id }
             }
+            children.forEach { deleteChildIfPresent(it.agentId, it.id) }
             lock.withLock {
                 store.deleteSession(agent, id)
                 counts -= id
@@ -126,8 +135,9 @@ class SessionLog(private val store: Store, private val clock: () -> Long = { Clo
                 runReplies -= id
                 subscribers -= id
             }
+        } finally {
+            withContext(NonCancellable) { lock.withLock { deleting -= id } }
         }
-        delete(agentId, sessionId)
     }
 
     /** Drops entries from [size] on and sends subscribers a fresh window, since the entries they hold changed. */
@@ -244,7 +254,7 @@ class SessionLog(private val store: Store, private val clock: () -> Long = { Clo
                 runReplies.remove(sessionId)
             else -> null
         }
-        val unread = event is AgentEvent.RunFinished && (reply == RunReply.Chat || reply == RunReply.Report) &&
+        val unread = event is AgentEvent.RunFinished && !event.cancelled && (reply == RunReply.Chat || reply == RunReply.Report) &&
             sessionId !in viewing.values
         val unsettle = started || state.status == SessionStatus.Waiting && previous.status != SessionStatus.Waiting
         val inboxChanged = if (unread || unsettle) {

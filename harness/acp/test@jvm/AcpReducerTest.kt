@@ -107,7 +107,7 @@ class AcpReducerTest {
         reducer.update(raw("""{"sessionUpdate":"agent_message_chunk","messageId":"m","content":{"type":"text","text":"draft"}}"""))
         reducer.update(raw("""{"sessionUpdate":"state_update","state":"idle","stopReason":"cancelled"}"""))
         assertEquals(1, (sink.batches.single().single() as SessionEntry.Notice).draft.size)
-        assertTrue(sink.events.none { it is AgentEvent.RunFinished })
+        assertTrue(sink.events.filterIsInstance<AgentEvent.RunFinished>().single().cancelled)
         reducer.submitted()
         reducer.update(raw("""{"sessionUpdate":"agent_message_chunk","messageId":"n","content":{"type":"text","text":"lost"}}"""))
         reducer.lost(broker::lost)

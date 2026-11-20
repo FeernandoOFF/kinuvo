@@ -61,7 +61,7 @@ class AgentExecution(
         !external.owns(requireNotNull(params.sessionId)) && native.trySteer(params, allowed, fallback)
 
     internal suspend fun report(agent: AgentId, id: SessionId, take: suspend () -> SessionEntry.ToolReport?, restore: suspend (SessionEntry.ToolReport) -> Unit) {
-        if (!external.owns(id)) native.report(agent, id, take)
+        if (!external.owns(id)) native.report(agent, id, take, restore)
         else {
             while (true) {
                 external.join(id)
@@ -69,7 +69,7 @@ class AgentExecution(
                     if (external.isActive(id)) return@withLock false
                     val report = take() ?: return
                     try {
-                        external.send(SendParams(agent, id, report.content), report) {
+                        external.send(SendParams(agent, id, report.content), report, onRejected = { restore(report) }) {
                             subAgents?.begin(agent, id, userTurn = false, wake = true)
                         }
                     } catch (e: Exception) {
@@ -126,6 +126,7 @@ class AgentExecution(
             subAgents?.cancelChildren(sessionId)
             external.stop(sessionId)
         } else {
+            subAgents?.markStopped(sessionId)
             native.stop(sessionId)
             subAgents?.cancelChildren(sessionId)
         }

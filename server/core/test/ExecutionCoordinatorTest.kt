@@ -11,6 +11,7 @@ import kinuvo.protocol.capability.ServerCapabilities
 import kinuvo.protocol.execution.*
 import kinuvo.protocol.session.*
 import kinuvo.protocol.agent.AgentId
+import kinuvo.protocol.tool.ToolNames
 import kotlinx.coroutines.*
 import kotlinx.coroutines.test.*
 import kotlinx.serialization.json.*
@@ -129,6 +130,36 @@ class ExecutionCoordinatorTest {
         assertEquals(ExecutionPhase.Idle, coordinator.snapshot(id).phase)
         assertTrue(coordinator.agentInUse(AgentId("a")))
         coordinator.close()
+    }
+
+    @Test fun uncertainWakeSubmissionIsKeptForRecoveryWithoutRetrying() = runTest {
+        val agent = AgentId("a")
+        val log = SessionLog(InMemoryStore())
+        val failPrompt = CompletableDeferred<Unit>()
+        val factory = object : ExecutionFactory {
+            override suspend fun open(config: HarnessConnection, registration: AgentRegistration, state: ExecutionState, broker: ExecutionBroker, scope: CoroutineScope) =
+                object : ExecutionSession {
+                    override val capabilities = ExecutionCapabilities()
+                    override suspend fun prompt(input: ExecutionInput): ExecutionAcceptance {
+                        failPrompt.await()
+                        error("Connection ended without a prompt acknowledgement")
+                    }
+                    override suspend fun cancel() {}
+                    override suspend fun answer(requestId: InteractionId, answer: InteractionAnswer) {}
+                }
+        }
+        val recovery = MemoryExecutionRecovery()
+        val coordinator = ExecutionCoordinator(registry(), factory, backgroundScope, log, recovery)
+        val id = coordinator.create(agent).id
+        var restored = false
+        val report = SessionEntry.ToolReport(ToolNames.AGENTS_SPAWN, null, "completion")
+        coordinator.send(SendParams(agent, id, report.content, submissionId = "wake"), report, onRejected = { restored = true })
+        failPrompt.complete(Unit)
+        runCurrent()
+        assertEquals(ExecutionPhase.Lost, coordinator.snapshot(id).phase)
+        assertFalse(restored)
+        assertEquals(setOf("wake"), recovery.load().single().submissions.keys)
+        assertTrue(recovery.load().single().acceptedSubmissions.isEmpty())
     }
 
     @Test fun stopCancelsUntrackedHarnessWorkAndDeleteSettlesAnUnconfirmedTurn() = runTest {
