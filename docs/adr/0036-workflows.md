@@ -41,7 +41,7 @@ The Scheduler checks Workflow schedules as well as Routines; missed recurring sl
 
 ## Agents
 
-The `workflows` tool group has schedule's action interface: list, get, save, run, status, cancel, retry, delete. It is on by default, respects tool scope, and is not given to hidden Sessions. Saves default an omitted `agentId` to the caller and return validation errors so the model can repair its graph. Reads need no Approval; changes always ask and cannot create Trust rules. Run and retry wait up to 120 seconds (60 by default), returning early when the user is needed. A Workflow's own Tool steps cannot run or retry Workflows, including through `run_code` and the tool catalog.
+The `workflows` tool group has schedule's action interface: list, get, validate, save, run, status, cancel, retry, delete. It is on by default, respects tool scope, and is not given to hidden Sessions. Save and validate default an omitted `agentId` to the caller and return every validation problem, one per line naming the step, edge or input, so the model can repair its graph. Validate checks without persisting and needs no Approval. Reads need no Approval; changes always ask and cannot create Trust rules. Run and retry wait up to 120 seconds (60 by default), returning early when the user is needed. A Workflow's own Tool steps cannot run or retry Workflows, including through `run_code` and the tool catalog.
 
 ## Editor
 

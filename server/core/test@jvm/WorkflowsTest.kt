@@ -275,6 +275,25 @@ class WorkflowsTest {
         }
     }
 
+    @Test fun validationReportsIndependentProblemsTogether() = runBlocking<Unit> {
+        TestServer.start(scenario = { agent("work") }).use { server ->
+            val c = client(server)
+            val w = workflow(
+                WorkflowStep.AgentTurn(StepId("turn-1"), AgentId("missing-agent"), "{{steps.x.output}} {{input.missing}}"),
+                edges = listOf(edge("turn-1", "zz"), WorkflowEdge(StepId("unknown"), StepId("turn-1"), true)),
+            )
+            val error = assertFailsWith<KinuvoException> { c.call(Api.CreateWorkflow, w) }
+            assertEquals("invalid_params", error.code)
+            for (problem in listOf("step turn-1: unknown Agent 'missing-agent'",
+                "step turn-1: {{steps.x.output}} names x, which is not an ancestor",
+                "step turn-1: {{input.missing}} names undeclared input 'missing'",
+                "edge turn-1 -> zz: unknown step zz", "edge unknown -> turn-1: unknown step unknown")) {
+                assertContains(error.message.orEmpty(), problem)
+            }
+
+        }
+    }
+
     @Test fun toolStepRunsWithoutASession() = runBlocking<Unit> {
         TestServer.start(plugins = listOf(fakes), scenario = { agent("work") }).use { server ->
             val c = client(server)
@@ -545,8 +564,8 @@ class WorkflowsTest {
     @Test fun inputsFillReferencesWithDefaultsAndKeepTheirTypes() = runBlocking<Unit> {
         TestServer.start(plugins = listOf(fakes), scenario = { agent("work") }).use { server ->
             val c = client(server)
-            val args = buildJsonObject { put("who", "{{input.who}}"); put("n", "{{input.n}}"); put("text", "{{input.who}} x{{input.n}} {{input.missing}}!"); put("deep", "{{input.o.k}}"); put("gone", "{{input.missing}}") }
-            val w = c.call(Api.CreateWorkflow, workflow(tool("a", "echo", args)).copy(inputs = listOf(WorkflowInput("who", default = "Bob"), WorkflowInput("n", default = "2"))))
+            val args = buildJsonObject { put("who", "{{input.who}}"); put("n", "{{input.n}}"); put("text", "{{input.who}} x{{input.n}} {{input.o.missing}}!"); put("deep", "{{input.o.k}}"); put("gone", "{{input.o.missing}}") }
+            val w = c.call(Api.CreateWorkflow, workflow(tool("a", "echo", args)).copy(inputs = listOf(WorkflowInput("who", default = "Bob"), WorkflowInput("n", default = "2"), WorkflowInput("o", default = "{}"))))
             val started = c.run(w.id, buildJsonObject { put("who", "Ann"); putJsonObject("o") { put("k", true) } })
             assertEquals(JsonPrimitive(2), started.input["n"])
             val done = finished(c)
@@ -657,7 +676,7 @@ class WorkflowsTest {
         TestServer.start(plugins = listOf(fakes), scenario = { agent("work") }).use { server ->
             val c = client(server)
             val w = c.call(Api.CreateWorkflow, workflow(tool("a", "tick"), tool("b", "flaky"), tool("c", "echo", buildJsonObject { put("a", "{{steps.a.output}}"); put("b", "{{steps.b.output}}"); put("in", "{{input.v}}") }),
-                edges = listOf(edge("a", "b"), edge("b", "c"))))
+                edges = listOf(edge("a", "b"), edge("b", "c"))).copy(inputs = listOf(WorkflowInput("v"))))
             val first = c.run(w.id, buildJsonObject { put("v", 7) })
             val failed = await(c, w.id) { it.id == first.id && it.status != WorkflowRunStatus.Running }
             assertEquals(WorkflowRunStatus.Failed, failed.status)
@@ -712,7 +731,7 @@ class WorkflowsTest {
         TestServer.start(plugins = listOf(fakes), scenario = { agent("work") }).use { server ->
             val c = client(server)
             val w = c.call(Api.CreateWorkflow, workflow(tool("a", "make"), WorkflowStep.Approval(StepId("ok"), "Reply to {{steps.a.output.who}}?"),
-                WorkflowStep.Review(StepId("r"), "Note for {{input.team}}", "x"), edges = listOf(edge("a", "ok"), edge("ok", "r"))))
+                WorkflowStep.Review(StepId("r"), "Note for {{input.team}}", "x"), edges = listOf(edge("a", "ok"), edge("ok", "r"))).copy(inputs = listOf(WorkflowInput("team"))))
             c.run(w.id, buildJsonObject { put("team", "Support") })
             val ok = await(c, w.id) { it.steps[StepId("ok")]?.status == StepStatus.WaitingApproval }.steps.getValue(StepId("ok"))
             withTimeout(5000) { while (server.harness.log.pending(ok.sessionId!!).isEmpty()) yield() }

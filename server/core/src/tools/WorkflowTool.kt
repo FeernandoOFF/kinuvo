@@ -18,21 +18,21 @@ import kotlin.time.Duration.Companion.seconds
 class WorkflowTool(private val workflows: Workflows, private val agentId: AgentId, private val sessionId: SessionId?) : CoreTool {
     override val descriptor = toolSpec(ToolNames.WORKFLOWS,
         "Save proven work from chat as a Workflow: cheap Tool steps (run_code, MCP, web_fetch), small Model requests, and a Review where the user checks data. " +
-            "Actions: list, get, save, run, status, cancel, retry, delete. save takes workflow JSON: id,name,agentId (defaults to you),inputs:[{name,description,default}],steps,edges:[{from,to,branch?}]. " +
+            "Actions: list, get, validate, save, run, status, cancel, retry, delete. validate checks without saving and returns Valid or all errors. save/validate take workflow JSON: id,name,agentId (defaults to you),inputs:[{name,description,default}],steps,edges:[{from,to,branch?}]. " +
             "Step type and fields: tool(id,tool,args), model(id,prompt,system?), condition(id,left,op,right), review(id,text,value), approval(id,text), agent_turn(id,agentId,prompt), text(id,text) whose output is its rendered text. " +
             "Tool/Model/Condition need no Session. References: {{steps.ID.output[.path]}}, {{input.name}} and {{now}} (ISO time in the Workflow's timeZone; .date .time .weekday .timezone .utc .timestamp); exact argument references keep JSON types. " +
             "Condition ops: Equals,NotEquals,Contains,NotContains,Empty,NotEmpty,GreaterThan,LessThan. branch true/false edges leave Conditions; unused branches skip. " +
             "run/retry wait up to wait_seconds (default 60, max 120); return the run id when still running or waiting for Review/Approval. Workflow Tool steps cannot start runs.",
-        requiredParameters = listOf(ToolParameter("action", "list|get|save|run|status|cancel|retry|delete", ParameterType.String)),
+        requiredParameters = listOf(ToolParameter("action", "list|get|validate|save|run|status|cancel|retry|delete", ParameterType.String)),
         optionalParameters = listOf(
             ToolParameter("id", "Workflow id; run id for status/cancel/retry", ParameterType.String),
-            ToolParameter("workflow", "Workflow JSON object for save", ParameterType.Object(emptyList(), additionalProperties = true)),
+            ToolParameter("workflow", "Workflow JSON object for save/validate", ParameterType.Object(emptyList(), additionalProperties = true)),
             ToolParameter("input", "Run input values", ParameterType.Object(emptyList(), additionalProperties = true)),
             ToolParameter("wait_seconds", "Seconds to wait, 0 to return immediately", ParameterType.Float),
         ))
 
     override fun assess(args: JsonObject): Assessment {
-        val read = args.string("action") in setOf("list", "get", "status")
+        val read = args.string("action") in setOf("list", "get", "status", "validate")
         return Assessment(listOf(Action(if (read) Risk.Low else Risk.High, listOf(descriptor.name),
             if (read) null else "Changes or runs a Workflow", trustable = false, alwaysAsk = !read)))
     }
@@ -53,9 +53,11 @@ class WorkflowTool(private val workflows: Workflows, private val agentId: AgentI
                 put("inputs", ProtocolJson.encodeToJsonElement(w.inputs)); put("trigger", ProtocolJson.encodeToJsonElement(w.trigger)); put("stepCount", w.steps.size)
             } }).toString()
             "get" -> ProtocolJson.encodeToString(Workflow.serializer(), workflows.get(WorkflowId(id())))
-            "save" -> {
+            "save", "validate" -> {
                 val w = ProtocolJson.decodeFromJsonElement(Workflow.serializer(), requireNotNull(args["workflow"]) { "Give workflow" })
-                val saved = workflows.save(w.copy(agentId = w.agentId ?: agentId), workflows.list().none { it.id == w.id })
+                val candidate = w.copy(agentId = w.agentId ?: agentId)
+                if (action == "validate") { workflows.validate(candidate); return@throwing "Valid" }
+                val saved = workflows.save(candidate, workflows.list().none { it.id == w.id })
                 ProtocolJson.encodeToString(Workflow.serializer(), saved)
             }
             "status" -> encode(workflows.runOf(WorkflowRunId(id())))

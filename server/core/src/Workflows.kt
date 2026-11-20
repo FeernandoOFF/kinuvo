@@ -79,10 +79,6 @@ class Workflows internal constructor(
     context(_: Raise<WorkflowError>)
     suspend fun save(workflow: Workflow, create: Boolean): Workflow {
         validate(workflow)
-        val agents = harness.store.agents().map { it.id }
-        if (workflow.steps.filterIsInstance<WorkflowStep.AgentTurn>().any { it.agentId !in agents }) raise(WorkflowError.Invalid("Unknown Agent"))
-        if (workflow.steps.any { it is WorkflowStep.Tool || it is WorkflowStep.Model } && workflow.agentId == null) raise(WorkflowError.Invalid("Tool and Model steps need the Agent the Workflow runs as"))
-        if (workflow.agentId != null && workflow.agentId !in agents) raise(WorkflowError.Invalid("Unknown Agent"))
         return lock.withLock {
             val old = data.workflows.find { it.id == workflow.id }
             if (create && old != null) raise(WorkflowError.Conflict("Workflow already exists"))
@@ -390,24 +386,49 @@ class Workflows internal constructor(
     private fun find(id: WorkflowId) = data.workflows.firstOrNull { it.id == id } ?: raise(WorkflowError.NotFound(id.value))
 
     context(_: Raise<WorkflowError>)
-    private fun validate(w: Workflow) {
-        fun check(ok: Boolean, message: String) { if (!ok) raise(WorkflowError.Invalid(message)) }
+    suspend fun validate(w: Workflow) {
+        val problems = mutableListOf<String>()
+        fun check(ok: Boolean, message: String) { if (!ok) problems += message }
         check(w.id.value.isNotBlank() && w.name.isNotBlank() && w.steps.isNotEmpty(), "Workflow needs an id, name and steps")
-        val ids = w.steps.map { it.id }
-        check(ids.distinct().size == ids.size && ids.all { it.value.matches(Regex("[a-zA-Z0-9_-]+")) }, "Step ids must be unique letters, digits, underscores or hyphens")
-        check(w.edges.all { it.from in ids && it.to in ids }, "Unknown edge endpoint")
-        check(w.edges.all { e -> e.branch == null || w.steps.first { it.id == e.from } is WorkflowStep.Condition }, "Only an edge out of a Condition step can have a branch")
-        val inputs = w.inputs.map { it.name }
-        check(inputs.distinct().size == inputs.size && inputs.all { it.matches(Regex("[a-zA-Z0-9_-]+")) }, "Input names must be unique letters, digits, underscores or hyphens")
-        check(order(w).size == ids.size, "Workflow contains a cycle")
-        try { TimeZone.of(w.timeZone); w.trigger?.let(Schedule::validate) }
-        catch (e: IllegalArgumentException) { raise(WorkflowError.Invalid(e.message ?: "Invalid schedule")) }
-        for (step in w.steps) {
-            val ancestors = mutableSetOf<StepId>()
-            fun visit(id: StepId) { w.edges.filter { it.to == id }.forEach { if (ancestors.add(it.from)) visit(it.from) } }
-            visit(step.id)
-            check(WorkflowReferences.strings(step).all { text -> WorkflowReferences.ids(text).all { it in ancestors } }, "Output references must name predecessor steps")
+        val ids = w.steps.map { it.id }.toSet()
+        for ((id, steps) in w.steps.groupBy { it.id }) {
+            check(steps.size == 1, "step ${id.value}: duplicate id")
+            check(id.value.matches(Regex("[a-zA-Z0-9_-]+")), "step ${id.value}: id must contain letters, digits, underscores or hyphens")
         }
+        for (edge in w.edges) {
+            val label = "edge ${edge.from.value} -> ${edge.to.value}"
+            for (id in listOf(edge.from, edge.to).distinct()) check(id in ids, "$label: unknown step ${id.value}")
+            check(edge.branch == null || w.steps.any { it.id == edge.from && it is WorkflowStep.Condition },
+                "$label: only an edge out of a Condition step can have a branch")
+        }
+        val inputs = w.inputs.map { it.name }.toSet()
+        for ((name, declarations) in w.inputs.groupBy { it.name }) {
+            check(declarations.size == 1, "input $name: duplicate name")
+            check(name.matches(Regex("[a-zA-Z0-9_-]+")), "input $name: name must contain letters, digits, underscores or hyphens")
+        }
+        val graph = w.copy(edges = w.edges.filter { it.from in ids && it.to in ids })
+        val unordered = ids - order(graph).map { it.id }.toSet()
+        check(unordered.isEmpty(), "steps ${unordered.joinToString { it.value }}: cycle or dependency on a cycle")
+        try { TimeZone.of(w.timeZone) }
+        catch (e: IllegalArgumentException) { problems += "timeZone ${w.timeZone}: ${e.message}" }
+        try { w.trigger?.let(Schedule::validate) }
+        catch (e: IllegalArgumentException) { problems += "trigger: ${e.message ?: "Invalid schedule"}" }
+        val agents = harness.store.agents().map { it.id }
+        w.agentId?.let { check(it in agents, "workflow agentId: unknown Agent '${it.value}'") }
+        for (step in w.steps) {
+            val label = "step ${step.id.value}"
+            if (step is WorkflowStep.AgentTurn) check(step.agentId in agents, "$label: unknown Agent '${step.agentId.value}'")
+            if (step is WorkflowStep.Tool || step is WorkflowStep.Model) check(w.agentId != null, "$label: Tool and Model steps need the Agent the Workflow runs as")
+            val ancestors = mutableSetOf<StepId>()
+            fun visit(id: StepId) { graph.edges.filter { it.to == id }.forEach { if (ancestors.add(it.from)) visit(it.from) } }
+            visit(step.id)
+            ancestors.remove(step.id)
+            for (text in WorkflowReferences.strings(step)) {
+                for ((reference, id) in WorkflowReferences.outputs(text)) check(id in ancestors, "$label: $reference names ${id.value}, which is not an ancestor")
+                for ((reference, name) in WorkflowReferences.inputs(text)) check(name in inputs, "$label: $reference names undeclared input '$name'")
+            }
+        }
+        if (problems.isNotEmpty()) raise(WorkflowError.Invalid(problems.distinct().joinToString("\n")))
     }
 
     private fun order(w: Workflow): List<WorkflowStep> {

@@ -60,8 +60,11 @@ internal object WorkflowReferences {
         is JsonObject -> element.values.flatMap(::strings)
     }
 
-    /** The steps [text] reads the output of. */
-    fun ids(text: String) = pattern.findAll(text).map { it.groupValues[1] }.filter { it.isNotEmpty() }.map(::StepId).toList()
+    fun outputs(text: String) = pattern.findAll(text).filter { it.groupValues[1].isNotEmpty() }
+        .map { it.value to StepId(it.groupValues[1]) }.toList()
+
+    fun inputs(text: String) = pattern.findAll(text).filter { it.groupValues[2] == "input" && it.groupValues[3].isNotEmpty() }
+        .map { it.value to it.groupValues[3].removePrefix(".").substringBefore('.') }.toList()
 
     /** [text] as JSON, also when a model wrapped it in one Markdown code fence; null when it is neither. */
     fun json(text: String): JsonElement? {
