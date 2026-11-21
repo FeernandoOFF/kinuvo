@@ -30,6 +30,12 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.PointerEventType
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
@@ -144,6 +150,12 @@ private fun ArtifactPane(state: ArtifactsState, agents: List<AgentInfo>, now: Lo
         var focus by remember(data?.info?.id) { mutableStateOf<String?>(null) }
         val background = color(backgroundColor)
         var controls by remember { mutableStateOf(ControlsHeight) }
+        // A full-screen page, e.g. a presentation, takes the whole window; its controls fade out until the pointer reaches the top.
+        val hiding = actions.onClose == null && state.route.fullScreen && !editing && data?.info?.web == true &&
+            LocalInteractionMode.current != InteractionMode.Touch
+        var shown by remember(hiding) { mutableStateOf(true) }
+        var hovered by remember(hiding) { mutableStateOf(false) }
+        LaunchedEffect(hiding, shown, hovered) { if (hiding && shown && !hovered) { delay(2500); shown = false } }
         when {
             data == null -> (if (state.missing) "This artifact was deleted." else state.errors.lastOrNull())
                 ?.let { ErrorMessage(it, Modifier.align(Alignment.Center).padding(Spacing.space24)) } ?: Spinner(Modifier.align(Alignment.Center))
@@ -156,7 +168,7 @@ private fun ArtifactPane(state: ArtifactsState, agents: List<AgentInfo>, now: Lo
                 )
             }
             data.info.web -> {
-                HtmlView(data.info.page(data.content), Modifier.fillMaxSize().padding(top = controls), fade = color(backgroundColor))
+                HtmlView(data.info.page(data.content), Modifier.fillMaxSize().padding(top = if (hiding) 0.dp else controls), fade = if (hiding) null else color(backgroundColor))
             }
             else -> SelectionContainer(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(start = Spacing.space24, end = Spacing.space24, top = controls + Spacing.space8, bottom = Spacing.space24)) {
                 if (data.info.type == "md") Markdown(data.content, Modifier.fillMaxWidth())
@@ -197,7 +209,14 @@ private fun ArtifactPane(state: ArtifactsState, agents: List<AgentInfo>, now: Lo
                 if (data != null && editing) editBar()
             }
             HorizontalSeparator()
-        } else Row(
+        } else Box(Modifier.fillMaxWidth().defaultMinSize(minHeight = 8.dp).then(if (hiding) Modifier.pointerInput(Unit) {
+            awaitPointerEventScope {
+                while (true) when (awaitPointerEvent(PointerEventPass.Initial).type) {
+                    PointerEventType.Enter, PointerEventType.Move -> { hovered = true; shown = true }
+                    PointerEventType.Exit -> hovered = false
+                }
+            }
+        } else Modifier)) { AnimatedVisibility(!hiding || shown, enter = fadeIn(), exit = fadeOut()) { Row(
             Modifier.fillMaxWidth().onSizeChanged { controls = with(density) { it.height.toDp() } }
                 .padding(chrome?.padding(leading, true) ?: PaddingValues()).padding(horizontal = Spacing.space10, vertical = Spacing.space8),
             verticalAlignment = Alignment.CenterVertically,
@@ -212,7 +231,7 @@ private fun ArtifactPane(state: ArtifactsState, agents: List<AgentInfo>, now: Lo
                     ArtifactMenu(data, agents, now, state.route.fullScreen, actions)
                 }
             }
-        }
+        } } }
         val shownBoard = design?.artboards?.firstOrNull { it.id == focus }
         LaunchedEffect(shownBoard == null, focus) { if (focus != null && shownBoard == null && design != null) focus = null }
         if (shownBoard != null && data != null && !editing) DesignFocus(data.content, shownBoard.id, shownBoard.name.ifBlank { shownBoard.id }, background, actions.onSaveDesign) { focus = null }

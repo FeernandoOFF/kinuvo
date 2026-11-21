@@ -153,7 +153,8 @@ fun main(args: Array<String>) {
                 val direction = LocalLayoutDirection.current
                 val leading = insets.calculateLeftPadding(direction)
                 val trailing = insets.calculateRightPadding(direction)
-                val chrome = remember(leading, trailing) { WindowChrome(TitleBarHeight, leading, trailing) }
+                val fullscreen = this@DecoratedWindow.state.isFullscreen
+                val chrome = remember(leading, trailing, fullscreen) { if (fullscreen) null else WindowChrome(TitleBarHeight, leading, trailing) }
                 CompositionLocalProvider(LocalWindowChrome provides chrome) { KinuvoApp() }
             }
         }
