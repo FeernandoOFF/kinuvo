@@ -2,6 +2,7 @@
 
 package kinuvo.plugins.browser
 
+import dev.kdriver.cdp.CDPException
 import dev.kdriver.cdp.CommandMode
 import dev.kdriver.core.browser.Browser
 import dev.kdriver.core.browser.Config
@@ -40,6 +41,15 @@ import kotlinx.coroutines.channels.Channel
 private const val BROWSER_START_TIMEOUT_MILLIS = 30_000L
 private const val BROWSER_START_ATTEMPTS = 2
 
+internal class BrowserNavigationException(errorText: String) : IllegalStateException("Browser navigation failed: $errorText")
+
+internal suspend fun finishBrowserRequest(block: suspend () -> Unit) {
+    try { block() }
+    catch (e: CDPException) {
+        if (e.code != -32602 || e.originalMessage != "Invalid InterceptionId.") throw e
+    }
+}
+
 class BrowserRuntime(private val home: File) : BrowserService {
     override fun availability(): CapabilityState = try {
         if (findChromium(fallback = { defaultBrowserSearchConfig().findChromeExecutable()?.toString() }) != null) CapabilityState()
@@ -67,7 +77,7 @@ class BrowserRuntime(private val home: File) : BrowserService {
     private val streams = mutableMapOf<String, SharedFlow<Result<ScreenSample>>>()
     private data class Profile(val browser: Browser, val process: Process, val job: Job, val headless: Boolean)
     private data class Entry(val id: String, val owner: BrowserOwner, val page: Tab, val gate: ScreenGate,
-        var revision: String = "", var generation: Long = -1, var events: Job? = null, var width: Int = 1280, var height: Int = 800, val retired: CompletableDeferred<Unit> = CompletableDeferred())
+        var failedDestination: String? = null, var revision: String = "", var generation: Long = -1, var events: Job? = null, var width: Int = 1280, var height: Int = 800, val retired: CompletableDeferred<Unit> = CompletableDeferred())
     @Serializable private data class SavedTab(val id: String, val owner: BrowserOwner, val url: String, val control: ScreenControl)
 
     override fun authorize(check: suspend (BrowserOwner) -> Unit) { authorizeOwner = check }
@@ -194,7 +204,7 @@ class BrowserRuntime(private val home: File) : BrowserService {
             page.events.collect { event ->
                 val params = event.params?.jsonObject ?: return@collect
                 when (event.method) {
-                    "Fetch.requestPaused" -> {
+                    "Fetch.requestPaused" -> finishBrowserRequest {
                         val destination = params["request"]!!.jsonObject["url"]!!.jsonPrimitive.content
                         val request = params["requestId"]!!
                         if (params["resourceType"]?.jsonPrimitive?.content == "Document" && !browserNavigationAllowed(destination))
@@ -278,18 +288,30 @@ class BrowserRuntime(private val home: File) : BrowserService {
             saved.filter { it.owner == owner }.forEach { record ->
                 val page = profile(owner.agentId).browser.get("about:blank", newTab = true)
                 val control = record.control.let { if (it.holder != null) it.copy(suspended = true, draining = false) else it }
-                loaded += register(owner, page, record.id, control).also { navigate(it, record.url) }
+                val entry = register(owner, page, record.id, control)
+                loaded += entry
+                try { navigate(entry, record.url) }
+                catch (e: BrowserNavigationException) {
+                    System.getLogger(BrowserRuntime::class.java.name).log(System.Logger.Level.WARNING, e.message)
+                }
             }
             restored.add(owner)
         } catch (e: Exception) {
-            loaded.forEach { runCatching { it.page.send("Page.close") }; tabs.remove(it.id) }
+            withContext(NonCancellable) {
+                loaded.forEach {
+                    it.events?.cancel(); it.gate.close(); tabs.remove(it.id); streams.remove(it.id)
+                    runCatching { it.page.send("Page.close") }
+                }
+            }
             throw e
         }
     }
 
     private suspend fun info(entry: Entry): BrowserTab {
         val meta = entry.page.evaluate("JSON.stringify({title:document.title,url:location.href})").jsonPrimitive.content.let { Json.parseToJsonElement(it).jsonObject }
-        return BrowserTab(entry.id, entry.owner.agentId, meta["title"]!!.jsonPrimitive.content.take(200), meta["url"]!!.jsonPrimitive.content.substringBefore('?').substringBefore('#'), entry.gate.state.value.holder != null)
+        val location = meta["url"]!!.jsonPrimitive.content
+        val url = entry.failedDestination?.takeIf { location.startsWith("chrome-error:") } ?: location
+        return BrowserTab(entry.id, entry.owner.agentId, meta["title"]!!.jsonPrimitive.content.take(200), url.substringBefore('?').substringBefore('#'), entry.gate.state.value.holder != null)
     }
     private suspend fun persist() {
         val live = tabs.values.map { SavedTab(it.id, it.owner, info(it).url.takeIf(::browserNavigationAllowed) ?: "about:blank", it.gate.state.value) }
@@ -318,7 +340,11 @@ class BrowserRuntime(private val home: File) : BrowserService {
     private suspend fun navigate(entry: Entry, value: String) {
         val destination = browserDestination(value)
         val result = entry.page.send("Page.navigate", buildJsonObject { put("url", destination) })
-        check(result["errorText"] == null) { "Browser navigation failed" }
+        result["errorText"]?.jsonPrimitive?.content?.let {
+            entry.failedDestination = destination
+            throw BrowserNavigationException(it)
+        }
+        entry.failedDestination = null
         awaitNavigation(entry)
     }
     private suspend fun awaitNavigation(entry: Entry) {
