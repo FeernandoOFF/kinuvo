@@ -4,6 +4,14 @@ import kinuvo.server.plugin.toolSpec
 import kinuvo.testing.server.AgentRun
 
 import ai.koog.prompt.streaming.StreamFrame
+import kinuvo.harness.ModelProfile
+import kinuvo.protocol.model.ModelTier
+import kinuvo.protocol.session.SubAgentCompletion
+import kinuvo.protocol.session.SubAgentStatus
+import kinuvo.protocol.session.SessionId
+import kinuvo.protocol.session.ToolCallId
+import kinuvo.protocol.tool.ToolNames
+import kinuvo.testing.harness.ModelScript
 import kinuvo.server.plugin.Tool
 import kinuvo.testing.harness.scriptedModel
 import kinuvo.protocol.session.AgentEvent
@@ -18,6 +26,28 @@ import kotlinx.serialization.json.JsonObject
 import kotlin.test.*
 
 class SessionFeatureTest {
+    @Test fun latestTurnIncludesSavedPendingWakeOnce() = runTest {
+        val home = TestHome()
+        val id = home.store.createSession(home.agent.id, "").id
+        val child = SubAgentCompletion(SessionId("child"), home.agent.id, ToolCallId("spawn"), "Child", SubAgentStatus.Completed, false)
+        val oldReport = SessionEntry.ToolReport(ToolNames.AGENTS_SPAWN, null, "old result", children = listOf(child))
+        val pending = oldReport.copy(content = "pending result", children = listOf(child.copy(turnId = "next")))
+        val saved = pending.copy(content = "result already delivered by wait\n\npending result",
+            children = listOf(child.copy(sessionId = SessionId("waited"))) + pending.children)
+        home.store.append(home.agent.id, id, SessionEntry.UserMessage("previous turn"))
+        home.store.append(home.agent.id, id, oldReport)
+        home.store.append(home.agent.id, id, saved)
+        val script = ModelScript()
+        val runner = AgentRun(home.agent, home.store, script.model, emptyList(), profile = ModelProfile.of(ModelTier.Micro))
+        runner.run(id, "continue", steering = { listOf(pending) }).toList()
+        val prompt = script.prompts.single().messages.map { it.textContent() }
+        assertEquals(1, prompt.count { "pending result" in it })
+        assertTrue(prompt.none { "old result" in it })
+        assertTrue(prompt.none { "result already delivered by wait" in it })
+        val reports = home.store.entries(home.agent.id, id).filterIsInstance<SessionEntry.ToolReport>()
+        assertEquals(listOf(oldReport, saved), reports.map { it.copy(writtenAt = null) })
+    }
+
     @Test
     fun llmCallsAndEachResultAreDurableBeforeTheNextToolStarts() = runTest {
         val home = TestHome()

@@ -110,7 +110,13 @@ class McpExecutionFactory(
                     val mcp = McpServerDescriptor(url(), "Bearer $token", composed.tools.tools.map { it.name }.toSet())
                     return session.prompt(input.copy(mcp = mcp, instructions = run.instructions))
                 }
-                catch (e: Throwable) { lease.end(run)?.job?.join(); throw e }
+                catch (e: Throwable) {
+                    lease.end(run)
+                    withContext(NonCancellable) { run.job.join() }
+                    if (e is ExecutionRejected && state.hasStartedTool())
+                        throw IllegalStateException(e.message, e)
+                    throw e
+                }
             }
             override suspend fun cancel() { lease.end()?.job?.join(); session.cancel() }
             override suspend fun close() { leases.remove(state.sessionId, lease); lease.close()?.job?.join(); session.close() }

@@ -186,8 +186,10 @@ class ExecutionCoordinator(
         } catch (e: Throwable) {
             if (child != null) withContext(NonCancellable) {
                 // Creation holds the management lock. Remove ownership before SessionLog calls back into deletion.
-                delete(agentId, info.id)
-                log.deleteChildIfPresent(agentId, info.id)
+                val turn = lock.withLock { records.remove(info.id); turns[info.id] }
+                turn?.let { release(info.id, it) }
+                runCatching { recovery.delete(agentId, info.id) }.onFailure { if (it !== e) e.addSuppressed(it) }
+                runCatching { log.deleteChildIfPresent(agentId, info.id) }.onFailure { if (it !== e) e.addSuppressed(it) }
             }
             throw e
         }
@@ -273,7 +275,10 @@ class ExecutionCoordinator(
             r = r.copy(support = session.capabilities); persist()
             registry.negotiated(r.connection.id, session.capabilities)
             readinessChanged()
-        } catch (e: Throwable) { withContext(NonCancellable) { broker.lost(); discard(id) }; throw e }
+        } catch (e: Throwable) {
+            runCatching { discard(id) }.onFailure { if (it !== e) e.addSuppressed(it) }
+            throw e
+        }
         finally { withContext(NonCancellable) { lock.withLock { opening.remove(id) } } }
     }
     override suspend fun send(params: SendParams): SendResult = send(params, null)
@@ -282,6 +287,7 @@ class ExecutionCoordinator(
         p: SendParams,
         report: SessionEntry.ToolReport?,
         onRejected: suspend (ExecutionRejected) -> Unit = {},
+        onStopped: suspend () -> Unit = {},
         onBegin: suspend (SessionId) -> Unit = {},
     ): SendResult {
         require(p.delivery == SendDelivery.Turn) { "This external harness does not support Queue or Steer" }
@@ -317,7 +323,12 @@ class ExecutionCoordinator(
             mutate(id) { it.copy(inputCheckpoint = null, reportCheckpoint = null) }
             if (lock.withLock { turn.cancelled }) {
                 turn.submitted.complete(false)
-                state.boundSink().publish(AgentEvent.ExecutionPhaseChanged(ExecutionPhase.Idle))
+                try {
+                    if (report != null) mutate(id) { it.copy(submissions = it.submissions - submission) }
+                } finally {
+                    state.boundSink().publish(AgentEvent.ExecutionPhaseChanged(ExecutionPhase.Idle))
+                }
+                if (report != null) onStopped()
                 return SendResult(id, RunId(submission), p.text)
             }
             val job = scope.launch(start = CoroutineStart.UNDISPATCHED) {

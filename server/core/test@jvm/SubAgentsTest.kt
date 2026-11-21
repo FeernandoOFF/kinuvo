@@ -369,6 +369,33 @@ class SubAgentsTest {
         }
     }
 
+    @Test fun rootNativeWakePublishesErrorOnlyAfterBothModelSetupsFail() = runBlocking {
+        val fixture = RuntimeFixture()
+        val model = ModelScript().model
+        val attempts = AtomicInteger()
+        val harness = testRuntime(fixture.dependencies, modelFactory = {
+            if (attempts.incrementAndGet() > 1) error("Wake model setup failed")
+            model
+        })
+        val agent = fixture.agent
+        val parent = harness.newSession(agent)
+        val errors = AtomicInteger()
+        harness.log.onEvent { _, id, event -> if (id == parent.id && event is AgentEvent.RunError) errors.incrementAndGet() }
+        val directory = Files.createTempDirectory("native-wake-exhausted").toFile()
+        val runtime = ServerRuntime(harness, DeviceAuth(Path(directory.path, "devices.json")), serverRoutes())
+        try {
+            runtime.start()
+            value { harness.subAgents!!.spawn(agent.id, parent.id, ToolCallId("child"), agent.id, "work") }
+            untilReady { errors.get() > 0 }
+            assertEquals(1, errors.get())
+            assertEquals(3, attempts.get())
+            assertEquals("Wake model setup failed", assertIs<AgentEvent.RunError>(harness.log.completion(parent.id)).message)
+        } finally {
+            runtime.close()
+            directory.deleteRecursively()
+        }
+    }
+
     @Test fun nativeWakeRetriesFailedFactoryOpenWithOneSavedReport() = runBlocking {
         val fixture = RuntimeFixture()
         val harness = fixture.runtime(ModelScript().apply { reply("reply") }.model)
@@ -617,6 +644,39 @@ class SubAgentsTest {
             }
             val saved = server.harness.store.entries(parent.agentId, parent.id).filterIsInstance<SessionEntry.ToolReport>()
             assertEquals(listOf(child.sessionId, newer.sessionId), saved.map { it.children.single().sessionId })
+        }
+    }
+
+    @Test fun waitRetiresAQueuedWakeRetry() = runBlocking {
+        lateinit var agent: Agent
+        lateinit var parentState: ExecutionState
+        val rejected = AtomicInteger()
+        val external = FakeHarness()
+        val rejectsFirstWake = object : ExecutionFactory by external {
+            override suspend fun open(config: HarnessConnection, registration: AgentRegistration, state: ExecutionState, broker: ExecutionBroker, scope: CoroutineScope): ExecutionSession {
+                parentState = state
+                val delegate = external.open(config, registration, state, broker, scope)
+                return object : ExecutionSession by delegate {
+                    override suspend fun prompt(input: ExecutionInput): ExecutionAcceptance {
+                        if (rejected.compareAndSet(0, 1)) throw ExecutionRejected("Retry this wake")
+                        return delegate.prompt(input)
+                    }
+                }
+            }
+        }
+        TestServer.start(executionFactory = { rejectsFirstWake }, scenario = {
+            agent = agent("work") { it.copy(approvals = "full") }
+            externalAgent(external, "external")
+        }).use { server ->
+            val parent = server.startSession(AgentId("external"))
+            val children = server.harness.subAgents!!
+            val child = value { children.spawn(parent.agentId, parent.id, ToolCallId("child"), agent.id, "work") }
+            untilReady { rejected.get() == 1 && parentState.snapshot().phase == ExecutionPhase.Idle }
+            val waited = value { children.wait(parent.agentId, parent.id, listOf(child.sessionId), 1) }.single()
+            assertEquals(SubAgentStatus.Completed, waited.status)
+            val newer = value { children.spawn(parent.agentId, parent.id, ToolCallId("newer"), agent.id, "new work") }
+            untilReady { external.sessions.single().prompts.any { newer.sessionId.value in it.text } }
+            assertTrue(external.sessions.single().prompts.none { child.sessionId.value in it.text })
         }
     }
 

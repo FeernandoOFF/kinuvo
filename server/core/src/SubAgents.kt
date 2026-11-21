@@ -36,6 +36,14 @@ sealed class SubAgentError(override val code: String, override val message: Stri
     data object Busy : SubAgentError(WireErrorCode.Conflict, "A follow-up is already queued")
 }
 
+internal class SubAgentWake(
+    val saved: SessionEntry.ToolReport,
+    val sections: List<Pair<SubAgentCompletion, String>>,
+) {
+    val report get() = if (sections.size == saved.children.size) saved else
+        saved.copy(content = sections.joinToString("\n\n") { it.second }, children = sections.map { it.first })
+}
+
 /** Server-owned child Sessions. Linkage and terminal results survive the run that created them. */
 class SubAgents internal constructor(
     private val harness: AgentRuntime,
@@ -58,8 +66,8 @@ class SubAgents internal constructor(
         if (root != null && root !in groups.values) budgets.remove(root)
     }
     private val wakes = mutableMapOf<SessionId, MutableList<SubAgentState>>()
-    private val retryWakes = mutableMapOf<SessionId, MutableList<SessionEntry.ToolReport>>()
-    private val exhaustedWakes = mutableMapOf<SessionId, MutableList<SessionEntry.ToolReport>>()
+    private val retryWakes = mutableMapOf<SessionId, MutableList<SubAgentWake>>()
+    private val exhaustedWakes = mutableMapOf<SessionId, MutableList<SubAgentWake>>()
     private val retried = mutableMapOf<SessionId, SessionEntryIdentity>()
     private val waking = mutableSetOf<SessionId>()
     private val waiters = mutableMapOf<SessionId, Int>()
@@ -250,9 +258,17 @@ class SubAgents internal constructor(
             val states = completed ?: snapshot()
             val output = result(WaitResult(states, completed == null && states.any { it.status == SubAgentStatus.Running }))
             lock.withLock {
-                wakes[parent]?.removeAll { pending -> states.any {
-                    sameTurn(it, pending) && it.status != SubAgentStatus.Running
-                } }
+                val delivered = states.filter { it.status != SubAgentStatus.Running }
+                wakes[parent]?.removeAll { pending -> delivered.any { sameTurn(it, pending) } }
+                for (pending in listOf(retryWakes, exhaustedWakes)) {
+                    val remaining = pending[parent]?.mapNotNull { wake ->
+                        val sections = wake.sections.filterNot { (child, _) -> delivered.any {
+                            it.sessionId == child.sessionId && turnKey(it) == (child.turnId ?: child.callId.value)
+                        } }
+                        sections.takeIf { it.isNotEmpty() }?.let { SubAgentWake(wake.saved, it) }
+                    } ?: continue
+                    if (remaining.isEmpty()) pending.remove(parent) else pending[parent] = remaining.toMutableList()
+                }
             }
             return output
         } finally {
@@ -358,7 +374,7 @@ class SubAgents internal constructor(
     // Called under lock. Coalesce wake requests for each parent.
     private fun scheduleWake(agent: AgentId, parent: SessionId) {
         if (parent in deleting || parent in stopped || parent in delivering) return
-        val retry = retryWakes[parent] != null
+        val retry = retryWakes[parent].orEmpty().any(::ready)
         if (!retry && wakes[parent].orEmpty().none { it.sessionId !in waiters }) return
         if (!waking.add(parent)) return
         scope.launch {
@@ -375,14 +391,28 @@ class SubAgents internal constructor(
         }
     }
 
-    private suspend fun takeWake(agent: AgentId, parent: SessionId): SessionEntry.ToolReport? {
+    private fun ready(wake: SubAgentWake) = wake.sections.none { (child, _) -> child.sessionId in waiters }
+
+    internal suspend fun takeRetryWakes(parent: SessionId): List<SubAgentWake> = lock.withLock {
+        if (parent in deleting || parent in stopped || parent in delivering) return emptyList()
+        val reports = retryWakes[parent] ?: return emptyList()
+        reports.filter(::ready).also {
+            reports.removeAll(it.toSet())
+            if (reports.isEmpty()) retryWakes.remove(parent)
+        }
+    }
+
+    private suspend fun takeWake(agent: AgentId, parent: SessionId): SubAgentWake? {
         val completed = lock.withLock {
             if (parent in deleting || parent in stopped || parent in delivering) return null
             retryWakes[parent]?.let { reports ->
-                val report = reports.removeFirst()
-                if (reports.isEmpty()) retryWakes.remove(parent)
-                scheduleWake(agent, parent)
-                return report
+                val index = reports.indexOfFirst(::ready)
+                if (index >= 0) {
+                    val wake = reports.removeAt(index)
+                    if (reports.isEmpty()) retryWakes.remove(parent)
+                    scheduleWake(agent, parent)
+                    return wake
+                }
             }
             val pending = wakes[parent] ?: return null
             val ready = pending.filter { it.sessionId !in waiters }
@@ -395,34 +425,35 @@ class SubAgents internal constructor(
         var inlineBytes = 16 * 1024
         val children = completed.map { SubAgentCompletion(it.sessionId, it.agentId, it.callId,
             names[it.agentId] ?: it.agentId.value, it.status, it.private, it.turnId) }
-        val content = children.zip(completed).joinToString("\n\n") { (child, state) ->
+        val sections = children.zip(completed).map { (child, state) ->
             val heading = "Sub-agent ${child.name} (${child.sessionId.value}) [${child.status.name.lowercase()}]."
             val read = "Use agents_wait with session_ids [\"${child.sessionId.value}\"] and turn_id \"${turnKey(state)}\" to read the result."
             val result = state.result.orEmpty()
             val bytes = if (result.length <= inlineBytes) result.encodeToByteArray().size else Int.MAX_VALUE
-            when {
+            child to when {
                 child.private -> "$heading Result awaiting your approval. $read"
                 result.isEmpty() -> heading
                 bytes > inlineBytes -> "$heading $read"
                 else -> { inlineBytes -= bytes; "$heading\n$result" }
             }
         }
-        return SessionEntry.ToolReport(ToolNames.AGENTS_SPAWN, null, content, children = children)
+        val report = SessionEntry.ToolReport(ToolNames.AGENTS_SPAWN, null, sections.joinToString("\n\n") { it.second }, children = children)
+        return SubAgentWake(report, sections)
     }
 
-    private suspend fun restoreWake(agent: AgentId, parent: SessionId, report: SessionEntry.ToolReport, error: Exception) {
+    private suspend fun restoreWake(agent: AgentId, parent: SessionId, wake: SubAgentWake, error: Exception?): Boolean {
         val exhausted = lock.withLock {
-            if (parent in deleting) return
-            // Retry once automatically. A later turn can still take the saved report.
-            val identity = requireNotNull(report.identity())
-            val exhausted = retried.put(parent, identity) == identity
+            if (parent in deleting) return false
+            val identity = requireNotNull(wake.saved.identity())
+            val exhausted = error != null && retried.put(parent, identity) == identity
             val pending = if (exhausted) exhaustedWakes else retryWakes
-            pending.getOrPut(parent) { mutableListOf() }.add(0, report)
+            pending.getOrPut(parent) { mutableListOf() }.add(0, wake)
             scheduleWake(agent, parent)
             exhausted
         }
         if (exhausted)
-            finish(agent, parent, false, error.message ?: "Sub-agent wake failed to start", wakeParent = true, drainEvents = false)
+            finish(agent, parent, false, error?.message ?: "Sub-agent wake failed to start", wakeParent = true, drainEvents = false)
+        return exhausted
     }
 
     context(_: Raise<SubAgentError>)

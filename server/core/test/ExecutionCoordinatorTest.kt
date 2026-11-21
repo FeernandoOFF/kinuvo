@@ -57,6 +57,86 @@ class ExecutionCoordinatorTest {
         assertEquals(parent.id, log.session(parent.agentId, parent.id).id)
     }
 
+    @Test fun failedRecoveryWritesStillCloseAndRemoveExternalChild() = runTest {
+        val store = InMemoryStore()
+        val log = SessionLog(store)
+        val backing = MemoryExecutionRecovery()
+        val recovery = object : ExecutionRecoveryStore by backing {
+            override fun save(record: ExecutionRecovery) {
+                check(!record.support.cancel && !record.lost) { "Recovery write failed" }
+                backing.save(record)
+            }
+        }
+        val agent = AgentId("a")
+        val parent = log.createSession(AgentId("parent"), "")
+        var opened: SessionId? = null
+        var closed = false
+        val factory = object : ExecutionFactory {
+            override suspend fun open(config: HarnessConnection, registration: AgentRegistration, state: ExecutionState, broker: ExecutionBroker, scope: CoroutineScope): ExecutionSession {
+                opened = state.sessionId
+                return object : ExecutionSession {
+                    override val capabilities = ExecutionCapabilities(cancel = true)
+                    override suspend fun prompt(input: ExecutionInput) = ExecutionAcceptance()
+                    override suspend fun cancel() {}
+                    override suspend fun close() { closed = true }
+                    override suspend fun answer(requestId: InteractionId, answer: InteractionAnswer) {}
+                }
+            }
+        }
+        val coordinator = ExecutionCoordinator(registry(), factory, backgroundScope, log, recovery)
+        log.onDelete = { _, deleted -> assertFalse(coordinator.owns(deleted)) }
+        val failure = assertFailsWith<IllegalStateException> {
+            coordinator.create(agent, SessionParent(parent.agentId, parent.id, ToolCallId("spawn"), 1))
+        }
+        assertEquals("Recovery write failed", failure.message)
+        assertTrue(closed)
+        assertFalse(coordinator.owns(assertNotNull(opened)))
+        assertTrue(store.sessions(agent).isEmpty())
+        assertTrue(recovery.load().isEmpty())
+    }
+
+    @Test fun stopBeforeSubmissionRestoresWakeAndClearsTheUnsentSubmission() = runTest {
+        val agent = AgentId("a")
+        val log = SessionLog(InMemoryStore())
+        val started = CompletableDeferred<Unit>()
+        val continueSend = CompletableDeferred<Unit>()
+        val prompts = mutableListOf<String>()
+        val factory = object : ExecutionFactory {
+            override suspend fun open(config: HarnessConnection, registration: AgentRegistration, state: ExecutionState, broker: ExecutionBroker, scope: CoroutineScope) =
+                object : ExecutionSession {
+                    override val capabilities = ExecutionCapabilities(cancel = true)
+                    override suspend fun prompt(input: ExecutionInput): ExecutionAcceptance {
+                        prompts += input.text
+                        return ExecutionAcceptance()
+                    }
+                    override suspend fun cancel() { error("No prompt was submitted") }
+                    override suspend fun answer(requestId: InteractionId, answer: InteractionAnswer) {}
+                }
+        }
+        val recovery = MemoryExecutionRecovery()
+        val coordinator = ExecutionCoordinator(registry(), factory, backgroundScope, log, recovery)
+        val id = coordinator.create(agent).id
+        var restored = 0
+        val report = SessionEntry.ToolReport(ToolNames.AGENTS_SPAWN, null, "completion")
+        val sending = launch {
+            coordinator.send(SendParams(agent, id, report.content, submissionId = "wake"), report, onStopped = { restored++ }) {
+                started.complete(Unit)
+                continueSend.await()
+            }
+        }
+        started.await()
+        val stopping = launch(start = CoroutineStart.UNDISPATCHED) { coordinator.stop(id) }
+        continueSend.complete(Unit)
+        sending.join()
+        stopping.join()
+        coordinator.join(id)
+        assertEquals(1, restored)
+        assertTrue(prompts.isEmpty())
+        assertTrue(recovery.load().single().submissions.isEmpty())
+        coordinator.send(SendParams(agent, id, "next turn"))
+        assertEquals(listOf("next turn"), prompts)
+    }
+
     @Test fun durableOutputPrecedesTerminalAndSubmissionRetryDoesNotResend() = runTest {
         val registry = registry()
         val log = SessionLog(InMemoryStore())
