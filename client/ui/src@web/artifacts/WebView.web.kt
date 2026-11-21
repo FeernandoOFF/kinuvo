@@ -12,11 +12,10 @@ import org.w3c.dom.HTMLIFrameElement
 
 internal actual val visualEditing = false
 
-/** The page in a sandboxed iframe over the canvas; Compose can't take input above it, so it hides while a menu covers it. */
+/** The page in a sandboxed iframe over the canvas, like HTML Surfaces. */
 @OptIn(ExperimentalComposeUiApi::class)
 @Composable
 internal actual fun WebView(html: String, modifier: Modifier, onMessage: ((String) -> Unit)?, channel: PageChannel?) {
-    val covered = LocalWebViewCovered.current
     val frame = remember { (document.createElement("iframe") as HTMLIFrameElement).apply {
         setAttribute("sandbox", "allow-scripts")
         setAttribute("referrerpolicy", "no-referrer")
@@ -26,7 +25,6 @@ internal actual fun WebView(html: String, modifier: Modifier, onMessage: ((Strin
     val page = remember(html) { html + RELAY }
     SideEffect {
         if (frame.srcdoc != page) frame.srcdoc = page
-        frame.style.visibility = if (covered) "hidden" else "visible"
     }
     DisposableEffect(frame, channel) {
         channel?.send = { postMessage(frame, it) }
