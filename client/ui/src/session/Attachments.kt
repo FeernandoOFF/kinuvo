@@ -136,7 +136,7 @@ internal fun AttachmentPreviewer(preview: AttachmentPreview, onSave: () -> Unit,
     Column(modifier.fillMaxSize().focusRequester(focus).focusable().onPreviewKeyEvent { e ->
         (e.type == KeyEventType.KeyDown && e.key == Key.Escape).also { if (it) onClose() }
     }.background(color(backgroundColor)).clickable(enabled = false) {}) {
-        Row(Modifier.fillMaxWidth().padding(Spacing.space8), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.space8)) {
+        Row(Modifier.fillMaxWidth().padding(kinuvo.ui.design.LocalWindowChrome.current?.padding() ?: PaddingValues()).padding(Spacing.space8), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.space8)) {
             IconButton(onClick = onClose, style = ButtonStyle.Ghost, modifier = Modifier.size(40.dp)) { Icon(Lucide.X, Modifier.size(20.dp), contentDescription = "Close") }
             Column(Modifier.weight(1f)) {
                 Text(attachment.name, singleLine = true, overflow = TextOverflow.Ellipsis)
