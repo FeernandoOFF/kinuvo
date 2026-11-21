@@ -7,8 +7,6 @@ import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draganddrop.DragAndDropEvent
 import androidx.compose.ui.draganddrop.DragAndDropTarget
-import androidx.compose.ui.draganddrop.DragData
-import androidx.compose.ui.draganddrop.dragData
 import androidx.compose.foundation.draganddrop.dragAndDropTarget
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.toComposeImageBitmap
@@ -18,10 +16,14 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.jetbrains.skia.Image
-import java.awt.FileDialog
-import java.awt.Frame
+import dev.nucleusframework.window.tao.TaoDragAndDropPayload
+import io.github.vinceglb.filekit.FileKit
+import io.github.vinceglb.filekit.dialogs.FileKitType
+import io.github.vinceglb.filekit.dialogs.FileKitMode
+import io.github.vinceglb.filekit.dialogs.FileKitDialogSettings
+import io.github.vinceglb.filekit.dialogs.openFilePicker
+import io.github.vinceglb.filekit.dialogs.openFileSaver
 import java.io.File
-import java.net.URI
 import kotlin.io.encoding.Base64
 import kotlinx.coroutines.CancellationException
 
@@ -32,15 +34,21 @@ internal actual val hasCamera = false
 @Composable
 internal actual fun rememberAttachmentPicker(onResult: (List<UploadAttachmentParams>, String?) -> Unit): (AttachmentSource) -> Unit {
     val read = rememberFileReader(onResult)
+    val scope = rememberCoroutineScope()
+    val result by rememberUpdatedState(onResult)
     return remember { { source ->
-        val photos = source != AttachmentSource.Files
-        val dialog = FileDialog(null as Frame?, if (photos) "Choose images" else "Choose files", FileDialog.LOAD)
-        dialog.isMultipleMode = true
-        if (photos) dialog.setFilenameFilter { _, name -> attachmentMimeType(name)?.startsWith("image/") == true }
-        dialog.isVisible = true
-        val files = dialog.files
-        dialog.dispose()
-        if (files.isNotEmpty()) read(files.toList())
+        scope.launch {
+            try {
+                val photos = source != AttachmentSource.Files
+                val files = FileKit.openFilePicker(
+                    type = if (photos) FileKitType.Image else FileKitType.File(),
+                    mode = FileKitMode.Multiple(),
+                    dialogSettings = FileKitDialogSettings(title = if (photos) "Choose images" else "Choose files"),
+                )
+                if (!files.isNullOrEmpty()) read(files.map { it.file })
+            } catch (e: CancellationException) { throw e }
+            catch (e: Exception) { result(emptyList(), e.message) }
+        }
     } }
 }
 
@@ -57,14 +65,16 @@ internal actual fun Modifier.attachmentDrop(enabled: Boolean, onResult: (List<Up
             override fun onEnded(event: DragAndDropEvent) = hover(false)
             override fun onDrop(event: DragAndDropEvent): Boolean {
                 hover(false)
-                val files = (event.dragData() as? DragData.FilesList)?.readFiles() ?: return false
-                read(files.map { File(URI(it)) })
+                if (!accepting) return false
+                val files = (event.nativeEvent as? TaoDragAndDropPayload)?.files.orEmpty()
+                if (files.isEmpty()) return false
+                read(files.map(::File))
                 return true
             }
         }
     }
     // Always attached, so a drag already in progress still ends and clears the hover when [enabled] changes.
-    return dragAndDropTarget(shouldStartDragAndDrop = { accepting && it.dragData() is DragData.FilesList }, target = target)
+    return dragAndDropTarget(shouldStartDragAndDrop = { accepting && it.nativeEvent is TaoDragAndDropPayload }, target = target)
 }
 
 @Composable
@@ -93,15 +103,11 @@ internal actual fun rememberAttachmentSaver(onError: (String) -> Unit): (Attachm
     val scope = rememberCoroutineScope()
     val error by rememberUpdatedState(onError)
     return remember { { data ->
-        val dialog = FileDialog(null as Frame?, "Save attachment", FileDialog.SAVE)
-        dialog.file = data.attachment.name
-        dialog.isVisible = true
-        val name = dialog.file
-        val directory = dialog.directory
-        dialog.dispose()
-        if (name != null) scope.launch {
-            try { withContext(Dispatchers.IO) { File(directory, name).writeBytes(Base64.decode(data.base64)) } }
-            catch (e: CancellationException) { throw e }
+        scope.launch {
+            try {
+                val file = FileKit.openFileSaver(suggestedName = data.attachment.name, defaultExtension = null) ?: return@launch
+                withContext(Dispatchers.IO) { file.file.writeBytes(Base64.decode(data.base64)) }
+            } catch (e: CancellationException) { throw e }
             catch (e: Exception) { error(e.message ?: "Couldn't save attachment") }
         }
     } }

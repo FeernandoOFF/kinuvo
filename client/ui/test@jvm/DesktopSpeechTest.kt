@@ -5,10 +5,13 @@ import kinuvo.ui.session.SpeechTransport
 import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
-import javax.swing.SwingUtilities
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.runBlocking
 import kotlin.test.*
 
 class DesktopSpeechTest {
+    private val uiThread = runBlocking(Dispatchers.Main) { Thread.currentThread() }
+
     private class Helper : SpeechTransport {
         private val events = ConcurrentLinkedQueue<String>()
         val commands = mutableListOf<String>()
@@ -30,15 +33,15 @@ class DesktopSpeechTest {
         var completions = 0
         var transcript = ""
         val heard = CountDownLatch(1)
-        SwingUtilities.invokeAndWait {
+        runBlocking(Dispatchers.Main) {
             speech.authorize { fail("Canceled authorization was delivered") }
             speech.stop()
-            speech.authorize { assertNull(it); assertTrue(SwingUtilities.isEventDispatchThread()); authorized.countDown() }
+            speech.authorize { assertNull(it); assertTrue(Thread.currentThread() === uiThread); authorized.countDown() }
         }
         helper.emit("authorized", 1)
         helper.emit("authorized", 2)
         authorized.awaitCallback()
-        SwingUtilities.invokeAndWait {
+        runBlocking(Dispatchers.Main) {
             speech.listen(true, {}, { fail("Old recognition was delivered") }, { fail(it) })
             speech.listen(true, {}, { transcript = it; heard.countDown() }, { fail(it) })
             speech.speak("Hello") { completions++ }
@@ -48,7 +51,7 @@ class DesktopSpeechTest {
         helper.emit("done", 5)
         helper.emit("final", 4, "new")
         heard.awaitCallback()
-        SwingUtilities.invokeAndWait {
+        runBlocking(Dispatchers.Main) {
             assertEquals("new", transcript)
             assertEquals(1, completions)
             speech.stop()
@@ -61,8 +64,8 @@ class DesktopSpeechTest {
         val speech = DesktopSpeechEngine { helper }
         val failed = CountDownLatch(1)
         val done = CountDownLatch(1)
-        SwingUtilities.invokeAndWait {
-            speech.listen(true, {}, {}, { assertTrue(SwingUtilities.isEventDispatchThread()); failed.countDown() })
+        runBlocking(Dispatchers.Main) {
+            speech.listen(true, {}, {}, { assertTrue(Thread.currentThread() === uiThread); failed.countDown() })
             speech.speak("Hello") { done.countDown() }
             helper.close()
         }
@@ -76,19 +79,19 @@ class DesktopSpeechTest {
         val failed = CountDownLatch(1)
         var failures = 0
         var completions = 0
-        SwingUtilities.invokeAndWait {
+        runBlocking(Dispatchers.Main) {
             speech.speak("Hello", { fail("Failure must not be reported as completion") }, {
                 assertEquals("Synthesis failed", it)
-                assertTrue(SwingUtilities.isEventDispatchThread())
+                assertTrue(Thread.currentThread() === uiThread)
                 failures++; failed.countDown()
             })
         }
         helper.emit("error", 1, "Synthesis failed")
         failed.awaitCallback()
-        SwingUtilities.invokeAndWait { speech.speak("Next", { completions++ }, { fail(it) }) }
+        runBlocking(Dispatchers.Main) { speech.speak("Next", { completions++ }, { fail(it) }) }
         helper.emit("error", 1, "Stale error")
         helper.emit("done", 1)
-        SwingUtilities.invokeAndWait {
+        runBlocking(Dispatchers.Main) {
             speech.stopSpeaking()
             assertEquals(1, failures)
             assertEquals(1, completions)
@@ -99,7 +102,7 @@ class DesktopSpeechTest {
     @Test fun missingBridgeReportsAuthorizationFailure() {
         val speech = DesktopSpeechEngine { error("Bridge missing") }
         var message: String? = null
-        SwingUtilities.invokeAndWait { speech.authorize { message = it } }
+        runBlocking(Dispatchers.Main) { speech.authorize { message = it } }
         assertEquals("Bridge missing", message)
     }
 }
