@@ -52,6 +52,7 @@ test-dependencies:
   - org.jetbrains.kotlinx:kotlinx-coroutines-test:1.11.0
 
 test-dependencies@jvm:
+  - org.jetbrains.kotlinx:kotlinx-coroutines-swing:1.11.0
   - ../../testing/harness-testing
   - $compose.desktop.currentOs
   - ../../testing/server-testing
