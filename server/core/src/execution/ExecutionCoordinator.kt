@@ -179,9 +179,18 @@ class ExecutionCoordinator(
         val registration = requireNotNull(registry.registration(agentId))
         require(Regex("[a-z0-9][a-z0-9-]{0,31}").matches(agentId.value))
         val info = if (child == null) log.createSession(agentId, "") else log.createChild(agentId, child)
-        save(ExecutionRecovery(agentId, info.id, config, registration, Uuid.random().toString()))
-        open(record(info.id))
-        return session(agentId, info.id)
+        try {
+            save(ExecutionRecovery(agentId, info.id, config, registration, Uuid.random().toString()))
+            open(record(info.id))
+            return session(agentId, info.id)
+        } catch (e: Throwable) {
+            if (child != null) withContext(NonCancellable) {
+                // Creation holds the management lock. Remove ownership before SessionLog calls back into deletion.
+                delete(agentId, info.id)
+                log.deleteChildIfPresent(agentId, info.id)
+            }
+            throw e
+        }
     }
     context(_: Raise<SessionError>)
     suspend fun resume(id: SessionId): ExecutionSnapshot {
@@ -252,9 +261,9 @@ class ExecutionCoordinator(
         }, ExecutionSnapshot(id, externalSessionId = r.externalSessionId), r.generation, sink)
         val broker = ExecutionBroker(state)
         lock.withLock { states[id] = state; brokers[id] = broker; opening.add(id) }
-        persist()
-        log.publish(r.agentId, id, AgentEvent.ExecutionPhaseChanged(ExecutionPhase.Idle))
         try {
+            persist()
+            log.publish(r.agentId, id, AgentEvent.ExecutionPhaseChanged(ExecutionPhase.Idle))
             val session = withTimeout(30_000) { requireNotNull(factory).open(r.connection, r.registration, state, broker, scope) }
             val retained = lock.withLock {
                 if (states[id] === state) { live[id] = session; true } else false
@@ -265,7 +274,7 @@ class ExecutionCoordinator(
             registry.negotiated(r.connection.id, session.capabilities)
             readinessChanged()
         } catch (e: Throwable) { withContext(NonCancellable) { broker.lost(); discard(id) }; throw e }
-        finally { lock.withLock { opening.remove(id) } }
+        finally { withContext(NonCancellable) { lock.withLock { opening.remove(id) } } }
     }
     override suspend fun send(params: SendParams): SendResult = send(params, null)
 

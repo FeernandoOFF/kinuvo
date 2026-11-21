@@ -32,15 +32,19 @@ class ExecutionState(
     private val lock = Mutex()
     private var state = initial
     private var live = LiveState()
+    private var toolStarted = false
     private val resolved = mutableSetOf<InteractionId>()
 
     suspend fun snapshot(): ExecutionSnapshot = lock.withLock { state }
+
+    suspend fun hasStartedTool(): Boolean = lock.withLock { toolStarted }
 
     /** Prompt acceptance has no completion semantics. */
     suspend fun reference(id: String) = lock.withLock { requireActive(); state = state.copy(externalSessionId = id); changed(state) }
 
     suspend fun begin() = lock.withLock {
         check(state.phase == ExecutionPhase.Idle) { "Execution is not idle" }
+        toolStarted = false
         state = state.copy(phase = ExecutionPhase.Running, stopReason = null)
         changed(state)
     }
@@ -97,6 +101,7 @@ class ExecutionState(
             val target = checkNotNull(sink) { "Execution sink is not attached" }
             if (event is AgentEvent.RunFinished || event is AgentEvent.RunError)
                 check(live.entries.isEmpty()) { "Commit output before publishing completion" }
+            if (event is AgentEvent.ToolCallStart) toolStarted = true
             val next = live.on(event)
             target.publish(event)
             live = next

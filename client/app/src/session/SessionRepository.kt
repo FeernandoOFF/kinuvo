@@ -354,7 +354,7 @@ class SessionRepository(private val notifications: Notifications, internal val c
                 change is SessionChange.Entry && change.entry is SessionEntry.AssistantMessage -> replies += id
                 change is SessionChange.Entry && change.entry is SessionEntry.Notice -> replies -= id
                 event is AgentEvent.RunError || event is AgentEvent.ExecutionPhaseChanged && event.phase == ExecutionPhase.Lost -> replies -= id
-                event is AgentEvent.RunFinished && replies.remove(id) && data.live.executionPhase != ExecutionPhase.Lost && completions.add("$id:${event.runId}") -> {
+                event is AgentEvent.RunFinished && replies.remove(id) && !event.cancelled && data.live.executionPhase != ExecutionPhase.Lost && completions.add("$id:${event.runId}") -> {
                     notifications.post(Notice.RunFinished(update.agentId, id))
                     if (!serverInbox || statuses[id] != SessionStatus.Idle) markFinished(id)
                 }
