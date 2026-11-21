@@ -7,7 +7,8 @@ import javax.sound.sampled.AudioFormat
 import javax.sound.sampled.AudioSystem
 import javax.sound.sampled.SourceDataLine
 import javax.sound.sampled.TargetDataLine
-import javax.swing.SwingUtilities
+import kotlinx.coroutines.Dispatchers
+import kotlin.coroutines.EmptyCoroutineContext
 
 internal val captureFormat get() = AudioFormat(16000f, 16, 1, true, false)
 
@@ -47,9 +48,9 @@ internal class JvmVoiceAudio : VoiceAudio {
                     if (untilPause && heard && silence >= 32000) break
                 }
                 val pcm = out.toByteArray()
-                SwingUtilities.invokeLater { if (!session.canceled) onAudio(pcm) }
+                Dispatchers.Main.dispatch(EmptyCoroutineContext) { if (!session.canceled) onAudio(pcm) }
             } catch (e: Exception) {
-                SwingUtilities.invokeLater {
+                Dispatchers.Main.dispatch(EmptyCoroutineContext) {
                     if (!session.canceled) {
                         if (!session.active) onAudio(out.toByteArray())
                         else onError("Cannot record microphone: ${e.message}")
@@ -85,9 +86,9 @@ internal class JvmVoiceAudio : VoiceAudio {
                     }
                     if (!session.canceled) line.drain()
                 }
-                SwingUtilities.invokeLater { if (!session.canceled) onDone() }
+                Dispatchers.Main.dispatch(EmptyCoroutineContext) { if (!session.canceled) onDone() }
             } catch (e: Exception) {
-                SwingUtilities.invokeLater { if (!session.canceled) onError("Cannot play voice audio: ${e.message}") }
+                Dispatchers.Main.dispatch(EmptyCoroutineContext) { if (!session.canceled) onError("Cannot play voice audio: ${e.message}") }
             } finally { session.line?.close() }
         }, "kinuvo-playback").apply { isDaemon = true; start() }
     }

@@ -17,10 +17,12 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalUriHandler
+import kinuvo.ui.DesktopUriHandler
 import androidx.compose.ui.platform.LocalLayoutDirection
 import kinuvo.ui.design.WindowChrome
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.window.Tray
+import dev.nucleusframework.composenativetray.tray.api.Tray
 import androidx.compose.ui.window.rememberWindowState
 import kinuvo.server.jvm.JvmAgentRuntime
 import kinuvo.server.jvm.JvmServerHost
@@ -135,14 +137,14 @@ fun main(args: Array<String>) {
             frame?.run { toFront(); requestFocus() }
         }
         trayIcon()?.let { icon ->
-            Tray(icon, tooltip = "Kinuvo", onAction = show) {
-                Item("Open Kinuvo", onClick = show)
-                Item("New chat") { show(); pendingLink.value = Route.Chat(compose = true) }
-                Separator()
-                Item("Quit Kinuvo", onClick = ::exitApplication)
+            Tray(icon, tooltip = "Kinuvo", primaryAction = show) {
+                Item(label = "Open Kinuvo", onClick = show)
+                Item(label = "New chat") { show(); pendingLink.value = Route.Chat(compose = true) }
+                Divider()
+                Item(label = "Quit Kinuvo", onClick = ::exitApplication)
             }
         }
-        DecoratedWindow(onCloseRequest = ::exitApplication, title = "Kinuvo", icon = appIcon(), state = state) {
+        DecoratedWindow(onCloseRequest = ::exitApplication, title = "Kinuvo", nativeContextMenu = true, icon = appIcon(), state = state) {
             LaunchedEffect(nucleusWindow) { frame = nucleusWindow }
             // Content draws under a transparent bar, ChatGPT-style; its own controls take clicks there.
             WindowScaffold(
@@ -155,7 +157,7 @@ fun main(args: Array<String>) {
                 val trailing = insets.calculateRightPadding(direction)
                 val fullscreen = this@DecoratedWindow.state.isFullscreen
                 val chrome = remember(leading, trailing, fullscreen) { if (fullscreen) null else WindowChrome(TitleBarHeight, leading, trailing) }
-                CompositionLocalProvider(LocalWindowChrome provides chrome) { KinuvoApp() }
+                CompositionLocalProvider(LocalWindowChrome provides chrome, LocalUriHandler provides DesktopUriHandler) { KinuvoApp() }
             }
         }
     }

@@ -3,6 +3,7 @@ package kinuvo.ui
 import kinuvo.app.connection.*
 import kinuvo.app.device.*
 
+import androidx.compose.ui.platform.UriHandler
 import kinuvo.app.session.SpeechEngine
 import kinuvo.client.LoopbackCallback
 import kinuvo.ui.session.DesktopSpeechEngine
@@ -16,8 +17,6 @@ import kotlinx.serialization.builtins.MapSerializer
 import kotlinx.serialization.builtins.serializer
 import kotlinx.serialization.json.Json
 import org.koin.dsl.module
-import java.awt.Desktop
-import java.net.URI
 import java.io.File
 import java.net.InetAddress
 import java.util.TimeZone
@@ -29,18 +28,9 @@ internal class LoopbackBrowser : OAuthBrowser {
     override suspend fun signIn(url: String): String? {
         val callback = LoopbackCallback.start(oauthState(url)) ?: error("Port ${McpRedirect.LOOPBACK_PORT} is in use; paste the URL the browser ends on")
         return callback.use {
-            withContext(Dispatchers.IO) { browse(url) }
+            withContext(Dispatchers.IO) { openDesktopUri(url) }
             it.await()
         }
-    }
-
-    private fun browse(url: String) {
-        if (runCatching { Desktop.getDesktop().browse(URI(url)) }.isSuccess) return
-        ProcessBuilder(when (currentPlatform) {
-            Platform.MacOS -> listOf("open", url)
-            Platform.Windows -> listOf("rundll32", "url.dll,FileProtocolHandler", url)
-            else -> listOf("xdg-open", url)
-        }).start()
     }
 }
 
@@ -78,4 +68,16 @@ internal actual val platformModule = module {
     single<ClientCache> { deviceCache(File(home, "client-cache").path) }
     single<OAuthBrowser> { LoopbackBrowser() }
     single { Device(runCatching { InetAddress.getLocalHost().hostName }.getOrDefault("desktop"), TimeZone.getDefault().id) }
+}
+
+internal fun openDesktopUri(uri: String) {
+    ProcessBuilder(when (currentPlatform) {
+        Platform.MacOS -> listOf("open", uri)
+        Platform.Windows -> listOf("rundll32", "url.dll,FileProtocolHandler", uri)
+        else -> listOf("xdg-open", uri)
+    }).start()
+}
+
+val DesktopUriHandler: UriHandler = object : UriHandler {
+    override fun openUri(uri: String) = openDesktopUri(uri)
 }

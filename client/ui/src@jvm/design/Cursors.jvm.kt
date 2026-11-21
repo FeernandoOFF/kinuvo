@@ -1,6 +1,6 @@
 package kinuvo.ui.design
 
 import androidx.compose.ui.input.pointer.PointerIcon
-import java.awt.Cursor
+import dev.nucleusframework.window.tao.TaoPointerIcons
 
-internal actual val ResizeHorizontalIcon: PointerIcon = PointerIcon(Cursor(Cursor.E_RESIZE_CURSOR))
+internal actual val ResizeHorizontalIcon: PointerIcon = TaoPointerIcons.ResizeEastWest

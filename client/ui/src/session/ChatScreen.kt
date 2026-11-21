@@ -481,7 +481,7 @@ fun ChatContent(
                             sending = state.sending,
                             attachments = attachments,
                             controls = settings,
-                            containerColor = color(fieldColor).copy(alpha = 0.7f),
+                            containerColor = color(fieldColor).copy(alpha = if (blurEnabled) 0.7f else 0.96f),
                             backdrop = if (composerBlurred && blurEnabled) Modifier.hazeBlur(HazeInput.Sources(haze), blur) else Modifier,
                             onVoice = actions.onVoice?.let { start -> { follow.value = true; start() } },
                             notice = if ((state.external && (state.prompts.isNotEmpty() || (state.chatBlocked != null && state.ended == null))) || state.dictation?.error != null) ({

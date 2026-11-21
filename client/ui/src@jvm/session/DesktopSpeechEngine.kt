@@ -7,7 +7,8 @@ import kotlin.io.encoding.Base64
 import kinuvo.protocol.device.Platform
 import kinuvo.protocol.device.currentPlatform
 import kotlinx.serialization.json.*
-import javax.swing.SwingUtilities
+import kotlinx.coroutines.Dispatchers
+import kotlin.coroutines.EmptyCoroutineContext
 
 /** Native speech commands and events. Callbacks run on the UI thread. */
 internal class DesktopSpeechEngine(
@@ -40,10 +41,10 @@ internal class DesktopSpeechEngine(
                     val line = connection.poll()
                     if (line == null) { Thread.sleep(10); continue }
                     val event = runCatching { Json.parseToJsonElement(line).jsonObject }.getOrNull() ?: continue
-                    SwingUtilities.invokeLater { if (transport === connection) receive(event) }
+                    Dispatchers.Main.dispatch(EmptyCoroutineContext) { if (transport === connection) receive(event) }
                 }
             } catch (e: Throwable) {
-                SwingUtilities.invokeLater { if (transport === connection) failed(e.message ?: "Desktop speech stopped. Try again.") }
+                Dispatchers.Main.dispatch(EmptyCoroutineContext) { if (transport === connection) failed(e.message ?: "Desktop speech stopped. Try again.") }
             }
         }, "kinuvo-speech-events").apply { isDaemon = true; start() }
         return connection

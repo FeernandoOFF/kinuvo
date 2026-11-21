@@ -112,7 +112,8 @@ fun LiveCallScreen(
     val tint = if (error != null) lerp(ink, color(mutedColor), 0.75f) else ink
     Box(modifier.fillMaxSize().background(color(backgroundColor)).background(Brush.verticalGradient(listOf(tint.copy(alpha = 0.10f), Color.Transparent)))) {
         Column(Modifier.fillMaxSize().safeDrawingPadding().padding(horizontal = Spacing.space20, vertical = Spacing.space12)) {
-            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            // Clear of the window buttons where the app draws under the title bar.
+            Row(Modifier.fillMaxWidth().padding(LocalWindowChrome.current?.padding() ?: PaddingValues()), verticalAlignment = Alignment.CenterVertically) {
                 RoundIcon(Lucide.ChevronDown, "Minimize call", onClick = onMinimize)
                 Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
                     Text(agentName, style = TextStyles.title, maxLines = 1, overflow = TextOverflow.Ellipsis)

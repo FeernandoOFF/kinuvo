@@ -612,8 +612,7 @@ fun KinuvoApp(app: AppViewModel = koinViewModel(), initialRoute: Route? = null, 
             }
             val homeChrome = HomeChrome({ if (compact) shell.revealed = true else shell.open = !shell.open }, !compact)
             val strips = remember { Strips() }
-            val nativeViews = remember { NativeViews() }
-            CompositionLocalProvider(LocalHistory provides history, LocalPopovers provides popovers, LocalHomeChrome provides homeChrome, LocalStrips provides strips, LocalNativeViewRegistry provides nativeViews) {
+            CompositionLocalProvider(LocalHistory provides history, LocalPopovers provides popovers, LocalHomeChrome provides homeChrome, LocalStrips provides strips) {
                 // Phones show the Agent's settings as sheets over the screen; wider windows show them beside it, unblurred.
                 val sheet = compact && (inspecting?.open == true || settingsPages.isNotEmpty())
                 val blurEnabled = backdropBlurEnabled()
