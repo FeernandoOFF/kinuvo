@@ -30,6 +30,9 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.foundation.focusable
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.input.key.*
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -139,7 +142,12 @@ private fun ArtifactList(state: ArtifactsState, agents: List<AgentInfo>, now: Lo
 private fun ArtifactPane(state: ArtifactsState, agents: List<AgentInfo>, now: Long, actions: ArtifactsActions, back: (() -> Unit)?) {
     val data = state.open?.takeIf { it.info.id == state.route.artifact }
     val editing = state.draft != null
-    BoxWithConstraints(Modifier.fillMaxSize()) {
+    val leave = if (state.route.fullScreen && actions.onClose == null) ({ actions.onFullScreen(false) }) else null
+    val focus = remember { androidx.compose.ui.focus.FocusRequester() }
+    if (leave != null) LaunchedEffect(Unit) { runCatching { focus.requestFocus() } }
+    BoxWithConstraints(Modifier.fillMaxSize().then(if (leave == null) Modifier else Modifier.focusRequester(focus).focusable().onPreviewKeyEvent { e ->
+        (e.type == KeyEventType.KeyDown && e.key == Key.Escape).also { if (it) leave() }
+    })) { CompositionLocalProvider(LocalWebEscape provides leave) {
         val wide = maxWidth >= 700.dp
         val tabs = data?.info?.editorTabs(wide, visualEditing).orEmpty()
         var chosen by remember(editing) { mutableStateOf(tabs.firstOrNull()) }
@@ -237,7 +245,7 @@ private fun ArtifactPane(state: ArtifactsState, agents: List<AgentInfo>, now: Lo
         if (shownBoard != null && data != null && !editing) DesignFocus(data.content, shownBoard.id, shownBoard.name.ifBlank { shownBoard.id }, background, actions.onSaveDesign) { focus = null }
         val index = present
         if (index != null && design != null && !editing) ArtboardViewer(design.artboards, index, background, { present = it }, { present = null })
-    }
+    } }
 }
 
 internal val ControlsHeight = 56.dp

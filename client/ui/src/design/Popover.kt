@@ -8,6 +8,9 @@ import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.focusable
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.input.key.*
 import androidx.compose.foundation.gestures.Orientation
 import androidx.compose.foundation.gestures.draggable
 import androidx.compose.foundation.gestures.rememberDraggableState
@@ -53,7 +56,11 @@ class Popovers {
             val popover = last ?: return@AnimatedVisibility
             val touch = LocalInteractionMode.current == InteractionMode.Touch
             NavigationBackHandler(rememberNavigationEventState(NavigationEventInfo.None), isBackEnabled = shown != null) { popover.onDismiss() }
-            Box(Modifier.fillMaxSize()) {
+            val focus = remember { androidx.compose.ui.focus.FocusRequester() }
+            LaunchedEffect(popover) { runCatching { focus.requestFocus() } }
+            Box(Modifier.fillMaxSize().focusRequester(focus).focusable().onPreviewKeyEvent { e ->
+                (e.type == KeyEventType.KeyDown && e.key == Key.Escape).also { if (it) popover.onDismiss() }
+            }) {
                 Box(Modifier.fillMaxSize().background(color(backgroundColor).copy(alpha = 0.6f))
                     .clickable(remember { MutableInteractionSource() }, indication = null, onClick = popover.onDismiss))
                 val drag = remember(popover) { Animatable(0f) }
@@ -76,7 +83,9 @@ class Popovers {
                         contentPadding = if (touch) PaddingValues(start = Spacing.space16, end = Spacing.space16, top = Spacing.space8, bottom = Spacing.space16) else PaddingValues(Spacing.space12)) {
                         if (touch) Box(Modifier.align(Alignment.CenterHorizontally).padding(bottom = Spacing.space12).size(36.dp, 4.dp).background(color(mutedColor).copy(alpha = 0.5f), CircleShape))
                         popover.title?.let { Text(it, Modifier.align(Alignment.CenterHorizontally).padding(bottom = Spacing.space12), style = TextStyles.title, fontWeight = FontWeight.SemiBold) }
-                        Column(if (touch) Modifier.windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Bottom)) else Modifier) { popover.content() }
+                        Column(if (touch) Modifier.windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Bottom)) else Modifier) {
+                            CompositionLocalProvider(LocalWebEscape provides popover.onDismiss) { popover.content() }
+                        }
                     }
                 }
             }

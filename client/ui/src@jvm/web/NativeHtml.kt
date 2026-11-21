@@ -1,7 +1,6 @@
 package kinuvo.ui.web
 
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Modifier
@@ -13,15 +12,21 @@ import dev.nucleusframework.webview.web.WebViewNavigator
 import dev.nucleusframework.webview.web.rememberWebViewNavigator
 import dev.nucleusframework.webview.web.rememberWebViewState
 import kotlin.io.encoding.Base64
-import kinuvo.ui.design.LocalNativeViewRegistry
+import kinuvo.ui.design.LocalWebEscape
+import kinuvo.ui.design.LocalWebWheel
+
+private fun handler(name: String, run: (String) -> Unit) = object : IJsMessageHandler {
+    override fun methodName() = name
+    override fun handle(message: JsMessage, navigator: WebViewNavigator?, callback: (String) -> Unit) = run(message.params)
+}
+
+/** Esc the page didn't handle, and wheel deltas a framed page couldn't use, go to the app. */
+private const val RELAY = "(function(){function n(m,p){if(window.kmpJsBridge)window.kmpJsBridge.callNative(m,p||'')}" +
+    "addEventListener('keydown',function(e){if(e.key==='Escape'&&!e.defaultPrevented)n('escape')});" +
+    "addEventListener('message',function(e){var d=e.data;if(d==='kinuvo:escape')n('escape');else if(d&&typeof d.kinuvoWheel==='number')n('wheel',String(d.kinuvoWheel))})})();"
 
 @Composable
 internal fun NativeHtml(document: String, script: String, modifier: Modifier, receive: (String) -> Unit, connect: @Composable (WebViewNavigator) -> Unit) {
-    val registry = LocalNativeViewRegistry.current
-    DisposableEffect(registry) {
-        registry?.attach()
-        onDispose { registry?.detach() }
-    }
     val current = rememberUpdatedState(receive)
     val navigator = rememberWebViewNavigator()
     val url = remember(document) { "data:text/html;charset=utf-8;base64," + Base64.encode(document.encodeToByteArray()) }
@@ -36,10 +41,16 @@ internal fun NativeHtml(document: String, script: String, modifier: Modifier, re
             })
         }
     }
+    val escape = rememberUpdatedState(LocalWebEscape.current)
+    val wheel = rememberUpdatedState(LocalWebWheel.current)
+    remember(bridge) {
+        bridge.register(handler("escape") { escape.value?.invoke() })
+        bridge.register(handler("wheel") { wheel.value?.invoke(it.toFloatOrNull() ?: 0f) })
+    }
     state.webSettings.desktopWebSettings.apply {
         transparent = true
         incognito = true
-        initScript = script
+        initScript = RELAY + script
     }
     connect(navigator)
     WebView(state, modifier, navigator, bridge)

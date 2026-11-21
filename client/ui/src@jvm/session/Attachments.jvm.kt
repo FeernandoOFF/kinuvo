@@ -74,7 +74,7 @@ internal actual fun Modifier.attachmentDrop(enabled: Boolean, onResult: (List<Up
         }
     }
     // Always attached, so a drag already in progress still ends and clears the hover when [enabled] changes.
-    return dragAndDropTarget(shouldStartDragAndDrop = { accepting && it.nativeEvent is TaoDragAndDropPayload }, target = target)
+    return dragAndDropTarget(shouldStartDragAndDrop = { accepting }, target = target)
 }
 
 @Composable

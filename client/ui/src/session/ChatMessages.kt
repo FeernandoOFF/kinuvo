@@ -137,7 +137,10 @@ internal fun Messages(
     val htmlHeights = remember(state.selected) { mutableMapOf<ToolCallId, Int>() }
     val htmlSurfaces = remember(state.selected) { mutableStateListOf<ToolCallId>() }
     val subAgents = remember(state.children, state.interactionChildren) { SubAgents(state.children, state.interactionChildren.values.toSet()) }
-    CompositionLocalProvider(LocalHtmlSurfaces provides htmlSurfaces, LocalHtmlHeights provides htmlHeights, LocalSurfaceRenderers provides surfaceRenderers, LocalSurfaceItems provides items, LocalSubAgents provides subAgents) {
+    val wheelScope = rememberCoroutineScope()
+    val density = androidx.compose.ui.platform.LocalDensity.current.density
+    val wheel = remember(listState, density) { { dy: Float -> wheelScope.launch { listState.scrollBy(dy * density) }; Unit } }
+    CompositionLocalProvider(LocalHtmlSurfaces provides htmlSurfaces, LocalHtmlHeights provides htmlHeights, LocalSurfaceRenderers provides surfaceRenderers, LocalSurfaceItems provides items, LocalSubAgents provides subAgents, LocalWebWheel provides wheel) {
         Box(modifier.fillMaxWidth()) {
             SelectionContainer {
                 LazyColumn(

@@ -76,8 +76,14 @@ private val LocalAccent = compositionLocalOf<Color?> { null }
 /** Overrides the platform's interaction mode, e.g. so JVM UI tests render the phone layout. */
 internal val LocalForcedInteractionMode = compositionLocalOf<InteractionMode?> { null }
 
-/** Whether sheets blur the screen behind them; JVM UI tests turn it off, since software rendering redraws it every frame. */
-internal val LocalBackdropBlur = compositionLocalOf { true }
+/**
+ * Whether sheets blur the screen behind them. Off on desktop, where blur layers would hide the native web views drawn
+ * below Compose, and in JVM UI tests, since software rendering redraws it every frame.
+ */
+internal val LocalBackdropBlur = compositionLocalOf { currentPlatform != Platform.MacOS && currentPlatform != Platform.Windows && currentPlatform != Platform.Linux }
+
+@androidx.compose.runtime.Composable
+internal fun backdropBlurEnabled() = LocalBackdropBlur.current
 
 /**
  * The type scale, each a step larger on touch screens. Headings and body set in Libron, the brand serif; the small print
