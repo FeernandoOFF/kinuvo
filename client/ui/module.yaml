@@ -32,7 +32,7 @@ dependencies@web:
   - org.jetbrains.kotlinx:kotlinx-browser:0.5.0
 
 dependencies@jvm:
-  - ca.weblite:webview:1.0.10
+  - dev.nucleusframework:composewebview:1.0.3
   - dev.onvoid.webrtc:webrtc-java:0.20.0
   - dev.onvoid.webrtc:webrtc-java:0.20.0:macos-aarch64
 

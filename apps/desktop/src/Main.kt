@@ -6,11 +6,21 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.awt.ComposeWindow
+import dev.nucleusframework.application.NucleusWindow
+import dev.nucleusframework.application.DecoratedWindow
+import dev.nucleusframework.application.nucleusApplication
+import dev.nucleusframework.window.LocalWindowChromeInsets
+import dev.nucleusframework.window.TitleBarPlacement
+import dev.nucleusframework.window.WindowScaffold
+import dev.nucleusframework.window.windowDragArea
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalLayoutDirection
+import kinuvo.ui.design.WindowChrome
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Tray
-import androidx.compose.ui.window.Window
-import androidx.compose.ui.window.application
 import androidx.compose.ui.window.rememberWindowState
 import kinuvo.server.jvm.JvmAgentRuntime
 import kinuvo.server.jvm.JvmServerHost
@@ -117,9 +127,9 @@ fun main(args: Array<String>) {
         single<ComputerDriver> { CuaComputerDriver() }
         single<TailcatForwarder> { Tailcat }
     })
-    application {
+    nucleusApplication(args = args, enableSingleInstance = false) {
         val state = rememberWindowState(width = 1100.dp, height = 760.dp)
-        var frame by remember { mutableStateOf<ComposeWindow?>(null) }
+        var frame by remember { mutableStateOf<NucleusWindow?>(null) }
         val show: () -> Unit = {
             state.isMinimized = false
             frame?.run { toFront(); requestFocus() }
@@ -132,9 +142,23 @@ fun main(args: Array<String>) {
                 Item("Quit Kinuvo", onClick = ::exitApplication)
             }
         }
-        Window(onCloseRequest = ::exitApplication, title = "Kinuvo", icon = appIcon(), state = state) {
-            LaunchedEffect(window) { frame = window }
-            CompositionLocalProvider(LocalWindowChrome provides rememberWindowChrome()) { KinuvoApp() }
+        DecoratedWindow(onCloseRequest = ::exitApplication, title = "Kinuvo", icon = appIcon(), state = state) {
+            LaunchedEffect(nucleusWindow) { frame = nucleusWindow }
+            // Content draws under a transparent bar, ChatGPT-style; its own controls take clicks there.
+            WindowScaffold(
+                titleBar = { Box(Modifier.fillMaxWidth().height(TitleBarHeight).windowDragArea()) },
+                titleBarPlacement = TitleBarPlacement.Overlay(passThroughToContent = true),
+            ) { _ ->
+                val insets = LocalWindowChromeInsets.current.controlsInsets
+                val direction = LocalLayoutDirection.current
+                val leading = insets.calculateLeftPadding(direction)
+                val trailing = insets.calculateRightPadding(direction)
+                val fullscreen = this@DecoratedWindow.state.isFullscreen
+                val chrome = remember(leading, trailing, fullscreen) { if (fullscreen) null else WindowChrome(TitleBarHeight, leading, trailing) }
+                CompositionLocalProvider(LocalWindowChrome provides chrome) { KinuvoApp() }
+            }
         }
     }
 }
+
+private val TitleBarHeight = 52.dp
