@@ -64,6 +64,28 @@ class AcpReducerTest {
         }
     }
 
+    @Test fun kinuvoToolUpdateMakesRejectionUncertainWithoutEchoingTheTool() = runBlocking {
+        val sink = Recording()
+        val reducer = AcpReducer(ExecutionState(SessionId("s"), sink = sink))
+        reducer.submitted()
+        reducer.update(raw("""{"sessionUpdate":"tool_call","toolCallId":"t","title":"mcp__kinuvo__notes_create","status":"in_progress"}"""))
+        assertFalse(reducer.rejected())
+        assertTrue(sink.batches.isEmpty())
+    }
+
+    @Test fun serverToolStartMakesRejectionUncertainEvenWithoutAnAcpUpdate() = runBlocking {
+        val state = ExecutionState(SessionId("s"), sink = Recording())
+        val reducer = AcpReducer(state)
+        state.begin()
+        reducer.submitted()
+        state.boundSink().publish(AgentEvent.ToolCallStart(ToolCallId("t"), "notes_create", "{}"))
+        assertFalse(reducer.rejected())
+        reducer.update(raw("""{"sessionUpdate":"state_update","state":"idle"}"""))
+        state.begin()
+        reducer.submitted()
+        assertTrue(reducer.rejected())
+    }
+
     @Test fun interleavingTypedToolsCommitBeforeCompletionAndNoEcho() = runBlocking {
         val sink = Recording()
         val state = ExecutionState(SessionId("s"), generation = "g", sink = sink)

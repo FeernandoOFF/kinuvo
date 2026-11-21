@@ -24,6 +24,7 @@ data class ExecutionInput(
     val instructions: String? = null,
     val inputs: List<MessageInput> = emptyList(),
     val steering: suspend () -> List<SessionEntry> = { emptyList() },
+    val onSetupFailure: (suspend (Exception) -> Unit)? = null,
 )
 
 /** Source insertion identity; null means unavailable, never rejection or foreground completion. */

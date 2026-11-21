@@ -9,6 +9,13 @@ import kinuvo.harness.ExecutionInput
 import kinuvo.harness.ExecutionSession
 import kinuvo.harness.ExecutionFactory
 import kinuvo.harness.ExecutionState
+import kinuvo.server.plugin.PluginTools
+import kinuvo.server.plugin.RunContext
+import kinuvo.server.plugin.ServerPlugin
+import kinuvo.server.plugin.Tool
+import kinuvo.server.plugin.ToolRun
+import kinuvo.server.plugin.toolSpec
+import kinuvo.protocol.plugin.PluginDefinition
 import kinuvo.server.tools.AgentManageScope
 import kinuvo.server.tools.AgentManageTools
 import kotlinx.serialization.json.jsonObject
@@ -44,6 +51,7 @@ import kotlinx.coroutines.*
 import kotlinx.serialization.json.*
 import kotlinx.io.files.Path
 import java.nio.file.Files
+import java.util.concurrent.atomic.AtomicInteger
 import kotlin.test.*
 
 class SubAgentsTest {
@@ -267,8 +275,9 @@ class SubAgentsTest {
             for (kind in background) runs.start(agent, parent.id, ExecutionInput("background turn"), kind = kind).job.join()
             repeat(32) { children.consume(parent.id) }
             assertFailsWith<CancellationException> { children.consume(parent.id) }
-            for (kind in background)
-                assertFailsWith<CancellationException> { runs.start(agent, parent.id, ExecutionInput("background turn"), kind = kind) }
+            runs.start(agent, parent.id, ExecutionInput("background report"), kind = Runs.Kind.Report).job.join()
+            assertFailsWith<CancellationException> { children.consume(parent.id) }
+            assertFailsWith<CancellationException> { runs.start(agent, parent.id, ExecutionInput("background turn"), kind = Runs.Kind.Task) }
             for (kind in listOf(Runs.Kind.Routine, Runs.Kind.Workflow, Runs.Kind.User)) {
                 runs.start(agent, parent.id, ExecutionInput("new turn"), kind = kind).job.join()
                 repeat(63) { children.consume(parent.id) }
@@ -300,6 +309,60 @@ class SubAgentsTest {
             untilReady { reports(server, agent, childInfo).any { "grandchild answer" in it.content } }
             assertEquals(SubAgentStatus.Completed, children.list(agent.id, child.sessionId).values.single().status)
             assertTrue(reports(server, agent, parent).isEmpty())
+        }
+    }
+
+    @Test fun backgroundToolReportsAfterRootStop() = runBlocking {
+        val started = CompletableDeferred<Unit>()
+        val release = CompletableDeferred<Unit>()
+        val tool = object : Tool {
+            override val descriptor = toolSpec("background_work", "Test background work")
+            override suspend fun execute(args: JsonObject): String = error("Expected a tool run")
+            override suspend fun execute(args: JsonObject, callId: String, run: ToolRun): String =
+                run.background("Started") { started.complete(Unit); release.await(); "Background work finished" }
+        }
+        val plugin = object : ServerPlugin {
+            override val definition = PluginDefinition("test.background", "Background")
+            override suspend fun prepare(run: RunContext, activate: Boolean) = PluginTools(listOf(tool))
+        }
+        lateinit var agent: Agent
+        TestServer.start(plugins = listOf(plugin), script = {
+            on("start work") { toolCall("background_work"); reply("Work started") }
+        }, scenario = { agent = agent("work") { it.copy(approvals = "full") } }).use { server ->
+            val parent = server.startSession(agent.id, "start work")
+            withTimeout(5_000) { started.await() }
+            val client = server.client().also { it.connect() }
+            client.call(Api.Stop, StopParams(parent.id))
+            release.complete(Unit)
+            untilReady {
+                server.harness.store.entries(agent.id, parent.id).filterIsInstance<SessionEntry.ToolReport>()
+                    .any { it.tool == "background_work" && it.content == "Background work finished" }
+            }
+        }
+    }
+
+    @Test fun nativeWakeRetriesFailedModelSetupWithOneSavedReport() = runBlocking {
+        val fixture = RuntimeFixture()
+        val model = ModelScript().apply { reply("reply") }.model
+        val attempts = AtomicInteger()
+        val harness = testRuntime(fixture.dependencies, modelFactory = {
+            if (attempts.incrementAndGet() == 2) error("Temporary model setup failure")
+            model
+        })
+        val agent = fixture.agent
+        val parent = harness.newSession(agent)
+        val directory = Files.createTempDirectory("native-wake-model").toFile()
+        val runtime = ServerRuntime(harness, DeviceAuth(Path(directory.path, "devices.json")), serverRoutes())
+        try {
+            runtime.start()
+            val child = value { harness.subAgents!!.spawn(agent.id, parent.id, ToolCallId("child"), agent.id, "work") }
+            untilReady { harness.store.entries(agent.id, parent.id).any { it is SessionEntry.AssistantMessage } }
+            val report = harness.store.entries(agent.id, parent.id).filterIsInstance<SessionEntry.ToolReport>().single()
+            assertEquals(child.sessionId, report.children.single().sessionId)
+            assertEquals(3, attempts.get())
+        } finally {
+            runtime.close()
+            directory.deleteRecursively()
         }
     }
 
@@ -496,19 +559,25 @@ class SubAgentsTest {
         }
     }
 
-    @Test fun asyncExternalRejectionRetriesTheReportAndDrainsNewerCompletions() = runBlocking {
+    @Test fun asyncExternalRejectionRetriesTheReportAndDrainsNewerCompletions() = rejectedWakeDrainsNewerCompletions(1)
+
+    @Test fun exhaustedWakeWaitsForLaterTurnWhileNewerCompletionsDrain() = rejectedWakeDrainsNewerCompletions(2)
+
+    private fun rejectedWakeDrainsNewerCompletions(rejections: Int) = runBlocking {
         lateinit var agent: Agent
         lateinit var parentState: ExecutionState
         val prompted = CompletableDeferred<Unit>()
         val reject = CompletableDeferred<Unit>()
         val external = FakeHarness()
-        val rejectsOnce = object : ExecutionFactory by external {
+        val attempts = AtomicInteger()
+        val rejectsWake = object : ExecutionFactory by external {
             override suspend fun open(config: HarnessConnection, registration: AgentRegistration, state: ExecutionState, broker: ExecutionBroker, scope: CoroutineScope): ExecutionSession {
                 parentState = state
                 val delegate = external.open(config, registration, state, broker, scope)
                 return object : ExecutionSession by delegate {
                     override suspend fun prompt(input: ExecutionInput): ExecutionAcceptance {
-                        if (prompted.complete(Unit)) {
+                        if (attempts.incrementAndGet() <= rejections) {
+                            prompted.complete(Unit)
                             reject.await()
                             throw ExecutionRejected("Confirmed rejection")
                         }
@@ -517,7 +586,7 @@ class SubAgentsTest {
                 }
             }
         }
-        TestServer.start(executionFactory = { rejectsOnce }, scenario = {
+        TestServer.start(executionFactory = { rejectsWake }, scenario = {
             agent = agent("work") { it.copy(approvals = "full") }
             externalAgent(external, "external")
         }).use { server ->
@@ -529,7 +598,19 @@ class SubAgentsTest {
             untilReady { children.list(parent.agentId, parent.id)[newer.sessionId]?.status == SubAgentStatus.Completed }
             reject.complete(Unit)
             untilReady {
-                external.sessions.single().prompts.size == 2 && parentState.snapshot().phase == ExecutionPhase.Idle
+                external.sessions.single().prompts.size == 3 - rejections && parentState.snapshot().phase == ExecutionPhase.Idle
+            }
+            val prompts = external.sessions.single().prompts
+            assertContains(prompts.last().text, newer.sessionId.value)
+            assertFalse(prompts.last().text.contains(child.sessionId.value))
+            assertEquals(3, attempts.get())
+            if (rejections == 2) {
+                val client = server.client().also { it.connect() }
+                client.call(Api.Send, SendParams(parent.agentId, parent.id, "continue"))
+                untilReady {
+                    external.sessions.single().prompts.any { child.sessionId.value in it.text } &&
+                        parentState.snapshot().phase == ExecutionPhase.Idle
+                }
             }
             val saved = server.harness.store.entries(parent.agentId, parent.id).filterIsInstance<SessionEntry.ToolReport>()
             assertEquals(listOf(child.sessionId, newer.sessionId), saved.map { it.children.single().sessionId })

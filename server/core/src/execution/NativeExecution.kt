@@ -75,7 +75,9 @@ class NativeExecution(
                             val report = pending.take()
                             if (report != null) {
                                 try {
-                                    startReport(pending.agent, session, harness.uiCatalogs.forRun(), wake = report)
+                                    startReport(pending.agent, session, harness.uiCatalogs.forRun(), wake = report, onSetupFailure = { error ->
+                                        pending.restore(report, error)
+                                    })
                                     return@withLock true
                                 } catch (e: Exception) {
                                     ensureActive()
@@ -226,7 +228,7 @@ class NativeExecution(
         }
     }
 
-    private suspend fun startReport(agent: Agent, sessionId: SessionId, catalogs: List<UiCatalog>, report: SessionEntry.ToolReport? = null, wake: SessionEntry.ToolReport? = null) {
+    private suspend fun startReport(agent: Agent, sessionId: SessionId, catalogs: List<UiCatalog>, report: SessionEntry.ToolReport? = null, wake: SessionEntry.ToolReport? = null, onSetupFailure: (suspend (Exception) -> Unit)? = null) {
         val kind = RunKind.Chat(report = report, catalogs = catalogs, reports = toolReports(agent, sessionId, catalogs))
         if (report != null) {
             try {
@@ -236,7 +238,7 @@ class NativeExecution(
             } catch (e: CancellationException) { throw e }
             catch (e: Exception) { log.warn(e) { "Background report could not start in Session $sessionId" } }
         } else {
-            val input = ExecutionInput("", kind = kind)
+            val input = ExecutionInput("", kind = kind, onSetupFailure = onSetupFailure)
             start(Pending(agent, sessionId, input, QueuedMessage(Uuid.random().toString(), ""), { event ->
                 if (event is AgentEvent.TextMessageEnd) reported(sessionId, event.text)
             }, Runs.Kind.Wake), wake)

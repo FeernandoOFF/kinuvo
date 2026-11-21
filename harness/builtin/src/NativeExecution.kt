@@ -103,7 +103,11 @@ private class NativeExecutionSession(private val factory: NativeExecutionFactory
                     throw e
                 }
                 catch (e: Exception) {
-                    sink.publish(AgentEvent.RunError(runId, e.message ?: e.toString()))
+                    val failed = input.onSetupFailure
+                    if (failed != null) {
+                        sink.publish(AgentEvent.RunFinished(runId, cancelled = true))
+                        failed(e)
+                    } else sink.publish(AgentEvent.RunError(runId, e.message ?: e.toString()))
                     return
                 }
                 val chat = input.kind as? RunKind.Chat

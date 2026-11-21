@@ -33,6 +33,30 @@ class ExecutionCoordinatorTest {
         )
     }
 
+    @Test fun failedChildOpenRollsBackSessionAndRecovery() = runTest {
+        val store = InMemoryStore()
+        val log = SessionLog(store)
+        val recovery = MemoryExecutionRecovery()
+        val agent = AgentId("a")
+        val parent = log.createSession(AgentId("parent"), "")
+        val factory = object : ExecutionFactory {
+            override suspend fun open(config: HarnessConnection, registration: AgentRegistration, state: ExecutionState, broker: ExecutionBroker, scope: CoroutineScope): ExecutionSession {
+                assertEquals(state.sessionId, recovery.load().single().sessionId)
+                state.reference("allocated")
+                error("Open failed")
+            }
+        }
+        val coordinator = ExecutionCoordinator(registry(), factory, backgroundScope, log, recovery)
+        log.onDelete = { _, id -> assertFalse(coordinator.owns(id)) }
+        val error = assertFailsWith<IllegalStateException> {
+            coordinator.create(agent, SessionParent(parent.agentId, parent.id, ToolCallId("spawn"), 1))
+        }
+        assertEquals("Open failed", error.message)
+        assertTrue(store.sessions(agent).isEmpty())
+        assertTrue(recovery.load().isEmpty())
+        assertEquals(parent.id, log.session(parent.agentId, parent.id).id)
+    }
+
     @Test fun durableOutputPrecedesTerminalAndSubmissionRetryDoesNotResend() = runTest {
         val registry = registry()
         val log = SessionLog(InMemoryStore())

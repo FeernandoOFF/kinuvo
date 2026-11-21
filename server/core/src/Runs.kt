@@ -123,9 +123,15 @@ class Runs(private val log: SessionLog, private val scope: CoroutineScope, priva
                 // Cancellation before dispatch must still enter the cleanup block.
                 scope.launch(start = CoroutineStart.ATOMIC) {
                     var stopped = false
+                    var setupFailed = false
                     try {
                         ensureActive()
-                        session.prompt(input.copy(runId = runId))
+                        session.prompt(input.copy(runId = runId, onSetupFailure = input.onSetupFailure?.let { failed ->
+                            { error ->
+                                setupFailed = true
+                                failed(error)
+                            }
+                        }))
                     } catch (e: CancellationException) {
                         stopped = true
                         throw e
@@ -137,7 +143,7 @@ class Runs(private val log: SessionLog, private val scope: CoroutineScope, priva
                                         sink.publish(AgentEvent.RunFinished(runId, cancelled = true))
                                     onCancel(sessionId)
                                 }
-                                finishListeners.forEach { it(agent.id, sessionId, stopped) }
+                                if (!setupFailed || stopped) finishListeners.forEach { it(agent.id, sessionId, stopped) }
                                 onDone(stopped)
                             }
                         }

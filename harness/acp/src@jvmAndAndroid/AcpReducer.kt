@@ -39,7 +39,8 @@ internal class AcpReducer(private val state: ExecutionState,
     suspend fun submitted() = queue.withLock { check(!lost); start() }
 
     suspend fun rejected(): Boolean = queue.withLock {
-        if (lost || !active || entries.isNotEmpty() || currentSources.isNotEmpty() || state.snapshot().pending.isNotEmpty())
+        if (lost || !active || entries.isNotEmpty() || currentSources.isNotEmpty()
+            || serverTools.isNotEmpty() || state.hasStartedTool() || state.snapshot().pending.isNotEmpty())
             return@withLock false
         active = false
         true
