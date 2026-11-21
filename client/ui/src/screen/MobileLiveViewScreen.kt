@@ -76,7 +76,7 @@ internal fun MobileLiveViewContent(state: LiveViewState, actions: LiveActions, b
     }
     val sendKey = { key: String -> state.displayed?.takeIf { state.interactive }?.let { actions.input(it, listOf(ScreenAction(ScreenActionKind.Key, key = key))) } }
     Column(Modifier.fillMaxSize().background(color(backgroundColor))) {
-        Row(Modifier.fillMaxWidth().heightIn(min = 64.dp).padding(horizontal = Spacing.space12, vertical = Spacing.space8),
+        Row(Modifier.fillMaxWidth().heightIn(min = 64.dp).padding(kinuvo.ui.design.LocalWindowChrome.current?.padding() ?: PaddingValues()).padding(horizontal = Spacing.space12, vertical = Spacing.space8),
             verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.space10)) {
             back?.let { RoundButton(Lucide.ArrowLeft, "Back", it) }
             Column(Modifier.weight(1f)) {

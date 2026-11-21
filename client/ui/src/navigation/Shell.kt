@@ -571,25 +571,24 @@ private fun ShellRow(icon: ImageVector, title: String, status: SessionStatus, se
     val source = remember { MutableInteractionSource() }
     val hovered = source.hovered()
     val unread = finished && status == SessionStatus.Idle
-    val row = @Composable {
-        ListRow(selected, onClick, Modifier.hoverable(source), leading = { Icon(icon, Modifier.size(16.dp)) }) {
+    // The settle button floats over the row's end, so the title doesn't rewrap on hover.
+    val row = @Composable { Box(Modifier.hoverable(source)) {
+        ListRow(selected, onClick, leading = { Icon(icon, Modifier.size(16.dp)) }) {
             Text(title.trimEnd(), Modifier.weight(1f), style = TextStyles.label, maxLines = 2, overflow = TextOverflow.Ellipsis, fontWeight = if (unread) FontWeight.Bold else null,
                 // Idle Sessions recede, but stay clearly readable rather than looking disabled.
                 color = color(onBackgroundColor).copy(alpha = if (selected || finished || status != SessionStatus.Idle) 1f else 0.75f))
-            when {
-                settle != null && hovered -> SettleButton(settle, title.trim())
-                unread -> Box(Modifier.size(8.dp).background(color(accentColor), CircleShape).semantics { contentDescription = "Unread" })
-                else -> SessionStatusIcon(status, finished)
-            }
+            if (unread) Box(Modifier.size(8.dp).background(color(accentColor), CircleShape).semantics { contentDescription = "Unread" })
+            else SessionStatusIcon(status, finished)
         }
-    }
+        if (settle != null && hovered) SettleButton(settle, title.trim(), Modifier.align(Alignment.CenterEnd).padding(end = Spacing.space6))
+    } }
     if (settle != null && LocalInteractionMode.current == InteractionMode.Touch) SwipeToSettle(settle, row) else row()
 }
 
 @Composable
-private fun SettleButton(settle: SettleAction, title: String) {
+private fun SettleButton(settle: SettleAction, title: String, modifier: Modifier = Modifier) {
     val label = if (settle.settled) "Unsettle $title" else "Settle $title"
-    Box(Modifier.size(24.dp).clip(CircleShape).clickable(role = Role.Button, onClickLabel = label, onClick = settle.onClick), contentAlignment = Alignment.Center) {
+    Box(modifier.size(24.dp).clip(CircleShape).background(color(panelColor)).border(1.dp, color(borderColor), CircleShape).clickable(role = Role.Button, onClickLabel = label, onClick = settle.onClick), contentAlignment = Alignment.Center) {
         Icon(if (settle.settled) Lucide.Undo2 else Lucide.Check, Modifier.size(15.dp), tint = color(mutedColor), contentDescription = label)
     }
 }

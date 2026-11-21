@@ -615,13 +615,14 @@ fun KinuvoApp(app: AppViewModel = koinViewModel(), initialRoute: Route? = null, 
             CompositionLocalProvider(LocalHistory provides history, LocalPopovers provides popovers, LocalHomeChrome provides homeChrome, LocalStrips provides strips) {
                 // Phones show the Agent's settings as sheets over the screen; wider windows show them beside it, unblurred.
                 val sheet = compact && (inspecting?.open == true || settingsPages.isNotEmpty())
-                val blur by animateDpAsState(if (LocalBackdropBlur.current && (shell.quickChat || popovers.active || sheet)) 16.dp else 0.dp)
+                val blurEnabled = backdropBlurEnabled()
+                val blur by animateDpAsState(if (blurEnabled && (shell.quickChat || popovers.active || sheet)) 16.dp else 0.dp)
                 val edgeToEdge = top == Route.NewAgent || top == Route.Connect
                 val screenInsets = if (!edgeToEdge) WindowInsets.safeDrawing else WindowInsets(0)
                 val guardSemantics = if (inspecting?.guard != null || inspectorEdits.pending != null || homeEdits.pending != null) Modifier.clearAndSetSemantics {} else Modifier
                 val sheetSemantics = if (inspecting?.open == true || settingsPages.isNotEmpty()) Modifier.clearAndSetSemantics {} else Modifier
                 if (compact) Box(Modifier.fillMaxSize().then(guardSemantics)) {
-                    StripFrame(strips, Modifier.blur(blur).then(sheetSemantics)) {
+                    StripFrame(strips, (if (blurEnabled && blur > 0.dp) Modifier.blur(blur) else Modifier).then(sheetSemantics)) {
                         Reveal(shell.revealed, { shell.revealed = it }, behind = { Shell(shellState, shellActions, shell, Modifier.fillMaxSize(), fill = true) },
                             enabled = withShell) { Box(Modifier.windowInsetsPadding(screenInsets)) { screens() } }
                     }
@@ -630,7 +631,7 @@ fun KinuvoApp(app: AppViewModel = koinViewModel(), initialRoute: Route? = null, 
                     }
                     inspector?.let { AgentInspector(it, inspectorHost, sheet = true, showGuard = false) }
                 }
-                else StripFrame(strips, Modifier.blur(blur).then(guardSemantics)) { Row(Modifier.fillMaxSize().windowInsetsPadding(screenInsets)) {
+                else StripFrame(strips, (if (blurEnabled && blur > 0.dp) Modifier.blur(blur) else Modifier).then(guardSemantics)) { Row(Modifier.fillMaxSize().windowInsetsPadding(screenInsets)) {
                     AnimatedVisibility(beside, enter = expandHorizontally(), exit = shrinkHorizontally()) {
                         Row { Shell(shellState, shellActions, shell, column = !foldColumn); VerticalSeparator() }
                     }

@@ -1,19 +1,16 @@
 package kinuvo.ui.artifacts
 
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.staticCompositionLocalOf
 import com.composables.ui.theme.ColorScheme
 import com.composables.ui.theme.LocalColorScheme
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import kotlinx.serialization.json.JsonPrimitive
+import kinuvo.ui.design.ESCAPE_RELAY
 
 /** False in hosts with no native view layer, such as the test scene, where [WebView] on the desktop draws nothing instead of failing. */
 internal val LocalNativeViews = staticCompositionLocalOf { true }
-
-/** True while a menu or popover covers the page: a desktop web view draws above Compose, so it hides (keeping its page) until it's uncovered. */
-internal val LocalWebViewCovered = compositionLocalOf { false }
 
 /** Where the app talks to a page after it loaded: [send] runs `window.kinuvoReceive(message)` in it, and does nothing until a web view wires it. */
 internal class PageChannel {
@@ -46,7 +43,7 @@ private const val ARTIFACT_SCRIPTS = "'unsafe-inline' 'unsafe-eval' https:"
  * marked tags when it saves. [remote] lists the sources styles, images and fonts may also load from; empty blocks the network entirely.
  */
 internal fun sandboxed(html: String, script: String = ARTIFACT_SCRIPTS, remote: String = " https:", dark: Boolean? = null, frames: String = "") =
-    "<!doctype html><html><head><meta data-kinuvo-editor charset=\"utf-8\">${csp(script, remote, frames)}${dark?.let(::themeHint).orEmpty()}</head>${html.replace(EDITOR_POLICY, "")}"
+    "<!doctype html><html><head><meta data-kinuvo-editor charset=\"utf-8\">${csp(script, remote, frames)}${dark?.let(::themeHint).orEmpty()}${if ("'unsafe-inline'" in script) "<script data-kinuvo-editor>$ESCAPE_RELAY</script>" else ""}</head>${html.replace(EDITOR_POLICY, "")}"
 
 /** The visual editor's policy without its marker, as some saved Artifacts carry it; left in, it blocks every script. */
 private val EDITOR_POLICY = Regex("<meta http-equiv=\"Content-Security-Policy\" content=\"default-src 'none'; script-src 'nonce-[0-9a-f]{32}';[^>]*>")
@@ -74,6 +71,6 @@ internal fun attr(text: String) = text.replace("&", "&amp;").replace("\"", "&quo
 internal fun framed(inner: String, extra: String = "", viewport: String = "width=device-width,initial-scale=1", sandbox: String = "allow-scripts"): String {
     val content = attr(inner)
     return "<!doctype html><html><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"$viewport\"></head>" +
-        "<body style=\"margin:0\"><iframe id=\"f\" title=\"Artifact\" sandbox=\"$sandbox\" referrerpolicy=\"no-referrer\" " +
-        "style=\"border:0;width:100%;height:100vh\" srcdoc=\"$content\"></iframe>$extra</body></html>"
+        "<body style=\"margin:0;overflow:hidden\"><iframe id=\"f\" title=\"Artifact\" sandbox=\"$sandbox\" referrerpolicy=\"no-referrer\" " +
+        "style=\"display:block;border:0;width:100%;height:100vh\" srcdoc=\"$content\"></iframe>$extra</body></html>"
 }
