@@ -43,7 +43,7 @@ private const val ARTIFACT_SCRIPTS = "'unsafe-inline' 'unsafe-eval' https:"
  * marked tags when it saves. [remote] lists the sources styles, images and fonts may also load from; empty blocks the network entirely.
  */
 internal fun sandboxed(html: String, script: String = ARTIFACT_SCRIPTS, remote: String = " https:", dark: Boolean? = null, frames: String = "") =
-    "<!doctype html><html><head><meta data-kinuvo-editor charset=\"utf-8\">${csp(script, remote, frames)}${dark?.let(::themeHint).orEmpty()}<script data-kinuvo-editor>$ESCAPE_RELAY</script></head>${html.replace(EDITOR_POLICY, "")}"
+    "<!doctype html><html><head><meta data-kinuvo-editor charset=\"utf-8\">${csp(script, remote, frames)}${dark?.let(::themeHint).orEmpty()}${if ("'unsafe-inline'" in script) "<script data-kinuvo-editor>$ESCAPE_RELAY</script>" else ""}</head>${html.replace(EDITOR_POLICY, "")}"
 
 /** The visual editor's policy without its marker, as some saved Artifacts carry it; left in, it blocks every script. */
 private val EDITOR_POLICY = Regex("<meta http-equiv=\"Content-Security-Policy\" content=\"default-src 'none'; script-src 'nonce-[0-9a-f]{32}';[^>]*>")
