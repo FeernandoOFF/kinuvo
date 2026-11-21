@@ -203,12 +203,12 @@ internal fun Messages(
 }
 
 @Composable
-internal fun DropOverlay() {
+internal fun DropOverlay(title: String = "Drop to attach") {
     val shape = Theme[shapes][largeShape]
     Box(Modifier.fillMaxSize().padding(Spacing.space12).background(color(backgroundColor).copy(alpha = 0.85f), shape).border(2.dp, color(accentColor).copy(alpha = 0.6f), shape), contentAlignment = Alignment.Center) {
         Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(Spacing.space8)) {
             Icon(Lucide.Paperclip, Modifier.size(28.dp), tint = color(accentColor))
-            Text("Drop to attach", style = TextStyles.callout)
+            Text(title, style = TextStyles.callout)
             Text("4 files · 10 MB each", style = TextStyles.caption, color = color(mutedColor))
         }
     }
