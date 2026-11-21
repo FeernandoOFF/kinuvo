@@ -29,6 +29,7 @@ class Notifications(private val harness: AgentRuntime, private val scope: Corout
     private val attempted = ConcurrentMutableSet<String>()
     fun on(agentId: AgentId, sessionId: SessionId, event: AgentEvent) {
         if (event !is AgentEvent.InteractionRequested && event !is AgentEvent.RunFinished && event !is AgentEvent.RunError) return
+        if (event is AgentEvent.RunFinished && event.cancelled) return
         val semantic = when (event) {
             is AgentEvent.InteractionRequested -> "request:${event.interaction.id}"
             is AgentEvent.RunFinished -> "finished:${event.runId}"

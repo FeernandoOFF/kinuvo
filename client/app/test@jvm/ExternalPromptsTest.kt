@@ -151,6 +151,22 @@ class ExternalPromptsTest {
         assertTrue(script.notices.none { it is Notice.RunFinished })
     }
 
+    @Test fun cancelledTurnKeepsPartialReplyWithoutAnnouncingIt() = withServer(LiveState(executionPhase = ExecutionPhase.Running, running = true)) { owner, script ->
+        val agent = AgentId("wren")
+        val session = SessionId("s1")
+        owner.sessions.view(agent, session).join()
+        owner.sessions.state.first { it.sessions[session]?.loaded == true }
+        owner.sessions.view(agent, null).join()
+        val reply = SessionEntry.AssistantMessage("Partial reply", "partial")
+        script.event(Api.Update, SessionUpdate(agent, session, SessionChange.Entry(0, reply)))
+        script.event(Api.Update, SessionUpdate(agent, session, SessionChange.Event(AgentEvent.RunFinished(RunId("cancelled"), cancelled = true))))
+        script.event(Api.Update, SessionUpdate(agent, session, SessionChange.Event(AgentEvent.InteractionRequested(urlApproval))))
+        val state = owner.sessions.state.first { it.sessions[session]?.live?.pending?.isNotEmpty() == true }
+        assertEquals(listOf(reply), state.sessions.getValue(session).entries)
+        assertFalse(session in state.finished)
+        assertTrue(script.notices.none { it is Notice.RunFinished })
+    }
+
     private fun withServer(snapshot: LiveState, block: suspend (ConnectedServer, Script) -> Unit) = runBlocking {
         Executors.newSingleThreadExecutor().asCoroutineDispatcher().use { main ->
             Dispatchers.setMain(main)

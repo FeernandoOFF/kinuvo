@@ -57,4 +57,11 @@ class ChatRowsTest {
         )
     }
 
+
+    @Test
+    fun repeatedTimedOutWaitsShowAsOneCard() {
+        fun wait(id: String, timedOut: Boolean) = ChatItem.ToolCall(id, ToolCallId(id), "agents_wait", """{"session_ids":["c1"]}""", """{"children":[],"timed_out":$timedOut}""")
+        val rows = listOf(wait("w1", true), wait("w2", true), wait("w3", false), wait("w4", true)).rows()
+        assertEquals(listOf("w3", "w4"), rows.map { it.key })
+    }
 }

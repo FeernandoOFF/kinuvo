@@ -61,7 +61,7 @@ sealed interface AgentEvent {
     data class Warning(val message: String) : AgentEvent
 
     @Serializable @SerialName("RUN_FINISHED")
-    data class RunFinished(val runId: RunId) : AgentEvent
+    data class RunFinished(val runId: RunId, val cancelled: Boolean = false) : AgentEvent
 
     @Serializable @SerialName("RUN_ERROR")
     data class RunError(val runId: RunId, val message: String) : AgentEvent

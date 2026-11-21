@@ -16,6 +16,8 @@ import kotlin.test.assertTrue
 import kinuvo.protocol.session.SessionSettings
 import kinuvo.protocol.agent.AgentId
 import kinuvo.protocol.session.SessionId
+import kinuvo.protocol.session.SessionParent
+import kinuvo.protocol.session.ToolCallId
 import kinuvo.protocol.session.RunId
 import kinuvo.protocol.approval.InteractionId
 import kinuvo.protocol.approval.PendingInteraction
@@ -34,6 +36,27 @@ import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 
 class SessionLogTest {
+    @Test fun deletingParentRescansForChildrenCreatedWhileStopping() = runBlocking {
+        val fixture = RuntimeFixture()
+        val log = SessionLog(fixture.store)
+        val agent = fixture.agent.id
+        val parent = log.createSession(agent, "")
+        val deleting = CompletableDeferred<Unit>()
+        val stopped = CompletableDeferred<Unit>()
+        log.onDelete = { _, id ->
+            if (id == parent.id) {
+                deleting.complete(Unit)
+                stopped.await()
+            }
+        }
+        val deletion = async { log.deleteSession(agent, parent.id) }
+        withTimeout(1000) { deleting.await() }
+        log.createChild(agent, SessionParent(agent, parent.id, ToolCallId("concurrent"), 1))
+        stopped.complete(Unit)
+        withTimeout(1000) { deletion.await() }
+        assertTrue(log.sessions(agent).isEmpty())
+    }
+
     @Test fun inboxDetailsSurviveReopeningTheStore() = runBlocking {
         val home = TestHome()
         val agent = home.agent.id

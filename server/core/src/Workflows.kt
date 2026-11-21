@@ -41,6 +41,7 @@ sealed class WorkflowError(override val code: String, override val message: Stri
 class Workflows internal constructor(
     private val harness: AgentRuntime, private val runs: Runs, private val scope: CoroutineScope,
     private val changed: (List<Workflow>) -> Unit = {}, private val runChanged: (WorkflowRun) -> Unit = {},
+    private val stopSession: suspend (SessionId) -> Unit,
     private val wakeScheduler: () -> Unit = {},
     private val clock: () -> Long = { Clock.System.now().toEpochMilliseconds() },
 ) {
@@ -267,7 +268,7 @@ class Workflows internal constructor(
                             val prompt = render(run.id, step.prompt)
                             var failure: String? = null
                             var stopped = false
-                            val active = runs.start(agent, session, ExecutionInput(prompt, inputs = step.inputs.map { (name, text) -> MessageInput(name, render(run.id, text)) }), onEvent = { if (it is AgentEvent.RunError) failure = it.message }, onDone = { stopped = it })
+                            val active = runs.start(agent, session, ExecutionInput(prompt, inputs = step.inputs.map { (name, text) -> MessageInput(name, render(run.id, text)) }), kind = Runs.Kind.Workflow, onEvent = { if (it is AgentEvent.RunError) failure = it.message }, onDone = { stopped = it })
                             active.job.join()
                             if (stopped) error("Step Session was cancelled")
                             failure?.let { error(it) }
@@ -405,7 +406,7 @@ class Workflows internal constructor(
                 }
             }
         } catch (e: CancellationException) {
-            withContext(NonCancellable) { session?.let { runs.stop(it); runs.join(it) }; update(run.id, step.id, StepRun(StepStatus.Cancelled, session, model = model)) }
+            withContext(NonCancellable) { session?.let { stopSession(it); runs.join(it) }; update(run.id, step.id, StepRun(StepStatus.Cancelled, session, model = model)) }
             throw e
         } catch (e: Exception) { update(run.id, step.id, StepRun(StepStatus.Failed, session, error = e.message, model = model)); throw e }
     }

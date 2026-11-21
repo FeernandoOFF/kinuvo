@@ -98,15 +98,19 @@ private class NativeExecutionSession(private val factory: NativeExecutionFactory
                 val run = try { factory.runner(host.run(agentId, sessionId, input)) }
                 catch (e: CancellationException) { throw e }
                 catch (e: Exception) {
-                    sink.publish(AgentEvent.RunStarted(runId))
-                    sink.publish(AgentEvent.RunError(runId, e.message ?: e.toString()))
+                    val failed = input.onSetupFailure
+                    if (failed != null) failed(e)
+                    else {
+                        sink.publish(AgentEvent.RunStarted(runId))
+                        sink.publish(AgentEvent.RunError(runId, e.message ?: e.toString()))
+                    }
                     return
                 }
                 val chat = input.kind as? RunKind.Chat
                 try {
                     run.run(sessionId, input.text, chat?.activation, runId, chat?.attachments.orEmpty(), chat?.voice ?: false, input.action, chat?.report, input.inputs, input.steering).collect { sink.publish(it) }
                 } catch (e: CancellationException) {
-                    withContext(NonCancellable) { sink.publish(AgentEvent.RunFinished(runId)) }
+                    withContext(NonCancellable) { sink.publish(AgentEvent.RunFinished(runId, cancelled = true)) }
                     throw e
                 }
             }

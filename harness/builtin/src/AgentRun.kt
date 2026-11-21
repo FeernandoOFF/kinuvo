@@ -56,7 +56,7 @@ class AgentRun(
         action: SurfaceAction?,
         report: SessionEntry.ToolReport?,
         inputs: List<MessageInput>,
-        steering: suspend () -> List<SessionEntry.UserMessage>,
+        steering: suspend () -> List<SessionEntry>,
     ): Flow<AgentEvent> = channelFlow {
         send(AgentEvent.RunStarted(runId))
         warnings.forEach { send(AgentEvent.Warning(it)) }

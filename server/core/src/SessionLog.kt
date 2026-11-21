@@ -17,9 +17,12 @@ import kinuvo.protocol.session.SessionOrder
 import kinuvo.protocol.session.SessionPage
 import kinuvo.protocol.session.SessionStatus
 import kinuvo.protocol.session.SessionUpdate
+import kinuvo.protocol.session.SubAgentState
 import kinuvo.protocol.session.isLive
 import kinuvo.protocol.agent.AgentId
 import kinuvo.protocol.session.SessionId
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlin.concurrent.atomics.AtomicReference
@@ -105,12 +108,25 @@ class SessionLog(private val store: Store, private val clock: () -> Long = { Clo
     }
 
     var onDelete: suspend (AgentId, SessionId) -> Unit = { _, _ -> }
-    override suspend fun deleteSession(agentId: AgentId, sessionId: SessionId) {
-        val children = store.agents().flatMap { store.sessions(it.id) }.groupBy { it.parent?.sessionId }
-        suspend fun delete(agent: AgentId, id: SessionId) {
-            store.entries(agent, id)
+    private val deleting = mutableSetOf<SessionId>()
+
+    override suspend fun deleteSession(agentId: AgentId, sessionId: SessionId) = delete(agentId, sessionId)
+    internal suspend fun deleteChildIfPresent(agentId: AgentId, sessionId: SessionId) = delete(agentId, sessionId, ifPresent = true)
+
+    private suspend fun delete(agent: AgentId, id: SessionId, ifPresent: Boolean = false) {
+        lock.withLock {
+            if (ifPresent && store.sessions(agent).none { it.id == id }) return
+            store.entryCount(agent, id)
+            if (!deleting.add(id)) return
+        }
+        try {
             onDelete(agent, id)
-            children[id].orEmpty().forEach { delete(it.agentId, it.id) }
+            val children = lock.withLock {
+                val linkedOwners = store.entries(agent, id).filterIsInstance<SessionEntry.Notice>().mapNotNull { it.child?.agentId }
+                val owners = (linkedOwners + store.agents().map { it.id }).distinct()
+                owners.flatMap { store.sessions(it) }.filter { it.parent?.sessionId == id }
+            }
+            children.forEach { deleteChildIfPresent(it.agentId, it.id) }
             lock.withLock {
                 store.deleteSession(agent, id)
                 counts -= id
@@ -119,8 +135,9 @@ class SessionLog(private val store: Store, private val clock: () -> Long = { Clo
                 runReplies -= id
                 subscribers -= id
             }
+        } finally {
+            withContext(NonCancellable) { lock.withLock { deleting -= id } }
         }
-        delete(agentId, sessionId)
     }
 
     /** Drops entries from [size] on and sends subscribers a fresh window, since the entries they hold changed. */
@@ -198,12 +215,13 @@ class SessionLog(private val store: Store, private val clock: () -> Long = { Clo
                 else -> reply
             }
         }
+        val visible = entry.forClient()
         live[sessionId]?.let {
-            val state = it.on(entry)
+            val state = it.on(visible)
             if (state.queued.isNotEmpty() || state.running || state.reflectionId != null || state.executionPhase != null || state.entries.isNotEmpty() || state.pending.isNotEmpty() || state.children.isNotEmpty())
                 live[sessionId] = state else live.remove(sessionId)
         }
-        deliver(SessionUpdate(agentId, sessionId, SessionChange.Entry(seq, entry)))
+        deliver(SessionUpdate(agentId, sessionId, SessionChange.Entry(seq, visible)))
     }
 
     private suspend fun metadata(agentId: AgentId, sessionId: SessionId, entries: List<SessionEntry>) {
@@ -211,11 +229,17 @@ class SessionLog(private val store: Store, private val clock: () -> Long = { Clo
             changed(store.session(agentId, sessionId).copy(status = statusOf(sessionId)))
     }
 
-    suspend fun publish(agentId: AgentId, sessionId: SessionId, event: AgentEvent) = lock.withLock {
+    suspend fun publish(agentId: AgentId, sessionId: SessionId, update: AgentEvent) = lock.withLock {
+        val event = when (update) {
+            is AgentEvent.SubAgentChanged -> update.copy(child = update.child.forClient())
+            is AgentEvent.ExecutionEntryChanged -> update.copy(entry = update.entry.forClient())
+            else -> update
+        }
         store.entryCount(agentId, sessionId)
         when(event) {
             is AgentEvent.RunStarted -> completions.remove(sessionId)
             is AgentEvent.RunFinished, is AgentEvent.RunError -> completions[sessionId] = event
+            is AgentEvent.ExecutionPhaseChanged -> if (event.phase == ExecutionPhase.Running && live[sessionId]?.executionPhase == ExecutionPhase.Idle) completions.remove(sessionId) else Unit
             else -> Unit
         }
         val previous = live[sessionId] ?: LiveState()
@@ -230,7 +254,7 @@ class SessionLog(private val store: Store, private val clock: () -> Long = { Clo
                 runReplies.remove(sessionId)
             else -> null
         }
-        val unread = event is AgentEvent.RunFinished && (reply == RunReply.Chat || reply == RunReply.Report) &&
+        val unread = event is AgentEvent.RunFinished && !event.cancelled && (reply == RunReply.Chat || reply == RunReply.Report) &&
             sessionId !in viewing.values
         val unsettle = started || state.status == SessionStatus.Waiting && previous.status != SessionStatus.Waiting
         val inboxChanged = if (unread || unsettle) {
@@ -261,8 +285,9 @@ class SessionLog(private val store: Store, private val clock: () -> Long = { Clo
         val from = if (after == null || after > entries.size || entries.size - after > limit) maxOf(0, entries.size - limit) else after
         val changes = buildList {
             if (from != after) add(SessionChange.Reset(from))
-            entries.drop(from).forEachIndexed { i, entry -> add(SessionChange.Entry(from + i, entry)) }
-            val children = entries.filterIsInstance<SessionEntry.Notice>().mapNotNull { it.child }.associateBy { it.sessionId }
+            entries.drop(from).forEachIndexed { i, entry -> add(SessionChange.Entry(from + i, entry.forClient())) }
+            val children = entries.filterIsInstance<SessionEntry.Notice>().filterNot { it.code == "sub_agent_delivery" }
+                .mapNotNull { it.child?.forClient() }.associateBy { it.sessionId }
             add(SessionChange.Live((live[sessionId] ?: LiveState()).let { it.copy(children = children + it.children) }))
         }
         for (change in changes) if (!subscriber.offer(SessionUpdate(agentId, sessionId, change))) return removeEverywhere(subscriber)
@@ -281,7 +306,7 @@ class SessionLog(private val store: Store, private val clock: () -> Long = { Clo
         val entries = store.entries(agentId, sessionId)
         val to = before.coerceIn(0, entries.size)
         val from = maxOf(0, to - limit)
-        return entries.subList(from, to).mapIndexed { i, entry -> SessionChange.Entry(from + i, entry) }
+        return entries.subList(from, to).mapIndexed { i, entry -> SessionChange.Entry(from + i, entry.forClient()) }
     }
 
     private fun statusOf(sessionId: SessionId) = live[sessionId]?.status ?: SessionStatus.Idle
@@ -305,5 +330,10 @@ class SessionLog(private val store: Store, private val clock: () -> Long = { Clo
         const val RESYNC_LIMIT = 100
     }
 }
+
+internal fun SubAgentState.forClient() = if (private && !delivered && result != null) copy(result = null) else this
+
+private fun SessionEntry.forClient(): SessionEntry = if (this is SessionEntry.Notice)
+    copy(child = child?.forClient(), draft = draft.map { it.forClient() }) else this
 
 internal const val MAX_SESSION_TITLE = 100
