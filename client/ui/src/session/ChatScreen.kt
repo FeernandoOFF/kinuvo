@@ -386,10 +386,7 @@ fun ChatContent(
             LaunchedEffect(composerHidden) { if (composerHidden) composerShift.snapTo(1f) else composerShift.animateTo(0f, Motion.appearSpring()) }
             // Its blur would draw HTML Surface web views into an empty layer while it moves, crashing Android's WebView.
             val composerBlurred by remember { derivedStateOf { composerShift.value == 0f } }
-            // In the app, drops anywhere in the window reach this chat; elsewhere, only its messages take them.
-            val appDrops = LocalDroppedFiles.current
-            if (appDrops != null) ChatDropTarget(appDrops, canDrop, compose, actions.onDropAttachments)
-            Box(Modifier.weight(1f).then(if (appDrops == null) Modifier.attachmentDrop(canDrop, actions.onDropAttachments) { dropping = it } else Modifier)) {
+            Box(Modifier.weight(1f).attachmentDrop(canDrop, actions.onDropAttachments) { dropping = it }) {
                 val voice = state.voice?.takeIf { it.active && !it.live }
                 // Keeps the last state while voice chat animates away.
                 var shownVoice by remember { mutableStateOf(voice) }
@@ -484,7 +481,7 @@ fun ChatContent(
                             sending = state.sending,
                             attachments = attachments,
                             controls = settings,
-                            containerColor = color(fieldColor).copy(alpha = 0.7f),
+                            containerColor = color(fieldColor).copy(alpha = if (blurEnabled) 0.7f else 0.96f),
                             backdrop = if (composerBlurred && blurEnabled) Modifier.hazeBlur(HazeInput.Sources(haze), blur) else Modifier,
                             onVoice = actions.onVoice?.let { start -> { follow.value = true; start() } },
                             notice = if ((state.external && (state.prompts.isNotEmpty() || (state.chatBlocked != null && state.ended == null))) || state.dictation?.error != null) ({

@@ -227,7 +227,7 @@ fun KinuvoApp(app: AppViewModel = koinViewModel(), initialRoute: Route? = null, 
     // Tooltips draw in this host, over everything else.
     val agent = appState.agents.firstOrNull { it.id == appState.agentId } ?: appState.agents.firstOrNull()
     val accent by animateColorAsState(agent?.ink ?: AvatarInk[0], tween(Motion.accent))
-    KinuvoTheme(accent = agent?.let { accent }) { TooltipHost(Modifier.fillMaxSize()) { AppDrop({ pendingLink.value = Route.Chat(compose = true) }) {
+    KinuvoTheme(accent = agent?.let { accent }) { TooltipHost(Modifier.fillMaxSize()) {
         BoxWithConstraints(Modifier
             .fillMaxSize()
             .background(color(backgroundColor))
@@ -666,7 +666,7 @@ fun KinuvoApp(app: AppViewModel = koinViewModel(), initialRoute: Route? = null, 
                 }
             }
         }
-    } } }
+    } }
 }
 
 private val NumberKeys = listOf(Key.One, Key.Two, Key.Three, Key.Four, Key.Five, Key.Six, Key.Seven, Key.Eight, Key.Nine)

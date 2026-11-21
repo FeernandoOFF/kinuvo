@@ -7,6 +7,7 @@ import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draganddrop.DragAndDropEvent
 import androidx.compose.ui.draganddrop.DragAndDropTarget
+import androidx.compose.ui.draganddrop.awtTransferable
 import androidx.compose.foundation.draganddrop.dragAndDropTarget
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.toComposeImageBitmap
@@ -66,9 +67,9 @@ internal actual fun Modifier.attachmentDrop(enabled: Boolean, onResult: (List<Up
             override fun onDrop(event: DragAndDropEvent): Boolean {
                 hover(false)
                 if (!accepting) return false
-                val files = (event.nativeEvent as? TaoDragAndDropPayload)?.files.orEmpty()
+                val files = droppedFiles(event)
                 if (files.isEmpty()) return false
-                read(files.map(::File))
+                read(files)
                 return true
             }
         }
@@ -112,3 +113,9 @@ internal actual fun rememberAttachmentSaver(onError: (String) -> Unit): (Attachm
         }
     } }
 }
+
+/** Tao hands over the paths through the usual file-list flavor, without starting AWT; older payloads carry them directly. */
+@OptIn(ExperimentalComposeUiApi::class)
+private fun droppedFiles(event: DragAndDropEvent): List<File> =
+    (event.nativeEvent as? TaoDragAndDropPayload)?.files?.map(::File)
+        ?: runCatching { (event.awtTransferable.getTransferData(java.awt.datatransfer.DataFlavor.javaFileListFlavor) as List<*>).filterIsInstance<File>() }.getOrDefault(emptyList())
