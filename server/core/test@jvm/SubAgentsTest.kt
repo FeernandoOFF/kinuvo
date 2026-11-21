@@ -20,6 +20,7 @@ import kinuvo.server.tools.AgentManageScope
 import kinuvo.server.tools.AgentManageTools
 import kotlinx.serialization.json.jsonObject
 import kinuvo.protocol.agent.AgentId
+import kinuvo.client.KinuvoClient
 import kinuvo.protocol.Api
 import kinuvo.protocol.Frame
 import kinuvo.protocol.ProtocolJson
@@ -48,6 +49,8 @@ import kinuvo.protocol.model.ModelInfo
 import kinuvo.protocol.model.ModelTier
 import kinuvo.protocol.capability.ExecutionLocation
 import kotlinx.coroutines.*
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.mapNotNull
 import kotlinx.serialization.json.*
 import kotlinx.io.files.Path
 import java.nio.file.Files
@@ -845,6 +848,28 @@ class SubAgentsTest {
             assertNull(past.map { it.entry }.filterIsInstance<SessionEntry.Notice>().single { it.id == "legacy" }.child?.result)
             server.harness.log.deleteSession(local.id, child.sessionId)
             val waitTool = children.tools(cloud.id, parent.id).single { it.descriptor.name == "agents_wait" }
+            server.auth.refreshCode(management = false)
+            val viewer = server.client(token = server.pairDevice("viewer"))
+            assertFalse(viewer.connect().management)
+            val client = server.client(token = server.auth.sessionToken())
+            assertTrue(client.connect().management)
+            val catchUpParams = CatchUpParams(cloud.id, parent.id)
+            viewer.call(Api.CatchUp, catchUpParams)
+            val liveApproval = async(start = CoroutineStart.UNDISPATCHED) {
+                viewer.events(Api.Update).mapNotNull {
+                    ((it.change as? SessionChange.Event)?.event as? AgentEvent.InteractionRequested)
+                        ?.interaction as? PendingInteraction.Approval
+                }.first()
+            }
+            suspend fun catchUpApproval(viewer: KinuvoClient): PendingInteraction.Approval = coroutineScope {
+                val pending = async(start = CoroutineStart.UNDISPATCHED) {
+                    viewer.events(Api.Update).mapNotNull {
+                        (it.change as? SessionChange.Live)?.state?.pending?.filterIsInstance<PendingInteraction.Approval>()?.singleOrNull()
+                    }.first()
+                }
+                viewer.call(Api.CatchUp, catchUpParams)
+                withTimeout(5_000) { pending.await() }
+            }
             val delivery = async { waitTool.execute(buildJsonObject {
                 putJsonArray("session_ids") { add(child.sessionId.value) }
             }, "delivery") }
@@ -856,13 +881,15 @@ class SubAgentsTest {
                 error("unreachable")
             }
             assertEquals("legacy private result", approval.preview?.body)
+            assertNull(withTimeout(5_000) { liveApproval.await() }.preview?.body)
+            assertNull(catchUpApproval(viewer).preview?.body)
+            assertEquals("legacy private result", catchUpApproval(client).preview?.body)
             assertFalse(approval.args.contains("legacy private result"))
             val snapshot = server.harness.log.executionSnapshot(cloud.id, parent.id)
             assertFalse(ProtocolJson.encodeToString(snapshot).contains("legacy private result"))
             assertEquals(SubAgentError.Delivering, either {
                 children.send(cloud.id, parent.id, child.sessionId, ToolCallId("pending"), "again")
             }.leftOrNull())
-            val client = server.client(token = server.auth.sessionToken()); client.connect()
             assertTrue(client.call(Api.Respond, RespondParams(parent.id, approval.id, InteractionAnswer.Approval(ApprovalDecision.Deny()))))
             assertTrue(delivery.await().contains("withheld"))
             assertTrue(waitTool.execute(buildJsonObject {

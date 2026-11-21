@@ -33,6 +33,7 @@ import kinuvo.protocol.push.PushSubscription
 import kinuvo.protocol.screen.*
 import kinuvo.protocol.session.*
 import kinuvo.protocol.surface.*
+import kinuvo.protocol.tool.ToolNames
 import kinuvo.protocol.usage.*
 import kinuvo.protocol.voice.*
 import kotlin.concurrent.atomics.AtomicInt
@@ -320,7 +321,26 @@ class ServerRuntime(
         context(_: Raise<ExecutionError>)
         override suspend fun remoteExecution(call: RemoteExecutionCall) = assembly.execution.remoteExecution(requireNotNull(token), call)
 
-        override fun offer(update: SessionUpdate) = offer(frame(Api.Update, update))
+        private fun approvalForClient(interaction: PendingInteraction): PendingInteraction {
+            if (interaction !is PendingInteraction.Approval || interaction.toolCallName != ToolNames.AGENTS_WAIT)
+                return interaction
+            val preview = interaction.preview ?: return interaction
+            return if (preview.body == null || management) interaction else interaction.copy(preview = preview.copy(body = null))
+        }
+
+        override fun offer(update: SessionUpdate): Boolean {
+            val change = when (val change = update.change) {
+                is SessionChange.Event -> {
+                    val event = change.event
+                    if (event is AgentEvent.InteractionRequested)
+                        change.copy(event = event.copy(interaction = approvalForClient(event.interaction)))
+                    else change
+                }
+                is SessionChange.Live -> change.copy(state = change.state.copy(pending = change.state.pending.map(::approvalForClient)))
+                else -> change
+            }
+            return offer(frame(Api.Update, update.copy(change = change)))
+        }
 
         fun offer(text: Frame): Boolean {
             if (linked && text is Frame.Event) return true
