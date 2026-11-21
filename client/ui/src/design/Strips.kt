@@ -52,6 +52,7 @@ fun Strip(key: String, tint: Color, onClick: (() -> Unit)? = null, priority: Int
 /** The strip's rows across the top of the window, reaching up behind the status bar. */
 @Composable
 fun StripHost(strips: Strips, modifier: Modifier = Modifier) {
+    val chrome = LocalWindowChrome.current
     AnimatedVisibility(strips.rows.isNotEmpty(), modifier, enter = expandVertically(), exit = shrinkVertically()) {
         Column(Modifier.fillMaxWidth()) {
             strips.rows.forEachIndexed { i, row ->
@@ -61,6 +62,8 @@ fun StripHost(strips: Strips, modifier: Modifier = Modifier) {
                         .then(if (i == 0) Modifier.windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Top)) else Modifier)
                         .then(row.onClick?.let { Modifier.clickable(onClick = it) } ?: Modifier)
                         .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal))
+                        // The top row shares the title bar, so it clears the window buttons.
+                        .then(if (i == 0) Modifier.padding(chrome?.padding() ?: PaddingValues()) else Modifier)
                         .height(StripHeight).padding(horizontal = Spacing.space12),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(Spacing.space10),

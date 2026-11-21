@@ -43,6 +43,9 @@ import kinuvo.protocol.session.*
 import kinuvo.ui.design.Markdown
 import kinuvo.ui.design.MonoStyle
 import kinuvo.ui.design.Spinner
+import androidx.compose.foundation.focusable
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.input.key.*
 import kinuvo.ui.design.color
 import kinuvo.ui.design.Panel
 import kotlin.io.encoding.Base64
@@ -128,8 +131,12 @@ private fun ImagePlaceholder() {
 internal fun AttachmentPreviewer(preview: AttachmentPreview, onSave: () -> Unit, onClose: () -> Unit, modifier: Modifier = Modifier) {
     NavigationBackHandler(rememberNavigationEventState(NavigationEventInfo.None)) { onClose() }
     val attachment = preview.attachment
-    Column(modifier.fillMaxSize().background(color(backgroundColor)).clickable(enabled = false) {}) {
-        Row(Modifier.fillMaxWidth().padding(Spacing.space8), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.space8)) {
+    val focus = remember { androidx.compose.ui.focus.FocusRequester() }
+    LaunchedEffect(Unit) { runCatching { focus.requestFocus() } }
+    Column(modifier.fillMaxSize().focusRequester(focus).focusable().onPreviewKeyEvent { e ->
+        (e.type == KeyEventType.KeyDown && e.key == Key.Escape).also { if (it) onClose() }
+    }.background(color(backgroundColor)).clickable(enabled = false) {}) {
+        Row(Modifier.fillMaxWidth().padding(kinuvo.ui.design.LocalWindowChrome.current?.padding() ?: PaddingValues()).padding(Spacing.space8), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.space8)) {
             IconButton(onClick = onClose, style = ButtonStyle.Ghost, modifier = Modifier.size(40.dp)) { Icon(Lucide.X, Modifier.size(20.dp), contentDescription = "Close") }
             Column(Modifier.weight(1f)) {
                 Text(attachment.name, singleLine = true, overflow = TextOverflow.Ellipsis)

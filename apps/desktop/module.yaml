@@ -5,8 +5,10 @@ dependencies:
   - ../../server/jvm
   - ../../libs/tailcat
   - ../../plugins/cua
+  - dev.nucleusframework:composenativetray:2.1.7
   - $compose.desktop.currentOs
-  - com.jetbrains:jbr-api:1.5.0
+  - dev.nucleusframework:nucleus.nucleus-application:3.0.0-dev-202611161221
+  - dev.nucleusframework:nucleus.decorated-window-tao:3.0.0-dev-202611161221
 
 test-dependencies:
   - $kotlin.test

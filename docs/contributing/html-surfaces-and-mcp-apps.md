@@ -33,8 +33,9 @@ An app's `tools/call` goes through `apps.callTool`. The Server resolves the app 
 
 | Platform | Engine |
 | --- | --- |
-| macOS desktop | System WKWebView, rendered offscreen into Compose images |
-| Windows / Linux desktop | Installed Chromium, headless |
+| macOS desktop | System WKWebView via Nucleus Tao |
+| Windows desktop | WebView2 via Nucleus Tao |
+| Linux desktop | WebKit2GTK via Nucleus Tao |
 | Android | System WebView (`AndroidView`) |
 | iOS | WKWebView (`UIKitView`) |
 | Web | iframe |
@@ -45,9 +46,9 @@ A web view is live only while its chat row is composed and intersects the clippe
 
 On phones, focusing a field in a page hides the composer under the keyboard; it slides back when the keyboard closes. On iOS, Compose's blur cannot sample the native view.
 
-macOS uses `libKinuvoWeb.dylib`, built from `client/ui/native/macos/OffscreenWeb.swift` by the desktop launcher and packager and loaded in-process with Java FFM, like speech. It adds no browser runtime. WKWebView uses a non-persistent data store in a borderless window placed offscreen with mouse interaction disabled; only public APIs are used. Snapshots at twice the point size are copied into Compose images, so pages take part in Compose clipping, overlays and blur. Captures follow loads, resizes, input, DOM mutations, animation callbacks and a focused field's caret, at most one at a time and 30 per second; static pages capture nothing while idle. Mouse, keyboard, modifiers, typed text and focus are forwarded to AppKit, with native key equivalents for copy and paste. `KINUVO_TEST_NATIVE_HTML="$PWD/build" mise run kotlin -- test -m ui -p jvm --include-classes=kinuvo.ui.DesktopHtmlSurfaceTest`, after `mise run exec -- scripts/build-mac-web.sh`, checks the bridge, input and image conversion against the real helper.
+Desktop uses ComposeNativeWebview 1.0.3 with Nucleus Tao 2.5.5 for Artifacts and HTML Surfaces. The web view is a native child below Compose, with no screenshot polling or translated input. Each view uses a private, non-persistent profile. The page's bridge reaches `HtmlBridge` through the library's document-start JavaScript bridge; replies are evaluated with `htmlSurfaceDelivery`.
 
-Windows and Linux use an installed Chromium browser (Microsoft Edge or Google Chrome on Windows; Chromium or Google Chrome on Linux) in a private headless profile, removed when the view closes. Frames and input travel over CDP; the document keeps the same CSP and sandboxed iframe. `mise run kotlin -- test -m ui -p jvm --include-classes=kinuvo.ui.surface.ChromiumHtmlViewTest` checks input translation and, when a browser is installed, the bridge and frames.
+Desktop chat rows show an “Open” placeholder. Clicking opens the live page in the expanded Popover, and dismissing disposes it. Tao's native view does not inherit Compose clipping, so a live view in a scrolling list could extend outside its viewport. Other platforms retain their inline rendering and cap. The expanded document enables native page scrolling. Theme changes recreate the document and reconnect the MCP App handshake.
 
 Android exposes the bridge only to the trusted shell origin with WebMessageListener; unsupported WebView versions have no bridge. iOS uses a main-frame-only WKScriptMessageHandler and a non-persistent data store. Web uses an additional opaque-origin iframe shell with `allow-scripts` only. This deliberately stricter inline shell does not implement the MCP Apps sandbox-proxy resource handshake. All views are disposed with their composition. HTML Surfaces load no external scripts, styles, images or network connections.
 

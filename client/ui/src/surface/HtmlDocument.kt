@@ -3,6 +3,7 @@ package kinuvo.ui.surface
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
+import kinuvo.ui.design.ESCAPE_RELAY
 
 /** The https origins an MCP App declared in `_meta.ui.csp`; HTML Surfaces have none, so no network. */
 internal data class HtmlPolicy(val connect: List<String> = emptyList(), val resources: List<String> = emptyList()) {
@@ -39,6 +40,7 @@ internal fun htmlSurfaceDocument(html: String, fullscreen: Boolean, policy: Html
           const report=()=>parent.postMessage({jsonrpc:'2.0',method:'ui/notifications/size-changed',params:{height:Math.max(40,document.body?.scrollHeight||0,Math.ceil(document.body?.getBoundingClientRect().height||0))}},'*');
           const observer=new ResizeObserver(report);observer.observe(document.documentElement);observer.observe(document.body);report();
         });
+        $ESCAPE_RELAY${if (fullscreen) "" else WHEEL_RELAY}
     </script>"""
     // The theme comes first, so the page's own styles win.
     val app = "<!doctype html><html><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"$VIEWPORT\"><meta http-equiv=\"Content-Security-Policy\" content=\"$csp\"><style>${theme.css}html,body{margin:0;overflow:${if (fullscreen) "auto" else "hidden"} !important}</style>$reporter</head>$html"
@@ -60,5 +62,10 @@ internal fun htmlSurfaceDocument(html: String, fullscreen: Boolean, policy: Html
       app.srcdoc=${JsonPrimitive(app).toString().replace("<", "\\u003c")};
       </script></body></html>"""
 }
+
+/** A wheel no scrollable element under the pointer can use goes to the chat around the page. */
+private const val WHEEL_RELAY = "addEventListener('wheel',function(e){for(var n=e.target;n&&n.nodeType===1&&n!==document.body&&n!==document.documentElement;n=n.parentElement){" +
+    "var s=getComputedStyle(n);if(/(auto|scroll)/.test(s.overflowY)&&n.scrollHeight>n.clientHeight&&(e.deltaY<0?n.scrollTop>0:n.scrollTop+n.clientHeight<n.scrollHeight))return;}" +
+    "parent.postMessage({kinuvoWheel:e.deltaY},'*')},{passive:true});"
 
 internal fun htmlSurfaceDelivery(message: String) = "window.kinuvoReceive(${JsonPrimitive(message)});"
