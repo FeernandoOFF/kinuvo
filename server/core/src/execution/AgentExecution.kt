@@ -9,6 +9,7 @@ import kinuvo.protocol.agent.AgentId
 import arrow.core.raise.Raise
 import arrow.core.raise.context.raise
 import kinuvo.server.SubAgents
+import kinuvo.server.SubAgentWake
 import kinuvo.server.Runs
 import kinuvo.server.SessionLog
 import kinuvo.server.AgentError
@@ -38,6 +39,7 @@ class AgentExecution(
 
     init {
         external.onFinish = ::finished
+        native.takeRetryWakes = { subAgents?.takeRetryWakes(it).orEmpty() }
         runs.onBegin = { agent, id, kind -> subAgents?.begin(agent, id, kind) }
         runs.onCancel = { subAgents?.cancelChildren(it) }
         runs.onFinish { agent, id, cancelled ->
@@ -60,20 +62,21 @@ class AgentExecution(
     internal suspend fun trySteer(params: SendParams, allowed: suspend () -> Boolean, fallback: suspend () -> Unit): Boolean =
         !external.owns(requireNotNull(params.sessionId)) && native.trySteer(params, allowed, fallback)
 
-    internal suspend fun report(agent: AgentId, id: SessionId, take: suspend () -> SessionEntry.ToolReport?, restore: suspend (SessionEntry.ToolReport, Exception) -> Unit) {
+    internal suspend fun report(agent: AgentId, id: SessionId, take: suspend () -> SubAgentWake?, restore: suspend (SubAgentWake, Exception?) -> Boolean) {
         if (!external.owns(id)) native.report(agent, id, take, restore)
         else {
             while (true) {
                 external.join(id)
                 val sent = management.withLock {
                     if (external.isActive(id)) return@withLock false
-                    val report = take() ?: return
+                    val wake = take() ?: return
                     try {
-                        external.send(SendParams(agent, id, report.content), report, onRejected = { restore(report, it) }) {
+                        external.send(SendParams(agent, id, wake.report.content), wake.saved,
+                            onRejected = { restore(wake, it) }, onStopped = { restore(wake, null) }) {
                             subAgents?.begin(agent, id, Runs.Kind.Wake)
                         }
                     } catch (e: Exception) {
-                        withContext(NonCancellable) { restore(report, e) }
+                        withContext(NonCancellable) { restore(wake, e) }
                         throw e
                     }
                     true

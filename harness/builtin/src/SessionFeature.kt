@@ -20,6 +20,8 @@ import kinuvo.protocol.session.SessionEntry
 import kinuvo.protocol.session.SessionId
 import kinuvo.protocol.session.RunId
 import kinuvo.protocol.session.ToolCallId
+import kinuvo.protocol.session.SessionEntryIdentity
+import kinuvo.protocol.session.identity
 import io.github.oshai.kotlinlogging.KotlinLogging
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.withContext
@@ -97,13 +99,30 @@ internal class RunSession(
 
     val compressionStrategy get() = HistoryCompression { (budget ?: 24_576) - instructions.length / 4 }
 
+    private val wakeReports = mutableMapOf<SessionEntryIdentity, SessionEntry.ToolReport>()
+
     suspend fun load(): Prompt {
-        withContext(NonCancellable) { steering().forEach { append(it) } }
+        withContext(NonCancellable) {
+            val steered = steering()
+            if (steered.isNotEmpty()) {
+                val savedReports = store.entries(agent.id, sessionId).filterIsInstance<SessionEntry.ToolReport>()
+                steered.forEach { entry ->
+                    if (entry is SessionEntry.ToolReport && entry.children.isNotEmpty()) {
+                        val saved = savedReports.firstOrNull { it.children.containsAll(entry.children) }
+                        wakeReports[requireNotNull((saved ?: entry).identity())] = entry
+                        if (saved == null) append(entry)
+                    } else append(entry)
+                }
+            }
+        }
         val entries = store.entries(agent.id, sessionId)
         instructions = if (profile.prompt == PromptStyle.Full) entries.filterIsInstance<SessionEntry.Started>().firstOrNull()?.instructions.orEmpty() else ""
         if (voice) instructions += "\n\n$liveVoiceInstructions"
-        val history = entries.activeHistory().withoutBlockedRepeats().let { if (latestTurnOnly) it.latestTurn() else it }
-        val prompt = messages.limitedPrompt(instructions, history.recentScreens(), profile.resultLimits, callablePaging)
+        val active = entries.activeHistory().withoutBlockedRepeats().map { wakeReports[it.identity()] ?: it }
+        val wakeIds = wakeReports.values.map { requireNotNull(it.identity()) }.toSet()
+        val history = if (latestTurnOnly) active.latestTurn(wakeIds) else active
+        val missingWakes = wakeReports.values.filter { wake -> active.none { it.identity() == wake.identity() } }
+        val prompt = messages.limitedPrompt(instructions, (history + missingWakes).recentScreens(), profile.resultLimits, callablePaging)
         return earlierQuestions(entries.activeHistory())?.let { note ->
             prompt.withMessages { it.takeWhile { m -> m is Message.System } + Message.System(note, RequestMetaInfo.Empty) + it.dropWhile { m -> m is Message.System } }
         } ?: prompt
