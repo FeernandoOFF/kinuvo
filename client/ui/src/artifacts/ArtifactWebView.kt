@@ -43,7 +43,10 @@ private const val ARTIFACT_SCRIPTS = "'unsafe-inline' 'unsafe-eval' https:"
  * marked tags when it saves. [remote] lists the sources styles, images and fonts may also load from; empty blocks the network entirely.
  */
 internal fun sandboxed(html: String, script: String = ARTIFACT_SCRIPTS, remote: String = " https:", dark: Boolean? = null, frames: String = "") =
-    "<!doctype html><html><head><meta data-kinuvo-editor charset=\"utf-8\">${csp(script, remote, frames)}${dark?.let(::themeHint).orEmpty()}${if ("'unsafe-inline'" in script) "<script data-kinuvo-editor>$ESCAPE_RELAY</script>" else ""}</head>${html.replace(EDITOR_POLICY, "")}"
+    "<!doctype html><html><head><meta data-kinuvo-editor charset=\"utf-8\">${csp(script, remote, frames)}${dark?.let(::themeHint).orEmpty()}${if ("'unsafe-inline'" in script) "<script data-kinuvo-editor>$ESCAPE_RELAY$HISTORY_SHIM</script>" else ""}</head>${html.replace(EDITOR_POLICY, "")}"
+
+/** Frames have an opaque origin but the app's base URL, so history calls with a URL (reveal.js `hash: true`) throw; they keep the state and drop the URL instead. */
+private const val HISTORY_SHIM = "['pushState','replaceState'].forEach(function(n){var f=history[n].bind(history);history[n]=function(s,t,u){try{return f(s,t,u)}catch(e){return f(s,t)}}});"
 
 /** The visual editor's policy without its marker, as some saved Artifacts carry it; left in, it blocks every script. */
 private val EDITOR_POLICY = Regex("<meta http-equiv=\"Content-Security-Policy\" content=\"default-src 'none'; script-src 'nonce-[0-9a-f]{32}';[^>]*>")
