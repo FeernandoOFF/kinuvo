@@ -2,6 +2,8 @@ package kinuvo.server.jvm
 
 import java.io.File
 import java.net.URI
+import java.io.ByteArrayInputStream
+import javax.imageio.ImageIO
 import kinuvo.harness.AgentDoc
 import kinuvo.client.KinuvoClient
 import kinuvo.protocol.Api
@@ -10,15 +12,26 @@ import kinuvo.protocol.agent.CreateAgentParams
 import kinuvo.protocol.agent.AgentId
 import kinuvo.protocol.device.PairingParams
 import kinuvo.protocol.model.CustomEndpointParams
+import kinuvo.protocol.computer.ComputerAction
+import kinuvo.protocol.computer.ComputerActionKind
+import kinuvo.protocol.computer.ComputerRequest
+import kinuvo.protocol.device.DeviceToolStatus
+import kinuvo.protocol.screen.ScreenWatch
+import kinuvo.protocol.screen.ScreenControlRequest
 import kinuvo.server.DeviceAuth
 import kinuvo.protocol.capability.ServerCapabilities
 import kinuvo.protocol.tool.ToolNames
 import kinuvo.testing.harness.TemporaryDirectories
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.async
+import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.withTimeout
+import kotlinx.coroutines.flow.first
 import kotlinx.io.files.Path
 import kotlin.test.*
 import kotlin.time.Clock
 import kotlin.time.Duration.Companion.days
+import kotlin.io.encoding.Base64
 
 class ReviewServerTest {
     @Test fun reviewDevicesCanReadRoutinesButCannotAdministerTheServer() = runBlocking<Unit> {
@@ -41,6 +54,20 @@ class ReviewServerTest {
             assertTrue(client.lastConnect?.management == true)
             val agent = client.call(Api.Agents, Unit).single()
             assertEquals(3, client.call(Api.Routines, AgentRef(agent.id)).size)
+            val screen = client.call(Api.Screens, null).single()
+            assertEquals(ReviewComputer.ID, screen.ref.id)
+            assertTrue(screen.capabilities.inputs.isEmpty())
+            val received = async(start = CoroutineStart.UNDISPATCHED) { withTimeout(5_000) { client.events(Api.ScreenFrame).first() } }
+            val subscription = client.call(Api.ScreenWatch, ScreenWatch(screen.ref))
+            val frame = received.await()
+            val image = ImageIO.read(ByteArrayInputStream(Base64.decode(frame.sample.image)))
+            assertEquals(960, image.width)
+            assertEquals(720, image.height)
+            assertEquals(subscription.id, frame.subscription)
+            client.call(Api.ScreenUnwatch, subscription.id)
+            assertFails { client.call(Api.ScreenControl, ScreenControlRequest(screen.ref, 0, true)) }
+            val action = runtime.computers.all().single().perform(ComputerRequest(action = ComputerAction(ComputerActionKind.Tap, x = 10, y = 10)))
+            assertEquals(DeviceToolStatus.Unsupported, action.status)
             assertFails { client.call(Api.CreateAgent, CreateAgentParams(AgentId("forbidden"))) }
             assertFails { client.call(Api.Pairing, PairingParams()) }
             assertFails { client.call(Api.SaveEndpoint, CustomEndpointParams(baseUrl = "https://example.com")) }

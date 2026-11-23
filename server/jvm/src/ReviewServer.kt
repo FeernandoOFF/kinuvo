@@ -35,7 +35,8 @@ internal object ReviewServer {
         Api.UploadAttachment, Api.Attachment, Api.Routines, Api.KnowledgeSearch, Api.KnowledgeNote, Api.KnowledgeChanges,
         Api.UndoKnowledgeChange, Api.TaskLists, Api.Tasks, Api.CreateTask, Api.UpdateTask, Api.TasksSettings,
         Api.KnowledgeSettings, Api.Service, Api.Providers, Api.Models, Api.Presence, Api.SurfaceCatalogs,
-        Api.Skills, Api.McpServers, Api.Workflows, Api.Workflow, Api.Artifacts, Api.Artifact, Api.RotateToken).map { it.name }.toSet()
+        Api.Skills, Api.McpServers, Api.Workflows, Api.Workflow, Api.Artifacts, Api.Artifact, Api.RotateToken,
+        Api.Computers, Api.Screens, Api.ScreenWatch, Api.ScreenUnwatch, Api.ScreenAck).map { it.name }.toSet()
 
     fun routes(delegate: Routes): Routes = object : Routes by delegate {
         override suspend fun dispatch(call: Call, request: Frame.Request): Frame.Response =

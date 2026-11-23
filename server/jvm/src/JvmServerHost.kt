@@ -24,7 +24,7 @@ import kinuvo.server.NetworkListener
 import kinuvo.server.NetworkSecurity
 import kinuvo.server.ServerRuntime
 
-class JvmServerHost(val harness: JvmAgentRuntime, val auth: DeviceAuth = DeviceAuth(Path(harness.files.home, "server-devices.json")), private val name: String = machineName(), val network: NetworkSecurity = NetworkSecurity(), security: ConnectionSecurity = ConnectionSecurity(), private val tailcat: TailcatServing? = null, review: Boolean = false) {
+class JvmServerHost(val harness: JvmAgentRuntime, val auth: DeviceAuth = DeviceAuth(Path(harness.files.home, "server-devices.json")), private val name: String = machineName(), val network: NetworkSecurity = NetworkSecurity(), security: ConnectionSecurity = ConnectionSecurity(), private val tailcat: TailcatServing? = null, private val review: Boolean = false) {
     private val mcpAccess = McpAccess()
     private val mcpListener = McpListener(mcpAccess)
     private val executionStorage = ExecutionStorage(harness.files.home)
@@ -89,6 +89,7 @@ class JvmServerHost(val harness: JvmAgentRuntime, val auth: DeviceAuth = DeviceA
         check(!started) { "Server already started" }
         started = true
         try {
+            if (review) ReviewComputer.attach(harness)
             mcpListener.start()
             runtime.start(schedule)
             return listener.start(host, ports)

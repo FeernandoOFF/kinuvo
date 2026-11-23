@@ -15,6 +15,10 @@ device tools, arbitrary web fetches, agent management and remote harness tools
 are excluded. Task and Knowledge writes stay in the local demo. Search uses a
 private SearXNG sidecar, without exposing a public search endpoint.
 
+Computers contains a static, labeled screen preview explaining where a connected
+Computer's screen would appear. It uses the real Live view delivery path but
+accepts no input, performs no computer actions and exposes no host desktop.
+
 The existing mobile client requires the management flag to display Routines.
 Review pairing supplies that flag, while a separate Server RPC allowlist limits
 access to local demo data and inspection. Provider credentials, pairing
