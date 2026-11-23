@@ -60,12 +60,14 @@ class DeviceAuth(private val file: Path, private val now: () -> Instant = { Cloc
     private var reviewManagement = false
 
     fun reviewPairing(code: String, expiresAt: Instant? = null, management: Boolean = false) = lock.withLock {
-        require(code.length >= 32) { "Review pairing requires at least 32 characters" }
+        require(reviewForm(code).length >= 8) { "Review pairing requires at least 8 letters or digits" }
         require(expiresAt == null || expiresAt > now()) { "Review pairing must expire in the future" }
-        reviewCode = code
+        reviewCode = reviewForm(code)
         reviewExpires = expiresAt
         reviewManagement = management
     }
+
+    private fun reviewForm(code: String) = code.filter { it.isLetterOrDigit() }.uppercase()
 
     override fun authenticate(device: String, token: String?, pairingCode: String?) =
         authenticate(device, token, pairingCode, null)
@@ -78,7 +80,7 @@ class DeviceAuth(private val file: Path, private val now: () -> Instant = { Cloc
         }
         if (token != null) return token.takeIf { valid(it) }.also { if (it != null) seen(it) }
         if (!pairable || pairingCode == null) return null
-        val review = reviewCode?.let { (reviewExpires?.let { now() < it } != false) && constantTimeEquals(pairingCode.encodeToByteArray(), it.encodeToByteArray()) } == true
+        val review = reviewCode?.let { (reviewExpires?.let { now() < it } != false) && constantTimeEquals(reviewForm(pairingCode).encodeToByteArray(), it.encodeToByteArray()) } == true
         if (!review) {
             if (this.pairingCode.isEmpty() || now() >= codeExpires) return null
             if (++attempts > 10) { closePairing(); return null }

@@ -45,7 +45,9 @@ search without a domain, and publish no host ports. Keep the service network
 separate from other apps. Set:
 
 - `REVIEW_PUBLIC_URL`: the HTTPS origin, without `:8787`.
-- `REVIEW_PAIRING_CODE`: a random 32-byte hex value (`openssl rand -hex 32`).
+- `REVIEW_PAIRING_CODE`: a random code of at least 8 letters or digits, such as
+  `XXXX-XXXX` from an unambiguous alphabet. Case, spaces and dashes are ignored.
+  Authentication rate limits keep a random 8-character code out of guessing range.
 - `REVIEW_EXPIRES_AT`: optional UTC expiry; leave empty for a permanent invite.
 - `SEARCH_SECRET`: another random 32-byte hex value.
 

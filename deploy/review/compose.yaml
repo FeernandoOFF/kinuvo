@@ -5,7 +5,7 @@ services:
     environment:
       SERVICE_FQDN_REVIEW_8787: /
       KINUVO_PUBLIC_URL: ${REVIEW_PUBLIC_URL:?set the HTTPS origin}
-      KINUVO_REVIEW_PAIRING_CODE: ${REVIEW_PAIRING_CODE:?set a random 32-byte hex code}
+      KINUVO_REVIEW_PAIRING_CODE: ${REVIEW_PAIRING_CODE:?set a random review code}
       KINUVO_REVIEW_EXPIRES_AT: ${REVIEW_EXPIRES_AT:-}
     volumes:
       - review-data:/data

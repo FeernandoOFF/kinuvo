@@ -75,6 +75,14 @@ class DeviceAuthSecurityTest {
     }
 
     @Test
+    fun shortReviewCodeIgnoresCaseAndSeparators() {
+        auth.reviewPairing("LSBN-7K4Q")
+        assertNotNull(auth.authenticate("reviewer", null, "lsbn 7k4q"))
+        assertNull(auth.authenticate("guess", null, "LSBN-7K4R"))
+        assertFailsWith<IllegalArgumentException> { auth.reviewPairing("ABC-123") }
+    }
+
+    @Test
     fun guessesConsumeABoundedBudgetWithoutOpeningAnotherWindow() {
         val code = auth.currentPairingCode()
         repeat(10) { assertNull(auth.authenticate("attacker", null, "wrong")) }
