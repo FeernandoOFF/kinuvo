@@ -59,7 +59,8 @@ class LiveViewScreenTest {
             val state = LiveViewState(screens=if(mode=="empty") emptyList() else listOf(info, info.copy(ref = previewRef, title = "Cedar — Plans"), info.copy(ref = missingRef, title = "Loading tab")), thumbnails=mapOf(previewRef to preview), selected=ref, connected=mode!="offline", loaded=true, device="device", subscription=ScreenSubscription("sub","epoch"),frame=if(mode=="empty") null else frame,displayed=frame,owner=owner, frameReceivedAt="2026-10-29T16:00:00Z", pending=mode=="reconnect", requestReason=if(mode=="request") "Sign in to continue" else null)
             val drawn = mutableListOf<ScreenFrame>()
             val commands = mutableListOf<ScreenCommandKind>()
-            ImageComposeScene(width*2,height*2,Density(2f), content={ KinuvoTheme(dark=true) { androidx.compose.runtime.CompositionLocalProvider(kinuvo.ui.navigation.LocalHomeChrome provides kinuvo.ui.navigation.HomeChrome({}, width >= 760)) { LiveViewContent(state,LiveActions(drawn = { drawn.add(it) }, command = { kind, _ -> commands.add(kind) }), ({}).takeIf { width < 760 }, docked = width < 760) } } }).use { scene ->
+            val opened = mutableListOf<String>()
+            ImageComposeScene(width*2,height*2,Density(2f), content={ KinuvoTheme(dark=true) { androidx.compose.runtime.CompositionLocalProvider(kinuvo.ui.navigation.LocalHomeChrome provides kinuvo.ui.navigation.HomeChrome({}, width >= 760)) { LiveViewContent(state,LiveActions(drawn = { drawn.add(it) }, open = { opened.add(it) }, command = { kind, _ -> commands.add(kind) }), ({}).takeIf { width < 760 }, docked = width < 760) } } }).use { scene ->
                 repeat(15) { scene.render(it*100_000_000L); Thread.sleep(10) }
                 if (mode != "empty") assertEquals(listOf(frame), drawn)
                 val tree = scene.semanticsOwners.flatMap { nodes(it.rootSemanticsNode) }
@@ -68,6 +69,10 @@ class LiveViewScreenTest {
                 val texts = tree.flatMap { it.config.getOrNull(SemanticsProperties.Text).orEmpty().map { it.text } }
                 assertTrue(texts.isNotEmpty())
                 assertTrue(if (mode == "empty") texts.any { it.startsWith("No screens") } else "Cedar — Your account" in texts)
+                if (mode == "empty") {
+                    tree.first { node -> node.config.getOrNull(SemanticsProperties.Text).orEmpty().any { it.text == "Open Browser" } && node.config.getOrNull(SemanticsActions.OnClick) != null }.config[SemanticsActions.OnClick].action!!.invoke()
+                    assertEquals(listOf(BrowserHomePage), opened)
+                }
                 File("build/screens").apply { mkdirs() }.resolve("live-$width-$mode.png").writeBytes(scene.render(2_000_000_000L).encodeToData(EncodedImageFormat.PNG)!!.bytes)
                 if (mode == "watch") {
                     val tabs = tree.first { it.config.getOrNull(SemanticsProperties.ContentDescription).orEmpty().any { it == "Screens" } && it.config.getOrNull(SemanticsActions.OnClick) != null }
