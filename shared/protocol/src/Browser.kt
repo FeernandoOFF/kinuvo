@@ -25,12 +25,14 @@ data class BrowserCommand(val owner: BrowserOwner, val action: BrowserAction, va
     val revision: String? = null, val ref: String? = null, val text: String? = null, val x: Int? = null, val y: Int? = null,
     val take: Boolean? = null, val width: Int? = null, val height: Int? = null)
 
-/** What an address bar entry means: a URL as is, a bare host over HTTPS, anything else a Google search. */
+const val BrowserHome = "https://www.google.com"
+
+/** What an address bar entry means: home when empty, a URL as is, a bare host over HTTPS, anything else a Google search. */
 fun browserAddress(typed: String): String {
     val text = typed.trim()
     val host = text.substringBefore('/').substringBefore('?').substringBefore(':')
     return when {
-        text.isEmpty() -> "about:blank"
+        text.isEmpty() -> BrowserHome
         Regex("^(https?://|about:)", RegexOption.IGNORE_CASE).containsMatchIn(text) -> text
         text.none { it.isWhitespace() } && (host == "localhost" || ('.' in host && !host.startsWith('.') && !host.endsWith('.'))) -> "https://$text"
         else -> "https://www.google.com/search?q=" + text.encodeToByteArray().joinToString("") { b ->

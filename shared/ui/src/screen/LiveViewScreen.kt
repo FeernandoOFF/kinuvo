@@ -131,7 +131,7 @@ internal fun LiveViewContent(state: LiveViewState, actions: LiveActions, back: (
         }
         if (!wide && !docked && tabs) BottomSheet(overview, onDismissRequest = { overview = false }, header = { Row(Modifier.fillMaxWidth().padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
             Text("Screens · ${state.screens.size}", Modifier.weight(1f))
-            if (tabs) Button(onClick = { actions.open("about:blank") }, enabled = state.connected, style = ButtonStyle.Ghost) { Text("New tab") }
+            if (tabs) Button(onClick = { actions.open(BrowserHome) }, enabled = state.connected, style = ButtonStyle.Ghost) { Text("New tab") }
         } }) {
             ScreenOverview(state, actions.copy(select = { actions.select(it); overview = false }), Modifier.weight(1f), grid = true)
         }
@@ -182,7 +182,7 @@ internal fun TabStrip(state: LiveViewState, actions: LiveActions) {
                     }
             }
         }
-        HeaderButton(Lucide.Plus, "New tab", { actions.open("about:blank") }, enabled = state.connected && !state.pending)
+        HeaderButton(Lucide.Plus, "New tab", { actions.open(BrowserHome) }, enabled = state.connected && !state.pending)
     }
     HorizontalSeparator()
 }
@@ -222,7 +222,7 @@ internal fun EmptyStage(state: LiveViewState, actions: LiveActions, modifier: Mo
         if (state.pending || !state.loaded) Spinner(size = 20.dp) else Icon(if (state.owner != null) Lucide.Globe else Lucide.Monitor, Modifier.size(28.dp), tint = color(mutedColor))
         Text(if (state.pending) "Preparing Browser…" else if (state.loaded) "No screens yet. Ask the Agent to browse or connect a Computer." else "Finding screens…",
             color = color(mutedColor), textAlign = TextAlign.Center)
-        if (state.owner != null) Button(onClick = { actions.open("about:blank") }, enabled = state.connected && !state.pending) { Text("Open Browser") }
+        if (state.owner != null) Button(onClick = { actions.open(BrowserHome) }, enabled = state.connected && !state.pending) { Text("Open Browser") }
     }
 }
 
@@ -296,7 +296,7 @@ internal fun ScreenOverview(state: LiveViewState, actions: LiveActions, modifier
                 Pill(status.label, tone = status.tone, loading = status == Status.Working)
             }
         }
-        if (!grid && state.owner != null) item { Button(onClick = { actions.open("about:blank") }, enabled = state.connected, style = ButtonStyle.Ghost) { Text("New tab") } }
+        if (!grid && state.owner != null) item { Button(onClick = { actions.open(BrowserHome) }, enabled = state.connected, style = ButtonStyle.Ghost) { Text("New tab") } }
     }
 }
 

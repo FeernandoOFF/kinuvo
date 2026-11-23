@@ -89,7 +89,7 @@ internal class AndroidBrowserRuntime(private val context: Context) : BrowserServ
         if (command.action == BrowserAction.Open) {
             check(available) { "This WebView does not support isolated Agent profiles" }
             require(tabs.size < 8) { "Close a Browser tab before opening another (Android limit: 8)" }
-            val destination = destination(command.text ?: "about:blank")
+            val destination = destination(command.text ?: BrowserHome)
             val tab = create(command.owner)
             try { return@withContext tab.lock.withLock { navigate(tab, destination); capture(tab, !user) } }
             catch (e: Throwable) { remove(tab); throw e }

@@ -61,7 +61,7 @@ data class ScreenCommand(val screen: ScreenRef, val generation: Long, val action
 data class ScreenStreamStatus(val subscription: String, val status: ScreenStatus, val message: String? = null)
 
 @Serializable
-data class ScreenOpen(val owner: BrowserOwner, val url: String = "about:blank")
+data class ScreenOpen(val owner: BrowserOwner, val url: String = BrowserHome)
 
 @Serializable
 enum class ScreenCommandKind { Navigate, Back, Forward, Resize, Close }

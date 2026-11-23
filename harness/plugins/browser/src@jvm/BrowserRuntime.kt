@@ -266,7 +266,7 @@ class BrowserRuntime(private val home: File) : BrowserService {
         if (c.action == BrowserAction.Open) {
             val page = profile(c.owner.agentId).browser.get("about:blank", newTab = true)
             val tab = register(c.owner, page)
-            try { navigate(tab, c.text ?: "about:blank"); persist(); changed(c.owner); return@withLock capture(tab, !user) }
+            try { navigate(tab, c.text ?: BrowserHome); persist(); changed(c.owner); return@withLock capture(tab, !user) }
             catch (e: Exception) { tabs.remove(tab.id); tab.events?.cancel(); runCatching { page.send("Page.close") }; throw e }
         }
         val tab = entry(c.owner, requireNotNull(c.tabId))

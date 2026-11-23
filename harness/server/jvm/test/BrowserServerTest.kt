@@ -95,7 +95,7 @@ class BrowserServerTest {
             val agent = client.call(Api.Agents, Unit).first()
             val session = client.call(Api.CreateSession, AgentRef(agent.id))
             val owner = BrowserOwner(agent.id)
-            val opened = client.call(Api.ScreenOpen, ScreenOpen(owner))
+            val opened = client.call(Api.ScreenOpen, ScreenOpen(owner, "about:blank"))
             val ref = opened.ref
             client.call(Api.CreateSession, AgentRef(agent.id))
             assertEquals(listOf(ref.id), client.call(Api.BrowserTabs, BrowserOwner(agent.id)).map { it.id })
