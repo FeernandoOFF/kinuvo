@@ -55,6 +55,17 @@ class DeviceAuth(private val file: Path, private val now: () -> Instant = { Cloc
     private var codeExpires = Instant.DISTANT_PAST
     private var codeManagement = false
     private var attempts = 0
+    private var reviewCode: String? = null
+    private var reviewExpires = Instant.DISTANT_PAST
+    private var reviewManagement = false
+
+    fun reviewPairing(code: String, expiresAt: Instant, management: Boolean = false) = lock.withLock {
+        require(code.length >= 32) { "Review pairing requires at least 32 characters" }
+        require(expiresAt > now()) { "Review pairing must expire in the future" }
+        reviewCode = code
+        reviewExpires = expiresAt
+        reviewManagement = management
+    }
 
     override fun authenticate(device: String, token: String?, pairingCode: String?) =
         authenticate(device, token, pairingCode, null)
@@ -66,15 +77,19 @@ class DeviceAuth(private val file: Path, private val now: () -> Instant = { Cloc
             sessionDevices[it] = (sessionDevices[it] ?: ToolDevice(identity(sha256(it)), "", emptySet())).copy(name = device.take(80))
         }
         if (token != null) return token.takeIf { valid(it) }.also { if (it != null) seen(it) }
-        if (!pairable || pairingCode == null || this.pairingCode.isEmpty() || now() >= codeExpires) return null
-        if (++attempts > 10) { closePairing(); return null }
-        if (!constantTimeEquals(pairingCode.encodeToByteArray(), this.pairingCode.encodeToByteArray())) { if (attempts >= 10) closePairing(); return null }
+        if (!pairable || pairingCode == null) return null
+        val review = reviewCode?.let { now() < reviewExpires && constantTimeEquals(pairingCode.encodeToByteArray(), it.encodeToByteArray()) } == true
+        if (!review) {
+            if (this.pairingCode.isEmpty() || now() >= codeExpires) return null
+            if (++attempts > 10) { closePairing(); return null }
+            if (!constantTimeEquals(pairingCode.encodeToByteArray(), this.pairingCode.encodeToByteArray())) { if (attempts >= 10) closePairing(); return null }
+        }
         val newToken = randomToken()
         val time = now()
-        val phone = tailcatLock.withLock { tunnel?.phoneOf(this.pairingCode)?.takeIf { it == tailcatPeer } }
+        val phone = if (review) null else tailcatLock.withLock { tunnel?.phoneOf(this.pairingCode)?.takeIf { it == tailcatPeer } }
         save(devices() + PairedDevice(device.take(80), sha256(newToken), time.toString(), lastSeen = time.toString(),
-            id = identity(sha256(newToken)), management = codeManagement, expiresAt = (time + 90.days).toString(), tailcatPhone = phone))
-        closePairing()
+            id = identity(sha256(newToken)), management = if (review) reviewManagement else codeManagement, expiresAt = (if (review) reviewExpires else time + 90.days).toString(), tailcatPhone = phone))
+        if (!review) closePairing()
         return newToken
     } }
 
@@ -84,6 +99,7 @@ class DeviceAuth(private val file: Path, private val now: () -> Instant = { Cloc
     } }
 
     override fun management(token: String) = lock.withLock { token in sessionTokens || device(token)?.management == true }
+    override fun rateKey(token: String) = lock.withLock { device(token)?.id ?: sha256(token) }
 
     fun currentPairingCode(): String { lock.withLock {
         if (!pairable) error("Pairing is disabled")

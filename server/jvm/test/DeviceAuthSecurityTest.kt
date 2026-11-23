@@ -42,6 +42,25 @@ class DeviceAuthSecurityTest {
     }
 
     @Test
+    fun reviewPairingIsReusableOrdinaryAndExpires() {
+        val code = "review-code-".repeat(4)
+        auth.reviewPairing(code, time + 30.days)
+        auth.refreshCode(management = true)
+        repeat(10) { assertNull(auth.authenticate("guess", null, "wrong")) }
+        val first = assertNotNull(auth.authenticate("reviewer", null, code))
+        val second = assertNotNull(auth.authenticate("another reviewer", null, code))
+        assertNotEquals(first, second)
+        assertFalse(auth.management(first))
+        assertFalse(auth.management(second))
+        auth.pairable = false
+        assertNull(auth.authenticate("disabled", null, code))
+        auth.pairable = true
+        time += 30.days
+        assertNull(auth.authenticate("expired", null, code))
+        assertFalse(auth.valid(first))
+    }
+
+    @Test
     fun guessesConsumeABoundedBudgetWithoutOpeningAnotherWindow() {
         val code = auth.currentPairingCode()
         repeat(10) { assertNull(auth.authenticate("attacker", null, "wrong")) }
@@ -55,7 +74,9 @@ class DeviceAuthSecurityTest {
         val token = assertNotNull(auth.authenticate("owner", null, auth.currentPairingCode()))
         assertTrue(auth.management(token))
         val id = auth.paired(token).single().id
+        val rateKey = auth.rateKey(token)
         val replacement = auth.rotate(token)
+        assertEquals(rateKey, auth.rateKey(replacement))
         assertFalse(auth.valid(token))
         assertTrue(auth.valid(replacement))
         assertEquals(id, auth.paired(replacement).single().id)

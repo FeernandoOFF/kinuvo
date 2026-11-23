@@ -13,6 +13,7 @@ interface PeerRegistry {
         authenticate(device, token, pairingCode)
     fun valid(token: String): Boolean = true
     fun management(token: String): Boolean = true
+    fun rateKey(token: String): String = token
     fun rotate(token: String): String = error("Token rotation is unavailable")
     fun toolDevices(): List<ToolDevice>
     fun setTools(token: String, tools: Set<DeviceToolKind>): String

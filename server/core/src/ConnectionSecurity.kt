@@ -9,4 +9,5 @@ data class ConnectionSecurity(
     val messagesPerMinute: Int = 600,
     val liveVoiceInputsPerMinute: Int = 6000,
     val screenAcksPerMinute: Int = 15_000,
+    val deviceMessagesPerMinute: Int? = null,
 )

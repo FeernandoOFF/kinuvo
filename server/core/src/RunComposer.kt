@@ -209,7 +209,7 @@ class RunComposer internal constructor(
         val run = RunContext(e.agent, sessionId, routine?.routine, taskId)
         val contributed = (if (privateSession) emptyList() else plugins).map { it.prepare(run, activate).ownedBy(it.instance, it.manifest) }
         val own = PluginTools(if (privateSession) subAgents?.tools(agent.id, requireNotNull(sessionId)).orEmpty() + manageTools(agent, sessionId, true) + listOf(AskUserTool()) else toolsFor(e, sessionId, routine, catalogs, scope)).ownedBy(PluginInstanceId("kinuvo.core")).tools
-        val aliased = own + contributed.flatMap { it.tools }
+        val aliased = (own + contributed.flatMap { it.tools }).filter { harness.allowedTools?.contains(it.identity?.localId ?: it.descriptor.name) != false }
         val all = aliased.withModelNames().also { it.indexedTools() }
         val renamed = aliased.zip(all).filter { (a, b) -> a !== b }.associate { (a, b) -> a.descriptor.name to b.descriptor.name }
         val eligible = if (requireModel) usable(e, all, scope) else all.filter(scope::allows).map { it.descriptor.name }.toSet()
@@ -225,7 +225,7 @@ class RunComposer internal constructor(
                 else -> tool.state
             }
             tool.copy(state = state)
-        }
+        }.filter { harness.allowedTools?.contains(it.identity?.localId ?: it.id) != false }
         val usableTools = all.filter { tool -> tool.descriptor.name in eligible && catalog.none { it.id == tool.descriptor.name && it.state.reasonCode == "needs_setup" } }
         val cataloguedNames = plugins.zip(contributed).filter { it.first.catalogued }.flatMap { it.second.tools }.map { renamed[it.descriptor.name] ?: it.descriptor.name }.toSet()
         val candidates = usableTools.filter { it.descriptor.name in cataloguedNames }.takeIf {

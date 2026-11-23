@@ -35,6 +35,7 @@ import kotlinx.serialization.json.intOrNull
 class NetworkListener(private val runtime: ServerRuntime, private val auth: DeviceAuth, val network: NetworkSecurity = NetworkSecurity(), private val remoteOnly: Boolean = false) {
     init { require(!remoteOnly || !network.behindProxy && network.publicUrl == null && !network.secureProxy("127.0.0.1", "https")) }
     private val limits = NetworkLimits()
+    private val requests = RequestRateLimit()
     private var engine: EmbeddedServer<*, *>? = null
     var boundPort = 0; private set
     var boundHost = "127.0.0.1"; private set
@@ -130,7 +131,7 @@ class NetworkListener(private val runtime: ServerRuntime, private val auth: Devi
                         val credential = if (browser) call.request.cookies[SESSION_COOKIE]?.takeIf { auth.cookieMaxAge(it) != null } else null
                         if (browser && credential == null) { close(); return@webSocket }
                         val tailcatPeer = if (remoteOnly && peer == "127.0.0.1") auth.tailcatPeer(call.request.local.remotePort) else null
-                        val connection = connection(credential) { frame ->
+                        val connection = connection(credential, { network.messagesPerMinute?.let { requests.accept(source, it) } != false }) { frame ->
                             val params = (frame as? Frame.Request)?.takeIf { it.method == Api.Connect.name }?.let {
                                 runCatching { ProtocolJson.decodeFromJsonElement(ConnectParams.serializer(), it.params) }.getOrNull()
                             }
@@ -146,11 +147,12 @@ class NetworkListener(private val runtime: ServerRuntime, private val auth: Devi
     }
 }
 
-private fun WebSocketSession.connection(credential: String?, authenticate: (Frame) -> Boolean): FrameConnection = object : FrameConnection {
+private fun WebSocketSession.connection(credential: String?, accept: () -> Boolean, authenticate: (Frame) -> Boolean): FrameConnection = object : FrameConnection {
     override val credential = credential
     private var authenticated = false
     override val incoming = flow {
         for (frame in this@connection.incoming) {
+            if (!accept()) { this@connection.close(); break }
             if (frame !is WsFrame.Text) { this@connection.close(); break }
             val text = frame.readText()
             if (!authenticated && text.length > PREAUTH_FRAME_SIZE) { this@connection.close(); break }

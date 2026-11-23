@@ -78,6 +78,7 @@ class ServerRuntime(
     /** Held while a live voice call runs, so the host keeps serving it in real time. */
     private val keepAwake: () -> AutoCloseable = { AutoCloseable {} },
 ) {
+    private val deviceRateLimit = RequestRateLimit()
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     val executions = executionRegistry
     private val hub = object : ServerHub {
@@ -396,6 +397,9 @@ class ServerRuntime(
         var authed = false
         try {
             connection.incoming.collect { decoded ->
+                if (authed && security.deviceMessagesPerMinute?.let { limit ->
+                    client.authenticated { token -> deviceRateLimit.accept(auth.rateKey(token), limit) }
+                } == false) { client.disconnect(); return@collect }
                 if (window.elapsedNow().inWholeMilliseconds >= 60_000) { window = TimeSource.Monotonic.markNow(); messages = 0; screenAcks = 0; voiceInputs = 0 }
                 if (decoded is Frame.Event && decoded.event == Api.LiveVoiceInput.name) {
                     if (!authed || !client.valid() || client.linked || ++voiceInputs > security.liveVoiceInputsPerMinute) { client.disconnect(); return@collect }

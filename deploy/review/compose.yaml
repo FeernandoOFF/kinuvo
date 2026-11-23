@@ -1,0 +1,57 @@
+services:
+  review:
+    image: kinuvo-review:local
+    pull_policy: never
+    environment:
+      SERVICE_FQDN_REVIEW_8787: /
+      KINUVO_PUBLIC_URL: ${REVIEW_PUBLIC_URL:?set the HTTPS origin}
+      KINUVO_REVIEW_PAIRING_CODE: ${REVIEW_PAIRING_CODE:?set a random 32-byte hex code}
+      KINUVO_REVIEW_EXPIRES_AT: ${REVIEW_EXPIRES_AT:?set an ISO UTC expiry}
+    volumes:
+      - review-data:/data
+    restart: unless-stopped
+    mem_limit: 2g
+    cpus: 2
+    read_only: true
+    tmpfs:
+      - /tmp:size=268435456,mode=1777
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    healthcheck:
+      test: [CMD, python3, -c, "import socket; socket.create_connection(('127.0.0.1',8787),3).close()"]
+      interval: 30s
+      timeout: 5s
+      start_period: 120s
+    depends_on:
+      - review-search
+  review-search:
+    image: docker.io/searxng/searxng@sha256:a7fc607aa6723f5a8982105bcc5ffba4d1b9fc7c6922a31a88d6e4cba49ef12a
+    environment:
+      SEARXNG_SECRET: ${SEARCH_SECRET:?set a random search secret}
+    configs:
+      - source: search-settings
+        target: /etc/searxng/settings.yml
+    restart: unless-stopped
+    mem_limit: 512m
+    cpus: 1
+    labels:
+      - traefik.enable=false
+    security_opt:
+      - no-new-privileges:true
+
+volumes:
+  review-data:
+
+configs:
+  search-settings:
+    content: |
+      use_default_settings: true
+      search:
+        formats: [json]
+      server:
+        limiter: false
+        image_proxy: false
+      outgoing:
+        request_timeout: 10.0

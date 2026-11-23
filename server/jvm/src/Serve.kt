@@ -3,10 +3,15 @@ package kinuvo.server.jvm
 import kinuvo.server.plugin.TailcatServing
 import io.github.oshai.kotlinlogging.KotlinLogging
 import kinuvo.server.NetworkSecurity
+import kinuvo.server.ConnectionSecurity
+import kinuvo.server.DeviceAuth
+import kotlinx.io.files.Path
+import java.io.File
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.Serializable
+import kotlin.time.Instant
 
 private val log = KotlinLogging.logger("kinuvo.serve")
 
@@ -49,12 +54,28 @@ suspend fun serve(options: ServeOptions, tailcat: TailcatServing? = null, extend
     val bind = if (options.tailscale) "127.0.0.1" else options.host
     val behindProxy = options.behindProxy || env("KINUVO_BEHIND_PROXY")?.lowercase() in listOf("1", "true")
     val trusted = (options.trustedProxy?.trim()?.takeIf { it.isNotEmpty() } ?: env("KINUVO_TRUSTED_PROXIES"))?.split(',')?.map(String::trim)?.toSet()
-    val network = NetworkSecurity(route?.url ?: publicUrl(options.publicUrl), trusted, behindProxy, if (behindProxy) coolifyOrigin(env("COOLIFY_URL")) else null)
-    val server = JvmServerHost(JvmAgentRuntime(), network = network, tailcat = tailcat)
+    val review = env("KINUVO_REVIEW_MODE") == "true"
+    val home = if (review) Path(requireNotNull(env("KINUVO_HOME")) { "Review mode requires a dedicated KINUVO_HOME" }) else kinuvoHome()
+    val reviewCode = if (review) requireNotNull(env("KINUVO_REVIEW_PAIRING_CODE")) { "Set KINUVO_REVIEW_PAIRING_CODE" } else null
+    val reviewExpiry = if (review) Instant.parse(requireNotNull(env("KINUVO_REVIEW_EXPIRES_AT")) { "Set KINUVO_REVIEW_EXPIRES_AT" }) else null
+    if (review) {
+        require(!options.tailcat && !options.tailscale) { "Review mode uses its isolated HTTPS deployment" }
+        ReviewServer.prepare(home)
+    }
+    val network = NetworkSecurity(route?.url ?: publicUrl(options.publicUrl), trusted, behindProxy, if (behindProxy) coolifyOrigin(env("COOLIFY_URL")) else null,
+        messagesPerMinute = if (review) 600 else null)
+    val runtime = JvmAgentRuntime(home, review = review)
+    val auth = DeviceAuth(if (review) Path(requireNotNull(File(home.toString()).parent), "review-devices.json") else Path(home, "server-devices.json"))
+    val server = JvmServerHost(runtime, auth, name = if (review) "Kinuvo Review" else machineName(), network = network,
+        security = ConnectionSecurity(deviceMessagesPerMinute = if (review) 120 else null), tailcat = tailcat, review = review)
     var extension: AutoCloseable? = null
     var ready = false
     val shutdown = Thread { try { server.stop() } finally { extension?.close() } }
     try {
+        if (review) {
+            auth.reviewPairing(requireNotNull(reviewCode), requireNotNull(reviewExpiry), management = true)
+            ReviewServer.seed(runtime)
+        }
         val bound = server.start(bind, options.port)
         if (options.tailcat) {
             try {
@@ -68,7 +89,8 @@ suspend fun serve(options: ServeOptions, tailcat: TailcatServing? = null, extend
         log.info { "Server listening at $bind:$bound${network.publicUrl?.let { "; HTTPS address $it" }.orEmpty()}" }
         if (route != null) log.info { "Tailscale HTTPS: ${route.url} (private to your tailnet; the Serve route persists until disabled)" }
         if (server.tailcatEnabled) log.info { "Tailcat is active; run kinuvo pair to show its pairing link" }
-        log.info { "Pairing is closed. Run `kinuvo pair --manage` for a management Device or `kinuvo pair` for ordinary access." }
+        if (review) log.info { "Restricted review pairing is enabled until $reviewExpiry." }
+        else log.info { "Pairing is closed. Run `kinuvo pair --manage` for a management Device or `kinuvo pair` for ordinary access." }
         Runtime.getRuntime().addShutdownHook(shutdown)
         ready = true
         awaitCancellation()

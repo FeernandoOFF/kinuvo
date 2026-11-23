@@ -22,22 +22,25 @@ class JvmAgentRuntime private constructor(home: Path, installed: Installed, mode
     installed.dependencies, { NativeExecutionFactory(it, installed.sources, modelFactory) },
     platformDescription = "${currentPlatform.displayName} ${currentArch.displayName}",
     unmanagedModels = modelFactory != null,
+    allowedTools = installed.allowedTools,
 ) {
     val files = AgentFiles(home)
     constructor(home: Path = kinuvoHome(), store: Store? = null, providers: ModelProviders<ModelSource>? = null,
         modelFactory: ((AgentConfig) -> AgentModel)? = null, clock: () -> Long = System::currentTimeMillis,
         plugins: List<ServerPlugin>? = null, secretProviders: List<SecretProvider>? = null, codexAuth: CodexAuth = CodexAuth(),
-    ) : this(home, install(home, store, providers, plugins, secretProviders, clock, codexAuth), modelFactory)
+        review: Boolean = false,
+    ) : this(home, install(home, store, providers, plugins, secretProviders, clock, codexAuth, review), modelFactory)
 
-    private class Installed(val dependencies: RuntimeDependencies, val sources: () -> List<ModelSource>)
+    private class Installed(val dependencies: RuntimeDependencies, val sources: () -> List<ModelSource>, val allowedTools: Set<String>? = null)
 
     private companion object {
-        private fun install(home: Path, store: Store?, providers: ModelProviders<ModelSource>?, plugins: List<ServerPlugin>?, secretProviders: List<SecretProvider>?, clock: () -> Long, auth: CodexAuth): Installed = runBlocking {
+        private fun install(home: Path, store: Store?, providers: ModelProviders<ModelSource>?, plugins: List<ServerPlugin>?, secretProviders: List<SecretProvider>?, clock: () -> Long, auth: CodexAuth, review: Boolean): Installed = runBlocking {
             val files = AgentFiles(home)
-            val secrets = Secrets(secretProviders ?: jvmSecretProviders(files))
+            val secrets = Secrets(if (review) emptyList() else secretProviders ?: jvmSecretProviders(files))
             val owned = mutableListOf<ServerPlugin>()
             val (sources, selected) = try {
-                if (plugins != null) (providers?.sources ?: { emptyList() }) to plugins
+                if (review) ReviewServer.providers(files, secrets).let { it.sources to (it.plugins + ReviewSearchPlugin()) }
+                else if (plugins != null) (providers?.sources ?: { emptyList() }) to plugins
                 else (providers ?: jvmProviders(files, secrets, owned::add)).let { it.sources to jvmPlugins(files, secrets, it, owned::add) }
             } catch (e: Throwable) {
                 ServerResources(owned).close()
@@ -45,11 +48,11 @@ class JvmAgentRuntime private constructor(home: Path, installed: Installed, mode
             }
             ServerInstallation.assemble(files, store, selected, modelSources = sources,
                 secrets = secrets, userHome = Path(System.getProperty("user.home")), clock = clock).also { dependencies ->
-                    if (auth.account().signedIn && CodexRealtime.available()) {
+                    if (!review && auth.account().signedIn && CodexRealtime.available()) {
                         val voice = dependencies.voice
                         dependencies.voice = VoiceProviders(voice.transcriber, voice.processor, voice.synthesizer, CodexRealtime(auth))
                     }
-                }.let { Installed(it, sources) }
+                }.let { Installed(it, sources, if (review) ReviewServer.tools else null) }
         }
     }
 }

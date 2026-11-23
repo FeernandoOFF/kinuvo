@@ -70,6 +70,7 @@ open class AgentRuntime(
     routineApprovalWait: Duration = 30.minutes,
     /** The harness builds models without a registered provider, e.g. scripted ones in tests, so no provider is asked whether it is ready. */
     unmanagedModels: Boolean = false,
+    val allowedTools: Set<String>? = null,
 ) : ServerSettings by dependencies.settings {
     var workflows: Workflows? = null
     var agentManagement: AgentManagement? = null

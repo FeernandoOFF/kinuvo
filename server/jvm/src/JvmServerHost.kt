@@ -24,13 +24,13 @@ import kinuvo.server.NetworkListener
 import kinuvo.server.NetworkSecurity
 import kinuvo.server.ServerRuntime
 
-class JvmServerHost(val harness: JvmAgentRuntime, val auth: DeviceAuth = DeviceAuth(Path(harness.files.home, "server-devices.json")), private val name: String = machineName(), val network: NetworkSecurity = NetworkSecurity(), security: ConnectionSecurity = ConnectionSecurity(), private val tailcat: TailcatServing? = null) {
+class JvmServerHost(val harness: JvmAgentRuntime, val auth: DeviceAuth = DeviceAuth(Path(harness.files.home, "server-devices.json")), private val name: String = machineName(), val network: NetworkSecurity = NetworkSecurity(), security: ConnectionSecurity = ConnectionSecurity(), private val tailcat: TailcatServing? = null, review: Boolean = false) {
     private val mcpAccess = McpAccess()
     private val mcpListener = McpListener(mcpAccess)
     private val executionStorage = ExecutionStorage(harness.files.home)
     private val activity = ProcessActivity("Serving a live voice call")
     private val links = remoteLinks(harness.files.home)
-    val runtime: ServerRuntime = ServerRuntime(harness, auth, serverRoutes(), name,
+    val runtime: ServerRuntime = ServerRuntime(harness, auth, serverRoutes().let { if (review) ReviewServer.routes(it) else it }, name,
         remoteLinks = links, remoteHarness = { RemoteExecutionFactory(links::link, harness.serverId, it) }, security = security, prepareAttachment = ::prepareAttachment, keepAwake = activity::hold,
         executionRegistry = executionStorage.registry, executionFactory = McpExecutionFactory(AcpExecutionFactory(persistAttachment = ::persistExecutionAttachment, autoApprove = { registration, session, kind ->
             harness.composer.autoApproveHarness(registration.serverToolAgent(), session, kind)
@@ -123,4 +123,4 @@ class JvmServerHost(val harness: JvmAgentRuntime, val auth: DeviceAuth = DeviceA
 }
 
 /** What clients call this Server until they give it an alias. */
-private fun machineName() = runCatching { InetAddress.getLocalHost().hostName.substringBefore('.') }.getOrNull()?.takeIf { it.isNotBlank() && it != "localhost" } ?: "kinuvo"
+internal fun machineName() = runCatching { InetAddress.getLocalHost().hostName.substringBefore('.') }.getOrNull()?.takeIf { it.isNotBlank() && it != "localhost" } ?: "kinuvo"

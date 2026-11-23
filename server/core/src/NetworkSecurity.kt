@@ -12,7 +12,7 @@ private val log = KotlinLogging.logger("kinuvo.security")
  * Origin and proxy policy. [trustedProxies] are literal IPs or CIDR ranges; by default loopback, or in [behindProxy] mode
  * (a reverse proxy in another container) loopback plus private ranges.
  */
-class NetworkSecurity(publicUrl: String? = null, trustedProxies: Set<String>? = null, val behindProxy: Boolean = false, advertised: String? = null) {
+class NetworkSecurity(publicUrl: String? = null, trustedProxies: Set<String>? = null, val behindProxy: Boolean = false, advertised: String? = null, val messagesPerMinute: Int? = null) {
     private val trusted = (trustedProxies ?: if (behindProxy) PROXY_DEFAULTS else LOOPBACK_DEFAULTS).map(::range)
     /** The HTTPS origin of the latest browser request a trusted proxy forwarded (initially [advertised]), in [behindProxy] mode without a public URL; only advertised, never trusted. */
     @Volatile var learnedOrigin: String? = advertised; private set
