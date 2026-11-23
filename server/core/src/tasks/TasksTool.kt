@@ -31,7 +31,7 @@ class TasksTool(private val tasks: Tasks, private val agent: Agent, private val 
         ),
         optionalParameters = listOf(
             ToolParameter("id", "Task id (update)", ParameterType.String),
-            ToolParameter("mine", "true to list only tasks assigned to you", ParameterType.String),
+            ToolParameter("mine", "true to list only tasks assigned to you, the agent; omit it for the user's tasks", ParameterType.String),
             ToolParameter("title", "Task title (create, update)", ParameterType.String),
             ToolParameter("list", "List name (create); defaults to the user's default list", ParameterType.String),
             ToolParameter("notes", "Notes (create)", ParameterType.String),
