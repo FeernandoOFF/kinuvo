@@ -9,6 +9,7 @@ import io.ktor.server.request.header
 import io.ktor.server.response.respondText
 import io.ktor.server.response.header
 import io.ktor.server.routing.post
+import io.ktor.server.routing.get
 import io.ktor.http.HttpStatusCode
 import io.ktor.http.Cookie
 import io.ktor.http.CookieEncoding
@@ -32,7 +33,7 @@ import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.intOrNull
 
 /** Serves [runtime] over WebSockets to Devices on the network, which pair and authenticate through [auth]. */
-class NetworkListener(private val runtime: ServerRuntime, private val auth: DeviceAuth, val network: NetworkSecurity = NetworkSecurity(), private val remoteOnly: Boolean = false) {
+class NetworkListener(private val runtime: ServerRuntime, private val auth: DeviceAuth, val network: NetworkSecurity = NetworkSecurity(), private val remoteOnly: Boolean = false, private val landing: String? = null) {
     init { require(!remoteOnly || !network.behindProxy && network.publicUrl == null && !network.secureProxy("127.0.0.1", "https")) }
     private val limits = NetworkLimits()
     private val requests = RequestRateLimit()
@@ -77,6 +78,11 @@ class NetworkListener(private val runtime: ServerRuntime, private val auth: Devi
         val server = embeddedServer(CIO, port = port, host = host) {
             install(WebSockets) { pingPeriodMillis = 15_000; maxFrameSize = preauthTransportFrameSize(PREAUTH_FRAME_SIZE, SESSION_FRAME_SIZE) }
             routing {
+                if (landing != null) get("/") {
+                    call.response.header("Cache-Control", "no-store")
+                    call.response.header("Referrer-Policy", "no-referrer")
+                    call.respondText(landing, ContentType.Text.Html)
+                }
                 for (rotate in listOf(false, true)) post(if (rotate) "/auth/rotate" else "/auth/session") {
                     call.response.header("Cache-Control", "no-store")
                     val peer = call.request.local.remoteAddress

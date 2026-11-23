@@ -61,6 +61,20 @@ class DeviceAuthSecurityTest {
     }
 
     @Test
+    fun permanentReviewInviteCanPairAgainAfterDeviceTokensExpire() {
+        val code = "a".repeat(64)
+        auth.reviewPairing(code)
+        val first = assertNotNull(auth.authenticate("reviewer", null, code))
+        assertEquals(90.days.inWholeSeconds.toInt(), auth.cookieMaxAge(first))
+        time += 120.days
+        assertFalse(auth.valid(first))
+        val restarted = DeviceAuth(Path(file.path)) { time }
+        restarted.reviewPairing(code)
+        assertNotNull(restarted.authenticate("another reviewer", null, code))
+        assertNotNull(restarted.authenticate("reviewer again", null, code))
+    }
+
+    @Test
     fun guessesConsumeABoundedBudgetWithoutOpeningAnotherWindow() {
         val code = auth.currentPairingCode()
         repeat(10) { assertNull(auth.authenticate("attacker", null, "wrong")) }

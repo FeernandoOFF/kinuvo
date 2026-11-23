@@ -56,12 +56,12 @@ class DeviceAuth(private val file: Path, private val now: () -> Instant = { Cloc
     private var codeManagement = false
     private var attempts = 0
     private var reviewCode: String? = null
-    private var reviewExpires = Instant.DISTANT_PAST
+    private var reviewExpires: Instant? = null
     private var reviewManagement = false
 
-    fun reviewPairing(code: String, expiresAt: Instant, management: Boolean = false) = lock.withLock {
+    fun reviewPairing(code: String, expiresAt: Instant? = null, management: Boolean = false) = lock.withLock {
         require(code.length >= 32) { "Review pairing requires at least 32 characters" }
-        require(expiresAt > now()) { "Review pairing must expire in the future" }
+        require(expiresAt == null || expiresAt > now()) { "Review pairing must expire in the future" }
         reviewCode = code
         reviewExpires = expiresAt
         reviewManagement = management
@@ -78,7 +78,7 @@ class DeviceAuth(private val file: Path, private val now: () -> Instant = { Cloc
         }
         if (token != null) return token.takeIf { valid(it) }.also { if (it != null) seen(it) }
         if (!pairable || pairingCode == null) return null
-        val review = reviewCode?.let { now() < reviewExpires && constantTimeEquals(pairingCode.encodeToByteArray(), it.encodeToByteArray()) } == true
+        val review = reviewCode?.let { (reviewExpires?.let { now() < it } != false) && constantTimeEquals(pairingCode.encodeToByteArray(), it.encodeToByteArray()) } == true
         if (!review) {
             if (this.pairingCode.isEmpty() || now() >= codeExpires) return null
             if (++attempts > 10) { closePairing(); return null }
@@ -88,7 +88,8 @@ class DeviceAuth(private val file: Path, private val now: () -> Instant = { Cloc
         val time = now()
         val phone = if (review) null else tailcatLock.withLock { tunnel?.phoneOf(this.pairingCode)?.takeIf { it == tailcatPeer } }
         save(devices() + PairedDevice(device.take(80), sha256(newToken), time.toString(), lastSeen = time.toString(),
-            id = identity(sha256(newToken)), management = if (review) reviewManagement else codeManagement, expiresAt = (if (review) reviewExpires else time + 90.days).toString(), tailcatPhone = phone))
+            id = identity(sha256(newToken)), management = if (review) reviewManagement else codeManagement,
+            expiresAt = (if (review) minOf(time + 90.days, reviewExpires ?: Instant.DISTANT_FUTURE) else time + 90.days).toString(), tailcatPhone = phone))
         if (!review) closePairing()
         return newToken
     } }

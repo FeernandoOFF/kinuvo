@@ -42,7 +42,7 @@ separate from other apps. Set:
 
 - `REVIEW_PUBLIC_URL`: the HTTPS origin, without `:8787`.
 - `REVIEW_PAIRING_CODE`: a random 32-byte hex value (`openssl rand -hex 32`).
-- `REVIEW_EXPIRES_AT`: an explicit UTC timestamp several weeks ahead.
+- `REVIEW_EXPIRES_AT`: optional UTC expiry; leave empty for a permanent invite.
 - `SEARCH_SECRET`: another random 32-byte hex value.
 
 Review mode requires an empty home or one already marked as a review home. It
@@ -76,9 +76,13 @@ the Server port directly.
 At 03:00 UTC each day the supervisor stops Java, removes only the marked demo
 state, then restarts and seeds it again. A restart after a missed reset performs
 that reset before starting. Paired Devices and the Server identity survive.
-The fixed pairing code and its Device tokens expire at `REVIEW_EXPIRES_AT`.
+The fixed pairing invite does not expire unless `REVIEW_EXPIRES_AT` is set.
+Device tokens last at most ninety days; the same invite pairs them again.
+The HTTPS invite `https://your-domain/#pair=CODE` works in Kinuvo's scanner and
+in a browser, which shows an Open Kinuvo button and manual pairing details.
+The code stays in the URL fragment and is not sent to the web Server.
 
-Update the expiry and rotate the pairing code in Coolify for a new review cycle.
+Keep the domain and pairing code unchanged across deployments and review cycles.
 Changing the code does not revoke already paired Devices; revoke those separately
 or replace the review-only Device credential file while this service is stopped.
 
@@ -91,5 +95,5 @@ After verifying live chat with the installed capped key, replace the placeholder
 > Intelligence. It includes fictional travel plans, Memory, Tasks, Knowledge,
 > Routines and example Sessions. You can chat, search the web, remember a
 > preference and create a Task. External messaging and other outside-world
-> actions are disabled. Demo edits reset daily at 03:00 UTC; pairing stays valid
-> until **[EXPIRY]**.
+> actions are disabled. Demo edits reset daily at 03:00 UTC; the same pairing
+> invite can be reused whenever you need to connect another Device.

@@ -1,6 +1,7 @@
 package kinuvo.server.jvm
 
 import java.io.File
+import java.net.URI
 import kinuvo.harness.AgentDoc
 import kinuvo.client.KinuvoClient
 import kinuvo.protocol.Api
@@ -33,6 +34,9 @@ class ReviewServerTest {
         val port = host.start("127.0.0.1", 0, schedule = false)
         val client = KinuvoClient("ws://127.0.0.1:$port/ws", "reviewer", pairingCode = code)
         try {
+            val landing = URI("http://127.0.0.1:$port/").toURL().readText()
+            assertTrue(landing.contains("Open Kinuvo"))
+            assertTrue(landing.contains("kinuvo://pair?server="))
             client.connect()
             assertTrue(client.lastConnect?.management == true)
             val agent = client.call(Api.Agents, Unit).single()

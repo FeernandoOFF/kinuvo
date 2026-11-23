@@ -57,7 +57,7 @@ suspend fun serve(options: ServeOptions, tailcat: TailcatServing? = null, extend
     val review = env("KINUVO_REVIEW_MODE") == "true"
     val home = if (review) Path(requireNotNull(env("KINUVO_HOME")) { "Review mode requires a dedicated KINUVO_HOME" }) else kinuvoHome()
     val reviewCode = if (review) requireNotNull(env("KINUVO_REVIEW_PAIRING_CODE")) { "Set KINUVO_REVIEW_PAIRING_CODE" } else null
-    val reviewExpiry = if (review) Instant.parse(requireNotNull(env("KINUVO_REVIEW_EXPIRES_AT")) { "Set KINUVO_REVIEW_EXPIRES_AT" }) else null
+    val reviewExpiry = if (review) env("KINUVO_REVIEW_EXPIRES_AT")?.let(Instant::parse) else null
     if (review) {
         require(!options.tailcat && !options.tailscale) { "Review mode uses its isolated HTTPS deployment" }
         ReviewServer.prepare(home)
@@ -73,7 +73,7 @@ suspend fun serve(options: ServeOptions, tailcat: TailcatServing? = null, extend
     val shutdown = Thread { try { server.stop() } finally { extension?.close() } }
     try {
         if (review) {
-            auth.reviewPairing(requireNotNull(reviewCode), requireNotNull(reviewExpiry), management = true)
+            auth.reviewPairing(requireNotNull(reviewCode), reviewExpiry, management = true)
             ReviewServer.seed(runtime)
         }
         val bound = server.start(bind, options.port)
@@ -89,7 +89,7 @@ suspend fun serve(options: ServeOptions, tailcat: TailcatServing? = null, extend
         log.info { "Server listening at $bind:$bound${network.publicUrl?.let { "; HTTPS address $it" }.orEmpty()}" }
         if (route != null) log.info { "Tailscale HTTPS: ${route.url} (private to your tailnet; the Serve route persists until disabled)" }
         if (server.tailcatEnabled) log.info { "Tailcat is active; run kinuvo pair to show its pairing link" }
-        if (review) log.info { "Restricted review pairing is enabled until $reviewExpiry." }
+        if (review) log.info { "Restricted review pairing is enabled${reviewExpiry?.let { " until $it" } ?: " without expiry"}." }
         else log.info { "Pairing is closed. Run `kinuvo pair --manage` for a management Device or `kinuvo pair` for ordinary access." }
         Runtime.getRuntime().addShutdownHook(shutdown)
         ready = true

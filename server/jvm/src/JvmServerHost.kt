@@ -36,7 +36,7 @@ class JvmServerHost(val harness: JvmAgentRuntime, val auth: DeviceAuth = DeviceA
             harness.composer.autoApproveHarness(registration.serverToolAgent(), session, kind)
         }), harness, mcpAccess, { mcpListener.url }), executionStorage = executionStorage)
     private suspend fun persistExecutionAttachment(state: ExecutionState, data: AttachmentData) = runtime.persistExecutionAttachment(state, data)
-    private val listener = NetworkListener(runtime, auth, network)
+    private val listener = NetworkListener(runtime, auth, network, landing = if (review) ReviewServer::class.java.getResource("/review-pair.html")!!.readText() else null)
     private var tailcatListener: NetworkListener? = null
 
     private val tailcatLock = Mutex()
