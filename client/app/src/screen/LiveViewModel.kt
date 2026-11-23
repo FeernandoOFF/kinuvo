@@ -197,7 +197,7 @@ class LiveViewModel(private val repository: ScreensRepository, private val owner
     }
     fun open(url: String) = mutate {
         val scope = owner ?: return@mutate
-        val opened = repository.open(ScreenOpen(scope, url.ifBlank { "about:blank" }))
+        val opened = repository.open(ScreenOpen(scope, url.ifBlank { BrowserHomePage }))
         state.update { it.copy(selected = opened.ref) }
     }
     fun command(action: ScreenCommandKind, text: String? = null) {
