@@ -4,12 +4,12 @@ import kinuvo.app.connection.*
 import kinuvo.client.oauthState
 import kinuvo.ui.connection.LoopbackListener
 import kinuvo.ui.connection.awaitLoopbackCallback
+import kinuvo.ui.connection.bindFixedLoopbackListener
 import kinuvo.ui.connection.bindLoopbackListener
 import kinuvo.protocol.mcp.McpRedirect
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.NonCancellable
-import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlin.time.Duration.Companion.minutes
@@ -20,17 +20,16 @@ import platform.Foundation.NSURL
 import platform.UIKit.UIApplication
 import platform.UIKit.UIWindow
 import platform.darwin.NSObject
-import platform.darwin.dispatch_async
-import platform.darwin.dispatch_get_main_queue
-import kotlin.coroutines.resume
 
 /**
- * Signs in through an in-app `ASWebAuthenticationSession`, which catches the [McpRedirect.App] callback itself.
- * Provider sign-ins (Sign in with ChatGPT) instead catch their `127.0.0.1` redirect on an in-app loopback listener.
+ * Signs in through an in-app `ASWebAuthenticationSession`, catching the real redirect on an in-app loopback listener
+ * ([McpRedirect.Loopback]) rather than the session's own custom-scheme interception: some MCP auth servers mishandle a
+ * non-http redirect_uri (observed concatenating it onto their own base URL instead of navigating to it), stranding the
+ * sign-in with no way back to the app and no address bar to copy the stuck page from. The loopback redirect avoids that
+ * failure mode entirely, so it's used for every MCP sign-in on iOS, not just as a fallback.
  */
 internal class WebAuthBrowser : OAuthBrowser {
-    override val redirect = McpRedirect.App
-    private var session: ASWebAuthenticationSession? = null
+    override val redirect = McpRedirect.Loopback
     override suspend fun openLoopbackPage(url: String): String? = withContext(Dispatchers.Main) {
         UIApplication.sharedApplication.openURL(NSURL(string = url)!!)
         null
@@ -75,16 +74,9 @@ internal class WebAuthBrowser : OAuthBrowser {
             }
         }
 
+    /** Catches the callback on [McpRedirect.Loopback]'s fixed port; null (not an error) when it's taken, so the caller falls back to pasting. */
     override suspend fun signIn(url: String): String? = withContext(Dispatchers.Main) {
-        suspendCancellableCoroutine { cont ->
-            val s = ASWebAuthenticationSession(NSURL(string = url), McpRedirect.App.uri.substringBefore(':')) { callback, _ ->
-                session = null
-                if (cont.isActive) cont.resume(callback?.absoluteString)
-            }
-            s.presentationContextProvider = anchor
-            session = s
-            s.start()
-            cont.invokeOnCancellation { dispatch_async(dispatch_get_main_queue()) { s.cancel() } }
-        }
+        val listener = bindFixedLoopbackListener(McpRedirect.LOOPBACK_PORT) ?: return@withContext null
+        try { withTimeoutOrNull(10.minutes) { raceLoopback(url, listener) } } finally { listener.close() }
     }
 }

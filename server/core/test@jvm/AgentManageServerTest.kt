@@ -209,6 +209,7 @@ class AgentManageServerTest {
             }
             override suspend fun loginMcp(p: McpLoginParams) = McpLogin("https://auth.example/sign-in")
             override suspend fun completeMcpLogin(p: McpLoginCompleteParams) = McpServerInfo("shared", ConfigScope.Shared).also { completed += p.callbackUrl }
+            override suspend fun testMcp(p: McpParams) = McpTestResult(tools = listOf("search"))
         }
         val plugin = object : ServerPlugin {
             override val definition = PluginDefinition("test.mcp", "Test MCP")
@@ -219,11 +220,8 @@ class AgentManageServerTest {
             val composed = server.harness.composer.compose(agent, session.id)
             val requests = mutableListOf<PendingInteraction.Approval>()
             val turn = ToolTurn(emit = { event ->
-                val form = event.questions
-                if (form != null) {
-                    assertTrue(form.questions.single().label.contains("https://auth.example/sign-in"))
-                    server.harness.questions.respond(form.id, mapOf("address" to listOf("http://localhost/callback?code=1")))
-                }
+                val connect = event.connect
+                if (connect != null) server.harness.connects.respond(connect.id, InteractionAnswer.Connect(true))
                 val approval = event.approval
                 if (approval != null) {
                     requests += approval
@@ -239,8 +237,8 @@ class AgentManageServerTest {
             assertEquals(2, requests.size)
             assertEquals("Adds an MCP server to work:\n- MCP server: (none) → own [https://example.com/mcp]\n- Environment: (none) → TOKEN\n- Headers: (none) → Authorization\nEnvironment and header values are not shown.", requests.first().preview!!.text())
             assertEquals(listOf(agent.id, agent.id), changes)
-            assertEquals("Signed in to 'shared'.", call("mcp_login", """{"name":"shared"}""").output)
-            assertEquals(listOf("http://localhost/callback?code=1"), completed)
+            assertEquals("Signed in to 'shared': 1 tools: search", call("mcp_login", """{"name":"shared"}""").output)
+            assertTrue(completed.isEmpty())
             assertEquals("shared", entries.single().name)
         }
     }

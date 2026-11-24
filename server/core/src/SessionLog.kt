@@ -263,8 +263,8 @@ class SessionLog(private val store: Store, private val clock: () -> Long = { Clo
 
     /**
      * A run that ends by cancellation (stopped, backgrounded, or the host's background budget expired) publishes no
-     * terminal event of its own, so nothing would otherwise clear a stale `running` flag or a pending Approval or
-     * Questions it left behind. Call once the run's job has fully finished; a no-op if the run already
+     * terminal event of its own, so nothing would otherwise clear a stale `running` flag or a pending Approval,
+     * Questions or Connect it left behind. Call once the run's job has fully finished; a no-op if the run already
      * published its own terminal event (e.g. it answered its last interaction and replied before it was cancelled).
      */
     suspend fun clearIfStopped(agentId: AgentId, sessionId: SessionId) = lock.withLock {

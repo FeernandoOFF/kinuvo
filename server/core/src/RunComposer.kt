@@ -116,6 +116,7 @@ class RunComposer internal constructor(
     private val approvals get() = harness.approvals
     private val sessionTrust get() = harness.sessionTrust
     private val questions get() = harness.questions
+    private val connects get() = harness.connects
     private val uiCatalogs get() = harness.uiCatalogs
     private val subAgents get() = harness.subAgents
     private val teams get() = harness.teams
@@ -318,6 +319,7 @@ class RunComposer internal constructor(
                 }
             },
             questions = questions,
+            connects = connects,
             attach = { name, bytes -> attachments.upload(UploadAttachmentParams(name, Base64.encode(bytes))) },
             maxItems = e.profile.resultLimits.maxItems,
             callsPerTurn = e.profile.tools.callsPerTurn,

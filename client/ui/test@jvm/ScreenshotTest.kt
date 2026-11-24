@@ -1,5 +1,6 @@
 package kinuvo.ui
 
+import kinuvo.app.connection.ConnectState
 import com.composables.icons.lucide.Lucide
 import com.composables.icons.lucide.Workflow
 
@@ -867,6 +868,17 @@ class ScreenshotTest {
         chat("request-approval-notice-phone", 390, 844, false, approving.copy(dictation = DictationState(error = "Microphone unavailable")))
         chat("request-takeover-phone", 390, 844, false, handing)
         chat("request-takeover-desktop-dark", 1100, 760, true, handing)
+        val connect = PendingInteraction.Connect(InteractionId("c1"), ToolCallId("t4"), AgentId("main"), "Picsart", site = "api.picsart.com")
+        val login = ChatItem.ToolCall("t4", ToolCallId("t4"), "mcp_login", """{"name":"Picsart"}""", connect = connect)
+        val connecting = state.copy(items = talk + login, running = false, pending = listOf(connect))
+        val url = "https://auth.picsart.com/api/oauth2/authorize?response_type=code"
+        chat("request-connect-phone", 390, 844, false, connecting)
+        chat("request-connect-signing-in-phone-dark", 390, 844, true, connecting.copy(connecting = mapOf(connect.id to ConnectState.SigningIn(url))))
+        chat("request-connect-paste-phone", 390, 844, false, connecting.copy(connecting = mapOf(connect.id to ConnectState.AwaitingPaste(url))))
+        chat("request-connect-failed-desktop", 1100, 760, false, connecting.copy(connecting = mapOf(connect.id to ConnectState.Failed(url, "Picsart didn't accept the sign-in. Try again."))))
+        val linked = PendingInteraction.Questions(InteractionId("q3"), ToolCallId("t5"), "Sign in to Picsart", listOf(
+            Question("address", "Open this link and sign in: $url&client_id=dcr-8495ecb5&state=NQD0B6FEEl2Jq8p0\n\nPaste the address your browser ends on.", QuestionKind.LongText, required = true)))
+        chat("request-form-link-phone", 390, 844, false, state.copy(items = talk + ChatItem.ToolCall("t5", ToolCallId("t5"), "ask_user", "{}", questions = linked), running = false, pending = listOf(linked)))
     }
 
     /** Tool calls and reasoning grouped into compact rows, at iPhone width. */

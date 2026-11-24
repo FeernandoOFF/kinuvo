@@ -12,6 +12,7 @@ import kinuvo.server.plugin.Tool
 import kinuvo.harness.ToolReports
 import kinuvo.harness.ToolSpec
 import kinuvo.server.tools.ToolService
+import kinuvo.protocol.approval.InteractionAnswer
 import kinuvo.protocol.session.Attachment
 import kinuvo.protocol.model.ModelTier
 import kinuvo.protocol.usage.RequestKind
@@ -28,6 +29,7 @@ fun AgentRun(
     context: String = "",
     approvals: Approvals = Approvals.none(),
     questions: Broker<Map<String, List<String>>?>? = null,
+    connects: Broker<InteractionAnswer.Connect>? = null,
     advertisedTools: List<ToolSpec> = tools.map { it.descriptor },
     contextTokens: Int? = null,
     requestKind: RequestKind = RequestKind.Chat,
@@ -38,6 +40,6 @@ fun AgentRun(
     reports: ToolReports? = null,
     profile: ModelProfile = ModelProfile.of(ModelTier.Frontier),
 ): AgentRun {
-    val service = ToolService(tools, advertisedTools, approvals, questions, attach, profile.resultLimits.maxItems, profile.tools.callsPerTurn, reports)
+    val service = ToolService(tools, advertisedTools, approvals, questions, connects, attach, profile.resultLimits.maxItems, profile.tools.callsPerTurn, reports)
     return AgentRun(agent, store, model, service, service, warnings, context, contextTokens, requestKind, tracing, traceSessionId, routine, profile)
 }

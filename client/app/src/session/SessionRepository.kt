@@ -592,6 +592,10 @@ private fun SessionData.chatItems(): List<ChatItem> {
                 val call = items.indexOfLast { it is ChatItem.ToolCall && it.callId == request.toolCallId && it.result == null }
                 if (call >= 0) items[call] = (items[call] as ChatItem.ToolCall).copy(questions = request)
             }
+            is PendingInteraction.Connect -> {
+                val call = items.indexOfLast { it is ChatItem.ToolCall && it.callId == request.toolCallId && it.result == null }
+                if (call >= 0) items[call] = (items[call] as ChatItem.ToolCall).copy(connect = request)
+            }
             else -> Unit
         }
     }

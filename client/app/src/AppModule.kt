@@ -52,7 +52,7 @@ val appModule = module {
     viewModel { ServerVoiceViewModel(get()) }
     viewModel { OnboardingViewModel(get(), getOrNull() ?: NotificationPermission.None, getOrNull()) }
     viewModel { AppViewModel(get(), get(), get(), get(), getOrNull() ?: ClientCache.None, getOrNull() ?: NotificationPermission.None, getOrNull<UiCatalogs>()?.all.orEmpty()) }
-    viewModel { (route: Route.Chat) -> SessionViewModel(get(), route, get(), getOrNull<SpeechEngine>()?.let { ServerSpeech(it, get()) }) }
+    viewModel { (route: Route.Chat) -> SessionViewModel(get(), route, get(), getOrNull<SpeechEngine>()?.let { ServerSpeech(it, get()) }, get()) }
     viewModel { (engine: SpeechEngine, session: SessionViewModel) -> VoiceViewModel(engine, session, get(), get()) }
     viewModel { (transcriber: Transcriber) -> DictationViewModel(if (transcriber is SpeechEngine) ServerSpeech(transcriber, get()) else transcriber) }
     viewModel { (route: Route.Settings) -> SettingsViewModel(get(), get(), get(), route) }

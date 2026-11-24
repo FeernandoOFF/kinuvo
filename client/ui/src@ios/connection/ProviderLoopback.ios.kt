@@ -97,6 +97,20 @@ internal fun bindLoopbackListener(preferredPort: Int): LoopbackListener {
     }
 }
 
+/** Binds only to [port] on 127.0.0.1, for a redirect URI that already names it; null when it's taken, not thrown. */
+@OptIn(ExperimentalForeignApi::class)
+internal fun bindFixedLoopbackListener(port: Int): LoopbackListener? {
+    val fd = loopbackSocket()
+    if (!bindTo(fd, port)) { close(fd); return null }
+    return try {
+        check(listen(fd, 8) == 0) { "listen() failed" }
+        LoopbackListener(fd, port)
+    } catch (failure: Throwable) {
+        close(fd)
+        throw failure
+    }
+}
+
 @OptIn(ExperimentalForeignApi::class)
 private fun pollReadable(fd: Int, timeoutMs: Int): Boolean = memScoped {
     val pfd = alloc<pollfd>()

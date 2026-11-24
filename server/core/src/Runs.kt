@@ -155,9 +155,9 @@ class Runs(private val log: SessionLog, private val scope: CoroutineScope, priva
     /** Waits for the active run in [sessionId], if any. */
     suspend fun join(sessionId: SessionId) = active[sessionId]?.join()
 
-    /** Stops every run and waits for them to save their partial output. */
-    suspend fun stopAll() {
-        val all = active.block { it.values.toSet() }
+    /** Stops every run but those in [except], and waits for the stopped ones to save their partial output. */
+    suspend fun stopAll(except: Set<SessionId> = emptySet()) {
+        val all = active.block { it.filterKeys { id -> id !in except }.values.toSet() }
         all.forEach { it.cancel() }
         all.joinAll()
     }

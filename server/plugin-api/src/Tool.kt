@@ -3,7 +3,10 @@ package kinuvo.server.plugin
 import kinuvo.protocol.approval.ChangePreview
 import kinuvo.harness.ToolSpec
 import kinuvo.protocol.tool.ToolGroup
+import kinuvo.protocol.approval.InteractionAnswer
 import kinuvo.protocol.approval.Risk
+import kinuvo.protocol.agent.AgentId
+import kinuvo.protocol.agent.ConfigScope
 import kinuvo.protocol.session.SessionEntry
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.jsonPrimitive
@@ -89,6 +92,9 @@ interface ToolRun {
     suspend fun call(name: String, args: String): SessionEntry.ToolResult
     /** Shows the model the file [name] with [bytes] alongside this call's result. */
     suspend fun attach(name: String, bytes: ByteArray): Attachment = error("Files can't be shown to the model in this run")
+    /** Asks the user to sign in to [server] (e.g. through OAuth) and waits for the client's own flow to finish. */
+    suspend fun connect(agentId: AgentId, server: String, scope: ConfigScope? = null, site: String? = null, reason: String? = null): InteractionAnswer.Connect =
+        InteractionAnswer.Connect(false, "There's no user to ask in this run.")
 }
 
 fun JsonObject.string(key: String): String? = get(key)?.jsonPrimitive?.content

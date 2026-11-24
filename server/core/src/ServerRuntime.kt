@@ -109,17 +109,24 @@ class ServerRuntime(
     /** Runs going and the events they've produced; a foreground-only host keeps them alive while it can. */
     val runActivity get() = runs.activity
 
-    /** With nobody watching, runs paused on an Approval or a question can't go on, so they stop, now or once they pause; the rest keep going. */
+    /**
+     * With nobody watching, runs paused on an Approval or a question can't go on, so they stop, now or once they pause;
+     * the rest keep going. A Connect waits on the user signing in elsewhere, which needs leaving the app, so it's exempt.
+     */
     private suspend fun stopWaiting() {
-        val waiting = runs.sessions().filter { harness.log.status(it) == SessionStatus.Waiting }
+        val waiting = runs.sessions().filter { harness.log.status(it) == SessionStatus.Waiting && !connecting(it) }
         waiting.forEach(runs::stop)
-        executions.catalog().agents.flatMap { harness.store.sessions(it.id) }.filter { harness.log.status(it.id) == SessionStatus.Waiting }.forEach { external.stop(it.id) }
+        executions.catalog().agents.flatMap { harness.store.sessions(it.id) }.filter { harness.log.status(it.id) == SessionStatus.Waiting && !connecting(it.id) }.forEach { external.stop(it.id) }
         waiting.forEach { runs.join(it) }
     }
 
+    private suspend fun connecting(sessionId: SessionId) = harness.log.pending(sessionId).any { it is PendingInteraction.Connect }
+
     private fun changedCapabilities() = broadcast(Api.CapabilitiesChanged, Unit)
     init {
-        if (foregroundOnly) harness.log.onChange { if (it.status == SessionStatus.Waiting && unwatched()) scope.launch { assembly.dispatch.stop(it.id) } }
+        if (foregroundOnly) harness.log.onChange { info ->
+            if (info.status == SessionStatus.Waiting && unwatched()) scope.launch { if (!connecting(info.id)) assembly.dispatch.stop(info.id) }
+        }
     }
 
     private fun unwatched() = clients.block { it.none { c -> c.watching } }
@@ -170,7 +177,8 @@ class ServerRuntime(
         }
     }
 
-    suspend fun stopRuns() = runs.stopAll()
+    /** Stops every run, except one only waiting on a Connect: that wait needs leaving the app, and costs nothing while it does. */
+    suspend fun stopRuns() = runs.stopAll(except = runs.sessions().filter { connecting(it) }.toSet())
     suspend fun close() = withContext(NonCancellable) { lifecycle.withLock { shutdown() } }
 
     private suspend fun shutdown() = withContext(NonCancellable) {
