@@ -527,7 +527,12 @@ class AppViewModel(
     fun resetDevice() = viewModelScope.launch {
         disconnect()
         cache.clear()
-        servers.reset()
+        try { servers.reset() }
+        catch (e: CancellationException) { throw e }
+        catch (e: Exception) {
+            state.update { it.copy(notice = userMessage(e.message) ?: "Couldn't reset this device") }
+            return@launch
+        }
         deviceAccess.reset()
         views.clear()
         drafts.clear()

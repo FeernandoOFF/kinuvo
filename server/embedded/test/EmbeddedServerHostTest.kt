@@ -127,6 +127,30 @@ class EmbeddedServerHostTest {
     }
 
     @Test
+    fun erasingTheHomeMakesTheNextCreationAFreshInstall(): Unit = runBlocking {
+        withTimeout(10_000) {
+            var server = EmbeddedServerHost.create(home, listOf(provider), modelSources = { listOf(provider) })
+            var client = client(server)
+            val id = client.call(Api.CreateSession, AgentRef(AgentId("default"))).id
+            run(client, id.value, "remember tea")
+            assertEquals("- Prefers tea\n", FileAgentDocs(AgentFiles(home)).read(AgentId("default"), AgentDoc.UserNotes))
+            client.close()
+            server.close()
+
+            eraseEmbeddedHome(home)
+            assertTrue(AgentFiles(home).home.children().isEmpty())
+
+            server = EmbeddedServerHost.create(home, listOf(provider), modelSources = { listOf(provider) })
+            client = client(server)
+            try {
+                assertTrue(client.call(Api.Sessions, SessionsParams(AgentId("default"))).sessions.isEmpty())
+                assertEquals("", FileAgentDocs(AgentFiles(home)).read(AgentId("default"), AgentDoc.UserNotes))
+                assertEquals(listOf(AgentId("default")), server.runtime.harness.store.agents().map { it.id })
+            } finally { client.close(); server.close() }
+        }
+    }
+
+    @Test
     fun memoryAndSessionsSurviveServerRecreation(): Unit = runBlocking {
         withTimeout(10_000) {
             var server = EmbeddedServerHost.create(home, listOf(provider), modelSources = { listOf(provider) })

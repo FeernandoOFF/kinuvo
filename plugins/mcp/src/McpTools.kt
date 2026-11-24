@@ -21,6 +21,9 @@ import kinuvo.server.plugin.ToolRun
 import kotlinx.serialization.json.*
 import kotlinx.io.files.Path
 import kotlinx.serialization.json.JsonArray
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
 
 class McpTool(
     private val server: McpServer,
@@ -109,35 +112,46 @@ class McpManager(
         servers = configs.associate { cfg -> cfg.name to (old[cfg.name]?.takeIf { it.config == cfg && it.authGeneration == generation(cfg) } ?: McpServer(cfg, auth)) }
         if (old.values.any { it !in servers.values }) apps.clear()
         (old.values - servers.values.toSet()).forEach { runCatching { it.close() } }
+        // Each server connects independently in parallel, so one slow or failing server never delays the others.
+        val fetched = coroutineScope { servers.values.map { server -> async { fetch(server) } }.awaitAll() }
         val callable = mutableMapOf<Pair<String, String>, Tool>()
-        val tools = servers.values.flatMap { server ->
-            try {
-                server.listTools().filter { server.config.allows(it.name) }.mapNotNull { t ->
-                    val schema = buildJsonObject {
-                        t.inputSchema.properties?.let { put("properties", it) }
-                        t.inputSchema.required?.let { req -> put("required", JsonArray(req.map(::JsonPrimitive))) }
-                        t.inputSchema.defs?.let { put("\$defs", it) }
-                    }
-                    val ui = t.meta?.get("ui") as? JsonObject
-                    val uri = (ui?.get("resourceUri") as? JsonPrimitive)?.content
-                    // A tool whose UI can't be read still works, without its app.
-                    val ref = uri?.let { try { apps.load(server, it) } catch (e: CancellationException) { throw e } catch (_: Exception) { null } }
-                    val tool = McpTool(server, t.name, t.description ?: t.title ?: t.name, schema, t.annotations?.readOnlyHint == true, t.annotations?.destructiveHint == true, ref)
-                    if (ui.visibleTo("app")) callable[server.config.instanceId to t.name] = tool
-                    tool.takeIf { ui.visibleTo("model") }
-                }
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: McpAuthRequired) {
-                warnings += e.message!!
-                emptyList()
-            } catch (e: Exception) {
-                warnings += "MCP server '${server.config.name}' unavailable: ${e.message}"
-                emptyList()
-            }
+        val tools = mutableListOf<Tool>()
+        fetched.forEach { (serverTools, serverCallable, serverWarnings) ->
+            tools += serverTools
+            callable += serverCallable
+            warnings += serverWarnings
         }
         appTools = callable
         return tools to warnings
+    }
+
+    private data class Fetched(val tools: List<Tool>, val callable: Map<Pair<String, String>, Tool>, val warnings: List<String>)
+
+    private suspend fun fetch(server: McpServer): Fetched {
+        val callable = mutableMapOf<Pair<String, String>, Tool>()
+        val tools = try {
+            server.listTools().filter { server.config.allows(it.name) }.mapNotNull { t ->
+                val schema = buildJsonObject {
+                    t.inputSchema.properties?.let { put("properties", it) }
+                    t.inputSchema.required?.let { req -> put("required", JsonArray(req.map(::JsonPrimitive))) }
+                    t.inputSchema.defs?.let { put("\$defs", it) }
+                }
+                val ui = t.meta?.get("ui") as? JsonObject
+                val uri = (ui?.get("resourceUri") as? JsonPrimitive)?.content
+                // A tool whose UI can't be read still works, without its app.
+                val ref = uri?.let { try { apps.load(server, it) } catch (e: CancellationException) { throw e } catch (_: Exception) { null } }
+                val tool = McpTool(server, t.name, t.description ?: t.title ?: t.name, schema, t.annotations?.readOnlyHint == true, t.annotations?.destructiveHint == true, ref)
+                if (ui.visibleTo("app")) callable[server.config.instanceId to t.name] = tool
+                tool.takeIf { ui.visibleTo("model") }
+            }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: McpAuthRequired) {
+            return Fetched(emptyList(), callable, listOf(e.message!!))
+        } catch (e: Exception) {
+            return Fetched(emptyList(), callable, listOf("MCP server '${server.config.name}' unavailable: ${e.message}"))
+        }
+        return Fetched(tools, callable, emptyList())
     }
 
     /** HTTP servers that refused Kinuvo until the user signs in. */

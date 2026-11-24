@@ -135,7 +135,7 @@ suspend fun compactContextFor(agent: Agent, docs: AgentDocs): String =
 fun aboutKinuvoFor(tools: List<Tool>, discovery: Boolean = false): String = buildString {
     val names = tools.mapNotNull { it.coreMetadata?.name }.toSet()
     fun name(id: String) = tools.coreName(id)
-    val canLogin = ToolNames.MCP_LOGIN in names && ToolNames.ASK_USER in names
+    val canLogin = ToolNames.MCP_LOGIN in names
     append("## About Kinuvo\n\n")
     append("Kinuvo is a self-hosted personal AI harness. Its Server owns Agents, Sessions and Tools; paired Devices are clients. An Agent is a named participant; a Session is one bounded conversation. Tools read or change things under Kinuvo's Approvals.\n")
     if (ToolNames.MCP_LIST in names) {

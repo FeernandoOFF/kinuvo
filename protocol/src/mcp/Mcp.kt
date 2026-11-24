@@ -35,10 +35,13 @@ data class McpOAuthClient(val clientId: String, val clientSecret: String? = null
 @Serializable
 enum class McpAuthStatus { None, Required, SignedIn }
 
-/** Where the browser returns after an MCP sign-in: [Loopback] on desktop and the CLI, [App] on Android and iOS. */
+/**
+ * Where the browser returns after an MCP sign-in: [Loopback] on desktop, the CLI and iOS (an in-app listener), [App] on
+ * Android. The loopback IP is literal, not `localhost`, so it can't resolve to a different address than the one bound.
+ */
 @Serializable
 enum class McpRedirect(val uri: String) {
-    Loopback("http://localhost:33418/callback"),
+    Loopback("http://127.0.0.1:33418/callback"),
     App("dev.kinuvo.app:/mcp/oauth");
 
     companion object {

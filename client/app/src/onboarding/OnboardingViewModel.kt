@@ -82,6 +82,7 @@ data class OnboardingState(
     val busy: Boolean = false,
     val error: String? = null,
     val deviceCode: DeviceCode? = null,
+    val providerSignIn: ProviderSignInState? = null,
     val apiKey: String = "",
     /** Whether each of [ConnectSections] is set up; missing until loaded. */
     val connected: Map<SettingsSection, Boolean> = emptyMap(),
@@ -125,23 +126,40 @@ data class OnboardingState(
     val modelReady: Boolean get() {
         val account = providers.firstOrNull { it.id == provider }
         return details != null && provider in availableProviders && provider.isNotBlank() && model.isNotBlank() &&
-            account?.apiKey?.configured != false && account?.account?.signedIn != false &&
+            account?.apiKey?.configured != false && account?.account?.signedIn != false && account?.account?.planAllowed != false &&
             account?.downloads?.models?.firstOrNull { it.id == model }?.installed != false &&
             catalog.model(provider, model)?.state?.actionable != false
     }
 }
 
-class OnboardingViewModel(private val config: ConfigRepository, private val notificationPermission: NotificationPermission = NotificationPermission.None) : ViewModel() {
+class OnboardingViewModel(private val config: ConfigRepository, private val notificationPermission: NotificationPermission = NotificationPermission.None, private val browser: OAuthBrowser? = null) : ViewModel() {
     val state: StateFlow<OnboardingState>
         field = MutableStateFlow(OnboardingState())
+    private val chatGptSignIn = ProviderSignIn(config, browser, viewModelScope,
+        changed = { value -> edit { it.copy(providerSignIn = value) } },
+        completed = { provider -> if (state.value.provider == provider) refreshProvider(provider) })
+    fun signInWithChatGPT(anotherAccount: Boolean = false, requestConsent: Boolean = false) = chatGptSignIn.start("codex", anotherAccount, requestConsent)
+    fun completeChatGPTSignIn(callbackUrl: String) = chatGptSignIn.complete(callbackUrl)
+    fun cancelChatGPTSignIn() = chatGptSignIn.cancel()
+
     private var loading: Job? = null
+    private var selectionRefresh: Job? = null
 
     private val harnesses get() = config.connection.harnesses
 
     init {
         if (config.connection.client != null) config.connection.bind(viewModelScope)
         viewModelScope.launch { harnesses.state.collect { h -> edit { it.copy(connections = h.connections, registrations = h.catalog?.agents.orEmpty()) } } }
-        viewModelScope.launch { config.providers.collect { p -> if (p != null) edit { if (it.details != null) it.copy(providers = p) else it } } }
+        viewModelScope.launch { config.providers.collect { p ->
+            if (p != null) {
+                edit { if (it.details != null) it.copy(providers = p) else it }
+                val selected = state.value
+                if (selected.deviceCode != null && p.firstOrNull { it.id == selected.provider }?.account?.signedIn == true) {
+                    edit { it.copy(deviceCode = null) }
+                    refreshProvider(selected.provider)
+                }
+            }
+        } }
     }
 
     fun edit(change: (OnboardingState) -> OnboardingState) { state.update(change) }
@@ -162,7 +180,9 @@ class OnboardingViewModel(private val config: ConfigRepository, private val noti
 
     /** Loads [agent]'s settings; with [identity], its name and, unless [keepLook] keeps the one picked on the welcome, its look. */
     fun load(agent: AgentInfo?, identity: Boolean = true, keepLook: Boolean = false) {
+        chatGptSignIn.cancel()
         loading?.cancel()
+        selectionRefresh?.cancel()
         edit { it.copy(details = null, catalog = ModelsCatalog(), providers = emptyList(), deviceCode = null, busy = false, error = null) }
         if (agent == null) {
             edit { it.copy(error = "This Server returned no Agents. Check its Agents folder and access permissions, then try again.") }
@@ -188,8 +208,17 @@ class OnboardingViewModel(private val config: ConfigRepository, private val noti
         }
     }
 
-    fun selectProvider(id: String) = edit { it.copy(provider = id,
-        model = it.catalog.providers.firstOrNull { group -> group.id == id }?.chatModels?.firstOrNull()?.id.orEmpty(), deviceCode = null, apiKey = "") }
+    fun selectProvider(id: String) {
+        chatGptSignIn.cancel()
+        edit { it.copy(provider = id,
+            model = it.catalog.providers.firstOrNull { group -> group.id == id }?.chatModels?.firstOrNull()?.id.orEmpty(), deviceCode = null, apiKey = "") }
+        refreshProvider(id)
+    }
+
+    private fun refreshProvider(id: String) {
+        selectionRefresh?.cancel()
+        selectionRefresh = attempt { refreshCatalog(provider = id) }
+    }
 
     fun choose(index: Int, choice: Int) = edit {
         val choices = it.choices.toMutableList().apply { set(index, choice) }
@@ -218,14 +247,24 @@ class OnboardingViewModel(private val config: ConfigRepository, private val noti
         if (section == null) loadConnected()
     }
 
-    fun refresh(selected: String? = null, selectedModel: String? = null) = attempt {
+    fun refresh(selected: String? = null, selectedModel: String? = null) = attempt { refreshCatalog(selected, selectedModel) }
+
+    private suspend fun refreshCatalog(selected: String? = null, selectedModel: String? = null, provider: String? = null) {
         val catalog = config.models(refresh = true)
         val providers = config.providerAccounts()
-        edit { it.copy(catalog = catalog, providers = providers, provider = selected ?: it.provider,
-            model = selectedModel ?: selected?.let { id -> catalog.providers.firstOrNull { it.id == id }?.chatModels?.firstOrNull()?.id }.orEmpty().ifBlank { it.model }) }
+        edit {
+            if (provider != null && it.provider != provider) it
+            else {
+                val models = catalog.providers.firstOrNull { group -> group.id == provider }?.chatModels.orEmpty()
+                val model = if (provider != null) it.model.takeIf { model -> models.any { it.id == model } } ?: models.firstOrNull()?.id.orEmpty()
+                    else selectedModel ?: selected?.let { id -> catalog.providers.firstOrNull { it.id == id }?.chatModels?.firstOrNull()?.id }.orEmpty().ifBlank { it.model }
+                it.copy(catalog = catalog, providers = providers, provider = selected ?: it.provider, model = model)
+            }
+        }
     }
 
     fun login(): Job {
+        chatGptSignIn.cancel()
         val provider = state.value.provider
         return attempt {
             val code = config.loginProvider(provider)

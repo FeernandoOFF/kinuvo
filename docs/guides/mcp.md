@@ -36,7 +36,7 @@ If an HTTP server needs OAuth:
 kinuvo -a default mcp login remote-tools
 ```
 
-The Server owns discovery, registration, PKCE, token exchange and refresh. The Device opens the sign-in page and relays the returned URL. Desktop and CLI use `http://localhost:33418/callback`; mobile apps use the app callback. If the listener cannot be used, paste the URL the browser ended on. Use `--no-browser` to print the URL instead of opening it.
+The Server owns discovery, registration, PKCE, token exchange and refresh. The Device opens the sign-in page and relays the returned URL. Desktop, the CLI and iPhone use `http://127.0.0.1:33418/callback`, where the client listens; Android uses the app callback. If the listener cannot be used, paste the URL the browser ended on. Use `--no-browser` to print the URL instead of opening it.
 
 For a provider that requires a pre-registered OAuth client, add `--client-id`, optional `--client-secret`, and repeated `--oauth-scope` values. Sign-in follows the entry's scope; use `--shared` for a shared entry. Tokens stay on the Server, separate from Secret references.
 

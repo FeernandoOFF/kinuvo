@@ -52,6 +52,7 @@ class Notifications(private val harness: AgentRuntime, private val scope: Corout
                     is PendingInteraction.HarnessApproval -> Notification("$name needs a response", interaction.title.clip(), agentId, sessionId, urgent = true)
                     is PendingInteraction.OpenLink -> Notification("$name needs a response", interaction.message.clip(), agentId, sessionId, urgent = true)
                     is PendingInteraction.Unsupported -> Notification("$name needs a response", "Execution is waiting".clip(), agentId, sessionId, urgent = true)
+                    is PendingInteraction.Connect -> Notification("$name wants to connect ${interaction.server}", "Finish sign-in on your Device".clip(), agentId, sessionId, urgent = true)
                 }
                 // Routine runs are told by [routineRan], when they have something to report.
                 is AgentEvent.RunFinished -> if (routine != null) null else Notification(name, plainText(lastReply(agentId.value, sessionId).orEmpty()).clip(), agentId, sessionId, kind = PushKind.Reply)

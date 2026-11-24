@@ -11,6 +11,7 @@ import kinuvo.server.providers.ModelProviders
 import kinuvo.server.providers.plus
 import kinuvo.providers.litert.LiteRtProvider
 import java.io.File
+import java.security.KeyStore
 import kotlinx.io.files.Path
 
 /** What an Android phone's Server runs with; [extra] are plugins the app builds from its own objects, e.g. its WebView browser. */
@@ -24,3 +25,9 @@ fun embeddedPlugins(home: Path, extra: List<ServerPlugin> = emptyList()): Embedd
 
 /** The browser plugin over the app's WebView when this device supports it; call on the main thread. */
 fun AndroidBrowserRuntime.browserPlugins(): List<ServerPlugin> = if (available) listOf(BrowserPlugin(this)) else emptyList()
+
+/** Wipes the on-device Server's whole data directory and its Android Keystore secret; call only after the host stops. */
+fun eraseEmbeddedServer(home: Path) {
+    KeyStore.getInstance("AndroidKeyStore").apply { load(null) }.deleteEntry("kinuvo-mcp-oauth")
+    eraseEmbeddedHome(home)
+}

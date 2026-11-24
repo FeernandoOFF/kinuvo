@@ -19,6 +19,13 @@ import kinuvo.server.execution.MemoryExecutionRecovery
 import kinuvo.server.execution.RemoteLinks
 import kinuvo.testing.harness.TemporaryDirectories
 import kinuvo.testing.harness.ModelScript
+import kinuvo.harness.builtin.AgentModel
+import ai.koog.agents.core.tools.ToolDescriptor
+import ai.koog.prompt.Prompt
+import ai.koog.prompt.dsl.ModerationResult
+import ai.koog.prompt.executor.model.PromptExecutor
+import ai.koog.prompt.llm.LLModel
+import ai.koog.prompt.message.Message
 import kinuvo.protocol.agent.AgentRef
 import kinuvo.protocol.Api
 import kinuvo.protocol.computer.ComputerRequest
@@ -142,7 +149,8 @@ class TestServer private constructor(
          * Starts a Server on a fresh temporary home (or [home]), seeded by [scenario] before it serves. [script] sets up the
          * model's answers, [plugins] adds what a test needs beyond the built-in tools, Tasks and Knowledge, and [harnesses]
          * are the external harnesses the Server can run Agents on, once [scenario] registers them. With [schedule] the Server also
-         * runs Routines and Tasks; [prompts] records what the built-in harness is asked to run.
+         * runs Routines and Tasks; [prompts] records what the built-in harness is asked to run. [modelDelayMillis] delays
+         * every streamed frame, to widen a run's live window for tests of events while a run is still in progress.
          */
         suspend fun start(
             home: Path? = null,
@@ -152,6 +160,7 @@ class TestServer private constructor(
             schedule: Boolean = false,
             executionFactory: ((AgentRuntime) -> ExecutionFactory)? = null,
             scenario: suspend Scenario.() -> Unit = {},
+            modelDelayMillis: Long = 0,
         ): TestServer {
             val temporary = TemporaryDirectories()
             val directory = home ?: Path(temporary.create("kinuvo-test-server").toString())
@@ -161,7 +170,8 @@ class TestServer private constructor(
             val dependencies = ServerInstallation.assemble(files, plugins = plugins, modelSources = { plugins.filterIsInstance<FakeModels>().flatMap { it.modelSources } }, userHome = directory)
             val prompts = PromptLog()
             val models = { plugins.filterIsInstance<FakeModels>().flatMap { it.modelSources } }
-            val harness = AgentRuntime(dependencies, { NativeExecutionFactory(it, models, { modelScript.model }).recording(prompts) }, unmanagedModels = true)
+            fun model(): AgentModel = modelScript.model.let { m -> if (modelDelayMillis <= 0) m else m.copy(executor = DelayedExecutor(m.executor, modelDelayMillis)) }
+            val harness = AgentRuntime(dependencies, { NativeExecutionFactory(it, models, { model() }).recording(prompts) }, unmanagedModels = true)
             val registry = ExecutionRegistry()
             val recovery = MemoryExecutionRecovery()
             try {
@@ -182,4 +192,16 @@ class TestServer private constructor(
             }
         }
     }
+}
+
+/** Delays every streamed frame of [inner] by [delayMs], to simulate a slow model. */
+private class DelayedExecutor(private val inner: PromptExecutor, private val delayMs: Long) : PromptExecutor() {
+    override fun executeStreaming(prompt: Prompt, model: LLModel, tools: List<ToolDescriptor>) =
+        inner.executeStreaming(prompt, model, tools).onEach { delay(delayMs) }
+    override suspend fun execute(prompt: Prompt, model: LLModel, tools: List<ToolDescriptor>): Message.Assistant {
+        delay(delayMs)
+        return inner.execute(prompt, model, tools)
+    }
+    override suspend fun moderate(prompt: Prompt, model: LLModel): ModerationResult = inner.moderate(prompt, model)
+    override fun close() = inner.close()
 }

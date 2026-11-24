@@ -159,6 +159,8 @@ open class AgentRuntime(
     internal val sessionTrust = SessionTrust()
     /** Pending `ask_user` forms; null answers mean skipped. */
     val questions = Broker<Map<String, List<String>>?>()
+    /** Pending `mcp_login` sign-ins, answered once the client's own OAuth flow finishes. */
+    val connects = Broker<InteractionAnswer.Connect>()
     val uiCatalogs = SurfaceCatalogs()
     val appCalls = AppCalls(log, { plugins.firstNotNullOfOrNull { it.apps } }, secrets, trustRules, sessionTrust, approvals)
 
@@ -171,6 +173,7 @@ open class AgentRuntime(
             approvals.respond(pending.id, approvalDecision(option))
         }
         pending is PendingInteraction.Questions && answer is InteractionAnswer.Questions -> questions.respond(pending.id, answer.answers)
+        pending is PendingInteraction.Connect && answer is InteractionAnswer.Connect -> connects.respond(pending.id, answer)
         else -> false
     }
 

@@ -41,7 +41,6 @@ data class SessionData(
     val firstSeq: Int = 0,
     val entries: List<SessionEntry> = emptyList(),
     val live: LiveState = LiveState(),
-    val notes: List<String> = emptyList(),
     val loaded: Boolean = false,
     val loadingOlder: Boolean = false,
     val receivedAt: Map<String, Long> = emptyMap(),
@@ -368,7 +367,7 @@ class SessionRepository(private val notifications: Notifications, internal val c
                 change.seq > data.seen -> scope.launch { catchUp(id) }
                 else -> put(id, data.copy(entries = data.entries + change.entry, live = data.live.on(change.entry)), received = true)
             }
-            is SessionChange.Event -> put(id, data.copy(live = data.live.on(change.event), notes = data.notes + listOfNotNull(note(change.event))), received = true)
+            is SessionChange.Event -> put(id, data.copy(live = data.live.on(change.event)), received = true)
             is SessionChange.Live -> put(id, data.copy(live = change.state, loaded = true))
         }
     }
@@ -540,12 +539,6 @@ private fun RepositoryState.withLocalSettled(settled: Set<SessionId>) = copy(set
 
 private fun List<SessionInfo>.localSettledCount(settled: Set<SessionId>) = count { it.id in settled && !it.favorite && it.inChats }
 
-private fun note(event: AgentEvent): String? = when (event) {
-    is AgentEvent.RunError -> event.message
-    is AgentEvent.Warning -> "⚠ ${event.message}"
-    else -> null
-}
-
 /** Transcript items with stable keys: a message keeps its key from live text to saved entry. */
 private fun SessionData.chatItems(): List<ChatItem> {
     val items = mutableListOf<ChatItem>()
@@ -578,7 +571,11 @@ private fun SessionData.chatItems(): List<ChatItem> {
                 items += ChatItem.Reflection(key("reflection-review-${entry.proposalId}", seq), it, reviews, revised)
             }
             is SessionEntry.ContextBreak -> items += ChatItem.Notice(key(null, seq), "context_break", "New context", emptyList())
-            is SessionEntry.Notice -> if (entry.child == null) items += ChatItem.Notice(key("notice-${entry.id}", seq), entry.code, entry.message, SessionData(agentId, entries = entry.draft).items)
+            is SessionEntry.Notice -> when {
+                entry.code == "run_error" -> items += ChatItem.Error(key("notice-${entry.id}", seq), entry.message)
+                entry.code == "warning" -> items += ChatItem.Error(key("notice-${entry.id}", seq), "⚠ ${entry.message}")
+                entry.child == null -> items += ChatItem.Notice(key("notice-${entry.id}", seq), entry.code, entry.message, SessionData(agentId, entries = entry.draft).items)
+            }
             is SessionEntry.Started, is SessionEntry.Settings, is SessionEntry.Details, is SessionEntry.Context, is SessionEntry.Outcome -> Unit
         }
     }
@@ -595,13 +592,16 @@ private fun SessionData.chatItems(): List<ChatItem> {
                 val call = items.indexOfLast { it is ChatItem.ToolCall && it.callId == request.toolCallId && it.result == null }
                 if (call >= 0) items[call] = (items[call] as ChatItem.ToolCall).copy(questions = request)
             }
+            is PendingInteraction.Connect -> {
+                val call = items.indexOfLast { it is ChatItem.ToolCall && it.callId == request.toolCallId && it.result == null }
+                if (call >= 0) items[call] = (items[call] as ChatItem.ToolCall).copy(connect = request)
+            }
             else -> Unit
         }
     }
     if (live.reasoning.isNotEmpty() && "reasoning-${live.messageId}" !in keys) items += ChatItem.Reasoning(key("reasoning-${live.messageId}", -1), live.reasoning)
     if (live.text.isNotEmpty() && "text-${live.messageId}" !in keys) items += ChatItem.Assistant(key("text-${live.messageId}", -2), live.text)
     live.reflectionId?.takeIf { "reflection-$it" !in keys }?.let { items += ChatItem.Reflection(key("reflection-$it", -3)) }
-    notes.forEachIndexed { i, note -> items += ChatItem.Error("note-$i", note) }
     return items.map { if (it is ChatItem.Assistant) it.copy(at = it.at ?: receivedAt[it.id]) else it }
 }
 

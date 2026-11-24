@@ -1,5 +1,7 @@
 package kinuvo.protocol.approval
 
+import kinuvo.protocol.agent.AgentId
+import kinuvo.protocol.agent.ConfigScope
 import kinuvo.protocol.execution.ExternalApprovalOption
 import kinuvo.protocol.plugin.ToolIdentity
 import kinuvo.protocol.screen.ScreenRef
@@ -68,6 +70,22 @@ sealed interface PendingInteraction {
     /** A request this client can't fill in; it can only be declined. */
     @Serializable @SerialName("unsupported")
     data class Unsupported(override val id: InteractionId, val message: String) : PendingInteraction
+
+    /**
+     * A request to sign in to an MCP [server] from chat: the client runs its own OAuth flow (`mcp.login`,
+     * `mcp.loginComplete`) and answers with [InteractionAnswer.Connect]. [site] is the server's host, for display,
+     * never the full URL.
+     */
+    @Serializable @SerialName("connect")
+    data class Connect(
+        override val id: InteractionId,
+        val toolCallId: ToolCallId,
+        val agentId: AgentId,
+        val server: String,
+        val scope: ConfigScope? = null,
+        val site: String? = null,
+        val reason: String? = null,
+    ) : PendingInteraction
 }
 
 fun PendingInteraction.withId(id: InteractionId): PendingInteraction = when (this) {
@@ -76,6 +94,7 @@ fun PendingInteraction.withId(id: InteractionId): PendingInteraction = when (thi
     is PendingInteraction.HarnessApproval -> copy(id = id)
     is PendingInteraction.OpenLink -> copy(id = id)
     is PendingInteraction.Unsupported -> copy(id = id)
+    is PendingInteraction.Connect -> copy(id = id)
 }
 
 /** The user's answer to a [PendingInteraction], matching its kind. */
@@ -91,6 +110,10 @@ sealed interface InteractionAnswer {
     /** The harness's own answer to its request: `{optionId}` or null (cancelled) for permissions, `{opened}` for links, null to decline. */
     @Serializable @SerialName("harness")
     data class Harness(val answer: JsonElement) : InteractionAnswer
+
+    /** Whether the client's own OAuth flow finished; [error] when it failed, null when the user skipped it. */
+    @Serializable @SerialName("connect")
+    data class Connect(val connected: Boolean, val error: String? = null) : InteractionAnswer
 }
 
 /** Answers [requestId] in [sessionId]; true when this call claimed it, false when it was answered already or is gone. */
@@ -100,3 +123,5 @@ data class RespondParams(val sessionId: SessionId, val requestId: InteractionId,
 val AgentEvent.approval: PendingInteraction.Approval? get() = (this as? AgentEvent.InteractionRequested)?.interaction as? PendingInteraction.Approval
 
 val AgentEvent.questions: PendingInteraction.Questions? get() = (this as? AgentEvent.InteractionRequested)?.interaction as? PendingInteraction.Questions
+
+val AgentEvent.connect: PendingInteraction.Connect? get() = (this as? AgentEvent.InteractionRequested)?.interaction as? PendingInteraction.Connect

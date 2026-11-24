@@ -17,7 +17,7 @@ A Server's cache is one `Snapshot`: Agents, capabilities, Session lists, the cac
 
 Opening a cached Server shows it right away as `Connection.Ready` with `online = false` and `syncedAt`, and the client keeps retrying until it connects. Only bad credentials stop it, and drop that Server's snapshot. A protocol mismatch keeps the snapshot on screen, says which side to update and retries every minute. Reconnecting catches the cached Sessions up from their last seq instead of reloading them. Offline, the chat says when it last synced; writes fail as they do during any disconnect.
 
-Settings can clear every snapshot, or reset the Device: forget all Servers, their credentials, preferences and cached data, as on a fresh install. Servers aren't told about a reset.
+Settings can clear every snapshot, or reset the Device: forget all Servers, their credentials, preferences and cached data. On phones this also wipes the embedded Server's entire data directory and secrets, so it restarts as a fresh install; remote Servers aren't told about a reset and keep their data.
 
 ## Consequences
 

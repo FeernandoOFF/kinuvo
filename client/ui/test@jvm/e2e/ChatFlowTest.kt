@@ -27,4 +27,37 @@ class ChatFlowTest {
         requests(Api.Send, 1)
         assertEquals(listOf("Hello from Maestro"), server.spy.params(Api.Send).map(SendParams::text))
     }
+
+    @Test fun firstMessageOfANewSessionShowsWorkingUntilTheReply() = appTest("chat-new-session-working",
+        script = { on("Hello from Maestro") { reply(REPLY) } },
+    ) {
+        pair()
+        tap("Message")
+        type("Hello from Maestro")
+        tap("Send")
+        await("Working…")
+        await(REPLY)
+        gone("Working…")
+        requests(Api.CreateSession, 1)
+        requests(Api.Send, 1)
+    }
+
+    @Test fun secondSendInAnOpenSessionShowsItsOwnReply() = appTest("chat-second-send",
+        script = { on("Hey") { reply("Hi there") }; on("Who are you") { reply("I'm the E2E Agent") } },
+    ) {
+        pair()
+        tap("Message")
+        type("Hey")
+        tap("Send")
+        await("Hi there")
+        settle(500)
+        tap("Message")
+        type("Who are you")
+        tap("Send")
+        await("I'm the E2E Agent")
+        settle(500)
+        screenshot("second-reply")
+        requests(Api.Send, 2)
+        assertEquals(listOf("Hey", "Who are you"), server.spy.params(Api.Send).map(SendParams::text))
+    }
 }

@@ -65,8 +65,12 @@ internal actual val platformModule = module {
     single { FcmPushChannel(androidContext(), get(), enabled = get<MobileTestMode>().override == null) } binds arrayOf(PushChannel::class, NotificationPermission::class)
     single<OAuthBrowser> {
         val context = androidContext()
-        AppSchemeBrowser { url ->
+        val open: (String) -> Unit = { url ->
             CustomTabsIntent.Builder().build().apply { intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK) }.launchUrl(context, Uri.parse(url))
+        }
+        object : OAuthBrowser by AppSchemeBrowser(open) {
+            override suspend fun signInWithLoopback(authorize: suspend (String) -> String, opened: (String, Boolean) -> Unit): String? =
+                providerLoopbackSignIn(authorize, opened) { open(it) }
         }
     }
     single { Device("${Build.MANUFACTURER} ${Build.MODEL}", TimeZone.getDefault().id, get<MobileTestMode>().override?.websocketUrl.orEmpty()) }

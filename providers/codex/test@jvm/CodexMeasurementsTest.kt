@@ -32,6 +32,27 @@ import kotlin.test.*
 
 class CodexMeasurementsTest {
     @Test
+    fun planUsageFailureSurfacesBeforeStreamingDecoder() = runTest {
+        val http = HttpClient(MockEngine { error("No network expected") })
+        val base = KoogHttpClient.fromKtorClient("test", KotlinLogging.logger("test"), http)
+        val transport = CodexMeasurements(object : KoogHttpClient by base {
+            override fun <T : Any, R : Any, O : Any> sse(path: String, requestBody: T, requestBodyType: KClass<T>,
+                dataFilter: (String?) -> Boolean, decodeStreamingResponse: (String) -> R, processStreamingChunk: (R) -> O?,
+                parameters: Map<String, String>, headers: Map<String, String>): Flow<O> = flow {
+                val event = """{"type":"response.failed","response":{"error":{"code":"subscription_sharing_usage_limit_exceeded"}}}"""
+                if (dataFilter(event)) processStreamingChunk(decodeStreamingResponse(event))?.let { emit(it) }
+            }
+        })
+        try {
+            val error = assertFailsWith<IllegalStateException> {
+                transport.sse("responses", "{}", String::class, { true }, { error("Must surface plan failure before decoding") }, { it }, emptyMap(), emptyMap()).toList()
+            }
+            assertTrue(error.message.orEmpty().contains("usage limit reached"))
+            assertTrue(error.message.orEmpty().contains("https://chatgpt.com/settings/usage"))
+        } finally { http.close() }
+    }
+
+    @Test
     fun metadataDoesNotInterruptResponseStreaming() = runTest {
         val events = listOf(
             """{"type":"response.metadata","metadata":{"request_id":"test"}}""",
@@ -59,6 +80,39 @@ class CodexMeasurementsTest {
             assertTrue(metrics.success)
             assertEquals(4, metrics.cachedTokens)
             assertEquals(0, metrics.reasoningTokens)
+        } finally { client.close(); http.close() }
+    }
+
+    @Test
+    fun streamErrorsSurfaceTheirMessageInAnyShape() {
+        assertEquals("Stream reset (server_error)", streamError("""{"type":"error","error":{"type":"server_error","message":"Stream reset"}}"""))
+        assertEquals("Rate limited (rate_limit_exceeded)", streamError("""{"type":"error","code":"rate_limit_exceeded","message":"Rate limited","sequence_number":3}"""))
+        assertEquals("The model stream failed without details. Try again.", streamError("""{"type":"error"}"""))
+        assertNull(streamError("""{"type":"response.output_text.delta","delta":"hi"}"""))
+    }
+
+    @Test
+    fun chatGptPlanNamespaceToolsDecodeWithKoog() = runTest {
+        val tools = """"tools":[{"type":"namespace","name":"kinuvo","description":"Kinuvo tools","tools":[{"type":"function","name":"echo","parameters":{"type":"object","properties":{}},"strict":false}]}]"""
+        val response = """"id":"resp_1","created_at":0,"model":"test","parallel_tool_calls":true,"text":{},$tools"""
+        val events = listOf(
+            """{"type":"response.created","sequence_number":0,"response":{$response,"status":"in_progress","output":[]}}""",
+            """{"type":"response.output_text.delta","item_id":"msg_1","output_index":0,"content_index":0,"delta":"Hello","sequence_number":1}""",
+            """{"type":"response.completed","sequence_number":2,"response":{$response,"status":"completed","output":[],"usage":{"input_tokens":10,"output_tokens":1,"total_tokens":11,"input_tokens_details":{"cached_tokens":0},"output_tokens_details":{"reasoning_tokens":0}}}}""",
+        )
+        val http = HttpClient(MockEngine { error("No network expected") })
+        val transport = object : KoogHttpClient by KoogHttpClient.fromKtorClient("test", KotlinLogging.logger("test"), http) {
+            override fun <T : Any, R : Any, O : Any> sse(path: String, requestBody: T, requestBodyType: KClass<T>,
+                dataFilter: (String?) -> Boolean, decodeStreamingResponse: (String) -> R, processStreamingChunk: (R) -> O?,
+                parameters: Map<String, String>, headers: Map<String, String>): Flow<O> = flow {
+                events.filter(dataFilter).forEach { data -> processStreamingChunk(decodeStreamingResponse(data))?.let { emit(it) } }
+            }
+        }
+        val client = OpenAILLMClient(OpenAIClientSettings(baseUrl = CODEX_BASE_URL, responsesAPIPath = "responses"), httpClient = CodexMeasurements(transport))
+        try {
+            val (events, metrics) = openAIModel(AgentConfig(), client).measure()
+            assertEquals("Hello", events.filterIsInstance<AgentEvent.TextMessageEnd>().singleOrNull()?.text, events.toString())
+            assertTrue(metrics.success)
         } finally { client.close(); http.close() }
     }
 

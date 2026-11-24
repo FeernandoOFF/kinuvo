@@ -24,6 +24,12 @@ final class AppleKeychain: NSObject, NativeKeychain {
         SecItemDelete(item(service, account) as CFDictionary)
     }
 
+    func clear(service: String) -> Bool {
+        let status = SecItemDelete([kSecClass as String: kSecClassGenericPassword,
+                                    kSecAttrService as String: service] as CFDictionary)
+        return status == errSecSuccess || status == errSecItemNotFound
+    }
+
     private func item(_ service: String, _ account: String) -> [String: Any] {
         [kSecClass as String: kSecClassGenericPassword, kSecAttrService as String: service, kSecAttrAccount as String: account]
     }

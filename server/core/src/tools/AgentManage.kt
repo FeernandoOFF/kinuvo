@@ -1,16 +1,15 @@
 package kinuvo.server.tools
 
+import io.ktor.http.Url
 import kinuvo.harness.ToolSpec
 import kinuvo.server.*
 import kinuvo.server.plugin.*
-import kinuvo.protocol.ProtocolJson
 import kinuvo.protocol.agent.*
 import kinuvo.protocol.approval.*
 import kinuvo.protocol.capability.Integration
 import kinuvo.protocol.mcp.*
 import kinuvo.protocol.session.*
 import kinuvo.protocol.tool.ToolNames
-import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.json.*
 
 /** What the management tools read and change; the Server supplies it from the same handlers as Settings. */
@@ -344,26 +343,22 @@ private class McpTest(management: AgentManagement, scope: AgentManageScope) : Ma
 private class McpLogin(management: AgentManagement, scope: AgentManageScope) : ManageTool(management, scope) {
     override val descriptor = toolSpec(
         name = ToolNames.MCP_LOGIN,
-        description = "Sign in to one of your HTTP MCP servers through OAuth. The user gets a sign-in link in a form, opens it, and pastes back the address their browser ends on; then the sign-in completes.",
+        description = "Sign in to one of your HTTP MCP servers through OAuth. The user gets a Connect card and finishes sign-in on their own Device.",
         requiredParameters = listOf(ToolParameter("name", "The server's name from mcp_list", ParameterType.String)),
     )
 
-    override suspend fun preview(args: JsonObject) = ChangePreview("Sign in to ${args.requireString("name")}", body = "The user gets a link to open.")
+    override suspend fun preview(args: JsonObject) = ChangePreview("Sign in to ${args.requireString("name")}", body = "The user gets a card to connect.")
 
     override suspend fun execute(args: JsonObject): String = error("MCP sign-in requires a run")
     override suspend fun execute(args: JsonObject, callId: String, run: ToolRun): String {
         val name = args.requireString("name")
-        val url = management.loginMcp(McpLoginParams(scope.agentId, name))
-        val question = Question("address", "Open this link and sign in: $url\n\nPaste the address your browser ends on.", QuestionKind.LongText, required = true)
-        val form = buildJsonObject {
-            put("title", "Sign in to $name")
-            put("questions", ProtocolJson.encodeToJsonElement(ListSerializer(Question.serializer()), listOf(question)))
-        }
-        val result = run.call(ToolNames.ASK_USER, form.toString())
-        check(!result.isError) { "Couldn't show the sign-in link: ${result.output}" }
-        val answer = runCatching { ProtocolJson.parseToJsonElement(result.output).jsonObject.string("address") }.getOrNull()
-            ?: return "The user skipped the sign-in."
-        return "Signed in to '${management.completeMcpLogin(McpLoginCompleteParams(answer.trim())).name}'."
+        val server = management.mcpServers(scope.agentId).firstOrNull { it.name == name } ?: return "No MCP server named '$name'; check mcp_list."
+        val site = server.url?.let { runCatching { Url(it).host }.getOrNull() }?.ifBlank { null }
+        val answer = run.connect(scope.agentId, name, server.scope, site)
+        if (!answer.connected) return answer.error?.let { "Couldn't sign in to '$name': $it" } ?: "The user skipped the sign-in."
+        val test = management.testMcp(McpParams(scope.agentId, name, server.scope))
+        return if (test.error != null) "Signed in to '$name', but it still fails: ${test.error}"
+            else "Signed in to '$name': ${test.tools.size} tools: ${test.tools.joinToString()}"
     }
 }
 

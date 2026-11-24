@@ -1,5 +1,7 @@
 package kinuvo.providers.codex
 
+import io.github.oshai.kotlinlogging.KotlinLogging
+import kotlinx.coroutines.CancellationException
 import io.ktor.client.HttpClient
 import io.ktor.client.request.forms.submitForm
 import io.ktor.client.request.post
@@ -25,7 +27,7 @@ import kotlin.time.Duration.Companion.seconds
 import kotlin.time.Instant
 import kotlin.time.TimeSource
 
-data class CodexTokens(val accessToken: String, val accountId: String)
+data class CodexTokens(val accessToken: String, val accountId: String, val usesChatGptPlan: Boolean = false)
 
 /** ChatGPT OAuth tokens, kept like the Codex CLI's auth.json in [store]; refreshes and writes them back in place. */
 class CodexAuth(
@@ -33,22 +35,41 @@ class CodexAuth(
     private val http: HttpClient = HttpClient(),
     private val issuer: String = ISSUER,
     private val tokenUrl: String = "$issuer/oauth/token",
+    private val browserStore: Keychain = store,
 ) : ProviderAuth {
     private val mutex = Mutex()
+    private val signIn = ChatGptSignIn(browserStore, http, issuer)
+    override val browserSignIn = true
+    override suspend fun signIn(redirectUri: String, anotherAccount: Boolean, requestConsent: Boolean) = mutex.withLock { signIn.begin(redirectUri, anotherAccount, requestConsent) }
+    override suspend fun cancelSignIn() = mutex.withLock { signIn.cancel() }
+    override suspend fun completeSignIn(callbackUrl: String) = mutex.withLock { signIn.complete(callbackUrl) }
+
     private val json = Json { prettyPrint = true }
 
     suspend fun tokens(forceRefresh: Boolean = false): CodexTokens = mutex.withLock {
+        signIn.credentials()?.takeIf { it["selected"] == JsonPrimitive(true) }?.let { saved ->
+            check("access_token" in saved) { "ChatGPT sign-in needs renewal. Continue with ChatGPT again." }
+            val current = if (forceRefresh || saved.getValue("expires_at").jsonPrimitive.long - Clock.System.now().epochSeconds < 300) signIn.refresh(saved) else saved
+            check(planAllowed(current)) { "ChatGPT plan usage is disabled. Enable it in Settings by signing in again." }
+            return@withLock CodexTokens(current.getValue("access_token").jsonPrimitive.content, "", true)
+        }
         var root = read()
         if (forceRefresh || isExpiring(root.accessToken)) root = refresh(root)
         CodexTokens(root.accessToken, root.tokens.getValue("account_id").jsonPrimitive.content)
     }
 
     override suspend fun account(): ProviderAccount = mutex.withLock {
+        signIn.credentials()?.takeIf { it["selected"] == JsonPrimitive(true) }?.let {
+            return@withLock ProviderAccount("access_token" in it, (it["email"] as? JsonPrimitive)?.contentOrNull, true, planAllowed(it))
+        }
         val idToken = runCatching { read().tokens["id_token"]?.jsonPrimitive?.content }.getOrNull() ?: return ProviderAccount(false)
         ProviderAccount(true, claims(idToken)?.get("email")?.jsonPrimitive?.content)
     }
 
-    override suspend fun logout() = mutex.withLock { store.delete() }
+    override suspend fun logout() = mutex.withLock {
+        if (browserStore !== store) store.delete()
+        signIn.logout()
+    }
 
     /** Signs in with ChatGPT via a device code (works headless), writing auth.json like `codex login --device-auth`. */
     override suspend fun login(show: (DeviceCode) -> Unit) {
@@ -83,13 +104,28 @@ class CodexAuth(
         val idToken = tokens.getValue("id_token").jsonPrimitive.content
         val accountId = claims(idToken)?.get("https://api.openai.com/auth")?.jsonObject?.get("chatgpt_account_id")?.jsonPrimitive?.content
             ?: error("Login token has no ChatGPT account id")
-        mutex.withLock { write(buildJsonObject {
-            put("auth_mode", "chatgpt")
-            put("OPENAI_API_KEY", JsonNull)
-            put("tokens", JsonObject(tokens.filterKeys { it in TOKEN_KEYS } + ("account_id" to JsonPrimitive(accountId))))
-            put("last_refresh", Clock.System.now().toString())
-        }) }
+        mutex.withLock {
+            try { signIn.logout() } catch (e: CancellationException) { throw e } catch (_: Exception) {
+                KotlinLogging.logger("CodexAuth").warn { "ChatGPT remote revocation was not confirmed during device sign-in; local session cleared" }
+            }
+            val old = signIn.root()
+            write(buildJsonObject {
+                if (browserStore === store) {
+                    old["siwc_accounts"]?.let { put("siwc_accounts", it) }
+                    old["ext_agent_host_id"]?.let { put("ext_agent_host_id", it) }
+                    (old["siwc"] as? JsonObject)?.let { registration ->
+                        put("siwc", JsonObject(registration.filterKeys { it in setOf("client_id", "subject", "email", "workspace") }))
+                    }
+                }
+                put("auth_mode", "chatgpt")
+                put("OPENAI_API_KEY", JsonNull)
+                put("tokens", JsonObject(tokens.filterKeys { it in TOKEN_KEYS } + ("account_id" to JsonPrimitive(accountId))))
+                put("last_refresh", Clock.System.now().toString())
+            })
+        }
     }
+
+    private fun planAllowed(record: JsonObject) = "chatgpt.tokens.use.direct" in (record["scope"] as? JsonPrimitive)?.content.orEmpty().split(' ')
 
     private suspend fun postJson(url: String, body: JsonObject) = http.post(url) {
         contentType(ContentType.Application.Json)

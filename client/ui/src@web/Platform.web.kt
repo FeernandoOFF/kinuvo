@@ -40,6 +40,7 @@ private class NoDeviceReader : DeviceReader {
  */
 private class TabBrowser : OAuthBrowser {
     override val redirect = McpRedirect.Loopback
+    override suspend fun openLoopbackPage(url: String): String? { window.open(url, "_blank"); return null }
 
     override suspend fun signIn(url: String): String? {
         window.open(url, "_blank")

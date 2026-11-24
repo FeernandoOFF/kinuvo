@@ -75,6 +75,8 @@ class ProtocolTest {
             InteractionAnswer.Questions(null),
             InteractionAnswer.Harness(JsonObject(mapOf("optionId" to JsonPrimitive("once")))),
             InteractionAnswer.Harness(JsonNull),
+            InteractionAnswer.Connect(true),
+            InteractionAnswer.Connect(false, "denied"),
         ).forEach { answer ->
             val params = RespondParams(SessionId("s1"), InteractionId("c1"), answer)
             assertEquals(params, ProtocolJson.decodeFromString(RespondParams.serializer(), ProtocolJson.encodeToString(RespondParams.serializer(), params)))

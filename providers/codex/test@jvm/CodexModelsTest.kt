@@ -9,6 +9,12 @@ import kotlin.test.*
 import kinuvo.protocol.model.ModelInfo
 
 class CodexModelsTest {
+    @Test fun planCatalogOnlyListsVisibleModelsWithoutImageGeneration() {
+        val models = parseCodexModels("""{"models":[{"slug":"gpt-5.4","visibility":"list","output_modalities":["text","image"]},{"slug":"unlisted"},{"slug":"hidden","visibility":"hide"}]}""", chatGptPlan = true)
+        assertEquals(listOf("gpt-5.4"), models.map { it.id })
+        assertEquals(listOf("text"), models.single().output)
+    }
+
     @Test
     fun fileSupportDoesNotRequireAFileModality() {
         val vision = responsesFileTypes(ModelInfo("vision", input = listOf("text", "image")))
