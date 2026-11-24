@@ -28,6 +28,7 @@ val openSourceLicenses = listOf(
     OpenSourceLicense("AndroidX", "https://developer.android.com/jetpack/androidx", "Apache-2.0", AOSP, maven = listOf("androidx.")),
     OpenSourceLicense("Koog", "https://github.com/JetBrains/koog", "Apache-2.0", JB, maven = listOf("ai.koog:")),
     OpenSourceLicense("Ktor", "https://ktor.io", "Apache-2.0", JB, maven = listOf("io.ktor:")),
+    OpenSourceLicense("cryptography-kotlin", "https://github.com/whyoleg/cryptography-kotlin", "Apache-2.0", "Oleg Yukhnevich", maven = listOf("dev.whyoleg.cryptography:")),
     OpenSourceLicense("Koin", "https://insert-koin.io", "Apache-2.0", "Koin contributors", maven = listOf("io.insert-koin:")),
     OpenSourceLicense("OkHttp", "https://square.github.io/okhttp/", "Apache-2.0", "Square, Inc.", maven = listOf("com.squareup.okhttp3:")),
     OpenSourceLicense("Model Context Protocol Kotlin SDK", "https://github.com/modelcontextprotocol/kotlin-sdk", "Apache-2.0 AND MIT", "Model Context Protocol contributors; MIT portions Model Context Protocol a Series of LF Projects, LLC.", maven = listOf("io.modelcontextprotocol:")),

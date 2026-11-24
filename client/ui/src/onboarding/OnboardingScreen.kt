@@ -119,7 +119,16 @@ internal val AvatarInk = listOf(Color(0xFFA98BF0), Color(0xFFFF7A2F), Color(0xFF
 private val LocalTint = compositionLocalOf { AvatarInk[0] }
 private const val SoulStep = 5
 
-internal class OnboardingAction(val label: String, val enabled: Boolean = true, val run: () -> Unit = {})
+/** Signing in with ChatGPT from the model step; [welcome] confirms plan usage once after it. */
+internal class ChatGptActions(val start: () -> Unit = {}, val paste: (String) -> Unit = {}, val cancel: () -> Unit = {}, val code: () -> Unit = {},
+    val welcome: Boolean = false, val dismissWelcome: () -> Unit = {}, val allowPlan: () -> Unit = {}, val another: () -> Unit = {},
+    val apiKey: (() -> Unit)? = null) {
+    fun copyWith(apiKey: (() -> Unit)?) = ChatGptActions(start, paste, cancel, code, welcome, dismissWelcome, allowPlan, another, apiKey)
+}
+
+internal class OnboardingAction(val label: String, val enabled: Boolean = true, val run: () -> Unit = {}) {
+    var icon: ImageVector? = null
+}
 
 @Composable
 internal fun OnboardingScreen(app: AppViewModel, onboarding: OnboardingViewModel) {
@@ -163,11 +172,36 @@ internal fun OnboardingScreen(app: AppViewModel, onboarding: OnboardingViewModel
         else pair(link.server, link.code)
     }
     val account = s.providers.firstOrNull { it.id == s.provider }
+    @Suppress("DEPRECATION") val clipboard = androidx.compose.ui.platform.LocalClipboardManager.current
+    val uri = LocalUriHandler.current
     val next = { onboarding.edit { it.moved(1) } }
+    // Confirms plan usage once, right after signing in with ChatGPT here.
+    var signingIn by remember { mutableStateOf(false) }
+    var planWelcome by remember { mutableStateOf(false) }
+    LaunchedEffect(s.providerSignIn != null, account?.account) {
+        if (s.providerSignIn != null) signingIn = true
+        else if (signingIn && account?.account?.let { it.signedIn && it.usesChatGptPlan } == true) { planWelcome = true; signingIn = false }
+    }
     val action = when {
         s.step == 2 && account?.apiKey != null && s.apiKey.isNotBlank() -> OnboardingAction("Save key") { onboarding.saveKey(s.apiKey) }
-        s.step == 2 && account?.account?.signedIn == false && s.deviceCode == null -> OnboardingAction("Sign in to ${account.name}") { onboarding.login() }
-        s.step == 2 && account?.account?.signedIn == false -> OnboardingAction("I've signed in") { onboarding.refresh() }
+        s.step == 2 && account?.browserSignIn == true && s.deviceCode == null && s.providerSignIn != null -> s.providerSignIn!!.let { signIn ->
+            if (signIn.url == null) OnboardingAction("Opening ChatGPT…", false)
+            else OnboardingAction(if (signIn.awaitingPaste) "Open ChatGPT sign-in" else "Open ChatGPT again") { runCatching { uri.openUri(signIn.url!!) } }.apply { icon = Lucide.ExternalLink }
+        }
+        s.step == 2 && account?.account?.let { it.signedIn && it.usesChatGptPlan && !it.planAllowed } == true ->
+            OnboardingAction("Allow ChatGPT plan usage") { onboarding.signInWithChatGPT(requestConsent = true) }.apply { icon = ChatGptLogo }
+        s.step == 2 && account?.account?.signedIn == false && account.browserSignIn && s.deviceCode == null -> s.providerSignIn.let { signIn ->
+            when {
+                signIn == null -> OnboardingAction("Continue with ChatGPT") { onboarding.signInWithChatGPT() }
+                signIn.url == null -> OnboardingAction("Opening ChatGPT…", false)
+                else -> OnboardingAction(if (signIn.awaitingPaste) "Open ChatGPT sign-in" else "Open ChatGPT again") { runCatching { uri.openUri(signIn.url!!) } }.apply { icon = Lucide.ExternalLink }
+            }.apply { if (signIn == null) icon = ChatGptLogo }
+        }
+        s.step == 2 && account?.account?.signedIn == false && s.deviceCode == null -> OnboardingAction("Sign in to ${account.name}") { onboarding.login() }.apply { icon = Lucide.LogIn }
+        s.step == 2 && account?.account?.signedIn == false -> s.deviceCode!!.let { code ->
+            OnboardingAction("Copy code and sign in") { clipboard.setText(androidx.compose.ui.text.AnnotatedString(code.code)); runCatching { uri.openUri(code.url) } }
+                .apply { icon = Lucide.ExternalLink }
+        }
         s.step == 2 && account?.downloads?.downloading != null -> OnboardingAction("Downloading…", false) {}
         s.step == 2 && account?.downloads?.models?.firstOrNull { it.id == s.model }?.let { !it.installed && it.supported } == true ->
             OnboardingAction("Download (${gigabytes(account.downloads!!.models.first { it.id == s.model }.bytes)})") { onboarding.download() }
@@ -201,7 +235,9 @@ internal fun OnboardingScreen(app: AppViewModel, onboarding: OnboardingViewModel
                     busy = advancing || (a.connection as? Connection.Connecting)?.server != null,
                     error = scanError ?: s.error ?: (a.connection as? Connection.Unpaired)?.error,
                 ), featured, pokes, poke, tint, insets)
-            }, model = { ModelStep(s, onboarding::selectProvider, { onboarding.refresh() }, onboarding::edit, { onboarding.download() }, { onboarding.cancelDownload() }, { id, model -> onboarding.refresh(id, model) }) },
+            }, model = { ModelStep(s, onboarding::selectProvider, { onboarding.refresh() }, onboarding::edit, { onboarding.download() }, { onboarding.cancelDownload() }, { id, model -> onboarding.refresh(id, model) },
+                ChatGptActions({ onboarding.signInWithChatGPT() }, onboarding::completeChatGPTSignIn, onboarding::cancelChatGPTSignIn, { onboarding.login() }, planWelcome, { planWelcome = false },
+                    { onboarding.signInWithChatGPT(requestConsent = true) }, { onboarding.signInWithChatGPT(anotherAccount = true) })) },
             connect = {
                 ConnectList(s, a.capabilities::allows, onboarding::setUp)
                 DeviceToolsGroup("On this device", "Agents read these from this app, so they can only use them while Kinuvo is open here.")
@@ -432,7 +468,7 @@ internal fun OnboardingContent(
                     val form: @Composable ColumnScope.() -> Unit = {
                         StepForm(s, onEdit, onChoice, wide, model, connect, harness, pick, Modifier.weight(1f).fillMaxWidth())
                         (s.error ?: connectionError)?.let { Text(it, color = color(destructiveColor), modifier = Modifier.padding(bottom = Spacing.space10)) }
-                        Cta(action, s.busy || working, if (wide) Modifier.widthIn(min = 260.dp) else Modifier.fillMaxWidth())
+                        Cta(action, s.busy || working, if (wide) Modifier.widthIn(min = 260.dp) else Modifier.fillMaxWidth(), action.icon)
                     }
                     if (wide) Row(Modifier.weight(1f).fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(Spacing.space64), verticalAlignment = Alignment.CenterVertically) {
                         AgentStage(s, onEdit, true, Modifier.weight(1.1f).fillMaxHeight())
@@ -704,47 +740,34 @@ private fun DraftRow(label: String, value: String, placeholder: String, secret: 
 
 @Composable
 internal fun ModelStep(s: OnboardingState, onProvider: (String) -> Unit, onRefresh: () -> Unit, onEdit: ((OnboardingState) -> OnboardingState) -> Unit,
-    onDownload: () -> Unit = {}, onCancel: () -> Unit = {}, onEndpoint: ((String, String) -> Unit)? = null) {
-    val tint = LocalTint.current
+    onDownload: () -> Unit = {}, onCancel: () -> Unit = {}, onEndpoint: ((String, String) -> Unit)? = null, chatGpt: ChatGptActions = ChatGptActions()) {
     val group = s.catalog.providers.firstOrNull { it.id == s.provider }
     val account = s.providers.firstOrNull { it.id == s.provider }
-    s.providerGroups.forEach { (title, providers) ->
+    // An OpenAI API key is one of ChatGPT's other ways in, not an option of its own.
+    val chatGptId = s.providers.firstOrNull { it.browserSignIn }?.id
+    val keyId = OPENAI.takeIf { chatGptId != null && s.providers.any { it.id == OPENAI } }
+    s.providerGroups.forEach { (title, all) ->
+        val providers = all.filter { it != keyId }
         if (providers.isNotEmpty()) RowGroup(title) {
             providers.forEach { id ->
                 val info = s.providers.firstOrNull { it.id == id }
-                ChoiceRow(Lucide.Brain, info?.name ?: s.catalog.providers.firstOrNull { it.id == id }?.name ?: id,
-                    providerStatus(info).orEmpty(), id == s.provider) { onProvider(id) }
-            }
-            if (title == "Private, on this Server" && s.provider in providers) Row(Modifier.fillMaxWidth().background(color(warningColor).copy(alpha = 0.1f))
-                .padding(horizontal = Spacing.space16, vertical = Spacing.space12), horizontalArrangement = Arrangement.spacedBy(Spacing.space12)) {
-                Icon(Lucide.TriangleAlert, Modifier.size(24.dp), tint = color(warningColor))
-                Column(verticalArrangement = Arrangement.spacedBy(Spacing.space4)) {
-                    Text("Less capable than cloud models", color = color(warningColor), style = TextStyles.label.copy(fontWeight = FontWeight.SemiBold))
-                    Text("Private, but small models can struggle with tools and longer tasks. Running locally uses battery and memory; downloads can be several GB. Use Wi-Fi.", style = TextStyles.secondary)
+                val viaKey = keyId != null && id == chatGptId && s.provider == keyId
+                val status = if (viaKey) "OpenAI API key · " + providerStatus(s.providers.firstOrNull { it.id == keyId }).orEmpty() else providerStatus(info).orEmpty()
+                ChoiceRow(Lucide.Brain, info?.name ?: s.catalog.providers.firstOrNull { it.id == id }?.name ?: id, status, id == s.provider || viaKey) { onProvider(id) }
+                // What the chosen option still needs sits right under it.
+                AnimatedVisibility(id == s.provider || viaKey, enter = fadeIn() + expandVertically(), exit = fadeOut() + shrinkVertically()) {
+                    Column(verticalArrangement = Arrangement.spacedBy(1.dp)) {
+                        if (viaKey) {
+                            ProviderSetup(s, keyId!!, onRefresh, onEdit, onDownload, onCancel, chatGpt)
+                            ActionRow("Sign in with ChatGPT instead", ChatGptLogo, { onProvider(id) }, enabled = !s.busy)
+                        } else ProviderSetup(s, id, onRefresh, onEdit, onDownload, onCancel, chatGpt.copyWith(keyId?.let { k -> { onProvider(k) } }))
+                    }
                 }
             }
         }
     }
-    val picked = s.provider.isNotBlank()
-    // A listed model is preselected, so only an unlisted one asks for input up front.
-    val listed = !group?.chatModels.isNullOrEmpty()
-    // A sign-in code in progress always shows, even before a provider reads as picked.
-    if (picked || s.deviceCode != null) RowGroup {
-        if (picked && !listed) key(s.provider) { DraftRow("Model ID", s.model, "Enter a model ID") { value -> onEdit { it.copy(model = value) } } }
-        account?.downloads?.let { downloads ->
-            downloads.models.filter { it.id == s.model }.takeIf { it.isNotEmpty() }?.let { selected ->
-                ModelDownloadRows(downloads.copy(models = selected), { onDownload() }, onCancel, {})
-            }
-        }
-        account?.apiKey?.let { key ->
-            key(s.provider) { DraftRow(if (key.configured) "Replace API key" else "API key", s.apiKey, "API key or secret reference", secret = true) { value -> onEdit { it.copy(apiKey = value) } } }
-        }
-        s.deviceCode?.let { DeviceCodeSignIn(it) }
-    }
     var adding by remember { mutableStateOf(false) }
-    AdvancedGroup("More options", summary = "Change the model, or add your own") {
-        if (picked && listed) PickerRow("Model", (group.chatModels.map { it.id } + s.model).filter(String::isNotBlank).distinct(), s.model,
-            { id -> group.chatModels.firstOrNull { it.id == id }?.name ?: id }, { value -> onEdit { it.copy(model = value) } }, Lucide.Cpu)
+    AdvancedGroup("More options", summary = "Refresh, or add your own endpoint") {
         ActionRow("Refresh models and sign-in", Lucide.RefreshCw, onRefresh, enabled = !s.busy)
         if (onEndpoint != null) ActionRow("Add OpenAI-compatible endpoint", Lucide.Plus, { adding = !adding })
     }
@@ -752,7 +775,125 @@ internal fun ModelStep(s: OnboardingState, onProvider: (String) -> Unit, onRefre
     (account?.downloads?.error ?: s.catalog.model(s.provider, s.model)?.state?.reason ?: group?.warning ?: s.catalog.warning ?: account?.error)?.let { Text(it, color = color(mutedColor), style = TextStyles.caption) }
 }
 
+/** The rows under the chosen provider: sign-in first, then its key, model and download. */
+@Composable
+private fun ProviderSetup(s: OnboardingState, id: String, onRefresh: () -> Unit, onEdit: ((OnboardingState) -> OnboardingState) -> Unit,
+    onDownload: () -> Unit, onCancel: () -> Unit, chatGpt: ChatGptActions) {
+    val group = s.catalog.providers.firstOrNull { it.id == id }
+    val account = s.providers.firstOrNull { it.id == id }
+    val signIn = account?.account?.takeIf { !it.signedIn }
+    if (signIn != null) {
+        val code = s.deviceCode
+        when {
+            code != null -> SignInCode(account.name, code, onRefresh, !s.busy)
+            account.browserSignIn -> ChatGptSignInRows(s.providerSignIn, s.busy, chatGpt.start, chatGpt.paste, chatGpt.cancel, chatGpt.code, button = false, onApiKey = chatGpt.apiKey)
+            else -> SignInIntro(account.name)
+        }
+        return
+    }
+    // Retrying consent or switching accounts shows its progress in place of the model.
+    if (account?.browserSignIn == true && s.providerSignIn != null) {
+        ChatGptSignInRows(s.providerSignIn, s.busy, chatGpt.start, chatGpt.paste, chatGpt.cancel, chatGpt.code, button = false)
+        return
+    }
+    if (account?.account?.let { it.usesChatGptPlan && !it.planAllowed } == true) {
+        ChatGptPlanBlocked(account.account?.label, chatGpt.allowPlan, chatGpt.another, button = false)
+        return
+    }
+    if (account?.account?.usesChatGptPlan == true && chatGpt.welcome) ChatGptPlanWelcome(chatGpt.dismissWelcome)
+    account?.apiKey?.let { key ->
+        key(id) { DraftRow(if (key.configured) "Replace API key" else "API key", s.apiKey, "API key or secret reference", secret = true) { value -> onEdit { it.copy(apiKey = value) } } }
+    }
+    val models = group?.chatModels.orEmpty()
+    when {
+        models.isNotEmpty() -> PickerRow("Model", (models.map { it.id } + s.model).filter(String::isNotBlank).distinct(), s.model,
+            { m -> models.firstOrNull { it.id == m }?.name ?: m }, { value -> onEdit { it.copy(model = value) } }, Lucide.Cpu)
+        s.busy -> GroupBox {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.space10)) {
+                Spinner(); Text("Loading models…", color = color(mutedColor), style = TextStyles.secondary)
+            }
+        }
+        else -> key(id) { DraftRow("Model ID", s.model, "Enter a model ID") { value -> onEdit { it.copy(model = value) } } }
+    }
+    if (account?.account?.usesChatGptPlan == true) {
+        UsingChatGptPlan()
+        ActionRow("Use another ChatGPT account", Lucide.UserRoundPlus, chatGpt.another, enabled = !s.busy)
+    }
+    account?.downloads?.let { downloads ->
+        downloads.models.filter { it.id == s.model }.takeIf { it.isNotEmpty() }?.let { selected ->
+            ModelDownloadRows(downloads.copy(models = selected), { onDownload() }, onCancel, {})
+        }
+    }
+    if (id == APPLE || id == "local") Row(Modifier.fillMaxWidth().background(color(warningColor).copy(alpha = 0.1f))
+        .padding(horizontal = Spacing.space16, vertical = Spacing.space12), horizontalArrangement = Arrangement.spacedBy(Spacing.space12)) {
+        Icon(Lucide.TriangleAlert, Modifier.size(24.dp), tint = color(warningColor))
+        Column(verticalArrangement = Arrangement.spacedBy(Spacing.space4)) {
+            Text("Less capable than cloud models", color = color(warningColor), style = TextStyles.label.copy(fontWeight = FontWeight.SemiBold))
+            Text("Private, but small models can struggle with tools and longer tasks. Running locally uses battery and memory; downloads can be several GB. Use Wi-Fi.", style = TextStyles.secondary)
+        }
+    }
+}
+
+/** Before a sign-in code: what signing in takes, so the button below reads as the next step. */
+@Composable
+private fun SignInIntro(provider: String) = GroupBox {
+    Text("Sign in with your $provider account", style = TextStyles.label.copy(fontWeight = FontWeight.SemiBold))
+    SignInStep(1, "Tap Sign in below to get a one-time code")
+    SignInStep(2, "Paste it on the sign-in page that opens")
+    SignInStep(3, "Come back here. I'll notice when you're done")
+}
+
+/** A sign-in code in progress: the code, a way to the page, and that the app is waiting for it. */
+@Suppress("DEPRECATION")
+@Composable
+private fun SignInCode(provider: String, code: DeviceCode, onCheck: () -> Unit, enabled: Boolean) {
+    val clipboard = androidx.compose.ui.platform.LocalClipboardManager.current
+    val uri = LocalUriHandler.current
+    val tint = LocalTint.current
+    var copied by remember { mutableStateOf(false) }
+    LaunchedEffect(copied) { if (copied) { delay(2000); copied = false } }
+    val copy = { clipboard.setText(androidx.compose.ui.text.AnnotatedString(code.code)); copied = true }
+    GroupBox {
+        Text("Finish signing in to $provider", style = TextStyles.label.copy(fontWeight = FontWeight.SemiBold))
+        SignInStep(1, "Copy your code")
+        Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(Radius.medium)).border(1.5.dp, tint, RoundedCornerShape(Radius.medium))
+            .clickable(role = Role.Button, onClick = copy).padding(start = Spacing.space16, end = Spacing.space6, top = Spacing.space6, bottom = Spacing.space6)
+            .semantics { contentDescription = "Copy code ${code.code}" }, verticalAlignment = Alignment.CenterVertically) {
+            Text(code.code, Modifier.weight(1f), style = MonoStyle, fontSize = TextStyles.headline.fontSize, fontWeight = FontWeight.Bold, singleLine = true)
+            Row(Modifier.clip(CircleShape).background(tint).padding(horizontal = Spacing.space12, vertical = Spacing.space8),
+                verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.space6)) {
+                Icon(if (copied) Lucide.Check else Lucide.Copy, Modifier.size(15.dp), tint = Color.White)
+                Text(if (copied) "Copied" else "Copy", color = Color.White, fontWeight = FontWeight.SemiBold, style = TextStyles.secondary, singleLine = true)
+            }
+        }
+        SignInStep(2, "Paste it on the sign-in page")
+        Row(Modifier.clip(RoundedCornerShape(Radius.small)).clickable(role = Role.Button) { copy(); runCatching { uri.openUri(code.url) } }.padding(vertical = Spacing.space2),
+            verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.space6)) {
+            Icon(Lucide.ExternalLink, Modifier.size(14.dp), tint = color(mutedColor))
+            Text(code.url.substringAfter("://").trimEnd('/'), color = color(mutedColor), style = TextStyles.secondary.copy(textDecoration = androidx.compose.ui.text.style.TextDecoration.Underline), singleLine = true)
+        }
+        Row(Modifier.fillMaxWidth().padding(top = Spacing.space4), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.space10)) {
+            Spinner()
+            Text("Waiting for you to sign in…", Modifier.weight(1f), color = color(mutedColor), style = TextStyles.secondary)
+            Text("Check now", Modifier.clip(RoundedCornerShape(Radius.small)).clickable(enabled, role = Role.Button, onClick = onCheck).padding(Spacing.space4),
+                fontWeight = FontWeight.SemiBold, style = TextStyles.secondary)
+        }
+    }
+}
+
+@Composable
+private fun SignInStep(number: Int, text: String) {
+    val tint = LocalTint.current
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.space10)) {
+        Box(Modifier.size(22.dp).clip(CircleShape).background(tint.copy(alpha = 0.18f)), contentAlignment = Alignment.Center) {
+            Text("$number", style = TextStyles.caption, fontWeight = FontWeight.Bold)
+        }
+        Text(text, style = TextStyles.secondary)
+    }
+}
+
 private const val APPLE = "apple"
+private const val OPENAI = "openai"
 
 private fun providerStatus(info: ProviderInfo?): String? = when {
     info?.account?.signedIn == true -> "Signed in" + info.account?.label?.let { " as $it" }.orEmpty()

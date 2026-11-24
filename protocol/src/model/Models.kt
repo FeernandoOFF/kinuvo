@@ -48,7 +48,7 @@ data class ModelsParams(val refresh: Boolean = false)
 
 /** [label] names the signed-in account, e.g. its email. */
 @Serializable
-data class ProviderAccount(val signedIn: Boolean, val label: String? = null)
+data class ProviderAccount(val signedIn: Boolean, val label: String? = null, val usesChatGptPlan: Boolean = false, val planAllowed: Boolean = true)
 
 /** What to open and enter to sign in; [expiresAt] is epoch millis. */
 @Serializable
@@ -57,7 +57,7 @@ data class DeviceCode(val url: String, val code: String, val expiresAt: Long)
 /** A model provider on the Server; [account] describes browser sign-in, [apiKey] API-key configuration, [downloads] models it runs from downloaded files. */
 @Serializable
 data class ProviderInfo(val id: String, val name: String, val account: ProviderAccount? = null, val error: String? = null, val apiKey: ProviderApiKeyStatus? = null,
-    val downloads: ProviderDownloads? = null)
+    val downloads: ProviderDownloads? = null, val browserSignIn: Boolean = false)
 
 /** A model a provider runs from files downloaded to the Server; [supported] is false when the Server's machine can't run it, saying why in [reason]. */
 @Serializable
@@ -83,3 +83,9 @@ data class SetProviderApiKeyParams(val provider: String, val value: String)
 
 @Serializable
 data class CustomEndpointParams(val id: String = "endpoint", val baseUrl: String, val apiKey: String = "", val model: String = "")
+
+@Serializable
+data class ProviderSignInParams(val provider: String, val redirectUri: String, val anotherAccount: Boolean = false, val requestConsent: Boolean = false)
+
+@Serializable
+data class ProviderSignInCompleteParams(val provider: String, val callbackUrl: String)

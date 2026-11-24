@@ -421,6 +421,14 @@ class ScreenshotTest {
             val ui = settingsAt(Route.Settings(AgentId("main"), SettingsSection.Providers))
             KinuvoTheme(dark = false) { SettingsContent(ui.copy(state = ui.state.copy(providers = providers, deviceCode = "codex" to kinuvo.protocol.model.DeviceCode("https://auth.openai.com/codex/device", "ABCD-1234", 0))), SettingsActions()) }
         }
+        for ((name, account) in listOf("signed-out" to kinuvo.protocol.model.ProviderAccount(false),
+            "plan" to kinuvo.protocol.model.ProviderAccount(true, "alex@example.com", usesChatGptPlan = true),
+            "blocked" to kinuvo.protocol.model.ProviderAccount(true, "alex@example.com", usesChatGptPlan = true, planAllowed = false))) render("settings-providers-chatgpt-$name", 420, 900) {
+            val providers = listOf(kinuvo.protocol.model.ProviderInfo("codex", "ChatGPT / Codex", account, browserSignIn = true),
+                ProviderInfo("openai", "OpenAI API", apiKey = ProviderApiKeyStatus(false, "macOS Keychain")))
+            val ui = settingsAt(Route.Settings(AgentId("main"), SettingsSection.Providers))
+            KinuvoTheme(dark = false) { SettingsContent(ui.copy(state = ui.state.copy(providers = providers)), SettingsActions()) }
+        }
         render("settings-compatible-providers", 900, 1050) {
             val providers = listOf(
                 ProviderInfo("hosted-models", "Hosted models", apiKey = ProviderApiKeyStatus(false, "Server keychain")),

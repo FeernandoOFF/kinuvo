@@ -163,6 +163,9 @@ object Api {
     val SaveEndpoint = Method("providers.saveEndpoint", CustomEndpointParams.serializer(), ProviderRef.serializer())
     val Providers = Method("providers.list", Unit.serializer(), ListSerializer(ProviderInfo.serializer()))
     /** Starts signing in; the Server finishes it in the background and sends [ProvidersChanged]. */
+    val SignInProvider = Method("providers.signIn", ProviderSignInParams.serializer(), String.serializer())
+    val CancelProviderSignIn = Method("providers.signInCancel", ProviderRef.serializer(), Unit.serializer())
+    val CompleteProviderSignIn = Method("providers.signInComplete", ProviderSignInCompleteParams.serializer(), Unit.serializer())
     val LoginProvider = Method("providers.login", ProviderRef.serializer(), DeviceCode.serializer())
     val SetProviderApiKey = Method("providers.apiKey", SetProviderApiKeyParams.serializer(), Unit.serializer())
     val LogoutProvider = Method("providers.logout", ProviderRef.serializer(), Unit.serializer())

@@ -40,7 +40,8 @@ class FeedbackTest {
             CompositionLocalProvider(LocalClipboardManager provides clipboard) {
                 KinuvoTheme(dark = false) {
                     Column(Modifier.fillMaxSize().background(color(backgroundColor)).padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                        ModelStep(OnboardingState(deviceCode = code), {}, {}, {})
+                        ModelStep(OnboardingState(deviceCode = code, provider = "codex",
+                            providers = listOf(kinuvo.protocol.model.ProviderInfo("codex", "ChatGPT / Codex", kinuvo.protocol.model.ProviderAccount(false)))), {}, {}, {})
                     }
                 }
             }
