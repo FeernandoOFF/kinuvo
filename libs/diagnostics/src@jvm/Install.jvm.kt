@@ -18,5 +18,5 @@ internal actual fun installPlatform(writer: LogWriter, crashes: CrashReports) {
         val appender = LogbackWriter(writer).also { it.context = context; it.name = "KINUVO_DIAGNOSTICS"; it.start() }
         context.getLogger(Logger.ROOT_LOGGER_NAME).addAppender(appender)
     }
-    recordUncaughtExceptions(writer, crashes)
+    recordUncaughtExceptions(writer, crashes) { it.name == "main" }
 }

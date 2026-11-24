@@ -25,5 +25,6 @@ private object Logcat : Appender {
 internal actual fun installPlatform(writer: LogWriter, crashes: CrashReports) {
     KotlinLoggingConfiguration.loggerFactory = DirectLoggerFactory
     KotlinLoggingConfiguration.direct.appender = writer.appender(Logcat)
-    recordUncaughtExceptions(writer, crashes)
+    // Android ends the process whichever thread failed.
+    recordUncaughtExceptions(writer, crashes) { true }
 }

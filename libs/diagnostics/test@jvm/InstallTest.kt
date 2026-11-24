@@ -2,6 +2,7 @@ package kinuvo.diagnostics
 
 import io.github.oshai.kotlinlogging.KotlinLogging
 import kotlinx.io.files.Path
+import kotlinx.io.files.SystemFileSystem
 import java.io.File
 import java.util.concurrent.TimeUnit
 import kotlin.test.Test
@@ -34,15 +35,31 @@ class InstallTest {
             assertTrue(File(export.toString()).length() > 0)
         } finally { process.destroyForcibly() }
     }
+
+    @Test fun aFailingWorkerThreadIsLoggedButIsNotACrash() = withTemporaryDirectory { dir ->
+        val process = ProcessBuilder(File(System.getProperty("java.home"), "bin/java").path, "-cp", System.getProperty("java.class.path"), InstallProbe::class.java.name, dir.toString(), "worker")
+            .redirectErrorStream(true).redirectOutput(File(dir.toString(), "output.txt")).start()
+        try {
+            assertTrue(process.waitFor(30, TimeUnit.SECONDS), "Probe timed out")
+            assertEquals(0, process.exitValue(), File(dir.toString(), "output.txt").readText())
+            assertContains(Path(dir, "logs/probe.log").read(), "Uncaught IllegalStateException on probe-worker")
+            assertEquals(null, Diagnostics(dir, testApp).pendingCrash())
+            assertTrue(!SystemFileSystem.exists(Path(dir, "crashes")) || SystemFileSystem.list(Path(dir, "crashes")).isEmpty())
+        } finally { process.destroyForcibly() }
+    }
 }
 
 object InstallProbe {
     @JvmStatic fun main(args: Array<String>) {
         System.setProperty("kotlin-logging.logStartupMessage", "false")
-        Diagnostics(Path(args.single()), testApp).install("probe")
+        Diagnostics(Path(args.first()), testApp).install("probe")
         val log = KotlinLogging.logger("kinuvo.probe")
         log.info { "run.finish session=s1 duration=830ms" }
         log.warn(IllegalStateException("failed")) { "operation failed api_key=SECRET_VALUE for me@example.test https://x.test/cb?code=QUERY" }
+        if (args.getOrNull(1) == "worker") {
+            Thread({ throw IllegalStateException("worker failed") }, "probe-worker").apply { start(); join() }
+            return
+        }
         throw IllegalStateException("probe crash")
     }
 }
