@@ -8,6 +8,8 @@ import kinuvo.client.ConnectionState
 import kinuvo.client.KinuvoClient
 import kinuvo.protocol.*
 import kinuvo.protocol.agent.*
+import kinuvo.protocol.agui.AgUiEvent
+import kinuvo.protocol.agui.RunOutcome
 import kinuvo.protocol.approval.*
 import kinuvo.protocol.capability.ServerCapabilities
 import kinuvo.protocol.capability.ServerFeature
@@ -33,14 +35,15 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 
 /**
- * One Session as held on this Device: a window of its entries starting at [firstSeq], the live turn and run notes.
- * [loaded] turns true once the first catch-up arrived.
+ * One Session as held on this Device: a window of its entries starting at [firstSeq], what its Server reports besides
+ * them in [live] and the active run's AG-UI items in [run]. [loaded] turns true once the first snapshot arrived.
  */
 data class SessionData(
     val agentId: AgentId,
     val firstSeq: Int = 0,
     val entries: List<SessionEntry> = emptyList(),
     val live: LiveState = LiveState(),
+    val run: AgUiRunState = AgUiRunState(),
     val loaded: Boolean = false,
     val loadingOlder: Boolean = false,
     val receivedAt: Map<String, Long> = emptyMap(),
@@ -237,7 +240,7 @@ class SessionRepository(private val notifications: Notifications, internal val c
         recent += sessionId
         if (sessionId !in state.value.sessions) {
             put(sessionId, SessionData(agentId))
-            catchUp(sessionId)
+            subscribe(sessionId)
         }
         while (recent.size > MAX_CACHED) evict(SessionId(recent.first().value))
         if (serverInbox && viewing == sessionId) refreshViewed(agentId, sessionId)
@@ -346,7 +349,11 @@ class SessionRepository(private val notifications: Notifications, internal val c
         val id = update.sessionId
         val data = state.value.sessions[id] ?: return
         val change = update.change
-        val event = (change as? SessionChange.Event)?.event
+        val event = when (change) {
+            is SessionChange.Item -> change.event
+            is SessionChange.Run -> change.event.asAgentEvent(data)
+            else -> null
+        }
         if (data.live.executionPhase != null) {
             when {
                 event is AgentEvent.RunStarted -> replies -= id
@@ -360,15 +367,21 @@ class SessionRepository(private val notifications: Notifications, internal val c
             }
         }
         when (change) {
-            is SessionChange.Window -> put(id, data.copy(firstSeq = change.firstSeq, entries = change.entries, live = change.state, loaded = true))
-            is SessionChange.Reset -> put(id, data.copy(firstSeq = change.firstSeq, entries = emptyList()))
+            is SessionChange.Snapshot -> {
+                val snapshot = change.snapshot
+                val continuing = data.loaded && snapshot.firstSeq == data.seen
+                val entries = if (continuing) data.entries + snapshot.entries else snapshot.entries
+                val committed = entries.flatMapTo(mutableSetOf()) { it.runIds() }
+                val run = snapshot.run.fold(AgUiRunState()) { run, item -> run.on(item, committed) }
+                put(id, data.copy(firstSeq = if (continuing) data.firstSeq else snapshot.firstSeq, entries = entries, live = snapshot.state, run = run, loaded = true))
+            }
             is SessionChange.Entry -> when {
                 change.seq < data.seen -> Unit
-                change.seq > data.seen -> scope.launch { catchUp(id) }
-                else -> put(id, data.copy(entries = data.entries + change.entry, live = data.live.on(change.entry)), received = true)
+                change.seq > data.seen -> scope.launch { subscribe(id) }
+                else -> put(id, data.copy(entries = data.entries + change.entry, live = data.live.on(change.entry), run = data.run.committed(change.entry)), received = true)
             }
-            is SessionChange.Event -> put(id, data.copy(live = data.live.on(change.event)), received = true)
-            is SessionChange.Live -> put(id, data.copy(live = change.state, loaded = true))
+            is SessionChange.Run -> put(id, data.copy(run = data.run.on(change.event), live = event?.let(data.live::on) ?: data.live), received = true)
+            is SessionChange.Item -> put(id, data.copy(live = data.live.on(change.event)), received = true)
         }
     }
 
@@ -472,13 +485,13 @@ class SessionRepository(private val notifications: Notifications, internal val c
         state.update { it.copy(finished = it.finished + sessionId) }
     }
 
-    /** Subscribes to [sessionId] from what's held, or a fresh window when nothing is. */
-    private suspend fun catchUp(sessionId: SessionId) {
+    /** Subscribes to [sessionId] from what's held, or a fresh snapshot window when nothing is. */
+    private suspend fun subscribe(sessionId: SessionId) {
         val client = client ?: return
         val data = state.value.sessions[sessionId] ?: return
         if (!catchingUp.add(sessionId)) return
         try {
-            client.call(Api.CatchUp, CatchUpParams(data.agentId, sessionId, after = if (data.loaded) data.seen else null))
+            client.call(Api.Subscribe, SubscribeParams(data.agentId, sessionId, after = if (data.loaded) data.seen else null))
         } catch (e: Exception) {
             if (e is CancellationException) throw e
         } finally {
@@ -488,7 +501,7 @@ class SessionRepository(private val notifications: Notifications, internal val c
 
     /** After (re)connecting: subscriptions start over, so catch up every cached Session and refresh what's shown. */
     private fun resync() {
-        state.value.sessions.keys.forEach { scope.launch { catchUp(it) } }
+        state.value.sessions.keys.forEach { scope.launch { subscribe(it) } }
         state.value.lists.keys.forEach { loadSessions(it) }
         state.value.skills.keys.forEach { loadSkills(it) }
         if (serverInbox) viewing?.let { id -> state.value.sessions[id]?.let { scope.launch { refreshViewed(it.agentId, id, refresh = true) } } }
@@ -599,6 +612,12 @@ private fun SessionData.chatItems(): List<ChatItem> {
             else -> Unit
         }
     }
+    run.messages.forEachIndexed { index, message ->
+        val prefix = if (message.reasoning) "reasoning" else "text"
+        if (message.text.isEmpty() || "$prefix-${message.id}" in keys) return@forEachIndexed
+        val id = key("$prefix-${message.id}", -10 - index)
+        items += if (message.reasoning) ChatItem.Reasoning(id, message.text) else ChatItem.Assistant(id, message.text)
+    }
     if (live.reasoning.isNotEmpty() && "reasoning-${live.messageId}" !in keys) items += ChatItem.Reasoning(key("reasoning-${live.messageId}", -1), live.reasoning)
     if (live.text.isNotEmpty() && "text-${live.messageId}" !in keys) items += ChatItem.Assistant(key("text-${live.messageId}", -2), live.text)
     live.reflectionId?.takeIf { "reflection-$it" !in keys }?.let { items += ChatItem.Reflection(key("reflection-$it", -3)) }
@@ -612,6 +631,20 @@ private fun SessionData.withReceiptTimes(previous: SessionData?): SessionData {
     val now = Clock.System.now().toEpochMilliseconds()
     return copy(receivedAt = receivedAt + fresh.associate { it.id to now })
 }
+
+/** The Kinuvo item the client folds for a run event, kept in [SessionData.live] so status and replies follow the run. */
+private fun AgUiEvent.asAgentEvent(data: SessionData): AgentEvent? = when (this) {
+    is AgUiEvent.RunStarted -> AgentEvent.RunStarted(RunId(runId))
+    is AgUiEvent.RunFinished -> when (outcome) {
+        is RunOutcome.Interrupted -> AgentEvent.ExecutionPhaseChanged(ExecutionPhase.RequiresAction).takeIf { data.live.executionPhase != null }
+        is RunOutcome.Cancelled -> AgentEvent.RunFinished(RunId(runId), cancelled = true)
+        else -> AgentEvent.RunFinished(RunId(runId))
+    }
+    is AgUiEvent.RunError -> if (code == LOST_CODE) AgentEvent.ExecutionPhaseChanged(ExecutionPhase.Lost) else AgentEvent.RunError(RunId(data.run.runId.orEmpty()), message)
+    else -> null
+}
+
+private const val LOST_CODE = "kinuvo:lost"
 
 /** The tool name a Workflow's Approval step asks under; it stands for the step, not for a tool. */
 const val WORKFLOW_APPROVAL = "workflow_approval"

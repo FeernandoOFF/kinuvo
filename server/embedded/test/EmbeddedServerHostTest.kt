@@ -30,6 +30,8 @@ import kinuvo.protocol.device.*
 import kinuvo.protocol.model.*
 import kinuvo.protocol.plugin.*
 import kinuvo.protocol.session.*
+import kinuvo.protocol.agui.AgUiEvent
+import kinuvo.protocol.agui.RunOutcome
 import kinuvo.protocol.tool.*
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
@@ -186,9 +188,9 @@ class EmbeddedServerHostTest {
             try {
                 val id = client.call(Api.CreateSession, AgentRef(AgentId("default"))).id
                 client.call(Api.ConfigureSession, ConfigureSessionParams(AgentId("default"), id, SessionSettings(approvals = "strict")))
-                client.call(Api.CatchUp, CatchUpParams(AgentId("default"), id))
+                client.call(Api.Subscribe, SubscribeParams(AgentId("default"), id))
                 val request = async(start = CoroutineStart.UNDISPATCHED) {
-                    client.events(Api.Update).mapNotNull { (it.change as? SessionChange.Event)?.event?.approval }.first()
+                    client.events(Api.Update).mapNotNull { (it.change as? SessionChange.Item)?.event?.approval }.first()
                 }
                 client.call(Api.Send, SendParams(AgentId("default"), id, "remember tea"))
                 val approval = request.await()
@@ -216,9 +218,9 @@ class EmbeddedServerHostTest {
             try {
                 val id = client.call(Api.CreateSession, AgentRef(AgentId("default"))).id
                 client.call(Api.ConfigureSession, ConfigureSessionParams(AgentId("default"), id, SessionSettings(approvals = "strict")))
-                client.call(Api.CatchUp, CatchUpParams(AgentId("default"), id))
+                client.call(Api.Subscribe, SubscribeParams(AgentId("default"), id))
                 val waiting = async(start = CoroutineStart.UNDISPATCHED) {
-                    client.events(Api.Update).mapNotNull { (it.change as? SessionChange.Event)?.event?.approval }.first()
+                    client.events(Api.Update).mapNotNull { (it.change as? SessionChange.Item)?.event?.approval }.first()
                 }
                 client.call(Api.Send, SendParams(AgentId("default"), id, "remember tea"))
                 waiting.await()
@@ -315,10 +317,10 @@ class EmbeddedServerHostTest {
     private suspend fun run(client: KinuvoClient, id: String, text: String): List<SessionChange> {
         lateinit var changes: List<SessionChange>
         turbineScope {
-            client.call(Api.CatchUp, CatchUpParams(AgentId("default"), SessionId(id)))
+            client.call(Api.Subscribe, SubscribeParams(AgentId("default"), SessionId(id)))
             val updates = client.events(Api.Update).filter { it.sessionId.value == id }.map { it.change }.testIn(this, 10.seconds)
             client.call(Api.Send, SendParams(AgentId("default"), SessionId(id), text))
-            changes = buildList { do { add(updates.awaitItem()) } while ((last() as? SessionChange.Event)?.event !is AgentEvent.RunFinished) }
+            changes = buildList { do { add(updates.awaitItem()) } while (((last() as? SessionChange.Run)?.event as? AgUiEvent.RunFinished)?.outcome != RunOutcome.Success()) }
             updates.cancel()
         }
         return changes

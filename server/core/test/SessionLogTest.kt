@@ -7,6 +7,8 @@ import kinuvo.server.store.Store
 import kinuvo.protocol.session.QueuedMessage
 import kinuvo.protocol.session.AgentEvent
 import kinuvo.protocol.session.SessionChange
+import kinuvo.protocol.agui.AgUiEvent
+import kinuvo.protocol.agui.RunOutcome
 import kinuvo.protocol.session.withWrittenAt
 import kinuvo.protocol.session.SessionEntry
 import kinuvo.protocol.session.SessionUpdate
@@ -138,12 +140,12 @@ class SessionLogTest {
         log.subscribe(fixture.agent.id, id, null, 100, object : SessionLog.Subscriber {
             override fun offer(update: SessionUpdate): Boolean { received += update; return true }
         })
-        assertEquals(queue, received.map { it.change }.filterIsInstance<SessionChange.Live>().single().state.queued)
+        assertEquals(queue, received.map { it.change }.filterIsInstance<SessionChange.Snapshot>().single().snapshot.state.queued)
         log.publish(fixture.agent.id, id, AgentEvent.RunStarted(RunId("run")))
         log.publish(fixture.agent.id, id, AgentEvent.RunFinished(RunId("run")))
         received.clear()
         log.publish(fixture.agent.id, id, AgentEvent.QueueChanged(emptyList()))
-        assertEquals(AgentEvent.QueueChanged(emptyList()), (received.single().change as SessionChange.Event).event)
+        assertEquals(AgentEvent.QueueChanged(emptyList()), (received.single().change as SessionChange.Item).event)
     }
 
     @Test fun metadataUpdatesPreserveEachOther() = runBlocking {
@@ -180,7 +182,7 @@ class SessionLogTest {
         assertEquals(committed, log.history(AgentId("external"), session, 100, 100).map { it.entry }.filterIsInstance<SessionEntry.AssistantMessage>().single())
         assertEquals(committed, log.entries(AgentId("external"), session).filterIsInstance<SessionEntry.AssistantMessage>().single())
         val entryIndex = updates.indexOfFirst { (it.change as? SessionChange.Entry)?.entry == committed }
-        val finishedIndex = updates.indexOfFirst { (it.change as? SessionChange.Event)?.event is AgentEvent.RunFinished }
+        val finishedIndex = updates.indexOfFirst { (it.change as? SessionChange.Run)?.event is AgUiEvent.RunFinished }
         assertTrue(entryIndex in 0 until finishedIndex)
         assertFailsWith<SessionCommitConflict> { log.appendAll(AgentId("external"), session, listOf(reply.copy(text = "conflict"))) }
         var cleaned = false
@@ -235,9 +237,16 @@ class SessionLogTest {
         val agent = home.agent.id
         val a = log.createSession(agent, "").id
         val b = log.createSession(agent, "").id
-        val seen = mutableMapOf(a to mutableListOf<AgentEvent>(), b to mutableListOf<AgentEvent>())
+        val seen = mutableMapOf(a to mutableListOf<String>(), b to mutableListOf<String>())
         for (id in listOf(a, b)) log.subscribe(agent, id, null, 100, object : SessionLog.Subscriber {
-            override fun offer(update: SessionUpdate): Boolean { (update.change as? SessionChange.Event)?.let { seen.getValue(id) += it.event }; return true }
+            override fun offer(update: SessionUpdate): Boolean {
+                when (val change = update.change) {
+                    is SessionChange.Run -> (change.event as? AgUiEvent.TextMessageContent)?.let { seen.getValue(id) += it.delta }
+                    is SessionChange.Item -> (change.event as? AgentEvent.TextMessageContent)?.let { seen.getValue(id) += it.delta }
+                    else -> Unit
+                }
+                return true
+            }
         })
         log.publish(agent, a, AgentEvent.RunStarted(RunId("a")))
         val reads = home.store.transcriptReads
@@ -247,7 +256,7 @@ class SessionLogTest {
         }
         log.publish(agent, a, AgentEvent.RunFinished(RunId("a")))
         assertEquals(reads, home.store.transcriptReads)
-        val deltas = { id: SessionId -> seen.getValue(id).filterIsInstance<AgentEvent.TextMessageContent>().map { it.delta } }
+        val deltas = { id: SessionId -> seen.getValue(id) }
         assertEquals(List(20) { "a$it" }, deltas(a))
         assertEquals(List(20) { "b$it" }, deltas(b))
         assertEquals(SessionStatus.Idle, log.status(a))
@@ -325,9 +334,8 @@ class SessionLogTest {
         log.clearIfStopped(agent, id)
 
         assertEquals(SessionStatus.Idle, log.status(id))
-        val live = updates.map { it.change }.filterIsInstance<SessionChange.Live>().single().state
-        assertFalse(live.running)
-        assertTrue(live.pending.isEmpty())
+        assertEquals(listOf(AgentEvent.InteractionResolved(interaction.id), AgentEvent.Idle), updates.map { it.change }.filterIsInstance<SessionChange.Item>().map { it.event })
+        assertTrue(updates.map { it.change }.filterIsInstance<SessionChange.Run>().all { (it.event as? AgUiEvent.RunFinished)?.outcome == RunOutcome.Cancelled })
 
         // Already-resolved (Idle) sessions are left alone: no spurious update for a run that finished normally.
         updates.clear()

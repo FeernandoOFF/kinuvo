@@ -18,7 +18,10 @@ import kinuvo.protocol.session.SessionPage
 import kinuvo.protocol.session.SessionStatus
 import kinuvo.protocol.session.SessionUpdate
 import kinuvo.protocol.session.SubAgentState
-import kinuvo.protocol.session.isLive
+import kinuvo.protocol.session.SessionSnapshot
+import kinuvo.protocol.agui.AgUiEvent
+import kinuvo.protocol.agui.AgUiOutput
+import kinuvo.protocol.agui.AgUiRunTranslator
 import kinuvo.protocol.agent.AgentId
 import kinuvo.protocol.session.SessionId
 import kinuvo.protocol.approval.InteractionId
@@ -33,8 +36,9 @@ import kotlin.concurrent.atomics.update
 import kotlin.uuid.Uuid
 
 /**
- * Every Session as one ordered stream of [SessionUpdate]s: its entries (seq = position) plus the active run's [LiveState],
- * delivered to the clients subscribed to it. Appends, live events and subscriptions share one lock, so a subscriber never
+ * Every Session as one ordered stream of [SessionUpdate]s: its entries (seq = position), the active run as AG-UI events
+ * from its own [AgUiRunTranslator] (buffered from `RUN_STARTED` for catch-up) and the other changes as items, delivered
+ * to the clients subscribed to it. Appends, live events and subscriptions share one lock, so a subscriber never
  * misses or repeats an update. Status changes go to every [onChange] listener. The lock isn't reentrant: code holding
  * it only calls the underlying [store] and the private helpers.
  *
@@ -53,6 +57,8 @@ class SessionLog(private val store: Store, private val clock: () -> Long = { Clo
     private val lock = Mutex()
     private val counts = HashMap<SessionId, Int>()
     private val live = HashMap<SessionId, LiveState>()
+    private val translators = HashMap<SessionId, AgUiRunTranslator>()
+    private val runEvents = HashMap<SessionId, MutableList<AgUiEvent>>()
     private val owners = HashMap<SessionId, AgentId>()
     private val completions = HashMap<SessionId, AgentEvent>()
     private enum class RunReply { None, Chat, Routine, Report }
@@ -93,11 +99,11 @@ class SessionLog(private val store: Store, private val clock: () -> Long = { Clo
     /** Shows every client that [id]'s answer is recorded and waits for the rest of the run's interactions. */
     suspend fun staged(sessionId: SessionId, id: InteractionId) = lock.withLock {
         val agentId = owners[sessionId] ?: return@withLock
-        val state = live[sessionId]?.takeIf { s -> s.pending.any { it.id == id } } ?: return@withLock
-        val next = state.copy(staged = state.staged + id)
-        live[sessionId] = next
-        deliver(SessionUpdate(agentId, sessionId, SessionChange.Live(next)))
+        if (live[sessionId]?.pending?.any { it.id == id } == true) publishLocked(agentId, sessionId, AgentEvent.InteractionStaged(id))
     }
+
+    /** Stop was requested for [sessionId]: a run that waits for answers ends as Idle instead of opening a new run. */
+    suspend fun stopping(sessionId: SessionId) = lock.withLock { translators[sessionId]?.stopping() }
 
     /** Changes whenever an interaction leaves a Session's pending list. */
     val interactionsChanged = MutableStateFlow(0L)
@@ -157,6 +163,8 @@ class SessionLog(private val store: Store, private val clock: () -> Long = { Clo
                 store.deleteSession(agent, id)
                 counts -= id
                 live -= id
+                translators -= id
+                runEvents -= id
                 owners -= id
                 interactionsChanged.value++
                 completions -= id
@@ -168,7 +176,7 @@ class SessionLog(private val store: Store, private val clock: () -> Long = { Clo
         }
     }
 
-    /** Drops entries from [size] on and sends subscribers a fresh window, since the entries they hold changed. */
+    /** Drops entries from [size] on and sends subscribers a fresh snapshot, since the entries they hold changed. */
     override suspend fun truncate(agentId: AgentId, sessionId: SessionId, size: Int) = lock.withLock {
         truncate(agentId, sessionId, size, false)
     }
@@ -314,7 +322,7 @@ class SessionLog(private val store: Store, private val clock: () -> Long = { Clo
         if (state.queued.isNotEmpty() || state.running || state.reflectionId != null || state.executionPhase != null || state.entries.isNotEmpty() || state.pending.isNotEmpty() || state.children.isNotEmpty())
                 live[sessionId] = state else live.remove(sessionId)
         if (state.pending.size < previous.pending.size) interactionsChanged.value++
-        if (event.isLive) deliver(SessionUpdate(agentId, sessionId, SessionChange.Event(event)))
+        wire(agentId, sessionId, event)
         eventListeners.load().forEach { it(agentId, sessionId, event) }
         if (inboxChanged || state.status != previous.status) changed(store.session(agentId, sessionId).copy(status = state.status))
     }
@@ -327,14 +335,10 @@ class SessionLog(private val store: Store, private val clock: () -> Long = { Clo
      */
     suspend fun clearIfStopped(agentId: AgentId, sessionId: SessionId) = lock.withLock {
         val previous = live[sessionId] ?: return@withLock
-        val resolved = previous.pending.filter { it.id in previous.interactionChildren }
-        if (!previous.running && resolved.size == previous.pending.size) return@withLock
-        val state = previous.copy(running = false, pending = resolved, staged = emptySet())
-        interactionsChanged.value++
-        if (state.queued.isNotEmpty() || state.reflectionId != null || state.executionPhase != null || state.entries.isNotEmpty() || state.pending.isNotEmpty() || state.children.isNotEmpty())
-            live[sessionId] = state else live.remove(sessionId)
-        deliver(SessionUpdate(agentId, sessionId, SessionChange.Live(state)))
-        if (state.status != previous.status) changed(store.session(agentId, sessionId).copy(status = state.status))
+        val own = previous.pending.filter { it.id !in previous.interactionChildren }
+        if (!previous.running && own.isEmpty()) return@withLock
+        own.forEach { publishLocked(agentId, sessionId, AgentEvent.InteractionResolved(it.id)) }
+        publishLocked(agentId, sessionId, AgentEvent.Idle)
     }
 
     /**
@@ -356,10 +360,7 @@ class SessionLog(private val store: Store, private val clock: () -> Long = { Clo
         }
     }
 
-    /**
-     * Sends [subscriber] the entries from [after] on (or a [SessionChange.Reset] window of the last [limit]) and the live
-     * state, then keeps it subscribed.
-     */
+    /** Sends [subscriber] a [SessionSnapshot] with the entries from [after] on (or the last [limit]), then keeps it subscribed. */
     suspend fun subscribe(agentId: AgentId, sessionId: SessionId, after: Int?, limit: Int, subscriber: Subscriber) = lock.withLock {
         // Reads the whole file to send a window of it; a DB fetches just the range.
         val entries = store.entries(agentId, sessionId)
@@ -370,14 +371,30 @@ class SessionLog(private val store: Store, private val clock: () -> Long = { Clo
 
     private fun send(agentId: AgentId, sessionId: SessionId, entries: List<SessionEntry>, after: Int?, limit: Int, subscriber: Subscriber) {
         val from = if (after == null || after > entries.size || entries.size - after > limit) maxOf(0, entries.size - limit) else after
-        val changes = buildList {
-            if (from != after) add(SessionChange.Reset(from))
-            entries.drop(from).forEachIndexed { i, entry -> add(SessionChange.Entry(from + i, entry.forClient())) }
-            val children = entries.filterIsInstance<SessionEntry.Notice>().filterNot { it.code == "sub_agent_delivery" }
-                .mapNotNull { it.child?.forClient() }.associateBy { it.sessionId }
-            add(SessionChange.Live((live[sessionId] ?: LiveState()).let { it.copy(children = children + it.children) }))
+        val children = entries.filterIsInstance<SessionEntry.Notice>().filterNot { it.code == "sub_agent_delivery" }
+            .mapNotNull { it.child?.forClient() }.associateBy { it.sessionId }
+        val state = (live[sessionId] ?: LiveState()).let { it.copy(children = children + it.children) }.forSnapshot()
+        val run = if (translators[sessionId]?.active == true) runEvents[sessionId].orEmpty().toList() else emptyList()
+        val snapshot = SessionSnapshot(from, entries.size, entries.drop(from).map { it.forClient() }, state, run)
+        if (!subscriber.offer(SessionUpdate(agentId, sessionId, SessionChange.Snapshot(snapshot)))) removeEverywhere(subscriber)
+    }
+
+    /** Hands [event] to the Session's translator and delivers what comes out, buffering the active run's events. */
+    private fun wire(agentId: AgentId, sessionId: SessionId, event: AgentEvent) {
+        val buffer = runEvents.getOrPut(sessionId) { mutableListOf() }
+        for (output in translators.getOrPut(sessionId) { AgUiRunTranslator(sessionId) }.on(event)) when (output) {
+            is AgUiOutput.Run -> {
+                if (output.event is AgUiEvent.RunStarted) buffer.clear()
+                buffer += output.event
+                deliver(SessionUpdate(agentId, sessionId, SessionChange.Run(output.event)))
+                if (output.event is AgUiEvent.RunFinished || output.event is AgUiEvent.RunError) buffer.clear()
+            }
+            is AgUiOutput.Item -> {
+                val item = output.event
+                if (item !is AgentEvent.ToolCallStart && item !is AgentEvent.ToolCallResult && item !is AgentEvent.TextMessageEnd && item !is AgentEvent.Compacted)
+                    deliver(SessionUpdate(agentId, sessionId, SessionChange.Item(item)))
+            }
         }
-        for (change in changes) if (!subscriber.offer(SessionUpdate(agentId, sessionId, change))) return removeEverywhere(subscriber)
     }
 
     suspend fun unsubscribe(sessionId: SessionId, subscriber: Subscriber) = lock.withLock {

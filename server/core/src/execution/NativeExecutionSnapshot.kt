@@ -5,6 +5,7 @@ import kinuvo.harness.modelText
 import kinuvo.harness.Agent
 import kinuvo.server.SessionLog
 import kinuvo.protocol.*
+import kinuvo.protocol.agui.AgUiEvent
 import kinuvo.protocol.approval.*
 import kinuvo.protocol.execution.*
 import kinuvo.protocol.session.*
@@ -20,21 +21,26 @@ suspend fun SessionLog.executionSnapshot(agent: AgentId, id: SessionId): Executi
     val messages = mutableListOf<ExecutionMessage>()
     var live = LiveState()
     var captured = false
-    val subscriber = SessionLog.Subscriber { update ->
-        if (captured) return@Subscriber true
-        when (val change = update.change) {
-            is SessionChange.Entry -> when (val entry = change.entry) {
-                is SessionEntry.UserMessage -> messages.add(ExecutionMessage(entry.submissionId?.let { "user:$it" } ?: "user:entry:${change.seq}", "user", entry.modelText, ProtocolJson.encodeToJsonElement(SessionEntry.serializer(), entry)))
-                is SessionEntry.AssistantMessage -> messages.add(ExecutionMessage(entry.messageId?.let { "assistant:$it" } ?: "assistant:entry:${change.seq}", "assistant", entry.text, ProtocolJson.encodeToJsonElement(SessionEntry.serializer(), entry)))
-                is SessionEntry.Reasoning -> messages.add(ExecutionMessage(entry.messageId?.let { "reasoning:$it" } ?: "entry:${change.seq}", "reasoning", entry.text))
-                is SessionEntry.VoiceCall -> messages.add(ExecutionMessage("voice_call:${entry.id}", "voice_call", "", ProtocolJson.encodeToJsonElement(SessionEntry.serializer(), entry)))
-                is SessionEntry.Notice -> messages.add(ExecutionMessage("notice:${entry.id}", "notice", entry.message, ProtocolJson.encodeToJsonElement(SessionEntry.serializer(), entry)))
-                is SessionEntry.ToolCall -> messages.add(ExecutionMessage("tool_call:${entry.id}", "tool", entry.name, ProtocolJson.encodeToJsonElement(SessionEntry.serializer(), entry)))
-                is SessionEntry.ToolResult -> messages.add(ExecutionMessage("tool_result:${entry.id}", "tool", entry.output, ProtocolJson.encodeToJsonElement(SessionEntry.serializer(), entry)))
-                else -> Unit
-            }
-            is SessionChange.Live -> { live = change.state; captured = true }
+    var run = emptyList<AgUiEvent>()
+    fun add(seq: Int, entry: SessionEntry) {
+        when (entry) {
+            is SessionEntry.UserMessage -> messages.add(ExecutionMessage(entry.submissionId?.let { "user:$it" } ?: "user:entry:$seq", "user", entry.modelText, ProtocolJson.encodeToJsonElement(SessionEntry.serializer(), entry)))
+            is SessionEntry.AssistantMessage -> messages.add(ExecutionMessage(entry.messageId?.let { "assistant:$it" } ?: "assistant:entry:$seq", "assistant", entry.text, ProtocolJson.encodeToJsonElement(SessionEntry.serializer(), entry)))
+            is SessionEntry.Reasoning -> messages.add(ExecutionMessage(entry.messageId?.let { "reasoning:$it" } ?: "entry:$seq", "reasoning", entry.text))
+            is SessionEntry.VoiceCall -> messages.add(ExecutionMessage("voice_call:${entry.id}", "voice_call", "", ProtocolJson.encodeToJsonElement(SessionEntry.serializer(), entry)))
+            is SessionEntry.Notice -> messages.add(ExecutionMessage("notice:${entry.id}", "notice", entry.message, ProtocolJson.encodeToJsonElement(SessionEntry.serializer(), entry)))
+            is SessionEntry.ToolCall -> messages.add(ExecutionMessage("tool_call:${entry.id}", "tool", entry.name, ProtocolJson.encodeToJsonElement(SessionEntry.serializer(), entry)))
+            is SessionEntry.ToolResult -> messages.add(ExecutionMessage("tool_result:${entry.id}", "tool", entry.output, ProtocolJson.encodeToJsonElement(SessionEntry.serializer(), entry)))
             else -> Unit
+        }
+    }
+    val subscriber = SessionLog.Subscriber { update ->
+        val change = update.change
+        if (!captured && change is SessionChange.Snapshot) {
+            change.snapshot.entries.forEachIndexed { index, entry -> add(change.snapshot.firstSeq + index, entry) }
+            live = change.snapshot.state
+            run = change.snapshot.run
+            captured = true
         }
         true
     }
@@ -54,8 +60,15 @@ suspend fun SessionLog.executionSnapshot(agent: AgentId, id: SessionId): Executi
             }, ProtocolJson.encodeToJsonElement(SessionEntry.serializer(), entry)))
         }
     } else {
-        if (live.text.isNotEmpty()) messages.add(ExecutionMessage("assistant:${live.messageId ?: "live"}", "assistant", live.text))
-        if (live.reasoning.isNotEmpty()) messages.add(ExecutionMessage("reasoning:${live.messageId ?: "live"}", "reasoning", live.reasoning))
+        val streaming = linkedMapOf<String, StringBuilder>()
+        for (event in run) when (event) {
+            is AgUiEvent.TextMessageContent -> streaming.getOrPut("assistant:${event.messageId}") { StringBuilder() }.append(event.delta)
+            is AgUiEvent.ReasoningMessageContent -> streaming.getOrPut("reasoning:${event.messageId}") { StringBuilder() }.append(event.delta)
+            else -> Unit
+        }
+        streaming.forEach { (key, text) ->
+            if (messages.none { it.id == key }) messages.add(ExecutionMessage(key, key.substringBefore(':'), text.toString()))
+        }
     }
     val requests = live.pending.map { if (it is PendingInteraction.Approval) it.forHarness() else it }
     return ExecutionSnapshot(id, live.executionPhase ?: if (requests.isNotEmpty()) ExecutionPhase.RequiresAction else if (live.running) ExecutionPhase.Running else ExecutionPhase.Idle, messages, requests, stopReason = when(val terminal = completion(id)) {

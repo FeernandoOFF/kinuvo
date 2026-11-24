@@ -53,6 +53,10 @@ import kotlinx.coroutines.sync.withLock
 import kotlinx.datetime.TimeZone
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.serialization.json.contentOrNull
+import kinuvo.protocol.agui.AgUiEvent
+import kinuvo.protocol.agui.Interrupt
+import kinuvo.protocol.agui.RunOutcome
 import kotlin.concurrent.Volatile
 import kotlin.uuid.Uuid
 
@@ -328,15 +332,31 @@ class ServerRuntime(
             return if (preview.body == null || management) interaction else interaction.copy(preview = preview.copy(body = null))
         }
 
+        private fun interruptForClient(interrupt: Interrupt): Interrupt {
+            val metadata = interrupt.metadata ?: return interrupt
+            val extra = metadata["kinuvo"] as? JsonObject ?: return interrupt
+            if (management || extra["toolCallName"]?.jsonPrimitive?.contentOrNull != ToolNames.AGENTS_WAIT) return interrupt
+            val preview = extra["preview"] as? JsonObject ?: return interrupt
+            if ("body" !in preview) return interrupt
+            return interrupt.copy(metadata = JsonObject(metadata + ("kinuvo" to JsonObject(extra + ("preview" to JsonObject(preview - "body"))))))
+        }
+
         override fun offer(update: SessionUpdate): Boolean {
             val change = when (val change = update.change) {
-                is SessionChange.Event -> {
+                is SessionChange.Item -> {
                     val event = change.event
                     if (event is AgentEvent.InteractionRequested)
                         change.copy(event = event.copy(interaction = approvalForClient(event.interaction)))
                     else change
                 }
-                is SessionChange.Live -> change.copy(state = change.state.copy(pending = change.state.pending.map(::approvalForClient)))
+                is SessionChange.Snapshot -> change.copy(snapshot = change.snapshot.copy(state = change.snapshot.state.copy(pending = change.snapshot.state.pending.map(::approvalForClient))))
+                is SessionChange.Run -> {
+                    val event = change.event
+                    val outcome = (event as? AgUiEvent.RunFinished)?.outcome as? RunOutcome.Interrupted
+                    if (event is AgUiEvent.RunFinished && outcome != null)
+                        change.copy(event = event.copy(outcome = RunOutcome.Interrupted(outcome.interrupts.map(::interruptForClient))))
+                    else change
+                }
                 else -> change
             }
             return offer(frame(Api.Update, update.copy(change = change)))

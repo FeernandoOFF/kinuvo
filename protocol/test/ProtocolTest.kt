@@ -62,7 +62,7 @@ class ProtocolTest {
 
     @Test
     fun framesAndPayloadsRoundTrip() {
-        val event = SessionUpdate(AgentId("default"), SessionId("s1"), SessionChange.Event(AgentEvent.InteractionRequested(PendingInteraction.Approval(InteractionId("a1"), ToolCallId("c1"), "shell", "{}", "git status"))))
+        val event = SessionUpdate(AgentId("default"), SessionId("s1"), SessionChange.Item(AgentEvent.InteractionRequested(PendingInteraction.Approval(InteractionId("a1"), ToolCallId("c1"), "shell", "{}", "git status"))))
         val frame = Frame.Event(Api.Update.name, ProtocolJson.encodeToJsonElement(Api.Update.payload, event), 7)
         val text = ProtocolJson.encodeToString(Frame.serializer(), frame)
         val decoded = ProtocolJson.decodeFromString(Frame.serializer(), text) as Frame.Event

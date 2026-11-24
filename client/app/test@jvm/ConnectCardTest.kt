@@ -165,9 +165,9 @@ class ConnectCardTest {
                 Api.ExecutionCatalog.name -> reply(request, Api.ExecutionCatalog, kinuvo.protocol.execution.ExecutionCatalog(emptyList(), emptyList()))
                 Api.Session.name -> reply(request, Api.Session, SessionInfo(SessionId("s1"), AgentId("main"), "Connect a service"))
                 Api.Capabilities.name -> reply(request, Api.Capabilities, SessionCapabilities(0, ServerCapabilities("test", features = setOf(ServerFeature.Attachments)), attachments = mapOf("text/plain" to CapabilityState())))
-                Api.CatchUp.name -> {
-                    reply(request, Api.CatchUp, Unit)
-                    event(Api.Update, SessionUpdate(AgentId("main"), SessionId("s1"), SessionChange.Window(0, emptyList(), snapshot)))
+                Api.Subscribe.name -> {
+                    reply(request, Api.Subscribe, Unit)
+                    event(Api.Update, SessionUpdate(AgentId("main"), SessionId("s1"), SessionChange.Snapshot(SessionSnapshot(0, 0, emptyList(), snapshot))))
                 }
                 Api.LoginMcp.name -> {
                     val params = ProtocolJson.decodeFromJsonElement(Api.LoginMcp.params, request.params)

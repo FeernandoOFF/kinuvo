@@ -6,7 +6,7 @@ import kinuvo.server.MAX_PAGE
 internal fun RouteBuilder.sessionRoutes() {
     device(Api.Sessions) { server.log.page(it.agentId, it.before?.value, it.limit.coerceIn(1, MAX_PAGE), it.routineId) }
     device(Api.Session) { server.log.session(it.agentId, it.sessionId) }
-    device(Api.CatchUp, ordered = true) { server.log.subscribe(it.agentId, it.sessionId, it.after, it.limit.coerceIn(1, MAX_PAGE), caller.subscriber) }
+    device(Api.Subscribe, ordered = true) { server.log.subscribe(it.agentId, it.sessionId, it.after, it.limit.coerceIn(1, MAX_PAGE), caller.subscriber) }
     device(Api.Unsubscribe, ordered = true) { server.log.unsubscribe(it.sessionId, caller.subscriber) }
     device(Api.History) { server.log.history(it.agentId, it.sessionId, it.before, it.limit.coerceIn(1, MAX_PAGE)) }
     device(Api.CreateSession) { server.dispatch.create(it.agentId) }

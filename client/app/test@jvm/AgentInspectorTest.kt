@@ -234,7 +234,7 @@ class AgentInspectorTest {
                 Api.Providers.name -> reply(request, Api.Providers, emptyList())
                 Api.Skills.name -> reply(request, Api.Skills, emptyList())
                 Api.McpServers.name -> reply(request, Api.McpServers, emptyList())
-                Api.CatchUp.name -> reply(request, Api.CatchUp, Unit)
+                Api.Subscribe.name -> reply(request, Api.Subscribe, Unit)
                 else -> frames.send(Frame.Response(request.id, false, error = WireError(WireErrorCode.Internal, "Unsupported in test: ${request.method}")))
             }
         }

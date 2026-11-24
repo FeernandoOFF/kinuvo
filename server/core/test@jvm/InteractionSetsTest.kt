@@ -31,7 +31,7 @@ class InteractionSetsTest {
 
     private suspend fun TestServer.live(agent: Agent, session: SessionId): LiveState {
         var state = LiveState()
-        val subscriber = SessionLog.Subscriber { update -> (update.change as? SessionChange.Live)?.let { state = it.state }; true }
+        val subscriber = SessionLog.Subscriber { update -> (update.change as? SessionChange.Snapshot)?.let { state = it.snapshot.state }; true }
         harness.log.subscribe(agent.id, session, null, 100, subscriber)
         harness.log.unsubscribe(session, subscriber)
         return state

@@ -112,7 +112,7 @@ class ExternalServerTest {
             client = second
             second.connect()
             assertEquals(ExecutionPhase.Running, second.call(Api.ExecutionSnapshot, ExecutionRef(id.value)).phase)
-            second.call(Api.CatchUp, CatchUpParams(AgentId("external"), id))
+            second.call(Api.Subscribe, SubscribeParams(AgentId("external"), id))
             assertEquals("wait", second.call(Api.History, HistoryParams(AgentId("external"), id, 100)).map { it.entry }.filterIsInstance<SessionEntry.UserMessage>().single().text)
             assertFails { second.call(Api.SaveHarnessConnection, connection) }
             second.call(Api.RegisterExternalAgent, AgentRegistration(AgentId("unused"), "Unused", "mock", cwd = dir.path))

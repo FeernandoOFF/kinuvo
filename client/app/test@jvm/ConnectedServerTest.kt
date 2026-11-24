@@ -241,7 +241,7 @@ class ConnectedServerTest {
         val history = List(2000) { SessionEntry.AssistantMessage("history $it", "m$it") }
         repeat(20) { token ->
             val entries = history + SessionEntry.AssistantMessage("token $token", "stream")
-            script.event(Api.Update, SessionUpdate(AgentId("agent"), SessionId("session"), SessionChange.Window(0, entries, LiveState(running = token < 19))))
+            script.event(Api.Update, SessionUpdate(AgentId("agent"), SessionId("session"), SessionChange.Snapshot(SessionSnapshot(0, entries.size, entries, LiveState(running = token < 19)))))
             owner.sessions.state.first { it.sessions[SessionId("session")]?.entries == entries }
         }
         observer.cancelAndJoin()
@@ -748,15 +748,13 @@ class ConnectedServerTest {
                 Api.Skills.name -> reply(request, Api.Skills, emptyList())
                 Api.McpServers.name -> reply(request, Api.McpServers, emptyList())
                 Api.History.name -> reply(request, Api.History, listOf(SessionChange.Entry(19, SessionEntry.UserMessage(name))))
-                Api.CatchUp.name -> {
-                    val params = ProtocolJson.decodeFromJsonElement(Api.CatchUp.params, request.params)
+                Api.Subscribe.name -> {
+                    val params = ProtocolJson.decodeFromJsonElement(Api.Subscribe.params, request.params)
                     after = params.after
-                    if (params.after == null) {
-                        event(Api.Update, SessionUpdate(AgentId("agent"), SessionId("session"), SessionChange.Reset(20)))
-                        event(Api.Update, SessionUpdate(AgentId("agent"), SessionId("session"), SessionChange.Entry(20, SessionEntry.UserMessage(name))))
-                    }
-                    event(Api.Update, SessionUpdate(AgentId("agent"), SessionId("session"), SessionChange.Live(LiveState())))
-                    reply(request, Api.CatchUp, Unit)
+                    val snapshot = if (params.after == null) SessionSnapshot(20, 21, listOf(SessionEntry.UserMessage(name)), LiveState())
+                        else SessionSnapshot(params.after!!, params.after!!, emptyList(), LiveState())
+                    event(Api.Update, SessionUpdate(AgentId("agent"), SessionId("session"), SessionChange.Snapshot(snapshot)))
+                    reply(request, Api.Subscribe, Unit)
                     caughtUp.complete(Unit)
                 }
                 else -> frames.send(Frame.Response(request.id, false, error = WireError(WireErrorCode.Internal, "Unsupported in test: ${request.method}")))

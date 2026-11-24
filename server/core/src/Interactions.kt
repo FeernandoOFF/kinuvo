@@ -57,8 +57,9 @@ class InteractionSets(private val log: SessionLog) {
     }
 
     /** Drops answers waiting on siblings, e.g. when the run is stopped and its work is cancelled instead. */
-    suspend fun stop(sessionId: SessionId) = lock.withLock {
-        staged.values.removeAll { it.answer.sessionId == sessionId }
+    suspend fun stop(sessionId: SessionId) {
+        lock.withLock { staged.values.removeAll { it.answer.sessionId == sessionId } }
+        log.stopping(sessionId)
     }
 
     private suspend fun resolved(session: SessionId, id: InteractionId) {

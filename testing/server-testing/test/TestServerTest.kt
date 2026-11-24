@@ -25,7 +25,7 @@ import kinuvo.protocol.session.SessionsParams
 import kinuvo.protocol.board.TaskStatus
 import kinuvo.protocol.board.TasksParams
 import kinuvo.protocol.knowledge.KnowledgeSearchParams
-import kinuvo.protocol.session.CatchUpParams
+import kinuvo.protocol.session.SubscribeParams
 import kinuvo.protocol.session.HistoryParams
 import kinuvo.protocol.model.ModelsParams
 import kinuvo.protocol.session.SessionParams
@@ -89,7 +89,7 @@ class TestServerTest {
                 val client = server.client().also { it.connect() }
                 val session = client.call(Api.CreateSession, AgentRef(AgentId("default")))
                 client.entries(session.id).test {
-                    client.call(Api.CatchUp, CatchUpParams(AgentId("default"), session.id))
+                    client.call(Api.Subscribe, SubscribeParams(AgentId("default"), session.id))
                     client.call(Api.Send, SendParams(AgentId("default"), session.id, "Hello there"))
                     assertEquals("Hello there", awaitEntry<SessionEntry.UserMessage>().text)
                     assertEquals("Hello from the script", awaitEntry<SessionEntry.AssistantMessage>().text)
@@ -114,7 +114,7 @@ class TestServerTest {
                 val client = server.client().also { it.connect() }
                 val session = client.call(Api.CreateSession, AgentRef(AgentId("default")))
                 client.entries(session.id).test {
-                    client.call(Api.CatchUp, CatchUpParams(AgentId("default"), session.id))
+                    client.call(Api.Subscribe, SubscribeParams(AgentId("default"), session.id))
                     client.call(Api.Send, SendParams(AgentId("default"), session.id, "please remember tea"))
                     assertEquals("memory", awaitEntry<SessionEntry.ToolCall>().name)
                     assertEquals("memory", awaitEntry<SessionEntry.ToolResult>().name)
@@ -185,9 +185,9 @@ class TestServerTest {
             withContext(Dispatchers.Default) {
                 val client = server.client().also { it.connect() }
                 val session = client.call(Api.CreateSession, AgentRef(AgentId("default")))
-                val approvals = client.events(Api.Update).mapNotNull { ((it.change as? SessionChange.Event)?.event?.approval) }
+                val approvals = client.events(Api.Update).mapNotNull { ((it.change as? SessionChange.Item)?.event?.approval) }
                 approvals.test {
-                    client.call(Api.CatchUp, CatchUpParams(AgentId("default"), session.id))
+                    client.call(Api.Subscribe, SubscribeParams(AgentId("default"), session.id))
                     client.call(Api.Send, SendParams(AgentId("default"), session.id, "please run it"))
                     val request = awaitItem()
                     assertEquals("Runs a test command", request.reason)

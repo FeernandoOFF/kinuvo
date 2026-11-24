@@ -32,7 +32,7 @@ class ToolFlowTest {
         await("Fixture file contents")
         screenshot("tool-result")
         requests(Api.Send, 1)
-        requests(Api.CatchUp, 1)
+        requests(Api.Subscribe, 1)
     }
 
     @Test fun toolErrorShowsTheFailure() = appTest("tool-error", tools, script = {
@@ -44,7 +44,7 @@ class ToolFlowTest {
         tap("read_file")
         await(".*Fixture permission denied for locked.txt.*")
         screenshot("tool-error")
-        requests(Api.CatchUp, 1)
+        requests(Api.Subscribe, 1)
     }
 
     @Test fun approvalAllowsOnce() = appTest("approval", tools, script = {
@@ -79,7 +79,7 @@ class ToolFlowTest {
         requests(Api.Connect, 1)
         requests(Api.CreateSession, 1)
         requests(Api.Send, 1)
-        requests(Api.CatchUp, 1)
+        requests(Api.Subscribe, 1)
         requests(Api.Respond, 1)
         assertEquals(ApprovalDecision.Deny("Do not run this command"), (server.spy.params(Api.Respond).single().answer as InteractionAnswer.Approval).decision)
     }

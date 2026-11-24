@@ -6,7 +6,7 @@ import kinuvo.testing.harness.awaitCondition
 import kinuvo.client.KinuvoClient
 import kinuvo.protocol.Api
 import kinuvo.protocol.approval.ApprovalDecision
-import kinuvo.protocol.session.CatchUpParams
+import kinuvo.protocol.session.SubscribeParams
 import kinuvo.protocol.approval.DenyRules
 import kinuvo.protocol.session.HistoryParams
 import kinuvo.protocol.approval.InteractionAnswer
@@ -73,9 +73,9 @@ class ToolPolicyPathTest {
         server.use {
             withContext(Dispatchers.Default) {
                 val client = server.client().also { it.connect() }
-                val approvals = client.events(Api.Update).mapNotNull { (it.change as? SessionChange.Event)?.event?.approval }
+                val approvals = client.events(Api.Update).mapNotNull { (it.change as? SessionChange.Item)?.event?.approval }
                 approvals.test {
-                    client.call(Api.CatchUp, CatchUpParams(AgentId("work"), session.id))
+                    client.call(Api.Subscribe, SubscribeParams(AgentId("work"), session.id))
                     client.call(Api.Send, SendParams(AgentId("work"), session.id, "please deploy"))
                     val chat = awaitItem()
                     assertEquals("deploy", chat.toolCallName)
@@ -121,9 +121,9 @@ class ToolPolicyPathTest {
             withContext(Dispatchers.Default) {
                 server.harness.trustRules.update(AgentId("work")) { it.copy(deny = DenyRules(tools = listOf("deploy"))) }
                 val client = server.client().also { it.connect() }
-                val approvals = client.events(Api.Update).mapNotNull { (it.change as? SessionChange.Event)?.event?.approval }
+                val approvals = client.events(Api.Update).mapNotNull { (it.change as? SessionChange.Item)?.event?.approval }
                 approvals.test {
-                    client.call(Api.CatchUp, CatchUpParams(AgentId("work"), session.id))
+                    client.call(Api.Subscribe, SubscribeParams(AgentId("work"), session.id))
                     client.entries(session.id).test {
                         client.call(Api.Send, SendParams(AgentId("work"), session.id, "please deploy"))
                         val chat = awaitEntry<SessionEntry.ToolResult>()

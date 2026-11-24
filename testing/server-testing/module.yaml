@@ -9,6 +9,7 @@ dependencies:
 
 test-dependencies:
   - com.lemonappdev:konsist:0.17.3
+  - com.networknt:json-schema-validator:1.5.6
   - $kotlin.test
   - app.cash.turbine:turbine:1.2.1
   - org.jetbrains.kotlinx:kotlinx-coroutines-test:1.11.0
