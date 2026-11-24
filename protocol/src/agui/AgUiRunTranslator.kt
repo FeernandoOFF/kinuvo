@@ -27,6 +27,11 @@ sealed interface AgUiOutput {
 /**
  * Folds one Session's [AgentEvent]s into AG-UI 1.0 run events (ADR 0042). Every text, reasoning and tool call it opens
  * is closed before the run ends. Events outside a run, and ones with no AG-UI counterpart, come back as [AgUiOutput.Item].
+ *
+ * A run that waits for answers ends with the interrupt outcome once no sibling tool call is still running. The execution
+ * itself keeps going, so its output after the answers opens a new run (`<runId>~<n>`) and is preceded by `RUN_STARTED`;
+ * output that arrives while the answers are still open waits until then. [stopping] marks Stop: a run that was waiting
+ * is not reopened, and its end is reported as items.
  */
 class AgUiRunTranslator(private val sessionId: SessionId, private val parentRunId: RunId? = null) {
     private var runId: RunId? = null
@@ -35,19 +40,48 @@ class AgUiRunTranslator(private val sessionId: SessionId, private val parentRunI
     private val pending = LinkedHashMap<InteractionId, PendingInteraction>()
     private val children = mutableSetOf<InteractionId>()
     private val answered = mutableSetOf<String>()
+    private val openTools = mutableSetOf<String>()
     private var activities = 0
+    private var base: String? = null
+    private var resumed = 0
+    private var parked = false
+    private var stopping = false
+    private val interrupted = mutableSetOf<InteractionId>()
+    private val deferred = mutableListOf<AgentEvent>()
 
     val active: Boolean get() = runId != null
 
-    fun on(event: AgentEvent): List<AgUiOutput> = buildList {
-        fun run(vararg events: AgUiEvent) = events.forEach { add(AgUiOutput.Run(it)) }
-        fun item() = add(AgUiOutput.Item(event))
+    /** Stop was requested: the run is not reopened for what the stopped work still reports. */
+    fun stopping() { if (active || parked) stopping = true }
+
+    fun on(event: AgentEvent): List<AgUiOutput> = buildList { fold(event, this) }
+
+    private fun fold(event: AgentEvent, out: MutableList<AgUiOutput>) {
+        fun run(vararg events: AgUiEvent) = events.forEach { out.add(AgUiOutput.Run(it)) }
+        fun item() = out.add(AgUiOutput.Item(event))
+        val output = event is AgentEvent.TextMessageContent || event is AgentEvent.TextMessageEnd || event is AgentEvent.ThinkingContent ||
+            event is AgentEvent.ToolCallStart || event is AgentEvent.ToolCallResult || event is AgentEvent.Compacted || event is AgentEvent.Warning
+        val terminal = event is AgentEvent.RunFinished || event is AgentEvent.RunError
+        val wasParked = runId == null && parked
+        if (runId == null && parked && event !is AgentEvent.RunStarted) {
+            val waiting = interrupted.any { it in pending }
+            if (output && !stopping) {
+                if (waiting) { deferred += event; return }
+                resume(out)
+            } else if (terminal && !stopping && !waiting) resume(out)
+            else if (terminal || event is AgentEvent.Idle || event is AgentEvent.ExecutionPhaseChanged &&
+                (event.phase == ExecutionPhase.Idle || event.phase == ExecutionPhase.Lost)) reset()
+        }
         val open = runId
         when (event) {
             is AgentEvent.RunStarted -> {
                 if (open != null) { closeItems(::run); run(AgUiEvent.RunError("Run ${open.value} was superseded by ${event.runId.value}")) }
+                val late = deferred.toList()
+                reset()
                 runId = event.runId
+                base = event.runId.value
                 run(AgUiEvent.RunStarted(sessionId.value, event.runId.value, parentRunId = parentRunId?.value))
+                late.forEach { fold(it, out) }
             }
             is AgentEvent.TextMessageContent -> if (open == null) item() else {
                 closeReasoning(::run)
@@ -75,6 +109,7 @@ class AgUiRunTranslator(private val sessionId: SessionId, private val parentRunI
             is AgentEvent.ToolCallStart -> if (open == null) item() else {
                 closeText(::run)
                 closeReasoning(::run)
+                openTools += event.toolCallId.value
                 val meta = kinuvo {
                     put("args", event.args)
                     event.identity?.let { put("identity", ProtocolJson.encodeToJsonElement(it)) }
@@ -97,6 +132,8 @@ class AgUiRunTranslator(private val sessionId: SessionId, private val parentRunI
                     put("toolCallId", id)
                     put("content", event.content)
                 }, metadata = meta))
+                openTools -= id
+                interrupt(::run)
             }
             is AgentEvent.Compacted -> if (open == null) item() else run(activity("kinuvo:compaction", "summary" to event.summary))
             is AgentEvent.Warning -> if (open == null) item() else run(activity("kinuvo:warning", "message" to event.message))
@@ -104,41 +141,94 @@ class AgUiRunTranslator(private val sessionId: SessionId, private val parentRunI
                 pending[event.interaction.id] = event.interaction
                 if (event.childSessionId != null) children += event.interaction.id
                 item()
+                interrupt(::run)
             }
             is AgentEvent.InteractionResolved -> {
                 pending.remove(event.id)
                 children -= event.id
                 item()
             }
+            is AgentEvent.InteractionStaged, is AgentEvent.QueueChanged, is AgentEvent.SubAgentChanged, is AgentEvent.ExecutionEntryChanged, is AgentEvent.ReflectionStarted -> item()
+            is AgentEvent.Idle -> {
+                if (open != null) { closeItems(::run); runId = null; run(AgUiEvent.RunFinished(sessionId.value, open.value, RunOutcome.Cancelled)) }
+                reset()
+                pending.keys.retainAll(children)
+                item()
+            }
             is AgentEvent.ExecutionPhaseChanged -> when (event.phase) {
                 ExecutionPhase.Running -> if (open == null) item()
-                ExecutionPhase.RequiresAction -> if (open == null) item() else {
-                    val interrupts = pending.values.filter { it.id !in children }.map { it.toInterrupt() }
-                    if (interrupts.isNotEmpty()) {
-                        closeItems(::run)
-                        runId = null
-                        run(AgUiEvent.RunFinished(sessionId.value, open.value, RunOutcome.Interrupted(interrupts)))
-                    }
-                }
-                ExecutionPhase.Lost -> if (open == null) item() else {
+                ExecutionPhase.RequiresAction -> if (open == null) item() else interrupt(::run)
+                ExecutionPhase.Lost -> if (open == null) { reset(); pending.clear(); children.clear(); item() } else {
                     closeItems(::run)
                     runId = null
+                    reset()
+                    pending.clear()
+                    children.clear()
                     run(AgUiEvent.RunError("Execution lost", "kinuvo:lost"))
                 }
                 ExecutionPhase.Idle -> if (open == null) item()
             }
-            is AgentEvent.RunFinished -> if (open == null) item() else {
+            is AgentEvent.RunFinished -> if (open == null) { endOutsideRun(event, wasParked, out) } else {
                 closeItems(::run)
                 runId = null
+                reset()
+                pending.keys.retainAll(children)
                 run(AgUiEvent.RunFinished(sessionId.value, open.value, if (event.cancelled) RunOutcome.Cancelled else RunOutcome.Success()))
             }
-            is AgentEvent.RunError -> if (open == null) item() else {
+            is AgentEvent.RunError -> if (open == null) { endOutsideRun(event, wasParked, out) } else {
                 closeItems(::run)
                 runId = null
+                reset()
+                pending.keys.retainAll(children)
                 run(AgUiEvent.RunError(event.message))
             }
-            is AgentEvent.QueueChanged, is AgentEvent.SubAgentChanged, is AgentEvent.ExecutionEntryChanged, is AgentEvent.ReflectionStarted -> item()
         }
+    }
+
+    /** The execution ended with no wire run open: a parked one resolves its interactions as items, then reports Idle. */
+    private fun endOutsideRun(event: AgentEvent, wasParked: Boolean, out: MutableList<AgUiOutput>) {
+        stopping = false
+        if (wasParked) pending.values.filter { it.id !in children }.forEach { out.add(AgUiOutput.Item(AgentEvent.InteractionResolved(it.id))) }
+        pending.keys.retainAll(children)
+        out.add(AgUiOutput.Item(event))
+        if (wasParked) out.add(AgUiOutput.Item(AgentEvent.Idle))
+    }
+
+    /** Ends the active run with the interrupt outcome when it has open interactions and nothing else is still running. */
+    private fun interrupt(emit: (AgUiEvent) -> Unit) {
+        val open = runId ?: return
+        val waiting = pending.values.filter { it.id !in children }
+        if (waiting.isEmpty()) return
+        val parkedTools = waiting.mapNotNullTo(mutableSetOf()) { (it as? PendingInteraction.Approval)?.toolCallId?.value
+            ?: (it as? PendingInteraction.Questions)?.toolCallId?.value ?: (it as? PendingInteraction.Connect)?.toolCallId?.value }
+        if ((openTools - parkedTools).isNotEmpty()) return
+        closeItems(emit)
+        runId = null
+        parked = true
+        interrupted.clear()
+        interrupted += waiting.map { it.id }
+        emit(AgUiEvent.RunFinished(sessionId.value, open.value, RunOutcome.Interrupted(waiting.map { it.toInterrupt() })))
+    }
+
+    /** Opens the run that continues the parked one, then the output that was waiting for it. */
+    private fun resume(out: MutableList<AgUiOutput>) {
+        val late = deferred.toList()
+        deferred.clear()
+        val next = RunId("${base}~${++resumed}")
+        parked = false
+        interrupted.clear()
+        runId = next
+        out.add(AgUiOutput.Run(AgUiEvent.RunStarted(sessionId.value, next.value, parentRunId = parentRunId?.value)))
+        late.forEach { fold(it, out) }
+    }
+
+    private fun reset() {
+        parked = false
+        stopping = false
+        resumed = 0
+        interrupted.clear()
+        deferred.clear()
+        openTools.clear()
     }
 
     private fun closeItems(emit: (AgUiEvent) -> Unit) {
@@ -165,6 +255,7 @@ class AgUiRunTranslator(private val sessionId: SessionId, private val parentRunI
         is PendingInteraction.Approval -> Interrupt(
             id.value, "tool_call", reason ?: "Allow $toolCallName?", toolCallId.value, approvalSchema,
             kinuvo {
+                put("toolCallName", toolCallName)
                 put("risk", risk.name.lowercase())
                 put("trustable", trustable)
                 put("args", args)

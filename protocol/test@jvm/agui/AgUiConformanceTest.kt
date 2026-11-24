@@ -156,11 +156,70 @@ class AgUiConformanceTest {
             PendingInteraction.Unsupported(InteractionId("u"), "Nope"),
             PendingInteraction.Connect(InteractionId("c"), ToolCallId("tc"), AgentId("a"), "github", site = "github.com"),
         )
-        val events = conform(translate(
-            AgentEvent.RunStarted(run), *pending.map { AgentEvent.InteractionRequested(it) }.toTypedArray(), AgentEvent.ExecutionPhaseChanged(ExecutionPhase.RequiresAction),
-        ))
-        val reasons = assertIs<RunOutcome.Interrupted>(assertIs<AgUiEvent.RunFinished>(events.last()).outcome).interrupts.map { it.reason }
+        val reasons = pending.map { interaction ->
+            val events = conform(translate(AgentEvent.RunStarted(run), AgentEvent.InteractionRequested(interaction), AgentEvent.ExecutionPhaseChanged(ExecutionPhase.RequiresAction)))
+            assertIs<RunOutcome.Interrupted>(assertIs<AgUiEvent.RunFinished>(events.last()).outcome).interrupts.single().reason
+        }
         assertEquals(listOf("kinuvo:harness_approval", "kinuvo:open_link", "kinuvo:unsupported", "kinuvo:connect"), reasons)
+    }
+
+    @Test fun runWaitsForSiblingToolCallsBeforeItInterrupts() {
+        val other = ToolCallId("call-2")
+        val translator = AgUiRunTranslator(SessionId("session"))
+        val before = listOf(
+            AgentEvent.RunStarted(run), AgentEvent.ToolCallStart(call, "shell", "{}"), AgentEvent.ToolCallStart(other, "read", "{}"), AgentEvent.InteractionRequested(approval()),
+        ).flatMap(translator::on)
+        assertTrue(before.run().none { it is AgUiEvent.RunFinished })
+        val after = translator.on(AgentEvent.ToolCallResult(other, "ok", false))
+        val events = conform(before + after)
+        val interrupt = assertIs<RunOutcome.Interrupted>(assertIs<AgUiEvent.RunFinished>(events.last()).outcome).interrupts.single()
+        assertEquals("call-1", interrupt.toolCallId)
+    }
+
+    @Test fun answersOpenANewRunBeforeTheReleasedOutput() {
+        val translator = AgUiRunTranslator(SessionId("session"))
+        val events = conform(listOf(
+            AgentEvent.RunStarted(run), AgentEvent.ToolCallStart(call, "shell", "{}"), AgentEvent.InteractionRequested(approval()),
+            AgentEvent.InteractionResolved(InteractionId("approval-1"), true), AgentEvent.ToolCallResult(call, "a.txt", false),
+            AgentEvent.TextMessageEnd("m2", "Done"), AgentEvent.RunFinished(run),
+        ).flatMap(translator::on))
+        assertEquals(listOf("run-1", "run-1~1"), events.filterIsInstance<AgUiEvent.RunStarted>().map { it.runId })
+        val resumed = events.indexOfFirst { it is AgUiEvent.RunStarted && it.runId == "run-1~1" }
+        assertTrue(events.indexOfFirst { it is AgUiEvent.ToolCallResult } > resumed)
+        assertEquals(RunOutcome.Success(), assertIs<AgUiEvent.RunFinished>(events.last()).outcome)
+    }
+
+    @Test fun outputWhileAnswersAreOpenWaitsForTheNextRun() {
+        val translator = AgUiRunTranslator(SessionId("session"))
+        val parked = listOf(
+            AgentEvent.RunStarted(run), AgentEvent.InteractionRequested(PendingInteraction.HarnessApproval(InteractionId("h"), "Allow?", null, emptyList())),
+        ).flatMap(translator::on)
+        assertTrue(translator.on(AgentEvent.TextMessageContent("late", "still working")).isEmpty())
+        val released = listOf(AgentEvent.InteractionResolved(InteractionId("h")), AgentEvent.TextMessageEnd("m2", "Done"), AgentEvent.RunFinished(run)).flatMap(translator::on)
+        val events = conform(parked + released)
+        val resumed = events.dropWhile { it !is AgUiEvent.RunFinished }.drop(1)
+        assertIs<AgUiEvent.RunStarted>(resumed.first())
+        assertEquals("still working", resumed.filterIsInstance<AgUiEvent.TextMessageContent>().first().delta)
+    }
+
+    @Test fun stopOnAParkedRunReportsItemsAndNoNewRun() {
+        val translator = AgUiRunTranslator(SessionId("session"))
+        val parked = listOf(AgentEvent.RunStarted(run), AgentEvent.ToolCallStart(call, "shell", "{}"), AgentEvent.InteractionRequested(approval())).flatMap(translator::on)
+        conform(parked)
+        translator.stopping()
+        val stopped = listOf(
+            AgentEvent.InteractionResolved(InteractionId("approval-1")), AgentEvent.ToolCallResult(call, "Denied (stopped)", true),
+            AgentEvent.RunFinished(run, cancelled = true), AgentEvent.Idle,
+        ).flatMap(translator::on)
+        assertTrue(stopped.none { it is AgUiOutput.Run })
+        assertEquals(AgentEvent.Idle, (stopped.last() as AgUiOutput.Item).event)
+        val next = translator.on(AgentEvent.RunStarted(RunId("run-2")))
+        assertIs<AgUiEvent.RunStarted>((next.single() as AgUiOutput.Run).event)
+    }
+
+    @Test fun idleEndsAnActiveRunAsCancelled() {
+        val events = conform(translate(AgentEvent.RunStarted(run), AgentEvent.TextMessageContent("m", "x"), AgentEvent.Idle))
+        assertEquals(RunOutcome.Cancelled, assertIs<AgUiEvent.RunFinished>(events.last()).outcome)
     }
 
     @Test fun childInterruptsStayOutOfTheParentRun() {

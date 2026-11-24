@@ -7,7 +7,7 @@ import kinuvo.protocol.plugin.ToolIdentity
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
-/** Events emitted during a run, named after AG-UI event types. */
+/** Events a Server run emits internally; the wire carries them as AG-UI run events or items (ADR 0042). */
 @Serializable
 sealed interface AgentEvent {
     @Serializable @SerialName("QUEUE_CHANGED")
@@ -23,6 +23,14 @@ sealed interface AgentEvent {
     /** [allowed] is set when an Approval was decided. */
     @Serializable @SerialName("INTERACTION_RESOLVED")
     data class InteractionResolved(val id: InteractionId, val allowed: Boolean? = null) : AgentEvent
+
+    /** [id]'s answer is recorded and waits for the rest of the run's interactions. */
+    @Serializable @SerialName("INTERACTION_STAGED")
+    data class InteractionStaged(val id: InteractionId) : AgentEvent
+
+    /** The Session has no run and no work left, e.g. after Stop on a run that was waiting for answers. */
+    @Serializable @SerialName("IDLE")
+    data object Idle : AgentEvent
 
     @Serializable @SerialName("EXECUTION_PHASE_CHANGED")
     data class ExecutionPhaseChanged(val phase: ExecutionPhase) : AgentEvent
