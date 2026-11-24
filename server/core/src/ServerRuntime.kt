@@ -133,6 +133,7 @@ class ServerRuntime(
             assembly.workflows.recover()
             external.reload()
             external.recover()
+            harness.log.recoverOrphanedToolCalls(external::owns)
             scope.launch { harness.usage.filterNotNull().collect { broadcast(Api.Usage, it) } }
             harness.log.onChange { if (!it.hidden) broadcast(Api.SessionChanged, it) }
             harness.log.onEvent(assembly.notifications::on)
@@ -317,6 +318,10 @@ class ServerRuntime(
             if (linked && text is Frame.Event) return true
             if (!valid()) { if (closeAfterResponse == null) disconnect(); return false }
             if (outbox.trySend(text).isSuccess) return true
+            // The consumer (e.g. an embedded Server sharing the Device's own thread) didn't drain fast enough for
+            // the outbox to take one more frame; this drops every live update until the Device reconnects.
+            val kind = when (text) { is Frame.Request -> "request ${text.method}"; is Frame.Response -> "response"; is Frame.Event -> "event ${text.event}" }
+            log.warn { "Outbox full for Device ${deviceId ?: "unknown"}: dropping the connection instead of $kind" }
             disconnect()
             return false
         }

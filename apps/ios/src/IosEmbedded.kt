@@ -1,6 +1,7 @@
 package dev.kinuvo.ios.embedded
 
 import kinuvo.app.connection.EmbeddedServer
+import kinuvo.protocol.capability.ServerFeature
 import kinuvo.app.connection.Endpoint
 import kinuvo.app.connection.OnDeviceSupport
 import kinuvo.app.connection.ServerSharing
@@ -131,7 +132,8 @@ internal class IosEmbeddedServer(private val model: AppleLanguageModel, private 
                 knowledge.path?.let(moved::get)?.let { files.saveKnowledgeConfig(knowledge.copy(path = it)) }
             }
             val embedded = embeddedPlugins(home, ModelProviders.of(AppleProvider(model)), listOf(ApplePlugin(apple)))
-            EmbeddedServerHost.create(home, plugins = embedded.plugins, modelSources = embedded.modelSources, peers = { SharedPeers(it, auth) }).also { host ->
+            EmbeddedServerHost.create(home, plugins = embedded.plugins, modelSources = embedded.modelSources,
+                features = setOf(ServerFeature.Attachments, ServerFeature.DeviceTools, ServerFeature.Computer), peers = { SharedPeers(it, auth) }).also { host ->
                 server = host
                 localHost = host
                 MainScope().launch { host.runtime.runActivity.collect { backgroundRuns?.update(it.runs, it.steps) } }

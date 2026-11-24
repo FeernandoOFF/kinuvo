@@ -64,10 +64,12 @@ internal fun appTest(
     /** A desktop window with a pointer, instead of a phone. */
     desktop: Boolean = false,
     onboarding: Boolean = false,
+    /** Delays every streamed frame of the model's reply, to widen a run's live window. */
+    modelDelayMillis: Long = 0,
     block: suspend AppTest.() -> Unit,
 ) = (if (desktop) ::runDesktopTest else ::runPhoneTest) {
     val server = withContext(Dispatchers.Default) {
-        TestServer.start(plugins = plugins, harnesses = harnesses, script = { reply(REPLY); script() }, scenario = {
+        TestServer.start(plugins = plugins, harnesses = harnesses, script = { reply(REPLY); script() }, modelDelayMillis = modelDelayMillis, scenario = {
             val agent = agent("e2e", "E2E Agent")
             withoutDefaultAgent()
             scenario(agent)

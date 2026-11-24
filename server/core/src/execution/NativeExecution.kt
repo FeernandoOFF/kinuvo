@@ -106,6 +106,9 @@ class NativeExecution(
                     publishQueue(p.agent, p.session)
                     pump(p.session)
                 }
+                // Cancellation unwinds without a terminal event of its own, so a stale `running` flag or pending
+                // interaction (e.g. an mcp_login Connect) would otherwise outlive the run that was holding it.
+                if (stopped) harness.log.clearIfStopped(p.agent.id, p.session)
                 ran(p.agent, p.session)
             })
         } catch (e: Exception) { steering.remove(p.session); throw e }
