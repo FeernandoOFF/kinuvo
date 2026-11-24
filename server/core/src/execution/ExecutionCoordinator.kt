@@ -345,7 +345,8 @@ class ExecutionCoordinator(
                         if (rejected) {
                             mutate(id) { it.copy(submissions = it.submissions - submission) }
                             onRejected(e)
-                            state.boundSink().publish(AgentEvent.ExecutionPhaseChanged(ExecutionPhase.Idle))
+                            try { state.boundSink().publish(AgentEvent.ExecutionPhaseChanged(ExecutionPhase.Idle)) }
+                            catch (_: IllegalStateException) { /* Execution was lost or replaced meanwhile. */ }
                         } else broker.lost()
                     }
                 }

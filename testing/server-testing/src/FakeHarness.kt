@@ -97,9 +97,11 @@ class FakeExternalSession internal constructor(
         prompts += input
         val number = turns.incrementAndGet()
         job = scope.launch {
-            sink.publish(AgentEvent.RunStarted(RunId(runId)))
-            turn(input.text)
-            finish("end_turn")
+            try {
+                sink.publish(AgentEvent.RunStarted(RunId(runId)))
+                turn(input.text)
+                finish("end_turn")
+            } catch (_: IllegalStateException) { /* The execution was lost or replaced mid-turn. */ }
         }
         return ExecutionAcceptance("accepted-$number")
     }
