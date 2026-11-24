@@ -1,0 +1,28 @@
+# Rotating redacted log files, crash files and the bundle people share when they hit a problem. A leaf library: it depends on no other Kinuvo module.
+product:
+  type: kmp/lib
+  platforms: [jvm, android, iosArm64, iosSimulatorArm64]
+
+aliases:
+  - jvmAndAndroid: [jvm, android]
+
+dependencies:
+  - $kotlin.serialization.json
+  - org.jetbrains.kotlinx:kotlinx-io-core:0.9.1
+  - io.github.oshai:kotlin-logging:8.0.4
+  - co.touchlab:stately-concurrency:2.1.0
+
+dependencies@jvm:
+  - ch.qos.logback:logback-classic:1.6.6
+
+test-dependencies:
+  - $kotlin.test
+
+settings:
+  jvm:
+    test:
+      systemProperties:
+        java.io.tmpdir: ../../build
+  kotlin:
+    compileIncrementally: true
+    serialization: json
