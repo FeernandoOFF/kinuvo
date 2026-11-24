@@ -9,10 +9,10 @@ import java.net.InetAddress
 import java.net.ServerSocket
 import java.util.concurrent.atomic.AtomicInteger
 import kotlin.concurrent.thread
-import kotlin.system.measureTimeMillis
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
+import kotlin.test.assertSame
 import kotlin.test.assertTrue
 
 class McpServerTest {
@@ -49,17 +49,22 @@ class McpServerTest {
     fun hangingHttpServerTimesOutThenBacksOffInsteadOfRetryingEveryCall() = runBlocking {
         val hung = HangingServer()
         val cfg = McpServerConfig.Http("slow", "http://127.0.0.1:${hung.port}/mcp")
-        val server = McpServer(cfg, connectTimeoutMillis = 200, backoffSeconds = 30)
         try {
-            val first = measureTimeMillis { assertFailsWith<Exception> { server.listTools() } }
-            assertTrue(first in 150..5_000, "the first attempt should be bounded by the connect timeout, took ${first}ms")
-            val acceptedAfterFirst = hung.accepted.get()
+            // Warms up client class loading, which on a loaded runner outlasts the timeout and isn't what is under test.
+            McpServer(cfg, connectTimeoutMillis = 200, backoffSeconds = 30).also { runCatching { it.listTools() }; it.close() }
+            val server = McpServer(cfg, connectTimeoutMillis = 200, backoffSeconds = 30)
+            try {
+                val first = assertFailsWith<IllegalStateException> { server.listTools() }
+                assertTrue("didn't respond within 200ms" in first.message.orEmpty(), "the connect timeout must end the attempt: ${first.message}")
+                val acceptedAfterFirst = hung.accepted.get()
 
-            val second = measureTimeMillis { assertFailsWith<Exception> { server.listTools() } }
-            assertTrue(second < 100, "a server that just failed must short-circuit instead of reconnecting, took ${second}ms")
-            assertEquals(acceptedAfterFirst, hung.accepted.get(), "the cached failure must not open a new connection")
+                val second = assertFailsWith<IllegalStateException> { server.listTools() }
+                assertSame(first, second, "a server that just failed must short-circuit with its cached failure instead of reconnecting")
+                assertEquals(acceptedAfterFirst, hung.accepted.get(), "the cached failure must not open a new connection")
+            } finally {
+                server.close()
+            }
         } finally {
-            server.close()
             hung.close()
         }
     }
