@@ -25,6 +25,7 @@ import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.semantics.getOrNull
 import com.composables.icons.lucide.*
 import kinuvo.ui.design.KinuvoTheme
+import kinuvo.ui.design.ChatGptLogo
 import org.jetbrains.skia.EncodedImageFormat
 import java.io.File
 import kotlin.test.Test
@@ -40,6 +41,42 @@ class OnboardingScreenshotTest {
         )
         for ((name, state) in states) render("onboarding-endpoint-$name", 390, 844) {
             KinuvoTheme(dark = false) { EndpointContent(state, {}, {}, {}) }
+        }
+    }
+
+    @Test fun modelStates() {
+        val catalog = ModelsCatalog(listOf(
+            ProviderModels("codex", "OpenAI Codex", listOf(ModelInfo("gpt-6.2-sol", "GPT-6.2 Sol"), ModelInfo("gpt-6.2-astra", "GPT-6.2 Astra"))),
+            ProviderModels("apple", "Apple", listOf(ModelInfo("apple-foundation", "Apple Foundation")))))
+        fun providers(signedIn: Boolean, plan: Boolean = false, allowed: Boolean = true) = listOf(
+            ProviderInfo("codex", "ChatGPT / Codex", account = ProviderAccount(signedIn, "alex@example.com".takeIf { signedIn }, usesChatGptPlan = plan, planAllowed = allowed), browserSignIn = true),
+            ProviderInfo("apple", "Apple"), ProviderInfo("openai", "OpenAI", apiKey = ProviderApiKeyStatus(false, "Server")))
+        val base = OnboardingState(step = 2, avatar = 1, catalog = catalog, providers = providers(false), provider = "codex", model = "gpt-6.2-sol")
+        val url = "https://auth.openai.com/api/accounts/authorize?client_id=dynamic_agent_client"
+        val chatGpt = OnboardingAction("Continue with ChatGPT").apply { icon = ChatGptLogo }
+        val again = OnboardingAction("Open ChatGPT again").apply { icon = Lucide.ExternalLink }
+        val states = listOf(
+            Triple("chatgpt-continue", base, chatGpt),
+            Triple("chatgpt-waiting", base.copy(providerSignIn = ProviderSignInState("codex", url)), again),
+            Triple("chatgpt-paste", base.copy(providerSignIn = ProviderSignInState("codex", url, awaitingPaste = true)), again),
+            Triple("chatgpt-error", base.copy(providerSignIn = ProviderSignInState("codex", url, awaitingPaste = true, error = "ChatGPT plan use wasn't allowed. Try again and allow it.")), again),
+            Triple("chatgpt-welcome", base.copy(providers = providers(true, plan = true)), OnboardingAction("Continue")),
+            Triple("chatgpt-blocked", base.copy(providers = providers(true, plan = true, allowed = false)),
+                OnboardingAction("Allow ChatGPT plan usage").apply { icon = ChatGptLogo }),
+            Triple("chatgpt-ready", base.copy(providers = providers(true, plan = true)), OnboardingAction("Continue")),
+            Triple("codex-code", base.copy(deviceCode = DeviceCode("https://auth.openai.com/codex/device", "K7QX-9MDP", 0)),
+                OnboardingAction("Copy code and sign in").apply { icon = Lucide.ExternalLink }),
+            Triple("codex-loading", base.copy(providers = providers(true, plan = true), catalog = ModelsCatalog(catalog.providers.drop(1)), model = "", busy = true), OnboardingAction("Continue", false)),
+            Triple("api-key", base.copy(providers = providers(true), provider = "openai", model = ""), OnboardingAction("Continue", false)),
+            Triple("apple", base.copy(providers = providers(true), provider = "apple", model = "apple-foundation"), OnboardingAction("Continue")),
+        )
+        for ((name, state, action) in states) for (height in listOf(844, 1300)) render("onboarding-model-$name-${if (height == 844) "390" else "full"}", 390, height) {
+            KinuvoTheme(dark = false) {
+                OnboardingContent(state, action = action, model = { ModelStep(state, {}, {}, {}, chatGpt = ChatGptActions(welcome = name == "chatgpt-welcome")) })
+            }
+        }
+        render("onboarding-model-chatgpt-continue-dark", 390, 844) {
+            KinuvoTheme(dark = true) { OnboardingContent(base, action = chatGpt, model = { ModelStep(base, {}, {}, {}) }) }
         }
     }
 

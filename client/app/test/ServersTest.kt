@@ -41,6 +41,35 @@ private object FakeEmbedded : EmbeddedServer {
 }
 
 class ServersTest {
+    @Test fun resetClearsEmbeddedSecretsAndSavedConnections() = runTest {
+        val prefs = MemoryPreferences()
+        var cleared = false
+        val embedded = object : EmbeddedServer {
+            override suspend fun endpoint() = Endpoint("local://test", "local")
+            override suspend fun erase() { cleared = true }
+        }
+        val servers = Servers(prefs, embedded, prefs.credentials)
+        servers.remember(Server.Remote("ws://remote"), "secret")
+        servers.onboardingComplete = true
+        servers.reset()
+        assertTrue(cleared)
+        assertNull(prefs.credentials.read("ws://remote"))
+        assertFalse(servers.onboardingComplete)
+        assertEquals(listOf(Server.Embedded), servers.all)
+    }
+
+    @Test fun resetDoesNotClaimSuccessWhenEmbeddedSecretsCannotBeCleared() = runTest {
+        val prefs = MemoryPreferences()
+        val embedded = object : EmbeddedServer {
+            override suspend fun endpoint() = Endpoint("local://test", "local")
+            override suspend fun erase() { error("Keychain locked") }
+        }
+        val servers = Servers(prefs, embedded, prefs.credentials)
+        servers.onboardingComplete = true
+        assertFailsWith<IllegalStateException> { servers.reset() }
+        assertTrue(servers.onboardingComplete)
+    }
+
     private var link = "private-link-one"
     private var code = "111111"
     private val forwarder = object : TailcatForwarder {

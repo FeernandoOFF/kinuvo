@@ -62,6 +62,9 @@ class ProtocolMismatchException(val server: ProtocolRange? = null) : Exception(w
     else -> "This app and the Server can't talk to each other. Update both to their latest versions."
 })
 
+/** How long a read that reached a connecting Device waits for the Server's answer to Connect before it says the Device is unavailable. */
+private const val CONNECT_ANSWER_WAIT_MILLIS = 10_000L
+
 /** A request that failed because the connection is down; the client retries on its own. */
 class DisconnectedException(message: String = "Disconnected") : IllegalStateException(message)
 
@@ -304,6 +307,8 @@ class KinuvoClient(
                             when (f.method) {
                                 Api.DeviceRead.name -> {
                                     val p = ProtocolJson.decodeFromJsonElement(Api.DeviceRead.params, f.params)
+                                    // The Server registers this Device before it answers Connect, so a waiting read can arrive first.
+                                    if (session === ws) withTimeoutOrNull(CONNECT_ANSWER_WAIT_MILLIS) { _state.first { it !is ConnectionState.Connecting } }
                                     val result = if (foreground.value && _state.value is ConnectionState.Connected && session === ws) deviceRead(p)
                                         else DeviceToolResult(DeviceToolStatus.Unavailable, message = "Open Kinuvo on this Device")
                                     Frame.Response(f.id, true, ProtocolJson.encodeToJsonElement(Api.DeviceRead.result, result))

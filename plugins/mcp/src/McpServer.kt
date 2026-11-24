@@ -27,19 +27,34 @@ import io.modelcontextprotocol.kotlin.sdk.types.ReadResourceResult
 import kotlinx.serialization.json.*
 import io.github.oshai.kotlinlogging.KotlinLogging
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.withTimeoutOrNull
+import kotlin.time.Clock
 import kotlin.time.Duration.Companion.seconds
 import kotlin.time.TimeSource
 
 private val log = KotlinLogging.logger("kinuvo.mcp")
 
-/** A lazily connected MCP server; reconnects on the next use after a failure. HTTP servers sign in through [auth]. */
-class McpServer(val config: McpServerConfig, private val auth: McpAuth? = null) {
+/**
+ * A lazily connected MCP server; reconnects on the next use after a failure. HTTP servers sign in through [auth].
+ * A failed connection attempt is capped at [connectTimeoutMillis] and, once failed, short-circuits for
+ * [backoffSeconds] instead of reconnecting (and re-waiting) on every call, so a server needing sign-in or otherwise
+ * unreachable never delays a run by more than one connect attempt.
+ */
+class McpServer(
+    val config: McpServerConfig,
+    private val auth: McpAuth? = null,
+    private val connectTimeoutMillis: Long = 8_000,
+    private val backoffSeconds: Long = 30,
+    private val now: () -> Long = { Clock.System.now().epochSeconds },
+) {
     /** The sign-in generation its tokens came from; see [McpAuth.generation]. */
     val authGeneration = (config as? McpServerConfig.Http)?.let { auth?.generation(it.signInId) } ?: 0
 
     private val mutex = Mutex()
     private var client: Client? = null
     private var process: StdioProcess? = null
+    private var cooldownUntil: Long? = null
+    private var lastFailure: Throwable? = null
 
     suspend fun listTools(): List<Tool> = withClient { it.listTools().tools }
 
@@ -47,20 +62,27 @@ class McpServer(val config: McpServerConfig, private val auth: McpAuth? = null) 
 
     suspend fun readResource(uri: String): ReadResourceResult = withClient { it.readResource(ReadResourceRequest(ReadResourceRequestParams(uri))) }
 
-    private suspend fun <T> withClient(block: suspend (Client) -> T): T = try {
-        block(mutex.withLock { client ?: connect().also { client = it } })
-    } catch (e: Exception) {
-        if (e is CancellationException) throw e
-        val detail = processDetail()
-        log.warn { "mcp.failed server=${config.name} phase=${if (client == null) "connect" else "call"} error=${e::class.simpleName}: ${e.message?.take(200)}" }
-        close()
-        val http = config as? McpServerConfig.Http
-        if (http != null && auth != null && (unauthorized(e) || auth.isRequired(http.signInId) && forbidden(e))) {
-            auth.markRequired(http.signInId)
-            throw McpAuthRequired(http.name, auth.wantedScope(http.signInId))
+    private suspend fun <T> withClient(block: suspend (Client) -> T): T {
+        cooldownUntil?.let { until -> if (now() < until) throw lastFailure!! }
+        return try {
+            val result = block(mutex.withLock { client ?: connect().also { client = it } })
+            cooldownUntil = null
+            lastFailure = null
+            result
+        } catch (e: Exception) {
+            if (e is CancellationException) throw e
+            val detail = processDetail()
+            log.warn { "mcp.failed server=${config.name} phase=${if (client == null) "connect" else "call"} error=${e::class.simpleName}: ${e.message?.take(200)}" }
+            close()
+            val http = config as? McpServerConfig.Http
+            val failure = if (http != null && auth != null && (unauthorized(e) || auth.isRequired(http.signInId) && forbidden(e))) {
+                auth.markRequired(http.signInId)
+                McpAuthRequired(http.name, auth.wantedScope(http.signInId))
+            } else if (detail != null) IllegalStateException("${e.message} — $detail", e) else e
+            cooldownUntil = now() + backoffSeconds
+            lastFailure = failure
+            throw failure
         }
-        if (detail == null) throw e
-        throw IllegalStateException("${e.message} — $detail", e)
     }
 
     /** Last stderr lines and exit code of a stdio server, to explain a failure. */
@@ -70,7 +92,7 @@ class McpServer(val config: McpServerConfig, private val auth: McpAuth? = null) 
     var connections = 0
         private set
 
-    private suspend fun connect(): Client {
+    private suspend fun connect(): Client = withTimeoutOrNull(connectTimeoutMillis) {
         val c = Client(Implementation("kinuvo", "0.1"), ClientOptions(capabilities = appCapabilities))
         val began = TimeSource.Monotonic.markNow()
         c.connect(transport())
@@ -78,8 +100,8 @@ class McpServer(val config: McpServerConfig, private val auth: McpAuth? = null) 
         val took = began.elapsedNow()
         if (took >= SLOW_CONNECT) log.warn { "mcp.connect.slow server=${config.name} duration=${took.inWholeMilliseconds}ms" }
         else log.info { "mcp.connected server=${config.name} duration=${took.inWholeMilliseconds}ms" }
-        return c
-    }
+        c
+    } ?: throw IllegalStateException("MCP server '${config.name}' didn't respond within ${connectTimeoutMillis}ms")
 
     private fun transport(): Transport = when (val cfg = config) {
         is McpServerConfig.Stdio -> startStdio(cfg).also { process = it }.transport

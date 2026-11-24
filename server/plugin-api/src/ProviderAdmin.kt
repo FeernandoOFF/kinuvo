@@ -53,6 +53,10 @@ interface ModelDownloads {
 
 /** A model provider's account sign-in, done with a device code so it works from any client or a headless Server. */
 interface ProviderAuth {
+    val browserSignIn: Boolean get() = false
+    suspend fun signIn(redirectUri: String, anotherAccount: Boolean = false, requestConsent: Boolean = false): String = error("Browser sign-in is unavailable")
+    suspend fun cancelSignIn() {}
+    suspend fun completeSignIn(callbackUrl: String): Unit = error("Browser sign-in is unavailable")
     suspend fun account(): ProviderAccount
     /** Signs in, handing the URL and code to enter to [show]; returns once signed in, or throws when it fails or expires. */
     suspend fun login(show: (DeviceCode) -> Unit)

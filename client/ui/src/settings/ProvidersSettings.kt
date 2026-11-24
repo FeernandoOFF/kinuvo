@@ -56,8 +56,12 @@ private fun ProviderGroup(provider: ProviderInfo, p: Pane) {
                 provider.downloads != null -> ModelDownloadRows(provider.downloads!!, { p.actions.onDownloadModel(provider.id, it) },
                     { p.actions.onCancelModelDownload(provider.id) }, { p.actions.onRemoveModel(provider.id, it) })
                 account == null -> GroupRow(provider.name, subtitle = "No sign-in needed", icon = Lucide.CircleCheck) { Pill("Ready", tone = Tone.Success) }
-                account.signedIn -> GroupRow(account.label ?: "Your account", subtitle = "Signed in", icon = Lucide.CircleUserRound) { Pill("Ready", tone = Tone.Success) }
+                account.signedIn -> GroupRow(account.label ?: "Your account", subtitle = if (account.usesChatGptPlan) "Signed in with ChatGPT" else "Signed in", icon = Lucide.CircleUserRound) {
+                    if (account.planAllowed) Pill("Ready", tone = Tone.Success) else Pill("Plan not allowed", tone = Tone.Warning)
+                }
                 code != null -> DeviceCodeSignIn(code, "It expires in 15 minutes.")
+                provider.browserSignIn -> ChatGptSignInRows(p.ui.state.providerSignIn?.takeIf { it.provider == provider.id }, false,
+                    { p.actions.onChatGptSignIn(false, false) }, p.actions.onChatGptPaste, p.actions.onChatGptCancel, { p.actions.onLoginProvider(provider.id) })
                 else -> GroupRow("Not signed in", subtitle = "Sign in to use its models", icon = Lucide.CircleUserRound) { Pill("Signed out", tone = Tone.Warning) }
             }
             apiKey?.let { key ->
@@ -77,8 +81,21 @@ private fun ProviderGroup(provider: ProviderInfo, p: Pane) {
             }
             if (account != null) when {
                 code != null -> {}
+                account.signedIn && account.usesChatGptPlan -> {
+                    val signIn = p.ui.state.providerSignIn?.takeIf { it.provider == provider.id }
+                    if (signIn != null) ChatGptSignInRows(signIn, false, { p.actions.onChatGptSignIn(false, false) }, p.actions.onChatGptPaste, p.actions.onChatGptCancel,
+                        { p.actions.onLoginProvider(provider.id) })
+                    else if (!account.planAllowed) ChatGptPlanBlocked(account.label, { p.actions.onChatGptSignIn(false, true) }, { p.actions.onChatGptSignIn(true, false) })
+                    else {
+                        UsingChatGptPlan()
+                        ActionRow("Use another ChatGPT account", Lucide.UserRoundPlus, { p.actions.onChatGptSignIn(true, false) })
+                    }
+                    ConfirmRow("Sign out", Lucide.LogOut, "Sign out of ${provider.name}?", { p.actions.onLogoutProvider(provider.id) },
+                        detail = "Agents using its models stop working until you sign in again.")
+                }
                 account.signedIn -> ConfirmRow("Sign out", Lucide.LogOut, "Sign out of ${provider.name}?", { p.actions.onLogoutProvider(provider.id) },
                     detail = "Agents using its models stop working until you sign in again.")
+                provider.browserSignIn -> {}
                 else -> ActionRow("Sign in", Lucide.LogIn, { p.actions.onLoginProvider(provider.id) })
             }
         }

@@ -29,6 +29,9 @@ import java.util.TimeZone
 /** Opens the default browser and catches its return on localhost ([McpRedirect.Loopback]). */
 internal class LoopbackBrowser : OAuthBrowser {
     override val redirect = McpRedirect.Loopback
+    override suspend fun signInWithLoopback(authorize: suspend (String) -> String, opened: (String, Boolean) -> Unit): String? =
+        providerLoopbackSignIn(authorize, opened) { url -> withContext(Dispatchers.IO) { openDesktopUri(url) } }
+
 
     override suspend fun signIn(url: String): String? {
         val callback = LoopbackCallback.start(oauthState(url)) ?: error("Port ${McpRedirect.LOOPBACK_PORT} is in use; paste the URL the browser ends on")

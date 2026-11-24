@@ -1,5 +1,8 @@
 package kinuvo.server.tools
 
+import kinuvo.protocol.agent.AgentId
+import kinuvo.protocol.agent.ConfigScope
+import kinuvo.protocol.approval.InteractionAnswer
 import kinuvo.protocol.approval.InteractionId
 import kinuvo.harness.ToolSpec
 import kinuvo.server.plugin.Tool
@@ -39,6 +42,7 @@ class ToolService(
     advertisedTools: List<ToolSpec> = tools.map { it.descriptor },
     private val approvals: Approvals = Approvals.none(),
     private val questions: Broker<Map<String, List<String>>?>? = null,
+    private val connects: Broker<InteractionAnswer.Connect>? = null,
     private val attach: ((String, ByteArray) -> Attachment)? = null,
     private val maxItems: Int? = null,
     private val callsPerTurn: Int? = null,
@@ -156,6 +160,18 @@ class ToolService(
         }
         override suspend fun attach(name: String, bytes: ByteArray) =
             requireNotNull(attach) { "Files can't be shown to the model in this run" }(name, bytes).also { attached += it }
+        override suspend fun connect(agentId: AgentId, server: String, scope: ConfigScope?, site: String?, reason: String?): InteractionAnswer.Connect {
+            val broker = connects ?: return InteractionAnswer.Connect(false, "There's no user to connect in this run.")
+            val pending = broker.register()
+            try {
+                turn.emit(AgentEvent.InteractionRequested(PendingInteraction.Connect(pending.id, call.id, agentId, server, scope, site, reason)))
+                val answer = pending.await()
+                turn.emit(AgentEvent.InteractionResolved(pending.id))
+                return answer
+            } finally {
+                pending.close()
+            }
+        }
     }
 
     private suspend fun ask(call: SessionEntry.ToolCall, turn: ToolTurn, formId: String = call.id.value): SessionEntry.ToolResult {

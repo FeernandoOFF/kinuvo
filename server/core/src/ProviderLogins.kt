@@ -23,7 +23,20 @@ class ProviderLogins(private val providers: List<ModelProvider>, private val sco
     private val errors = ConcurrentMutableMap<String, String>()
     private val lock = Mutex()
 
-    suspend fun list() = providers.map { ProviderInfo(it.id, it.name, it.auth?.account(), errors[it.id], it.apiKey?.status(), it.downloads?.state()) }
+    suspend fun list() = providers.map { ProviderInfo(it.id, it.name, it.auth?.account(), errors[it.id], it.apiKey?.status(), it.downloads?.state(), it.auth?.browserSignIn == true) }
+
+    suspend fun signIn(id: String, redirectUri: String, anotherAccount: Boolean = false, requestConsent: Boolean = false): String = lock.withLock {
+        running.remove(id)?.cancelAndJoin()
+        errors.remove(id)
+        checkNotNull(provider(id).auth).let { it.cancelSignIn(); it.signIn(redirectUri, anotherAccount, requestConsent) }
+    }
+
+    suspend fun cancelSignIn(id: String) = lock.withLock { provider(id).auth?.cancelSignIn(); Unit }
+
+    suspend fun completeSignIn(id: String, callbackUrl: String) {
+        lock.withLock { checkNotNull(provider(id).auth).completeSignIn(callbackUrl) }
+        changed(list())
+    }
 
     suspend fun refresh() { changed(list()) }
 
@@ -32,6 +45,7 @@ class ProviderLogins(private val providers: List<ModelProvider>, private val sco
         val code = CompletableDeferred<DeviceCode>()
         lock.withLock {
             running.remove(id)?.cancelAndJoin()
+            auth.cancelSignIn()
             errors.remove(id)
             val job = scope.launch(start = CoroutineStart.LAZY) {
                 try {

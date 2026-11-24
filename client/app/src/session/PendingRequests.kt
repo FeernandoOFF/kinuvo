@@ -30,6 +30,11 @@ sealed interface PendingRequest {
     data class External(val prompt: PendingInteraction) : PendingRequest {
         override val id get() = prompt.id
     }
+
+    /** An `mcp_login` call waiting on the user's own OAuth sign-in to a named MCP server. */
+    data class Connect(val asked: PendingInteraction.Connect) : PendingRequest {
+        override val id get() = asked.id
+    }
 }
 
 internal const val TAKEOVER_TOOL = "request_takeover"
@@ -45,10 +50,11 @@ internal fun pendingRequests(items: List<ChatItem>, pending: List<PendingInterac
                 val tool = items.getOrNull(index) as? ChatItem.ToolCall
                 index to if (tool?.name == TAKEOVER_TOOL) PendingRequest.Takeover(takeoverReason(tool.args), request) else PendingRequest.Questions(request)
             }
+            is PendingInteraction.Connect -> call(request.toolCallId) to PendingRequest.Connect(request)
             else -> null
         }
     }
-    val harness = pending.filter { it !is PendingInteraction.Approval && it !is PendingInteraction.Questions }
+    val harness = pending.filter { it !is PendingInteraction.Approval && it !is PendingInteraction.Questions && it !is PendingInteraction.Connect }
     return native.sortedBy { if (it.first < 0) Int.MAX_VALUE else it.first }.map { it.second } + harness.map { PendingRequest.External(it) }
 }
 

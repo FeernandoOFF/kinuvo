@@ -134,6 +134,7 @@ fun ChatScreen(
         selected = route.sessionId,
         info = current.info?.takeIf { it.id == route.sessionId },
         items = current.items,
+        connecting = current.connecting,
         loaded = current.loaded,
         hasOlder = current.data?.hasOlder == true,
         running = current.running,
@@ -195,6 +196,9 @@ fun ChatScreen(
                 onReviewReflection = session::reviewReflection,
                 onAnswer = session::answer,
                 onEditAnswer = session::editAnswer,
+                onConnect = session::connect,
+                onCompleteConnect = session::completeConnect,
+                onSkipConnect = session::skipConnect,
                 onOpenArtifact = { dock?.openArtifact?.invoke(it) ?: onNavigate(Route.Artifacts(it)) },
                 onWatch = { onNavigate(Route.Computers()) },
                 onScreen = { screen, reason ->
@@ -262,6 +266,9 @@ class ChatActions(
     /** The open `ask_user` form's answers by question ID; null skips it. */
     val onAnswer: (Map<String, List<String>>?) -> Unit = {},
     val onEditAnswer: (questionsId: InteractionId, questionId: String, value: List<String>) -> Unit = { _, _, _ -> },
+    val onConnect: (PendingInteraction.Connect) -> Unit = {},
+    val onCompleteConnect: (PendingInteraction.Connect, String) -> Unit = { _, _ -> },
+    val onSkipConnect: (PendingInteraction.Connect) -> Unit = {},
     val onOpenArtifact: (id: String) -> Unit = {},
     /** Opens Live view of the Computers an Agent controls. */
     val onWatch: () -> Unit = {},

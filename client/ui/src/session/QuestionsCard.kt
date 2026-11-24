@@ -54,7 +54,7 @@ internal fun QuestionsCard(asked: PendingInteraction.Questions, drafts: Map<Inte
 @Composable
 internal fun QuestionField(q: Question, value: List<String>, onChange: (List<String>) -> Unit) {
     Column(verticalArrangement = Arrangement.spacedBy(Spacing.space6)) {
-        Text(if (q.required) "${q.label} *" else q.label, style = TextStyles.secondary, fontWeight = FontWeight.Normal)
+        LinkedText(if (q.required) "${q.label} *" else q.label, TextStyles.secondary.copy(fontWeight = FontWeight.Normal), color(onBackgroundColor))
         when (q.kind) {
             QuestionKind.Single, QuestionKind.YesNo -> RadioGroup(value.firstOrNull(), { onChange(listOf(it)) }) {
                 Column(verticalArrangement = Arrangement.spacedBy(Spacing.space4)) {

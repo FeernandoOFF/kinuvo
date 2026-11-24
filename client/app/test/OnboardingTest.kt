@@ -59,6 +59,7 @@ class OnboardingTest {
         assertTrue(state.modelReady)
         assertFalse(state.copy(providers = emptyList()).modelReady)
         assertFalse(state.copy(providers = listOf(ProviderInfo("codex", "Codex", account = ProviderAccount(false)))).modelReady)
+        assertFalse(state.copy(providers = listOf(ProviderInfo("codex", "Codex", account = ProviderAccount(true, usesChatGptPlan = true, planAllowed = false)))).modelReady)
         assertFalse(state.copy(providers = listOf(ProviderInfo("codex", "Codex", apiKey = ProviderApiKeyStatus(false, "server")))).modelReady)
         assertFalse(state.copy(catalog = ModelsCatalog(listOf(ProviderModels("codex", "Codex", listOf(ModelInfo("model", state = CapabilityState.unavailable("Not installed"))))))).modelReady)
     }

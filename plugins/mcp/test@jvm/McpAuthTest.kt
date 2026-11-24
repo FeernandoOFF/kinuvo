@@ -22,6 +22,7 @@ import java.net.InetSocketAddress
 import java.nio.file.Files
 import java.security.MessageDigest
 import java.util.Base64
+import kotlin.system.measureTimeMillis
 import kotlin.test.AfterTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -194,6 +195,19 @@ class McpAuthTest {
         assertEquals(McpAuthStatus.Required, auth.status("shared/linear"))
     }
 
+    @Test
+    fun serverNeedingSignInStaysCachedInsteadOfRetryingEveryRun() = runBlocking {
+        val cfg = File(dir, "mcp.json").apply { writeText("""{"mcpServers": {"linear": {"type": "http", "url": "${fake.base}/mcp"}}}""") }
+        val manager = McpManager(listOf(Path(cfg.path)), auth = auth, signInScopes = listOf("shared"))
+        manager.tools()
+        val hitsAfterFirstRun = fake.mcpHits
+        val second = measureTimeMillis { manager.tools() }
+        manager.close()
+        assertTrue(hitsAfterFirstRun > 0)
+        assertEquals(hitsAfterFirstRun, fake.mcpHits, "a server known to need sign-in must not be re-contacted on the next run")
+        assertTrue(second < 200, "took ${second}ms")
+    }
+
     private class FakeKeychain : Keychain {
         var value: String? = null
         override val name = "Fake Keychain"
@@ -213,13 +227,17 @@ class McpAuthTest {
         var resource = "$base/mcp"
         var authServer = base
         var pkce = true
+        var mcpHits = 0
         /** When set, the token endpoint waits for it, after counting down [exchanging]. */
         var gate: CountDownLatch? = null
         val exchanging = CountDownLatch(1)
 
         init {
-            route("/mcp") { if (forbidden && it.requestHeaders.getFirst("Authorization") == "Bearer access-1") it.respond(403, "", "WWW-Authenticate" to """Bearer error="insufficient_scope", scope="admin"""")
-                else it.respond(401, "", "WWW-Authenticate" to """Basic realm="old, api", Bearer resource_metadata="$base/.well-known/oauth-protected-resource/mcp", scope="read write"""") }
+            route("/mcp") {
+                mcpHits++
+                if (forbidden && it.requestHeaders.getFirst("Authorization") == "Bearer access-1") it.respond(403, "", "WWW-Authenticate" to """Bearer error="insufficient_scope", scope="admin"""")
+                else it.respond(401, "", "WWW-Authenticate" to """Basic realm="old, api", Bearer resource_metadata="$base/.well-known/oauth-protected-resource/mcp", scope="read write"""")
+            }
             route("/.well-known/oauth-protected-resource/mcp") { it.json("""{"resource":"$resource","authorization_servers":["$authServer"]}""") }
             route("/.well-known/oauth-authorization-server") {
                 val methods = if (pkce) ""","code_challenge_methods_supported":["S256"]""" else ""

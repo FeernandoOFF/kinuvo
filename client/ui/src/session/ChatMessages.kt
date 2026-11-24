@@ -591,7 +591,7 @@ private fun AnsweredQuestions(item: ChatItem.ToolCall) {
             questions.forEach { q ->
                 val answer = answers?.get(q.id)?.let { a -> (a as? JsonArray)?.joinToString { it.jsonPrimitive.content } ?: a.jsonPrimitive.content }
                 Column {
-                    Text(q.label, style = TextStyles.caption, color = color(mutedColor))
+                    LinkedText(q.label, TextStyles.caption, color(mutedColor))
                     Text(answer ?: "—", style = TextStyles.secondary)
                 }
             }

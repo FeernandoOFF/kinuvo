@@ -22,6 +22,7 @@ import kinuvo.server.embedded.browserPlugins
 import kinuvo.server.store.AgentFiles
 import kinuvo.server.embedded.embeddedPlugins
 import kinuvo.server.NetworkSecurity
+import kinuvo.server.embedded.eraseEmbeddedServer
 import kinuvo.server.embedded.EmbeddedSharing
 import kinuvo.client.TailcatForwarder
 import kinuvo.tailcat.Tailcat
@@ -83,6 +84,15 @@ internal class AndroidEmbeddedServer(private val context: Context) : EmbeddedSer
         override suspend fun reset() { host(); sharingHost.reset() }
     }
     override val sharingOptions get() = mapOf(SharingOption.Lan to sharing, SharingOption.Tailcat to tailcatSharing)
+
+    override suspend fun erase() = lock.withLock {
+        sharingHost.close()
+        listener?.stop()
+        listener = null
+        server?.close()
+        server = null
+        eraseEmbeddedServer(home)
+    }
 
     override suspend fun endpoint(): Endpoint {
         val local = host()

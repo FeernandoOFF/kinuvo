@@ -17,6 +17,7 @@ import kinuvo.protocol.session.SessionSettings
 import kinuvo.protocol.agent.AgentId
 import kinuvo.protocol.session.SessionId
 import kinuvo.protocol.session.RunId
+import kinuvo.protocol.session.ToolCallId
 import kinuvo.protocol.approval.InteractionId
 import kinuvo.protocol.approval.PendingInteraction
 import kinuvo.protocol.routine.RoutineRef
@@ -252,5 +253,88 @@ class SessionLogTest {
         val reads = home.store.transcriptReads
         assertEquals(20, log.page(home.agent.id, null, 20).sessions.size)
         assertEquals(reads, home.store.transcriptReads)
+    }
+
+    @Test
+    fun runErrorsAndWarningsAreOrderedEntriesThatSurviveAReconnect() = runBlocking {
+        val home = TestHome()
+        val agent = home.agent.id
+        val log = SessionLog(home.store)
+        val id = log.createSession(agent, "").id
+        log.append(agent, id, SessionEntry.UserMessage("first"))
+        log.publish(agent, id, AgentEvent.RunStarted(RunId("run")))
+        log.publish(agent, id, AgentEvent.Warning("MCP server 'Picsart' needs sign-in"))
+        log.publish(agent, id, AgentEvent.RunError(RunId("run"), "Codex request failed (200)"))
+        // The next turn's own message must land after the previous turn's errors, not get stuck behind them.
+        log.append(agent, id, SessionEntry.UserMessage("second"))
+
+        val entries = log.entries(agent, id)
+        val codes = entries.filterIsInstance<SessionEntry.UserMessage>().map { it.text } +
+            entries.filterIsInstance<SessionEntry.Notice>().map { it.code }
+        assertEquals(listOf("first", "run_error", "warning", "second").sorted(), codes.sorted())
+        assertEquals(listOf("warning", "run_error"), entries.filterIsInstance<SessionEntry.Notice>().map { it.code })
+        assertTrue(entries.indexOfFirst { it is SessionEntry.UserMessage && it.text == "first" } <
+            entries.indexOfFirst { it is SessionEntry.Notice })
+        assertTrue(entries.indexOfLast { it is SessionEntry.Notice } <
+            entries.indexOfFirst { it is SessionEntry.UserMessage && it.text == "second" })
+
+        // A reconnect subscribes fresh, from a Server that may even have restarted; the entries must still be there.
+        val reopened = SessionLog(FileStore(home.files))
+        assertEquals(entries.map { it.withWrittenAt(null) }, reopened.entries(agent, id).map { it.withWrittenAt(null) })
+    }
+
+    @Test
+    fun stoppingARunClearsRunningAndAnyPendingInteractionItLeftBehind() = runBlocking {
+        val log = SessionLog(RuntimeFixture().store)
+        val agent = AgentId("test")
+        val id = log.createSession(agent, "").id
+        log.publish(agent, id, AgentEvent.RunStarted(RunId("run")))
+        val interaction = PendingInteraction.Unsupported(InteractionId("connect"), "Needs sign-in")
+        log.publish(agent, id, AgentEvent.InteractionRequested(interaction))
+        assertEquals(SessionStatus.Waiting, log.status(id))
+
+        val updates = mutableListOf<SessionUpdate>()
+        log.subscribe(agent, id, 0, 100, object : SessionLog.Subscriber {
+            override fun offer(update: SessionUpdate): Boolean { updates += update; return true }
+        })
+        updates.clear()
+
+        // The run is cancelled rather than finishing or erroring, so no terminal event of its own ever arrives.
+        log.clearIfStopped(agent, id)
+
+        assertEquals(SessionStatus.Idle, log.status(id))
+        val live = updates.map { it.change }.filterIsInstance<SessionChange.Live>().single().state
+        assertFalse(live.running)
+        assertTrue(live.pending.isEmpty())
+
+        // Already-resolved (Idle) sessions are left alone: no spurious update for a run that finished normally.
+        updates.clear()
+        log.clearIfStopped(agent, id)
+        assertTrue(updates.isEmpty())
+    }
+
+    @Test
+    fun recoverOrphanedToolCallsClosesOutCallsLeftRunningByAProcessRestart() = runBlocking {
+        val home = TestHome()
+        val agent = home.agent.id
+        val log = SessionLog(home.store)
+        val stuck = log.createSession(agent, "").id
+        log.append(agent, stuck, SessionEntry.ToolCall(ToolCallId("mcp_login"), "mcp_login", "{}"))
+        val answered = log.createSession(agent, "").id
+        log.append(agent, answered, SessionEntry.ToolCall(ToolCallId("c1"), "read", "{}"))
+        log.append(agent, answered, SessionEntry.ToolResult(ToolCallId("c1"), "read", "ok"))
+        val external = log.createSession(agent, "").id
+        log.append(agent, external, SessionEntry.ToolCall(ToolCallId("c2"), "read", "{}"))
+
+        // A fresh process: nothing can still be running, so any call still missing its result is orphaned.
+        val restarted = SessionLog(FileStore(home.files))
+        restarted.recoverOrphanedToolCalls { it == external }
+
+        val stuckResult = restarted.entries(agent, stuck).filterIsInstance<SessionEntry.ToolResult>().single()
+        assertEquals(ToolCallId("mcp_login"), stuckResult.id)
+        assertTrue(stuckResult.isError)
+
+        assertEquals(1, restarted.entries(agent, answered).filterIsInstance<SessionEntry.ToolResult>().size)
+        assertTrue(restarted.entries(agent, external).filterIsInstance<SessionEntry.ToolResult>().isEmpty())
     }
 }

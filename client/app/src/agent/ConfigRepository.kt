@@ -155,6 +155,10 @@ class ConfigRepository(internal val connection: ConnectedServer) : ServerBound {
     suspend fun saveService(params: SaveServiceParams) = call { it.call(Api.SaveService, params) }
     suspend fun testService(params: TestServiceParams) = call { it.call(Api.TestService, params) }
 
+    suspend fun signInProvider(id: String, redirectUri: String, anotherAccount: Boolean = false, requestConsent: Boolean = false) = call { it.call(Api.SignInProvider, ProviderSignInParams(id, redirectUri, anotherAccount, requestConsent)) }
+    suspend fun cancelProviderSignIn(id: String) = call { it.call(Api.CancelProviderSignIn, ProviderRef(id)) }
+    suspend fun completeProviderSignIn(id: String, callbackUrl: String) = call { it.call(Api.CompleteProviderSignIn, ProviderSignInCompleteParams(id, callbackUrl)) }
+
     suspend fun loginProvider(id: String) = call { it.call(Api.LoginProvider, ProviderRef(id)) }
     suspend fun saveProviderApiKey(id: String, value: String) = call { it.call(Api.SetProviderApiKey, SetProviderApiKeyParams(id, value)) }
     suspend fun logoutProvider(id: String) = call { it.call(Api.LogoutProvider, ProviderRef(id)) }

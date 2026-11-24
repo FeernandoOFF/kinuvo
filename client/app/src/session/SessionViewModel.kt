@@ -29,7 +29,10 @@ import kinuvo.protocol.surface.*
 import kinuvo.protocol.usage.*
 import kinuvo.protocol.tool.ToolNames
 import kinuvo.app.session.CompletionSource
+import kinuvo.client.userMessage
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
@@ -55,7 +58,7 @@ sealed interface ChatItem {
     data class User(override val id: String, val text: String, val routine: String? = null, val attachments: List<Attachment> = emptyList(), val task: String? = null, val voice: Boolean = false, val action: SurfaceAction? = null, val inputs: List<MessageInput> = emptyList()) : ChatItem
     data class Assistant(override val id: String, val text: String, val at: Long? = null) : ChatItem
     data class Reasoning(override val id: String, val text: String) : ChatItem
-    /** [callId] is the model's tool-call ID; [approval] or [questions] is set while the call waits on the user. */
+    /** [callId] is the model's tool-call ID; [approval], [questions] or [connect] is set while the call waits on the user. */
     data class ToolCall(
         override val id: String,
         val callId: ToolCallId,
@@ -65,13 +68,14 @@ sealed interface ChatItem {
         val isError: Boolean = false,
         val approval: PendingInteraction.Approval? = null,
         val questions: PendingInteraction.Questions? = null,
+        val connect: PendingInteraction.Connect? = null,
         val identity: ToolIdentity? = null,
         val attachments: List<Attachment> = emptyList(),
         /** The MCP App this call shows, with the tool's full result for it. */
         val app: McpAppRef? = null,
         val appResult: JsonObject? = null,
     ) : ChatItem {
-        val waiting get() = approval != null || questions != null
+        val waiting get() = approval != null || questions != null || connect != null
         val trustHint get() = approval?.trustHint
         /** The user said no to it, which isn't a failure. The Server records only its output, so this reads that. */
         val denied get() = isError && result?.let { it.startsWith("The user denied") || it.startsWith("Denied") } == true
@@ -187,6 +191,8 @@ data class ChatState(
     val answers: Map<InteractionId, Map<String, List<String>>> = emptyMap(),
     /** What the Session waits on: Approvals and forms for [respond][SessionViewModel.respond] and [answer][SessionViewModel.answer], or an external Agent's harness requests. */
     val pending: List<PendingInteraction> = emptyList(),
+    /** An `mcp_login` Connect card's own sign-in, by interaction ID, as [connect][SessionViewModel.connect] drives it. */
+    val connecting: Map<InteractionId, ConnectState> = emptyMap(),
     /** Names an external Agent's harness. */
     val harness: String? = null,
     /** The external Session's phase as its harness reports it; null when this Device can't see it. */
@@ -251,6 +257,8 @@ data class SessionState(
     val capabilities: SessionCapabilities? = null,
     /** Half-filled `ask_user` forms by questions ID, then question ID, so they outlive the screen's layout. */
     val answers: Map<InteractionId, Map<String, List<String>>> = emptyMap(),
+    /** An `mcp_login` Connect card's own sign-in, by interaction ID, as [connect][SessionViewModel.connect] drives it. */
+    val connecting: Map<InteractionId, ConnectState> = emptyMap(),
     /** A shortcut asked for voice chat in this new Session, until it starts. */
     val voiceRequested: Boolean = false,
     /** An external Agent's Session as its harness runs it, with what it waits on. */
@@ -272,7 +280,10 @@ data class SessionState(
 
 /** One Session screen: a view of the Session in the [SessionRepository], plus sending, stopping, Approvals and answers. */
 @OptIn(ExperimentalCoroutinesApi::class)
-class SessionViewModel(private val repo: SessionRepository, route: Route.Chat, private val consent: AiConsent? = null, private val reader: Synthesizer? = null) : ViewModel() {
+class SessionViewModel(
+    private val repo: SessionRepository, route: Route.Chat, private val consent: AiConsent? = null, private val reader: Synthesizer? = null,
+    private val browser: OAuthBrowser? = null,
+) : ViewModel() {
     private val client: KinuvoClient = requireNotNull(repo.connection.client) { "Not connected" }
     val state: StateFlow<SessionState>
         field = MutableStateFlow(SessionState(route))
@@ -282,6 +293,8 @@ class SessionViewModel(private val repo: SessionRepository, route: Route.Chat, p
     private val ordered = Mutex()
     private var pendingSubmission: PendingSubmission? = null
     private val loadingAttachments = mutableSetOf<String>()
+    private val connectJobs = mutableMapOf<InteractionId, Job>()
+    private val connectPastes = mutableMapOf<InteractionId, CompletableDeferred<String>>()
 
     init {
         viewModelScope.launch {
@@ -620,6 +633,62 @@ class SessionViewModel(private val repo: SessionRepository, route: Route.Chat, p
             repo.respond(sessionId, questions.id, InteractionAnswer.Questions(answers))
             state.update { it.copy(answers = it.answers - questions.id) }
         } }
+    }
+
+    /** Runs this Connect card's own OAuth sign-in, then answers [interaction] once it finishes. */
+    fun connect(interaction: PendingInteraction.Connect) {
+        val sessionId = route.sessionId ?: return
+        connectJobs[interaction.id]?.cancel()
+        connectJobs[interaction.id] = viewModelScope.launch {
+            val browser = browser ?: run {
+                state.update { it.copy(connecting = it.connecting + (interaction.id to ConnectState.Failed(null, "Connecting isn't available on this Device"))) }
+                return@launch
+            }
+            val paste = CompletableDeferred<String>()
+            connectPastes[interaction.id] = paste
+            try {
+                runMcpSignIn(repo.connection.config, browser, interaction.agentId, interaction.server, interaction.scope,
+                    changed = { value -> state.update { it.copy(connecting = it.connecting + (interaction.id to value)) } }, paste = paste::await)
+                respondConnect(sessionId, interaction.id, connected = true)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                val last = state.value.connecting[interaction.id]
+                val url = (last as? ConnectState.SigningIn)?.url ?: (last as? ConnectState.AwaitingPaste)?.url
+                state.update { it.copy(connecting = it.connecting + (interaction.id to ConnectState.Failed(url, e.userMessage))) }
+            } finally {
+                connectPastes.remove(interaction.id)
+            }
+        }
+    }
+
+    /** Finishes a Connect card's sign-in with the address the browser ended on, when it couldn't come back on its own. */
+    fun completeConnect(interaction: PendingInteraction.Connect, pastedUrl: String) {
+        if (connectPastes[interaction.id]?.complete(pastedUrl) == true) return
+        val sessionId = route.sessionId ?: return
+        connectJobs[interaction.id]?.cancel()
+        connectJobs[interaction.id] = viewModelScope.launch {
+            try {
+                repo.connection.config.completeMcpLogin(interaction.agentId, pastedCallback(pastedUrl))
+                respondConnect(sessionId, interaction.id, connected = true)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                state.update { it.copy(connecting = it.connecting + (interaction.id to ConnectState.Failed(null, e.userMessage))) }
+            }
+        }
+    }
+
+    /** Declines a Connect card without signing in. */
+    fun skipConnect(interaction: PendingInteraction.Connect) {
+        connectJobs[interaction.id]?.cancel()
+        val sessionId = route.sessionId ?: return
+        viewModelScope.launch { respondConnect(sessionId, interaction.id, connected = false) }
+    }
+
+    private suspend fun respondConnect(sessionId: SessionId, id: InteractionId, connected: Boolean) = attempt {
+        if (!repo.respond(sessionId, id, InteractionAnswer.Connect(connected))) state.update { it.copy(errors = it.errors + "Already answered, or the Agent stopped waiting.") }
+        else state.update { it.copy(connecting = it.connecting - id) }
     }
 
     /** Asks the harness to reopen the open external Session after its process ended; the Server says why when it can't. */

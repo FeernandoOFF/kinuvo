@@ -88,6 +88,26 @@ class CodexAuthTest {
     }
 
     @Test
+    fun deviceLoginSurvivesRevocationFailureAndClearsBrowserTokens() = runTest {
+        file.writeText("""{"ext_agent_host_id":"host","siwc":{"selected":true,"client_id":"oaiapp_saved","subject":"person","refresh_token":"secret-refresh","access_token":"secret-access"}}""")
+        val id = "h." + Base64.getUrlEncoder().withoutPadding().encodeToString("""{"https://api.openai.com/auth":{"chatgpt_account_id":"fallback"}}""".toByteArray()) + ".s"
+        val auth = CodexAuth(store = PrivateFile(Path(file.path)), issuer = "https://auth.test",
+            http = HttpClient(MockEngine { req ->
+                when (req.url.encodedPath) {
+                    "/api/accounts/deviceauth/usercode" -> respond("""{"device_auth_id":"dev","user_code":"code"}""")
+                    "/api/accounts/deviceauth/token" -> respond("""{"authorization_code":"code","code_verifier":"ver"}""")
+                    "/oauth/token" -> respond("""{"access_token":"${jwt(1.hours)}","refresh_token":"fallback-refresh","id_token":"$id"}""")
+                    else -> respond("unavailable", HttpStatusCode.ServiceUnavailable)
+                }
+            }))
+        auth.login { }
+        assertEquals("fallback", auth.tokens().accountId)
+        assertFalse(file.readText().contains("secret-refresh"))
+        assertFalse(file.readText().contains("secret-access"))
+        assertTrue(file.readText().contains("oaiapp_saved"))
+    }
+
+    @Test
     fun deviceLoginPollsExchangesAndWritesAuthJson() = runTest {
         val claims = """{"https://api.openai.com/auth":{"chatgpt_account_id":"acct-9"}}"""
         val idToken = "h." + Base64.getUrlEncoder().withoutPadding().encodeToString(claims.toByteArray()) + ".s"

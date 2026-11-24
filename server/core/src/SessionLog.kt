@@ -26,6 +26,7 @@ import kotlinx.coroutines.sync.withLock
 import kotlin.concurrent.atomics.AtomicReference
 import kotlin.concurrent.atomics.ExperimentalAtomicApi
 import kotlin.concurrent.atomics.update
+import kotlin.uuid.Uuid
 
 private val logger = KotlinLogging.logger("kinuvo.sessions")
 
@@ -209,6 +210,14 @@ class SessionLog(private val store: Store, private val clock: () -> Long = { Clo
         deliver(SessionUpdate(agentId, sessionId, SessionChange.Entry(seq, entry)))
     }
 
+    /** Persists [event]'s text as a [SessionEntry.Notice] so it gets a real seq, instead of only ever reaching a client that was subscribed at the instant it fired. */
+    private suspend fun recordNotice(agentId: AgentId, sessionId: SessionId, code: String, message: String) {
+        val seq = count(agentId, sessionId)
+        val entry = SessionEntry.Notice(Uuid.random().toString(), code, message, writtenAt = clock())
+        store.append(agentId, sessionId, entry)
+        saved(agentId, sessionId, seq, entry)
+    }
+
     private suspend fun metadata(agentId: AgentId, sessionId: SessionId, entries: List<SessionEntry>) {
         if (entries.any { it is SessionEntry.UserMessage || it is SessionEntry.Settings || it is SessionEntry.Details })
             changed(store.session(agentId, sessionId).copy(status = statusOf(sessionId)))
@@ -219,6 +228,13 @@ class SessionLog(private val store: Store, private val clock: () -> Long = { Clo
         when(event) {
             is AgentEvent.RunStarted -> completions.remove(sessionId)
             is AgentEvent.RunFinished, is AgentEvent.RunError -> completions[sessionId] = event
+            else -> Unit
+        }
+        // A plain live event would only reach a subscriber watching at this exact moment, and render wherever the
+        // client happens to append it; as an entry it gets a real seq, so it survives a reconnect and sits where it belongs.
+        when (event) {
+            is AgentEvent.RunError -> recordNotice(agentId, sessionId, "run_error", event.message)
+            is AgentEvent.Warning -> recordNotice(agentId, sessionId, "warning", event.message)
             else -> Unit
         }
         val previous = live[sessionId] ?: LiveState()
@@ -246,6 +262,42 @@ class SessionLog(private val store: Store, private val clock: () -> Long = { Clo
         if (event.isLive) deliver(SessionUpdate(agentId, sessionId, SessionChange.Event(event)))
         eventListeners.load().forEach { it(agentId, sessionId, event) }
         if (inboxChanged || state.status != previous.status) changed(store.session(agentId, sessionId).copy(status = state.status))
+    }
+
+    /**
+     * A run that ends by cancellation (stopped, backgrounded, or the host's background budget expired) publishes no
+     * terminal event of its own, so nothing would otherwise clear a stale `running` flag or a pending Approval,
+     * Questions or Connect it left behind. Call once the run's job has fully finished; a no-op if the run already
+     * published its own terminal event (e.g. it answered its last interaction and replied before it was cancelled).
+     */
+    suspend fun clearIfStopped(agentId: AgentId, sessionId: SessionId) = lock.withLock {
+        val previous = live[sessionId] ?: return@withLock
+        val resolved = previous.pending.filter { it.id in previous.interactionChildren }
+        if (!previous.running && resolved.size == previous.pending.size) return@withLock
+        val state = previous.copy(running = false, pending = resolved)
+        if (state.queued.isNotEmpty() || state.reflectionId != null || state.executionPhase != null || state.entries.isNotEmpty() || state.pending.isNotEmpty() || state.children.isNotEmpty())
+            live[sessionId] = state else live.remove(sessionId)
+        deliver(SessionUpdate(agentId, sessionId, SessionChange.Live(state)))
+        if (state.status != previous.status) changed(store.session(agentId, sessionId).copy(status = state.status))
+    }
+
+    /**
+     * At startup no run can still be active, so a tool call a Session's run never answered (the process restarted
+     * mid-turn, e.g. while waiting on an `mcp_login` sign-in) would otherwise stay unresolved forever: no result
+     * means no further event ever arrives to tell a client it stopped running. [owned] names Sessions an external
+     * harness already recovers on its own (its own draft/checkpoint bookkeeping handles those).
+     */
+    suspend fun recoverOrphanedToolCalls(owned: suspend (SessionId) -> Boolean) {
+        for (agent in store.agents()) {
+            for (info in store.sessions(agent.id)) {
+                if (owned(info.id)) continue
+                val entries = store.entries(agent.id, info.id)
+                val answered = entries.filterIsInstance<SessionEntry.ToolResult>().mapTo(mutableSetOf()) { it.id }
+                val orphaned = entries.filterIsInstance<SessionEntry.ToolCall>().filter { it.parent == null && it.id !in answered }
+                for (call in orphaned)
+                    append(agent.id, info.id, SessionEntry.ToolResult(call.id, call.name, "The Server restarted before this tool call finished.", isError = true, identity = call.identity))
+            }
+        }
     }
 
     /**
