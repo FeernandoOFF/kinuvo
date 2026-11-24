@@ -18,6 +18,7 @@ import kinuvo.server.NetworkListener
 import kinuvo.server.NetworkSecurity
 import kinuvo.server.devices.SharedPeers
 import kinuvo.server.embedded.EmbeddedServerHost
+import kinuvo.server.embedded.eraseEmbeddedHome
 import kinuvo.server.embedded.EmbeddedSharing
 import kinuvo.server.embedded.embeddedPlugins
 import kinuvo.server.iosKeychain
@@ -29,6 +30,8 @@ import kinuvo.server.store.saveKnowledgeConfig
 import kinuvo.ui.NativeKeychain
 import kinuvo.ui.connection.FolderAccess
 import kinuvo.ui.startKinuvo
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.MainScope
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
@@ -72,7 +75,7 @@ fun startKinuvoWithEmbeddedServer(model: AppleLanguageModel, keychain: NativeKey
     startKinuvo(module {
         single<OnDeviceSupport> { OnDeviceSupport { provider -> provider != "apple" || model.unavailableCode("system") == null } }
         single<TailcatForwarder> { Tailcat }
-        single<EmbeddedServer> { IosEmbeddedServer(model, folders, apple) }
+        single<EmbeddedServer> { IosEmbeddedServer(model, folders, apple, keychain) }
     })
 }
 
@@ -80,9 +83,10 @@ fun startKinuvoWithEmbeddedServer(model: AppleLanguageModel, keychain: NativeKey
  * The iPhone's own Server. With Any network on, other Devices reach it through Tailcat while the app is in the foreground;
  * iOS suspends the tunnel with the app.
  */
-internal class IosEmbeddedServer(private val model: AppleLanguageModel, private val folders: FolderAccess, private val apple: AppleSystem) : EmbeddedServer {
+internal class IosEmbeddedServer(private val model: AppleLanguageModel, private val folders: FolderAccess, private val apple: AppleSystem, private val keychain: NativeKeychain) : EmbeddedServer {
     private val lock = Mutex()
     private var server: EmbeddedServerHost? = null
+    private var activity: Job? = null
     private val home = Path(NSSearchPathForDirectoriesInDomains(NSApplicationSupportDirectory, NSUserDomainMask, true).first() as String, "Kinuvo")
     private val auth = DeviceAuth(Path(home, "server-devices.json"))
     private val defaults = NSUserDefaults.standardUserDefaults
@@ -119,6 +123,17 @@ internal class IosEmbeddedServer(private val model: AppleLanguageModel, private 
     // Any network belongs to this Server, so restore it at launch even when the app opens on a remote Server.
     init { if (tailcat != null && defaults.boolForKey(TAILCAT)) MainScope().launch { runCatching { host() } } }
 
+    override suspend fun erase() = lock.withLock {
+        sharingHost.close()
+        server?.close()
+        activity?.cancelAndJoin()
+        activity = null
+        server = null
+        localHost = null
+        check(keychain.clear("kinuvo")) { "Couldn't clear the iOS Keychain" }
+        eraseEmbeddedHome(home)
+    }
+
     override suspend fun endpoint(): Endpoint {
         val local = host()
         return Endpoint("local://kinuvo", local.token, local::connect)
@@ -136,7 +151,7 @@ internal class IosEmbeddedServer(private val model: AppleLanguageModel, private 
                 features = setOf(ServerFeature.Attachments, ServerFeature.DeviceTools, ServerFeature.Computer), peers = { SharedPeers(it, auth) }).also { host ->
                 server = host
                 localHost = host
-                MainScope().launch { host.runtime.runActivity.collect { backgroundRuns?.update(it.runs, it.steps) } }
+                activity = MainScope().launch { host.runtime.runActivity.collect { backgroundRuns?.update(it.runs, it.steps) } }
                 sharingHost.restore()
             }
         }
@@ -146,3 +161,4 @@ internal class IosEmbeddedServer(private val model: AppleLanguageModel, private 
         const val TAILCAT = "kinuvo-server.tailcat"
     }
 }
+

@@ -37,7 +37,7 @@ xcodebuild -exportArchive -archivePath build/Kinuvo.xcarchive -exportOptionsPlis
 
 ## On-device demo
 
-The embedded Server is selected on a fresh install. If this app already remembers a remote Server, select **Embedded** in the Server menu. No pairing code, cloud login or API key is needed. The model picker shows **Apple on-device model**, and **Apple Private Cloud Compute** when the build includes it (below).
+The embedded Server is selected on a fresh install. If this app already remembers a remote Server, select **Embedded** in the Server menu. No pairing code, cloud login or API key is needed. The model picker shows **Apple on-device model**, and **Apple Private Cloud Compute** when the build includes it (below). Settings → Data on this device → **Reset this device** stops this Server, deletes its entire data directory (Agents, Sessions, Memory, attachments, settings) and clears its iOS Keychain entries, then starts fresh on the next connect, like a new install. Remote Servers are unaffected.
 
 Use a physical Apple Intelligence-capable device (iPhone 15 Pro/Pro Max or a supported newer iPhone). Enable Apple Intelligence in Settings and wait for its model download to finish. The simulator can verify the UI and unavailable-model messages; it does not prove local inference works.
 

@@ -194,7 +194,7 @@ internal fun ConnectionSettingsPane(p: Pane) {
             ConfirmRow("Clear cached data", Lucide.Eraser, "Clear cached data?", p.actions.onClearCache, "Clear", destructive = false,
                 detail = "Chats and lists saved for offline use are removed from this Device and load again from the Server.")
             ConfirmRow("Reset this device", Lucide.RotateCcw, "Reset this device?", p.actions.onResetDevice, "Reset",
-                detail = "Removes every Server, credential, preference and cached chat this app keeps here, as on a fresh install. Servers keep their data and still list this Device until it's revoked there.")
+                detail = "Removes saved Servers, credentials, preferences and cached chats. On phones, also deletes all Agents, chats and settings on this device's Server and signs out of everything on it. Remote Servers keep their data and still list this Device until revoked.")
         }
     }
 }

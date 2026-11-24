@@ -62,6 +62,8 @@ private val LOOPBACK = setOf("127.0.0.1", "localhost", "[::1]", "0.0.0.0")
 
 /** Hosts a Server in-process; bound in DI only by apps that bundle the harness. */
 interface EmbeddedServer {
+    /** Stops this Server and wipes its entire data directory and secrets, so its next start is a fresh install; independent desktop Servers retain theirs. */
+    suspend fun erase() {}
     suspend fun endpoint(): Endpoint
     /** Lets other Devices reach this Server over the network; null where it can't. */
     val sharing: ServerSharing? get() = null
@@ -200,8 +202,9 @@ class Servers(
         }
     }
 
-    /** Forgets every Server and its credential, and every preference, as on a fresh install. Servers aren't told. */
-    fun reset() {
+    /** Erases the app-owned Server (a fresh install on phones) and this Device's saved connections and preferences. Remote Servers keep their data. */
+    suspend fun reset() {
+        embedded?.erase()
         remotes().forEach { deleteCredentials(it.url) }
         prefs.clear()
     }
