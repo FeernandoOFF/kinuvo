@@ -8,7 +8,7 @@ aliases:
 
 dependencies:
   - $kotlin.serialization.json
-  - org.jetbrains.kotlinx:kotlinx-io-core:0.9.1
+  - org.jetbrains.kotlinx:kotlinx-io-core:0.9.1: exported
   - io.github.oshai:kotlin-logging:8.0.4
   - co.touchlab:stately-concurrency:2.1.0
 

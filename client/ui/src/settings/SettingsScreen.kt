@@ -1,5 +1,6 @@
 package kinuvo.ui.settings
 
+import kinuvo.ui.diagnostics.ShareLogsRow
 import kinuvo.app.connection.*
 import kinuvo.app.session.*
 import kinuvo.app.agent.*
@@ -330,6 +331,7 @@ private fun SettingsSections(ui: SettingsUi, selected: SettingsSection?, go: (Ro
                     Icon(Lucide.ExternalLink, Modifier.size(14.dp), tint = color(mutedColor))
                 }
             }
+            ShareLogsRow(wide = true)
             ListRow(selected = selected == SettingsSection.Licenses, onClick = { open(SettingsSection.Licenses) }, leading = { Icon(SettingsSection.Licenses.icon(), Modifier.size(16.dp)) }) {
                 Text(SettingsSection.Licenses.title, Modifier.weight(1f), singleLine = true)
             }
@@ -346,6 +348,7 @@ private fun SettingsSections(ui: SettingsUi, selected: SettingsSection?, go: (Ro
             }
             RowGroup("About") {
                 links.forEach { (label, icon, url) -> ActionRow(label, icon, { runCatching { uri.openUri(url) } }) }
+                ShareLogsRow(wide = false)
                 GroupRow(SettingsSection.Licenses.title, { open(SettingsSection.Licenses) }, icon = SettingsSection.Licenses.icon())
             }
         }
