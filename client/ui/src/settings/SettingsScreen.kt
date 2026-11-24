@@ -147,6 +147,7 @@ fun SettingsScreen(
             onLoadGrants = { settings.loadGrants() },
         ),
         sidebar,
+        shareLogs = { ShareLogsRow(it) },
     )
 }
 
@@ -262,7 +263,7 @@ internal class Pane(val ui: SettingsUi, val actions: SettingsActions, val go: (R
  * the route's section shows. Home's sections, e.g. Routines, are pages of their own with an Agent picker.
  */
 @Composable
-fun SettingsContent(ui: SettingsUi, actions: SettingsActions, sidebar: Boolean = true) {
+fun SettingsContent(ui: SettingsUi, actions: SettingsActions, sidebar: Boolean = true, shareLogs: @Composable (wide: Boolean) -> Unit = {}) {
     // Only a page of Home with the shell beside it; elsewhere, e.g. during onboarding, it's a Settings page like the rest.
     val home = ui.route.section?.home == true && LocalHomeChrome.current != null
     val scope = if (home) AgentScope(ui.agents.filter { !it.external }, ui.route.agentId) { id -> id?.let { actions.onNavigate(Route.Settings(it, ui.route.section), false) } } else null
@@ -273,7 +274,7 @@ fun SettingsContent(ui: SettingsUi, actions: SettingsActions, sidebar: Boolean =
             // Beside the sections, moving around replaces the screen; narrower, each level is pushed to go back from.
             val go = { route: Route.Settings -> actions.onNavigate(route, !wide) }
             val section = ui.route.section ?: SettingsSection.entries.firstOrNull { it.listed && ui.available(it) }?.takeIf { wide }
-            val sections: @Composable () -> Unit = { SettingsSections(ui, section, go, wide) }
+            val sections: @Composable () -> Unit = { SettingsSections(ui, section, go, wide, shareLogs) }
             val content: @Composable (SettingsSection) -> Unit = {
                 SectionPane(it, ui, split, wide, go, actions, actions.onBack.takeIf { !wide && !home && LocalInteractionMode.current == InteractionMode.Touch })
             }
@@ -292,7 +293,7 @@ fun SettingsContent(ui: SettingsUi, actions: SettingsActions, sidebar: Boolean =
 internal val LocalAgentScope = staticCompositionLocalOf<AgentScope?> { null }
 
 @Composable
-private fun SettingsSections(ui: SettingsUi, selected: SettingsSection?, go: (Route.Settings) -> Unit, wide: Boolean) {
+private fun SettingsSections(ui: SettingsUi, selected: SettingsSection?, go: (Route.Settings) -> Unit, wide: Boolean, shareLogs: @Composable (wide: Boolean) -> Unit) {
     // Grouped by what they're for; Routines and Tools live on Home, and what the Server lacks isn't listed.
     val shown = { list: List<SettingsSection> -> list.filter { it.listed && !it.home && (ui.capabilities == null || ui.available(it)) } }
     val groups = listOf(
@@ -337,7 +338,7 @@ private fun SettingsSections(ui: SettingsUi, selected: SettingsSection?, go: (Ro
                     Icon(Lucide.ExternalLink, Modifier.size(14.dp), tint = color(mutedColor))
                 }
             }
-            ShareLogsRow(wide = true)
+            shareLogs(true)
             ListRow(selected = selected == SettingsSection.Licenses, onClick = { open(SettingsSection.Licenses) }, leading = { Icon(SettingsSection.Licenses.icon(), Modifier.size(16.dp)) }) {
                 Text(SettingsSection.Licenses.title, Modifier.weight(1f), singleLine = true)
             }
@@ -354,7 +355,7 @@ private fun SettingsSections(ui: SettingsUi, selected: SettingsSection?, go: (Ro
             }
             RowGroup("About") {
                 links.forEach { (label, icon, url) -> ActionRow(label, icon, { runCatching { uri.openUri(url) } }) }
-                ShareLogsRow(wide = false)
+                shareLogs(false)
                 GroupRow(SettingsSection.Licenses.title, { open(SettingsSection.Licenses) }, icon = SettingsSection.Licenses.icon())
             }
         }
