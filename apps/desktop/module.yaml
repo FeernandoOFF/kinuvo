@@ -3,6 +3,7 @@ product: jvm/app
 dependencies:
   - ../../client/ui
   - ../../server/jvm
+  - ../../libs/diagnostics
   - ../../libs/tailcat
   - ../../plugins/cua
   - dev.nucleusframework:composenativetray:2.1.7

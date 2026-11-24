@@ -31,6 +31,9 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import io.github.oshai.kotlinlogging.KotlinLogging
+
+private val log = KotlinLogging.logger("kinuvo.sessions")
 
 /**
  * One Session as held on this Device: a window of its entries starting at [firstSeq], the live turn and run notes.
@@ -363,8 +366,11 @@ class SessionRepository(private val notifications: Notifications, internal val c
             is SessionChange.Window -> put(id, data.copy(firstSeq = change.firstSeq, entries = change.entries, live = change.state, loaded = true))
             is SessionChange.Reset -> put(id, data.copy(firstSeq = change.firstSeq, entries = emptyList()))
             is SessionChange.Entry -> when {
-                change.seq < data.seen -> Unit
-                change.seq > data.seen -> scope.launch { catchUp(id) }
+                change.seq < data.seen -> log.info { "session.seq.dropped session=${id.value} seq=${change.seq} seen=${data.seen}" }
+                change.seq > data.seen -> {
+                    log.warn { "session.seq.gap session=${id.value} seq=${change.seq} expected=${data.seen}" }
+                    scope.launch { catchUp(id) }
+                }
                 else -> put(id, data.copy(entries = data.entries + change.entry, live = data.live.on(change.entry)), received = true)
             }
             is SessionChange.Event -> put(id, data.copy(live = data.live.on(change.event)), received = true)

@@ -14,6 +14,7 @@ import kinuvo.protocol.device.*
 import kinuvo.protocol.session.SessionId
 import kinuvo.protocol.surface.*
 import kinuvo.protocol.voice.*
+import io.github.oshai.kotlinlogging.KotlinLogging
 import kotlin.concurrent.Volatile
 import io.ktor.client.HttpClient
 import io.ktor.client.plugins.websocket.WebSockets
@@ -29,6 +30,8 @@ import kotlin.concurrent.atomics.incrementAndFetch
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.intOrNull
+
+private val log = KotlinLogging.logger("kinuvo.client")
 
 sealed interface ConnectionState {
     data object Connecting : ConnectionState
@@ -132,7 +135,9 @@ class KinuvoClient(
         loop = scope.launch {
             var backoff = ReconnectBackoff.step
             var version = ProtocolVersion.Current
+            var attempts = 0
             while (isActive) {
+                attempts++
                 _state.value = ConnectionState.Connecting
                 var incompatible = false
                 val connected = CompletableDeferred<Unit>()
@@ -157,10 +162,13 @@ class KinuvoClient(
                     lastConnect = result
                     connected.complete(Unit)
                     _state.value = ConnectionState.Connected(result.serverName)
+                    log.info { "server.connected protocol=$version attempts=$attempts" }
+                    attempts = 0
                     sendPresence()
                     first.complete(result)
                     backoff = ReconnectBackoff.step
                     reader.join()
+                    log.warn { "server.disconnected: the connection was lost" }
                     _state.value = ConnectionState.Disconnected("Connection lost")
                 } catch (e: CancellationException) {
                     throw e
@@ -168,14 +176,19 @@ class KinuvoClient(
                     // A Server that doesn't say what it speaks only takes its own version, so try older ones this Device speaks.
                     if (e.server == null && version > ProtocolVersion.Minimum) { version--; continue }
                     version = ProtocolVersion.Current
+                    log.warn { "server.incompatible: ${e.message?.take(200)}" }
                     _state.value = ConnectionState.Disconnected(e.message.orEmpty(), incompatible = true)
                     if (!first.isCompleted && !retry) { first.completeExceptionally(e); return@launch }
                     incompatible = true
                 } catch (e: AuthException) {
+                    log.warn { "server.rejected: ${e.message?.take(200)}" }
                     _state.value = ConnectionState.Disconnected(e.message ?: "Unauthorized", rejected = true)
                     first.completeExceptionally(e)
                     return@launch
                 } catch (e: Exception) {
+                    // Retries back off for as long as the Server is away, so only the first failure of an outage is a warning.
+                    if (attempts <= 1) log.warn { "server.connect.failed: ${e::class.simpleName}: ${e.message?.take(200)}" }
+                    else log.debug { "server.connect.failed attempt=$attempts: ${e::class.simpleName}" }
                     _state.value = ConnectionState.Disconnected(e.userMessage)
                     if (!first.isCompleted && !retry) { first.completeExceptionally(e); return@launch }
                 } finally {
