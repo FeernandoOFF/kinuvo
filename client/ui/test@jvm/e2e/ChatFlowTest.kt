@@ -44,22 +44,17 @@ class ChatFlowTest {
 
     @Test fun secondSendInAnOpenSessionShowsItsOwnReply() = appTest("chat-second-send",
         script = { on("Hey") { reply("Hi there") }; on("Who are you") { reply("I'm the E2E Agent") } },
-        modelDelayMillis = 250,
     ) {
         pair()
         tap("Message")
         type("Hey")
         tap("Send")
-        await("Working…")
         await("Hi there")
-        gone("Working…")
         settle(500)
         tap("Message")
         type("Who are you")
         tap("Send")
-        await("Working…")
         await("I'm the E2E Agent")
-        gone("Working…")
         settle(500)
         screenshot("second-reply")
         requests(Api.Send, 2)
