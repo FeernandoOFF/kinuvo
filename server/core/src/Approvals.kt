@@ -14,7 +14,9 @@ import kinuvo.protocol.approval.ApprovalDecision
 import kinuvo.protocol.approval.InteractionId
 import kinuvo.protocol.approval.Risk
 import kinuvo.protocol.approval.TrustRules
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.jsonObject
@@ -139,7 +141,7 @@ class SessionTrust {
 
 /** Hands pending Approvals (or `ask_user` forms) to the UI and resumes the waiting run when the user answers. */
 @OptIn(ExperimentalAtomicApi::class)
-class Broker<T> {
+class Broker<T>(private val settling: suspend (InteractionId, () -> Boolean) -> Boolean = { _, action -> action() }) {
     private val pending = AtomicReference(emptyMap<InteractionId, CompletableDeferred<T>>())
 
     fun register(): Pending {
@@ -151,6 +153,14 @@ class Broker<T> {
 
     inner class Pending internal constructor(val id: InteractionId, private val deferred: CompletableDeferred<T>) {
         suspend fun await(): T = deferred.await()
+
+        /** The answer, or null once [timeout] passes unanswered; an answer already staged for this run keeps it waiting. */
+        suspend fun await(timeout: Duration): T? {
+            var answered = false
+            val answer = withTimeoutOrNull(timeout) { deferred.await().also { answered = true } }
+            if (answered) return answer
+            return if (settling(id) { deferred.completeExceptionally(CancellationException("Timed out")) }) null else deferred.await()
+        }
         fun close() = pending.update { it - id }
     }
 

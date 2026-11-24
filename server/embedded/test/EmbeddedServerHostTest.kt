@@ -193,7 +193,8 @@ class EmbeddedServerHostTest {
                 client.call(Api.Send, SendParams(AgentId("default"), id, "remember tea"))
                 val approval = request.await()
                 assertEquals("", FileAgentDocs(AgentFiles(home)).read(AgentId("default"), AgentDoc.UserNotes))
-                assertFailsWith<IllegalStateException> { client.call(Api.Send, SendParams(AgentId("default"), id, "again")) }
+                val queued = client.call(Api.Send, SendParams(AgentId("default"), id, "again"))
+                client.call(Api.CancelQueued, CancelQueuedParams(AgentId("default"), id, queued.runId.value))
                 client.close()
                 client = client(server)
                 assertEquals(SessionStatus.Waiting, client.call(Api.Session, SessionParams(AgentId("default"), id)).status)

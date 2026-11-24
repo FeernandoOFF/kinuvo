@@ -8,6 +8,7 @@ import kinuvo.protocol.surface.*
 import kinuvo.protocol.agent.AgentId
 import arrow.core.raise.Raise
 import arrow.core.raise.context.raise
+import kinuvo.server.AgentRuntime
 import kinuvo.server.SubAgents
 import kinuvo.server.SubAgentWake
 import kinuvo.server.Runs
@@ -32,6 +33,7 @@ class AgentExecution(
     private val management: Mutex,
     private val runs: Runs,
     private val log: SessionLog,
+    private val harness: AgentRuntime,
 ) : ExecutionDispatch {
     var workflowSurface: suspend (AgentId, SessionId, SurfaceAction) -> Boolean = { _, _, _ -> false }
     var subAgents: SubAgents? = null
@@ -67,8 +69,9 @@ class AgentExecution(
         else {
             while (true) {
                 external.join(id)
+                harness.interactions.awaitClear(id)
                 val sent = management.withLock {
-                    if (external.isActive(id)) return@withLock false
+                    if (external.isActive(id) || harness.interactions.open(id)) return@withLock false
                     val wake = take() ?: return
                     try {
                         external.send(SendParams(agent, id, wake.report.content), wake.saved,
@@ -102,7 +105,18 @@ class AgentExecution(
     suspend fun snapshot(sessionId: SessionId): ExecutionSnapshot =
         if (external.owns(sessionId)) external.snapshot(sessionId) else native.snapshotOf(native.owner(sessionId) ?: raise(SessionError.Unknown), sessionId)
 
-    override suspend fun answer(answer: RespondParams) = subAgents?.answer(answer) == true || forSession(answer.sessionId).answer(answer)
+    /** Every answer, from any client, is staged in its run's interaction set and released with the rest of it. */
+    override suspend fun answer(answer: RespondParams): Boolean {
+        val target = subAgents?.target(answer)?.takeIf { child -> log.pending(child.sessionId).any { it.id == child.requestId } } ?: answer
+        log.pending(target.sessionId).firstOrNull { it.id == target.requestId }?.let { harness.checkAnswer(it, target.answer) }
+        val parked = if (external.owns(target.sessionId)) external.isActive(target.sessionId) else runs.isActive(target.sessionId)
+        return harness.interactions.respond(target, parked, ::release)
+    }
+
+    private suspend fun release(answer: RespondParams): Boolean {
+        log.pending(answer.sessionId).firstOrNull { it.id == answer.requestId }?.let { if (harness.respondToTool(it, answer.answer)) return true }
+        return forSession(answer.sessionId).answer(answer)
+    }
 
     override suspend fun send(params: SendParams): SendResult = throwing<ServerError, _> { send(params, null) }
 
@@ -125,6 +139,7 @@ class AgentExecution(
     suspend fun cancelQueued(params: CancelQueuedParams) = native.cancelQueued(params)
 
     override suspend fun stop(sessionId: SessionId) {
+        harness.interactions.stop(sessionId)
         if (external.owns(sessionId)) {
             subAgents?.cancelChildren(sessionId)
             external.stop(sessionId)

@@ -21,7 +21,9 @@ import kinuvo.protocol.session.SubAgentState
 import kinuvo.protocol.session.isLive
 import kinuvo.protocol.agent.AgentId
 import kinuvo.protocol.session.SessionId
+import kinuvo.protocol.approval.InteractionId
 import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -51,6 +53,7 @@ class SessionLog(private val store: Store, private val clock: () -> Long = { Clo
     private val lock = Mutex()
     private val counts = HashMap<SessionId, Int>()
     private val live = HashMap<SessionId, LiveState>()
+    private val owners = HashMap<SessionId, AgentId>()
     private val completions = HashMap<SessionId, AgentEvent>()
     private enum class RunReply { None, Chat, Routine, Report }
     private val runReplies = HashMap<SessionId, RunReply>()
@@ -79,6 +82,28 @@ class SessionLog(private val store: Store, private val clock: () -> Long = { Clo
     }
 
     suspend fun pending(sessionId: SessionId): List<PendingInteraction> = lock.withLock { live[sessionId]?.pending.orEmpty() }
+
+    /** The run's own interactions: [pending] without the ones its child Sessions are waiting on. */
+    suspend fun open(sessionId: SessionId): List<PendingInteraction> = lock.withLock {
+        live[sessionId]?.let { state ->
+            state.pending.filterNot { p -> state.interactionChildren[p.id]?.let { child -> live[child]?.pending?.any { it.id == p.id } } == true }
+        }.orEmpty()
+    }
+
+    /** Shows every client that [id]'s answer is recorded and waits for the rest of the run's interactions. */
+    suspend fun staged(sessionId: SessionId, id: InteractionId) = lock.withLock {
+        val agentId = owners[sessionId] ?: return@withLock
+        val state = live[sessionId]?.takeIf { s -> s.pending.any { it.id == id } } ?: return@withLock
+        val next = state.copy(staged = state.staged + id)
+        live[sessionId] = next
+        deliver(SessionUpdate(agentId, sessionId, SessionChange.Live(next)))
+    }
+
+    /** Changes whenever an interaction leaves a Session's pending list. */
+    val interactionsChanged = MutableStateFlow(0L)
+
+    /** Called after an interaction was resolved, outside the lock. */
+    var onInteractionResolved: suspend (SessionId, InteractionId) -> Unit = { _, _ -> }
 
     suspend fun status(sessionId: SessionId): SessionStatus = lock.withLock { statusOf(sessionId) }
 
@@ -132,6 +157,8 @@ class SessionLog(private val store: Store, private val clock: () -> Long = { Clo
                 store.deleteSession(agent, id)
                 counts -= id
                 live -= id
+                owners -= id
+                interactionsChanged.value++
                 completions -= id
                 runReplies -= id
                 subscribers -= id
@@ -238,7 +265,13 @@ class SessionLog(private val store: Store, private val clock: () -> Long = { Clo
             changed(store.session(agentId, sessionId).copy(status = statusOf(sessionId)))
     }
 
-    suspend fun publish(agentId: AgentId, sessionId: SessionId, update: AgentEvent) = lock.withLock {
+    suspend fun publish(agentId: AgentId, sessionId: SessionId, update: AgentEvent) {
+        lock.withLock { publishLocked(agentId, sessionId, update) }
+        if (update is AgentEvent.InteractionResolved) onInteractionResolved(sessionId, update.id)
+    }
+
+    private suspend fun publishLocked(agentId: AgentId, sessionId: SessionId, update: AgentEvent) {
+        owners[sessionId] = agentId
         val event = when (update) {
             is AgentEvent.SubAgentChanged -> update.copy(child = update.child.forClient())
             is AgentEvent.ExecutionEntryChanged -> update.copy(entry = update.entry.forClient())
@@ -280,6 +313,7 @@ class SessionLog(private val store: Store, private val clock: () -> Long = { Clo
         } else false
         if (state.queued.isNotEmpty() || state.running || state.reflectionId != null || state.executionPhase != null || state.entries.isNotEmpty() || state.pending.isNotEmpty() || state.children.isNotEmpty())
                 live[sessionId] = state else live.remove(sessionId)
+        if (state.pending.size < previous.pending.size) interactionsChanged.value++
         if (event.isLive) deliver(SessionUpdate(agentId, sessionId, SessionChange.Event(event)))
         eventListeners.load().forEach { it(agentId, sessionId, event) }
         if (inboxChanged || state.status != previous.status) changed(store.session(agentId, sessionId).copy(status = state.status))
@@ -295,7 +329,8 @@ class SessionLog(private val store: Store, private val clock: () -> Long = { Clo
         val previous = live[sessionId] ?: return@withLock
         val resolved = previous.pending.filter { it.id in previous.interactionChildren }
         if (!previous.running && resolved.size == previous.pending.size) return@withLock
-        val state = previous.copy(running = false, pending = resolved)
+        val state = previous.copy(running = false, pending = resolved, staged = emptySet())
+        interactionsChanged.value++
         if (state.queued.isNotEmpty() || state.reflectionId != null || state.executionPhase != null || state.entries.isNotEmpty() || state.pending.isNotEmpty() || state.children.isNotEmpty())
             live[sessionId] = state else live.remove(sessionId)
         deliver(SessionUpdate(agentId, sessionId, SessionChange.Live(state)))
