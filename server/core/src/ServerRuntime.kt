@@ -235,18 +235,30 @@ class ServerRuntime(
 
         fun response(response: Frame.Response) { pending.remove(response.id)?.complete(response) }
 
-        fun refreshTools(tools: Set<DeviceToolKind> = this.tools, initial: Boolean = false) = harness.devices.lock.withLock {
-            if (!initial && deviceId?.let { harness.devices.owns(it, readDevice) } != true) return@withLock
+        private var detached = false
+
+        /** Records the Device's tools without offering them to runs; [registerTools] does that once the Connect answer is queued. */
+        fun recordTools(tools: Set<DeviceToolKind>) {
             this.tools = tools
-            val id = auth.setTools(requireNotNull(token), tools)
-            deviceId = id
+            deviceId = auth.setTools(requireNotNull(token), tools)
+        }
+
+        fun registerTools() = harness.devices.lock.withLock {
+            if (detached) return@withLock
+            val id = requireNotNull(deviceId)
             harness.devices.connect(id, tools, watching, readDevice)
             if (DeviceToolKind.Computer in tools) harness.computers.connect(id, actComputer) else harness.computers.disconnect(id, actComputer)
         }
 
+        fun refreshTools(tools: Set<DeviceToolKind> = this.tools) = harness.devices.lock.withLock {
+            if (deviceId?.let { harness.devices.owns(it, readDevice) } != true) return@withLock
+            recordTools(tools)
+            registerTools()
+        }
+
         fun detachTools() {
             harness.computers.unwatchAll(watcher)
-            harness.devices.lock.withLock { deviceId?.let { harness.devices.disconnect(it, readDevice); harness.computers.disconnect(it, actComputer) } }
+            harness.devices.lock.withLock { detached = true; deviceId?.let { harness.devices.disconnect(it, readDevice); harness.computers.disconnect(it, actComputer) } }
             pending.block { map -> map.values.toList().also { map.clear() } }.forEach { it.completeExceptionally(IllegalStateException("Device disconnected")) }
         }
 
@@ -425,7 +437,7 @@ class ServerRuntime(
                         val token = (if (client.linked) supplied else auth.authenticate(p.device, supplied, if (connection.credential == null) p.pairingCode else null, tailcatPeer))
                             ?: raise(if (p.token != null) ConnectError.Unpaired else ConnectError.InvalidPairing)
                         client.token = token
-                        if (!client.linked && p.registerDeviceTools) client.refreshTools(p.deviceTools, initial = true)
+                        if (!client.linked && p.registerDeviceTools) client.recordTools(p.deviceTools)
                         if (!client.linked && auth.management(token)) p.timeZone?.let { zone -> runCatching { harness.timeZone = TimeZone.of(zone) } }
                         ConnectResult(token, name, harness.usage.value, capabilities, !client.linked && auth.management(token), version, client.deviceId)
                     }
@@ -434,6 +446,7 @@ class ServerRuntime(
                     if (response.ok && !authed) {
                         authed = true
                         timeout.cancel()
+                        if (client.deviceId != null) client.registerTools()
                         clients.add(client)
                         broadcast(Api.DevicesChanged, Unit)
                     }
