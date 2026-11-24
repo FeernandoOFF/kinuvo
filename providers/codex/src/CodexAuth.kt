@@ -10,6 +10,7 @@ import io.ktor.http.HttpStatusCode
 import io.ktor.http.parameters
 import io.ktor.http.contentType
 import io.ktor.http.isSuccess
+import io.github.oshai.kotlinlogging.KotlinLogging
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -24,6 +25,8 @@ import kotlin.time.Duration.Companion.minutes
 import kotlin.time.Duration.Companion.seconds
 import kotlin.time.Instant
 import kotlin.time.TimeSource
+
+private val log = KotlinLogging.logger("kinuvo.codex.auth")
 
 data class CodexTokens(val accessToken: String, val accountId: String)
 
@@ -109,6 +112,7 @@ class CodexAuth(
             put("refresh_token", refreshToken)
             put("scope", "openid profile email")
         })
+        if (!res.status.isSuccess()) log.warn { "chatgpt.token.refresh.failed status=${res.status.value}" }
         check(res.status.isSuccess()) { "Codex token refresh failed (${res.status}). Run `kinuvo login` or `codex login`." }
         val fresh = Json.parseToJsonElement(res.bodyAsText()).jsonObject
         val tokens = JsonObject(root.tokens + fresh.filterKeys { it in TOKEN_KEYS })

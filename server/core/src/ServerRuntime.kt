@@ -317,6 +317,7 @@ class ServerRuntime(
             if (linked && text is Frame.Event) return true
             if (!valid()) { if (closeAfterResponse == null) disconnect(); return false }
             if (outbox.trySend(text).isSuccess) return true
+            log.warn { "outbox.full: dropping a connection that is $OUTBOX_SIZE frames behind" }
             disconnect()
             return false
         }

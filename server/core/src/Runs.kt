@@ -29,7 +29,11 @@ import kotlinx.coroutines.withContext
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
+import io.github.oshai.kotlinlogging.KotlinLogging
+import kotlin.time.TimeSource
 import kotlin.uuid.Uuid
+
+private val logger = KotlinLogging.logger("kinuvo.runs")
 
 /** How many runs are going and how many events they've produced, e.g. for a host keeping them alive in the background. */
 data class RunActivity(val runs: Int = 0, val steps: Long = 0)
@@ -121,13 +125,22 @@ class Runs(private val log: SessionLog, private val scope: CoroutineScope, priva
                 // Cancellation before dispatch must still enter the cleanup block.
                 scope.launch(start = CoroutineStart.ATOMIC) {
                     var stopped = false
+                    var failure: Throwable? = null
+                    val began = TimeSource.Monotonic.markNow()
+                    logger.info { "run.start session=${sessionId.value} agent=${agent.id.value} run=${runId.value}" }
                     try {
                         ensureActive()
                         session.prompt(input.copy(runId = runId))
                     } catch (e: CancellationException) {
                         stopped = true
                         throw e
+                    } catch (e: Throwable) {
+                        failure = e
+                        throw e
                     } finally {
+                        val took = began.elapsedNow().inWholeMilliseconds
+                        if (failure != null) logger.warn { "run.failed session=${sessionId.value} run=${runId.value} duration=${took}ms error=${failure::class.simpleName}: ${failure.message?.take(200)}" }
+                        else logger.info { "run.finish session=${sessionId.value} run=${runId.value} stopped=$stopped duration=${took}ms" }
                         withContext(NonCancellable) { try { session.close() } finally { if (stopped) onCancel(sessionId); finishListeners.forEach { it(agent.id, sessionId, stopped) }; onDone(stopped) } }
                     }
                 }.also { job ->

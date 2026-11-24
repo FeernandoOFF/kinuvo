@@ -12,7 +12,10 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
+import io.github.oshai.kotlinlogging.KotlinLogging
 import kinuvo.server.providers.ModelProvider
+
+private val log = KotlinLogging.logger("kinuvo.providers")
 
 /** Model provider sign-ins: each runs in the background after handing its device code to the client; [changed] follows. */
 class ProviderLogins(private val providers: List<ModelProvider>, private val scope: CoroutineScope, private val changed: suspend (List<ProviderInfo>) -> Unit) {
@@ -32,10 +35,13 @@ class ProviderLogins(private val providers: List<ModelProvider>, private val sco
             errors.remove(id)
             val job = scope.launch(start = CoroutineStart.LAZY) {
                 try {
+                    log.info { "provider.signin.start provider=$id" }
                     auth.login { code.complete(it) }
+                    log.info { "provider.signin.ok provider=$id" }
                 } catch (e: CancellationException) {
                     throw e
                 } catch (e: Exception) {
+                    log.warn { "provider.signin.failed provider=$id error=${e::class.simpleName}: ${e.message?.take(200)}" }
                     errors[id] = e.message ?: "Sign-in failed"
                     code.completeExceptionally(e)
                 }
