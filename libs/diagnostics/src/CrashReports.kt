@@ -23,7 +23,7 @@ class CrashReports(private val dir: Path, private val app: AppInfo? = null, priv
                 appendLine("Time: $at")
                 appendLine("Thread: $thread")
                 app?.let { appendLine("App: ${it.version} (${it.build}) on ${it.platform}, ${it.os}") }
-                appendLine(error.stackTraceToString().lineSequence().take(MAX_LINES).joinToString("\n") { it.take(MAX_LINE) })
+                appendLine(condenseTrace(error.stackTraceToString(), LINES_PER_CAUSE, MAX_CAUSES).lineSequence().joinToString("\n") { it.take(MAX_LINE) })
             }
             SystemFileSystem.sink(file).buffered().use { it.writeString(Redaction.apply(text)) }
             restrictToOwner(file)
@@ -56,7 +56,8 @@ class CrashReports(private val dir: Path, private val app: AppInfo? = null, priv
     private fun read(path: Path) = runCatching { SystemFileSystem.source(path).buffered().use { it.readString() } }.getOrNull()
 
     private companion object {
-        const val MAX_LINES = 120
+        const val LINES_PER_CAUSE = 30
+        const val MAX_CAUSES = 12
         const val MAX_LINE = 500
     }
 }

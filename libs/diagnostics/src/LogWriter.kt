@@ -9,7 +9,7 @@ class LogWriter(private val log: RotatingLog, private val now: () -> String = { 
     fun write(level: String, logger: String?, message: String?, trace: String? = null) {
         val head = "${now()} ${level.padEnd(5)} ${logger.orEmpty()} - ${message.orEmpty()}"
         log.append(Redaction.apply(head.take(MAX_LINE)))
-        trace?.lineSequence()?.take(MAX_TRACE_LINES)?.forEach { log.append(Redaction.apply(it.take(MAX_LINE))) }
+        trace?.let { condenseTrace(it, LINES_PER_CAUSE, MAX_CAUSES) }?.lineSequence()?.forEach { log.append(Redaction.apply(it.take(MAX_LINE))) }
     }
 
     /** A kotlin-logging appender that writes here and then to [next], e.g. the platform's console. */
@@ -22,6 +22,7 @@ class LogWriter(private val log: RotatingLog, private val now: () -> String = { 
 
     private companion object {
         const val MAX_LINE = 1000
-        const val MAX_TRACE_LINES = 40
+        const val LINES_PER_CAUSE = 15
+        const val MAX_CAUSES = 8
     }
 }
