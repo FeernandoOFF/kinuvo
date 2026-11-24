@@ -41,7 +41,7 @@ class ConnectCardTest {
                 vm.shown()
                 vm.state.first { it.pending.isNotEmpty() }
                 vm.connect(interaction)
-                vm.state.first { it.connecting.isEmpty() && script.respondedConnected.isNotEmpty() }
+                withTimeout(5_000) { while (script.respondedConnected.isEmpty() || vm.state.value.connecting.isNotEmpty()) delay(10) }
                 assertEquals(listOf(true), script.respondedConnected)
                 assertEquals("linear", script.logins.single().name)
                 assertEquals("http://localhost:33418/callback?code=ok", script.completions.single())
@@ -110,28 +110,36 @@ class ConnectCardTest {
     }
 
     private fun withServer(snapshot: LiveState, block: suspend (ConnectedServer, Script, ScriptedBrowser) -> Unit) = runBlocking {
+        val script = Script(snapshot)
+        var stage = "starting"
         Executors.newSingleThreadExecutor().asCoroutineDispatcher().use { mainDispatcher ->
             Dispatchers.setMain(mainDispatcher)
             try {
                 withContext(mainDispatcher) {
-                    withTimeout(15_000) {
-                        val reader = object : DeviceReader {
-                            override val kinds = emptyList<String>()
-                            override fun authorize(kind: String, completion: (String?) -> Unit) = completion(null)
-                            override fun read(requestJson: String, completion: (String) -> Unit) = error("Unused")
+                    try {
+                        withTimeout(15_000) {
+                            val reader = object : DeviceReader {
+                                override val kinds = emptyList<String>()
+                                override fun authorize(kind: String, completion: (String?) -> Unit) = completion(null)
+                                override fun read(requestJson: String, completion: (String) -> Unit) = error("Unused")
+                            }
+                            val owner = ConnectedServer(Notifications(emptyList()), DeviceAccess(MemoryPreferences(), reader))
+                            val client = KinuvoClient("local:test", "test", connection = { script })
+                            owner.open(client, "local:test")
+                            client.connect()
+                            owner.activate()
+                            stage = "waiting for the harness catalog"
+                            owner.harnesses.state.first { it.catalog != null }
+                            stage = "running the test"
+                            try { block(owner, script, ScriptedBrowser()) } finally {
+                                stage = "closing the Server"
+                                val job = owner.scope.coroutineContext.job
+                                owner.close()
+                                job.join()
+                            }
                         }
-                        val script = Script(snapshot)
-                        val owner = ConnectedServer(Notifications(emptyList()), DeviceAccess(MemoryPreferences(), reader))
-                        val client = KinuvoClient("local:test", "test", connection = { script })
-                        owner.open(client, "local:test")
-                        client.connect()
-                        owner.activate()
-                        owner.harnesses.state.first { it.catalog != null }
-                        try { block(owner, script, ScriptedBrowser()) } finally {
-                            val job = owner.scope.coroutineContext.job
-                            owner.close()
-                            job.join()
-                        }
+                    } catch (e: TimeoutCancellationException) {
+                        throw AssertionError("Timed out $stage; requests seen: ${script.methods}", e)
                     }
                 }
             } finally { Dispatchers.resetMain() }
@@ -145,8 +153,10 @@ class ConnectCardTest {
         val completions = mutableListOf<String>()
         val respondedConnected = mutableListOf<Boolean>()
         var loginError: String? = null
+        val methods = java.util.concurrent.CopyOnWriteArrayList<String>()
         override suspend fun send(frame: Frame) {
             val request = frame as Frame.Request
+            methods += request.method
             when (request.method) {
                 Api.Connect.name -> reply(request, Api.Connect, ConnectResult("token", "test", capabilities = ServerCapabilities("test"), management = true))
                 Api.Presence.name -> reply(request, Api.Presence, Unit)
