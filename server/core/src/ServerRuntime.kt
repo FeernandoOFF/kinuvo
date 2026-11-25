@@ -341,6 +341,13 @@ class ServerRuntime(
             return interrupt.copy(metadata = JsonObject(metadata + ("kinuvo" to JsonObject(extra + ("preview" to JsonObject(preview - "body"))))))
         }
 
+        private fun runEventForClient(event: AgUiEvent): AgUiEvent {
+            val outcome = (event as? AgUiEvent.RunFinished)?.outcome as? RunOutcome.Interrupted
+            return if (event is AgUiEvent.RunFinished && outcome != null)
+                event.copy(outcome = RunOutcome.Interrupted(outcome.interrupts.map(::interruptForClient)))
+            else event
+        }
+
         override fun offer(update: SessionUpdate): Boolean {
             val change = when (val change = update.change) {
                 is SessionChange.Item -> {
@@ -350,13 +357,8 @@ class ServerRuntime(
                     else change
                 }
                 is SessionChange.Snapshot -> change.copy(snapshot = change.snapshot.copy(state = change.snapshot.state.copy(pending = change.snapshot.state.pending.map(::approvalForClient))))
-                is SessionChange.Run -> {
-                    val event = change.event
-                    val outcome = (event as? AgUiEvent.RunFinished)?.outcome as? RunOutcome.Interrupted
-                    if (event is AgUiEvent.RunFinished && outcome != null)
-                        change.copy(event = event.copy(outcome = RunOutcome.Interrupted(outcome.interrupts.map(::interruptForClient))))
-                    else change
-                }
+                is SessionChange.Run -> change.copy(event = runEventForClient(change.event))
+                is SessionChange.Continued -> change.copy(run = change.run.map(::runEventForClient))
                 else -> change
             }
             return offer(frame(Api.Update, update.copy(change = change)))

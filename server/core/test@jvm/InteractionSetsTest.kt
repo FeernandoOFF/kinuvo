@@ -127,6 +127,25 @@ class InteractionSetsTest {
         }
     }
 
+    @Test fun aResponderCancelledWhileStagingStillReleasesTheAnswer() = runBlocking {
+        lateinit var agent: Agent
+        TestServer.start(script = { on("regular") { reply("ok") } }, scenario = { agent = agent("work") }).use { server ->
+            val session = server.startSession(agent.id)
+            val only = server.extra(agent, session.id)
+            val sets = server.harness.interactions
+            val staging = CompletableDeferred<Unit>()
+            server.harness.log.subscribe(agent.id, session.id, null, 100, SessionLog.Subscriber { update ->
+                if ((update.change as? SessionChange.Item)?.event == AgentEvent.InteractionStaged(only.id)) { staging.complete(Unit); Thread.sleep(300) }
+                true
+            })
+            val released = CompletableDeferred<InteractionId>()
+            val responder = launch(Dispatchers.Default) { sets.respond(RespondParams(session.id, only.id, form), true) { released.complete(it.requestId); true } }
+            withTimeout(5_000) { staging.await() }
+            responder.cancelAndJoin()
+            assertEquals(only.id, withTimeout(5_000) { released.await() })
+        }
+    }
+
     @Test fun anAnswerAfterStopCannotReleaseTheRun() = runBlocking {
         lateinit var agent: Agent
         TestServer.start(script = { on("regular") { reply("ok") } }, scenario = { agent = agent("work") }).use { server ->

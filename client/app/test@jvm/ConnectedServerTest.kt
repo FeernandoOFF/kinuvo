@@ -19,6 +19,7 @@ import kinuvo.protocol.capability.*
 import kinuvo.protocol.connection.*
 import kinuvo.protocol.model.*
 import kinuvo.protocol.session.*
+import kinuvo.protocol.agui.AgUiEvent
 import kinuvo.protocol.skill.*
 import kotlinx.coroutines.*
 import kotlinx.coroutines.channels.Channel
@@ -252,6 +253,28 @@ class ConnectedServerTest {
         assertFalse(final.live.running)
         assertTrue(final.loaded)
     }
+    @Test fun continuedFramesRenderEachCommittedItemOnce() = withOwner { owner, _, _ ->
+        val script = Script("A")
+        connect(owner, script)
+        owner.sessions.loadSessions(AgentId("agent")).join()
+        owner.sessions.view(AgentId("agent"), SessionId("session")).join()
+        owner.sessions.state.first { it.sessions[SessionId("session")]?.loaded == true }
+        val session = SessionId("session")
+        fun update(change: SessionChange) = SessionUpdate(AgentId("agent"), session, change)
+        val first = SessionEntry.AssistantMessage("first", "m1")
+        val second = SessionEntry.AssistantMessage("second", "m2")
+        val run = listOf(
+            AgUiEvent.RunStarted(session.value, "run"), AgUiEvent.TextMessageStart("m1"), AgUiEvent.TextMessageContent("m1", "first"),
+            AgUiEvent.TextMessageStart("m2"), AgUiEvent.TextMessageContent("m2", "second"), AgUiEvent.TextMessageStart("m3"), AgUiEvent.TextMessageContent("m3", "live"),
+        )
+        script.event(Api.Update, update(SessionChange.Snapshot(SessionSnapshot(0, 3, listOf(first), LiveState(running = true), run.take(3)))))
+        script.event(Api.Update, update(SessionChange.Continued(1, entries = listOf(second, SessionEntry.UserMessage("third")))))
+        script.event(Api.Update, update(SessionChange.Continued(run = run.drop(3))))
+        val data = owner.sessions.state.first { it.sessions[session]?.run?.messages?.any { m -> m.id == "m3" } == true }.sessions.getValue(session)
+        assertEquals(listOf("first", "second", "third"), data.entries.map { (it as? SessionEntry.AssistantMessage)?.text ?: (it as SessionEntry.UserMessage).text })
+        assertEquals(listOf("m3"), data.run.messages.map { it.id })
+    }
+
     @Test fun selectedAttachmentsRespectLegacyAndExplicitServerSupport() = withOwner { owner, _, _ ->
         val legacy = SessionCapabilities(server = ServerCapabilities("test", setOf(ServerFeature.Attachments)), inputs = mapOf(
             "text" to CapabilityState(), "image" to CapabilityState(), "file" to CapabilityState.unsupported("No native files"),

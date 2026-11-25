@@ -56,6 +56,8 @@ class KinuvoAgentTest {
                 backend.state = backend.state.copy(phase = ExecutionPhase.RequiresAction, pending = listOf(PendingInteraction.Connect(InteractionId("link"), ToolCallId("tool"), AgentId("native"), "service")))
                 backend.link.await()
                 assertEquals(InteractionAnswer.Connect(false), backend.answers.last().answer)
+                while (backend.answers.count { it.requestId == InteractionId("link") } < 2) delay(50)
+                assertEquals(ExecutionPhase.Running, backend.state.phase, "a failed answer is retried while the interaction is pending")
                 backend.state = ExecutionSnapshot(SessionId("s"), messages = listOf(ExecutionMessage("u", "user", "hello"), ExecutionMessage("a", "assistant", "reply"), ExecutionMessage("t", "tool", "tool", ProtocolJson.encodeToJsonElement(SessionEntry.serializer(), SessionEntry.ToolCall(ToolCallId("t"), "tool", "{}")))))
                 val received = mutableListOf<SessionUpdate>()
                 do { val update = updates.receive(); received.add(update) } while (update !is SessionUpdate.StateUpdate || update.state !is StateUpdate.Idle)
@@ -89,10 +91,12 @@ class KinuvoAgentTest {
         override suspend fun send(params: SendParams): SendResult { state = state.copy(phase = ExecutionPhase.Running); started.complete(Unit); return SendResult(SessionId("s"), RunId("run"), "accepted") }
         override suspend fun stop(sessionId: SessionId) { stopped.add(sessionId.value); state = state.copy(phase = ExecutionPhase.Idle) }
         override suspend fun answer(answer: RespondParams): Boolean {
-            answers.add(answer); state = state.copy(phase = ExecutionPhase.Running, pending = emptyList())
+            answers.add(answer)
+            if (answer.requestId == InteractionId("link") && answers.count { it.requestId == answer.requestId } == 1) { link.complete(Unit); throw IllegalArgumentException("refused") }
+            state = state.copy(phase = ExecutionPhase.Running, pending = emptyList())
             when (answer.requestId) {
                 InteractionId("approval") -> approval.complete(Unit)
-                InteractionId("link") -> { link.complete(Unit); throw IllegalArgumentException("refused") }
+                InteractionId("link") -> Unit
                 else -> form.complete(Unit)
             }
             return true

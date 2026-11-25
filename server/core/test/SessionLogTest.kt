@@ -142,10 +142,10 @@ class SessionLogTest {
             override fun offer(update: SessionUpdate): Boolean { received += update.change; return true }
         })
         val snapshot = (received.first() as SessionChange.Snapshot).snapshot
-        val rest = received.drop(1).map { it as SessionChange.Entry }
+        val rest = received.drop(1).map { it as SessionChange.Continued }
         assertTrue(snapshot.entries.isNotEmpty() && rest.isNotEmpty())
-        assertEquals((snapshot.firstSeq + snapshot.entries.size until snapshot.seq).toList(), rest.map { it.seq })
-        assertEquals(texts, (snapshot.entries + rest.map { it.entry }).filterIsInstance<SessionEntry.UserMessage>().map { it.text })
+        assertEquals(snapshot.firstSeq + snapshot.entries.size, rest.first().firstSeq)
+        assertEquals(texts, (snapshot.entries + rest.flatMap { it.entries }).filterIsInstance<SessionEntry.UserMessage>().map { it.text })
         received.forEach { assertTrue(ProtocolJson.encodeToString(SessionChange.serializer(), it).length < 15 * 1024 * 1024) }
     }
 
@@ -162,12 +162,45 @@ class SessionLogTest {
             override fun offer(update: SessionUpdate): Boolean { received += update.change; return true }
         })
         val snapshot = (received.first() as SessionChange.Snapshot).snapshot
-        val rest = received.drop(1).map { (it as SessionChange.Run).event }
+        val rest = received.drop(1).flatMap { (it as SessionChange.Continued).run }
         assertTrue(snapshot.run.isNotEmpty() && rest.isNotEmpty(), "run ${snapshot.run.size} rest ${rest.size}")
         val replayed = (snapshot.run + rest).filterIsInstance<AgUiEvent.TextMessageContent>().map { it.delta }
         assertEquals(deltas, replayed)
         received.forEach { assertTrue(ProtocolJson.encodeToString(SessionChange.serializer(), it).encodeToByteArray().size < 15 * 1024 * 1024) }
         assertEquals(deltas.joinToString(""), log.executionSnapshot(agent, id).messages.single { it.id == "assistant:m" }.text)
+    }
+
+    @Test fun anOverflowOfManySmallItemsReplaysAsAFewFramesEntriesFirst() = runBlocking {
+        val fixture = RuntimeFixture()
+        val log = SessionLog(fixture.store, snapshotEntryBytes = 4 * 1024)
+        val agent = fixture.agent.id
+        val id = log.createSession(agent, "").id
+        repeat(3000) { log.append(agent, id, SessionEntry.UserMessage("entry $it")) }
+        log.publish(agent, id, AgentEvent.RunStarted(RunId("run")))
+        repeat(3000) { log.publish(agent, id, AgentEvent.TextMessageContent("m", "d$it ")) }
+        val received = mutableListOf<SessionChange>()
+        log.subscribe(agent, id, null, 5000, SessionLog.Subscriber { received += it.change; true })
+        assertTrue(received.size < 1024, "${received.size} frames")
+        val continued = received.drop(1).map { it as SessionChange.Continued }
+        val firstRun = continued.indexOfFirst { it.run.isNotEmpty() }
+        assertTrue(continued.take(firstRun).all { it.entries.isNotEmpty() } && continued.drop(firstRun).all { it.entries.isEmpty() })
+        val snapshot = (received.first() as SessionChange.Snapshot).snapshot
+        assertEquals(List(3000) { "entry $it" }, (snapshot.entries + continued.flatMap { it.entries }).filterIsInstance<SessionEntry.UserMessage>().map { it.text })
+        assertEquals(List(3000) { "d$it " }, (snapshot.run + continued.flatMap { it.run }).filterIsInstance<AgUiEvent.TextMessageContent>().map { it.delta })
+    }
+
+    @Test fun aCaptureDoesNotSeeARunStartedAfterIt() = runBlocking {
+        val fixture = RuntimeFixture()
+        val log = SessionLog(fixture.store)
+        val agent = fixture.agent.id
+        val id = log.createSession(agent, "").id
+        log.append(agent, id, SessionEntry.UserMessage("hi"))
+        val captured = log.capture(agent, id)
+        log.publish(agent, id, AgentEvent.RunStarted(RunId("run")))
+        log.publish(agent, id, AgentEvent.TextMessageContent("m", "late"))
+        val snapshot = (captured.single() as SessionChange.Snapshot).snapshot
+        assertTrue(snapshot.run.isEmpty())
+        assertTrue(log.capture(agent, id).filterIsInstance<SessionChange.Snapshot>().single().snapshot.run.isNotEmpty())
     }
 
     @Test fun anExecutionSnapshotKeepsEntriesPastTheInlineBudget() = runBlocking {

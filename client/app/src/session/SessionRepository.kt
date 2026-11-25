@@ -349,6 +349,11 @@ class SessionRepository(private val notifications: Notifications, internal val c
         val id = update.sessionId
         val data = state.value.sessions[id] ?: return
         val change = update.change
+        if (change is SessionChange.Continued) {
+            change.entries.forEachIndexed { i, entry -> onUpdate(update.copy(change = SessionChange.Entry(change.firstSeq + i, entry))) }
+            change.run.forEach { onUpdate(update.copy(change = SessionChange.Run(it))) }
+            return
+        }
         val event = when (change) {
             is SessionChange.Item -> change.event
             is SessionChange.Run -> change.event.asAgentEvent(data)
@@ -383,6 +388,7 @@ class SessionRepository(private val notifications: Notifications, internal val c
             }
             is SessionChange.Run -> put(id, data.copy(run = data.run.on(change.event), live = event?.let(data.live::on) ?: data.live), received = true)
             is SessionChange.Item -> put(id, data.copy(live = data.live.on(change.event)), received = true)
+            is SessionChange.Continued -> Unit
         }
     }
 
