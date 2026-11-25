@@ -44,5 +44,6 @@ description: "The Server streams each run as AG-UI 1.0 events inside a Kinuvo Se
 ## Consequences
 
 - Run streams validate against AG-UI 1.0 `schema.json`, and a future HTTP+SSE gateway can serve them unchanged.
+- A draft HTTP+SSE gateway lives in `gateways/ag-ui`.
 - An approved tool now waits for its sibling Approvals before it runs.
 - The change lands in steps that keep main green: event models, translator and reducer alongside the current wire; parking and staged answers on protocol version 8; then one cutover to version 9 (Current and Minimum) across the Server, clients, `harness/remote`, `gateways/acp-agent` and `gateways/kinuvo-mcp`.
