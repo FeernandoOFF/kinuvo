@@ -16,6 +16,7 @@ modules:
   - harness/api
   - harness/builtin
   - harness/remote
+  - libs/diagnostics
   - libs/tailcat
   - plugins/anytype
   - plugins/apple-frameworks

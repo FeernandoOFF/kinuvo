@@ -1,5 +1,6 @@
 package kinuvo.plugins.mcp
 
+import io.github.oshai.kotlinlogging.KotlinLogging
 import kinuvo.server.plugin.sha256
 import co.touchlab.stately.collections.ConcurrentMutableMap
 import co.touchlab.stately.collections.ConcurrentMutableSet
@@ -35,6 +36,8 @@ import kotlinx.coroutines.sync.withLock
 import kotlinx.serialization.json.*
 import io.ktor.http.ParametersBuilder
 import kotlin.time.Clock
+
+private val log = KotlinLogging.logger("kinuvo.mcp.auth")
 
 /** An HTTP MCP server refused Kinuvo until the user signs in. */
 class McpAuthRequired(val server: String, scope: String? = null) : Exception(
@@ -129,6 +132,7 @@ class McpAuth(
         }
         val body = res.bodyAsText()
         if (!res.status.isSuccess()) {
+            log.warn { "mcp.signin.refresh.failed server=${server.name} status=${res.status.value}" }
             if (runCatching { Json.parseToJsonElement(body).jsonObject.str("error") }.getOrNull() == "invalid_grant") signIns.remove(server.signInId)
             return null
         }
@@ -187,7 +191,7 @@ class McpAuth(
         // Together, so a sign-out either drops this flow or bumps the generation it's checked against.
         val (p, generation) = writing.withLock { pending.remove(state)?.let { it to generation(it.server.signInId) } }
             ?.takeIf { it.first.expires >= now() } ?: error("This sign-in expired or wasn't started here; start it again")
-        query["error"]?.let { error("Sign-in failed: ${query["error_description"] ?: it}") }
+        query["error"]?.let { log.warn { "mcp.signin.failed server=${p.server.name} error=$it" }; error("Sign-in failed: ${query["error_description"] ?: it}") }
         val code = query["code"] ?: error("The sign-in returned no code")
         val res = tokenRequest(p.tokenEndpoint, p.client) {
             append("grant_type", "authorization_code")
@@ -197,6 +201,7 @@ class McpAuth(
             append("resource", p.resource)
         }
         val body = res.bodyAsText()
+        if (!res.status.isSuccess()) log.warn { "mcp.signin.failed server=${p.server.name} status=${res.status.value}" }
         check(res.status.isSuccess()) { "Token exchange failed (${res.status.value}): ${body.take(300)}" }
         val tokens = Json.parseToJsonElement(body).jsonObject
         val id = p.server.signInId

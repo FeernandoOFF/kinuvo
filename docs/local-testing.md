@@ -65,7 +65,11 @@ homes; only its assigned checkout should manage it.
 
 JVM diagnostics use kotlin-logging through SLF4J and Logback. Interactive commands
 and the desktop app log to stderr, leaving CLI results on stdout. `KINUVO_LOG_LEVEL`
-sets the minimum level (default `INFO`). Installed services use
+sets the minimum level (default `INFO`). The desktop app, `kinuvo serve` and the login
+service also write redacted, size-capped files (`desktop.log`, `cli.log`, `service.log`,
+four files of about 1 MiB each) to `<home>/logs/` and uncaught crashes to
+`<home>/crashes/`; Settings → About → Share logs zips them (see
+[Share your logs](support.md#share-your-logs)). Installed services use
 `logback-service.xml` and `-Dkinuvo.log.file=<home>/logs/server.log`: the file rolls
 daily or at 10 MB, with seven days of compressed archives capped at 100 MB.
 Raw process output, including failures before logging starts, goes to

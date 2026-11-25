@@ -4,6 +4,7 @@ product:
 
 aliases:
   - jvmAndAndroid: [jvm, android]
+  - jvmAndMobile: [jvm, android, iosArm64, iosSimulatorArm64]
   - iosAndWeb: [iosArm64, iosSimulatorArm64, js, wasmJs]
 
 dependencies:
@@ -27,6 +28,9 @@ dependencies:
 
 dependencies@jvmAndAndroid:
   - dev.muazkadan:rive-cmp:0.5.0
+
+dependencies@jvmAndMobile:
+  - ../../libs/diagnostics
 
 dependencies@web:
   - org.jetbrains.kotlinx:kotlinx-browser:0.5.0
