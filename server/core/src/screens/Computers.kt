@@ -259,11 +259,12 @@ class Computers(
     private suspend fun stream(computer: Computer) {
         while (true) {
             val since = now() - (watching.value[computer.id]?.frameAt ?: 0)
-            if (since >= FRAME_MS) {
+            val interval = if (controls.value[computer.id]?.user == true) 450L else FRAME_MS
+            if (since >= interval) {
                 val result = perform(computer, ComputerRequest(elements = false))
                 push(computer, result.screen, result.message.takeIf { result.status != DeviceToolStatus.Ready })
             }
-            delay(FRAME_MS / 3)
+            delay(interval / 3)
         }
     }
 

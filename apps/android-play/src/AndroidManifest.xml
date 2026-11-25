@@ -9,6 +9,7 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <!-- Public connections require WSS; explicit LAN/Tailscale connections may use cleartext. -->
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <application
         android:name="dev.kinuvo.android.KinuvoApplication"
         android:label="Kinuvo"
@@ -17,6 +18,9 @@
         android:allowBackup="false"
         android:enableOnBackInvokedCallback="true"
         android:theme="@android:style/Theme.Material.NoActionBar">
+        <service android:name="kinuvo.ui.ComputerKeepaliveService" android:exported="false" android:foregroundServiceType="specialUse">
+            <property android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE" android:value="Keeps this phone reachable for Computer use granted to a connected Kinuvo Server" />
+        </service>
         <service android:name="kinuvo.ui.session.LiveVoiceService" android:exported="false" android:foregroundServiceType="microphone" />
         <!-- LiteRT-LM runs on-device models on the GPU where the phone provides OpenCL. -->
         <uses-native-library android:name="libvndksupport.so" android:required="false" />

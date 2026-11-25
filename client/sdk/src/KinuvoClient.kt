@@ -20,6 +20,7 @@ import io.ktor.client.HttpClient
 import io.ktor.client.plugins.websocket.WebSockets
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
@@ -92,7 +93,7 @@ class KinuvoClient(
     /** False for a temporary connection that must leave the Device's tool registration to the foreground one. */
     private val registerDeviceTools: Boolean = true,
 ) {
-    private val http by lazy { httpClient { install(WebSockets) { maxFrameSize = MAX_FRAME_SIZE } } }
+    private val http by lazy { httpClient { install(WebSockets) { maxFrameSize = MAX_FRAME_SIZE; pingIntervalMillis = 15_000 } } }
     private val scope = CoroutineScope(SupervisorJob() + dispatcher)
     private val pending = mutableMapOf<String, CompletableDeferred<Frame.Response>>()
     private val ids = AtomicLong(0)
@@ -102,6 +103,9 @@ class KinuvoClient(
     private var session: FrameConnection? = null
     private var token: String? = token
     private var loop: Job? = null
+    private val reconnect = Channel<Unit>(Channel.CONFLATED)
+
+    fun reconnectNow() { if (state.value !is ConnectionState.Connected) reconnect.trySend(Unit) }
     val foreground: StateFlow<Boolean>
         field = MutableStateFlow(true)
     private val viewing = MutableStateFlow<SessionId?>(null)
@@ -204,7 +208,7 @@ class KinuvoClient(
                 if (incompatible) { delay(IncompatibleRetry); continue }
                 val next = backoff(Unit) as? Schedule.Decision.Continue ?: return@launch
                 backoff = next.step
-                delay(reconnectWait(next.delay))
+                withTimeoutOrNull(reconnectWait(next.delay)) { reconnect.receive() }
             }
         }
         return first.await()
