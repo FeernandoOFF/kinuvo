@@ -201,7 +201,7 @@ class AgUiRunTranslator(private val sessionId: SessionId, private val parentRunI
         if (waiting.isEmpty()) return
         val parkedTools = waiting.mapNotNullTo(mutableSetOf()) { (it as? PendingInteraction.Approval)?.toolCallId?.value
             ?: (it as? PendingInteraction.Questions)?.toolCallId?.value ?: (it as? PendingInteraction.Connect)?.toolCallId?.value }
-        if ((openTools - parkedTools).isNotEmpty()) return
+        if (openTools.any { id -> id !in parkedTools && parkedTools.none { id.startsWith("$it-") } }) return
         closeItems(emit)
         runId = null
         parked = true
