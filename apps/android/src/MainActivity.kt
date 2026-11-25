@@ -3,6 +3,7 @@ package dev.kinuvo.android
 import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.addCallback
 import androidx.activity.enableEdgeToEdge
 import kinuvo.ui.session.attachVoice
 import kinuvo.ui.attachNotifications
@@ -14,6 +15,8 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+        // Leaving with Back would finish the Activity and drop the Server connection that computer use needs.
+        onBackPressedDispatcher.addCallback(this) { if (isTaskRoot) moveTaskToBack(true) else finish() }
         intent?.let(::open)
         attachNotifications(this)
         attachVoice(this)
