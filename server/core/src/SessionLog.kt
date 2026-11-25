@@ -418,9 +418,15 @@ class SessionLog(
             if (!subscriber.offer(SessionUpdate(agentId, sessionId, change))) return removeEverywhere(subscriber)
     }
 
-    /** What [subscribe] would send for the whole Session, read at one point in time and without subscribing anyone. */
+    /** What [subscribe] would send for the whole Session, read at one point in time and without subscribing anyone; relayed child interactions staged in their own Session count as staged. */
     suspend fun capture(agentId: AgentId, sessionId: SessionId): List<SessionChange> = lock.withLock {
-        catchUp(sessionId, store.entries(agentId, sessionId), null, Int.MAX_VALUE)
+        val own = live[sessionId]
+        val relayed = own?.interactionChildren.orEmpty().filter { (id, child) -> live[child]?.staged?.contains(id) == true }.keys
+        catchUp(sessionId, store.entries(agentId, sessionId), null, Int.MAX_VALUE).map { change ->
+            if (change is SessionChange.Snapshot && relayed.isNotEmpty())
+                SessionChange.Snapshot(change.snapshot.copy(state = change.snapshot.state.copy(staged = change.snapshot.state.staged + relayed)))
+            else change
+        }
     }
 
     /** Hands [event] to the Session's translator and delivers what comes out, buffering the active run's events. */

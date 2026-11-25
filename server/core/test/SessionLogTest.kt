@@ -203,6 +203,25 @@ class SessionLogTest {
         assertTrue(log.capture(agent, id).filterIsInstance<SessionChange.Snapshot>().single().snapshot.run.isNotEmpty())
     }
 
+    @Test fun anExecutionSnapshotCountsAnAnswerStagedInTheOwningChildSession() = runBlocking {
+        val fixture = RuntimeFixture()
+        val log = SessionLog(fixture.store)
+        val agent = fixture.agent.id
+        val parent = log.createSession(agent, "").id
+        val child = log.createSession(agent, "").id
+        val ask = PendingInteraction.Approval(InteractionId("ask"), ToolCallId("t1"), "shell", "{}")
+        val other = PendingInteraction.Approval(InteractionId("other"), ToolCallId("t2"), "shell", "{}")
+        for (request in listOf(ask, other)) {
+            log.publish(agent, child, AgentEvent.InteractionRequested(request))
+            log.publish(agent, parent, AgentEvent.InteractionRequested(request, childSessionId = child))
+        }
+        assertTrue(log.executionSnapshot(agent, parent).staged.isEmpty())
+        log.staged(child, ask.id)
+        val snapshot = log.executionSnapshot(agent, parent)
+        assertEquals(setOf(ask.id), snapshot.staged)
+        assertEquals(2, snapshot.pending.size)
+    }
+
     @Test fun anExecutionSnapshotKeepsEntriesPastTheInlineBudget() = runBlocking {
         val fixture = RuntimeFixture()
         val log = SessionLog(fixture.store)
