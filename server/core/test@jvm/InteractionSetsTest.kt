@@ -147,6 +147,18 @@ class InteractionSetsTest {
         }
     }
 
+    @Test fun stopWithoutARunLeavesAnOutOfRunInteractionAnswerable() = runBlocking {
+        lateinit var agent: Agent
+        TestServer.start(script = { on("regular") { reply("ok") } }, scenario = { agent = agent("work") }).use { server ->
+            val session = server.startSession(agent.id)
+            val open = server.extra(agent, session.id)
+            val client = server.client(token = server.auth.sessionToken()); client.connect()
+            client.call(Api.Stop, StopParams(session.id))
+            assertTrue(client.call(Api.Respond, RespondParams(session.id, open.id, form)))
+            assertEquals(mapOf("ok" to listOf("yes")), open.await())
+        }
+    }
+
     @Test fun aResolutionPublishedUnderTheReleasedWorksLockDoesNotDeadlock() = runBlocking {
         lateinit var agent: Agent
         TestServer.start(script = { on("regular") { reply("ok") } }, scenario = { agent = agent("work") }).use { server ->

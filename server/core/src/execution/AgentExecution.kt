@@ -139,7 +139,8 @@ class AgentExecution(
     suspend fun cancelQueued(params: CancelQueuedParams) = native.cancelQueued(params)
 
     override suspend fun stop(sessionId: SessionId) {
-        harness.interactions.stop(sessionId)
+        val active = if (external.owns(sessionId)) external.isActive(sessionId) else runs.isActive(sessionId)
+        if (active) harness.interactions.stop(sessionId)
         if (external.owns(sessionId)) {
             subAgents?.cancelChildren(sessionId)
             external.stop(sessionId)
