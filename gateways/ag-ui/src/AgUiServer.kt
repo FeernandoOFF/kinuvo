@@ -30,6 +30,8 @@ import kinuvo.protocol.approval.ApprovalDecision
 import kinuvo.protocol.approval.InteractionAnswer
 import kinuvo.protocol.approval.InteractionId
 import kinuvo.protocol.approval.RespondParams
+import kinuvo.protocol.session.AgentEvent
+import kinuvo.protocol.session.LiveState
 import kinuvo.protocol.session.SendParams
 import kinuvo.protocol.session.SessionChange
 import kinuvo.protocol.session.SessionId
@@ -82,6 +84,7 @@ class AgUiGateway(private val client: KinuvoClient, private val agentId: AgentId
     private val sessions = ConcurrentHashMap<String, SessionId>()
     private val reasons = ConcurrentHashMap<String, String>()
     private val openInterrupts = ConcurrentHashMap<String, Set<String>>()
+    private val sendRuns = ConcurrentHashMap.newKeySet<String>()
     private val creating = Mutex()
     private val subscriptions = Mutex()
     private val subscribers = HashMap<SessionId, Int>()
@@ -107,25 +110,65 @@ class AgUiGateway(private val client: KinuvoClient, private val agentId: AgentId
         try {
             subscribe(sessionId)
             subscribed = true
-            withTimeoutOrNull(startTimeout) { for (change in changes) if (change is SessionChange.Snapshot) break }
+            var state: LiveState? = null
+            withTimeoutOrNull(startTimeout) { for (change in changes) if (change is SessionChange.Snapshot) { state = change.snapshot.state; break } }
+            val held = ArrayDeque<SessionChange>()
+            fun settle(keepRuns: Boolean) {
+                while (true) {
+                    val change = changes.tryReceive().getOrNull() ?: break
+                    if (change is SessionChange.Item) state = state?.on(change.event)
+                    if (keepRuns) held += change
+                }
+            }
+            suspend fun next(): SessionChange? = held.removeFirstOrNull() ?: changes.receiveCatching().getOrNull()
             var sent: String? = null
             val error = runCatching {
-                if (resume.isEmpty()) sent = client.call(Api.Send, SendParams(agentId, sessionId, text.orEmpty())).runId.value
-                else {
-                    while (changes.tryReceive().isSuccess) continue
-                    answers.forEach { (id, answer) -> check(client.call(Api.Respond, RespondParams(sessionId, InteractionId(id), answer))) { "Interrupt $id was already answered" } }
+                if (resume.isEmpty()) {
+                    sent = client.call(Api.Send, SendParams(agentId, sessionId, text.orEmpty())).runId.value.also { sendRuns += it }
+                } else {
+                    settle(keepRuns = false)
+                    val live = checkNotNull(state) { "The Session did not respond" }
+                    val open = openInterrupts[input.threadId].orEmpty().map(::InteractionId)
+                    val answered = answers.map { InteractionId(it.first) }.toSet()
+                    val waiting = live.pending.map { it.id }.toSet() - live.staged
+                    val missing = open.filter { it in waiting && it !in answered }
+                    require(missing.isEmpty()) { "Resume must answer every open interrupt; missing: ${missing.joinToString { it.value }}" }
+                    check(waiting.any { it in open } || live.staged.any { it in open } || live.running) { "The run was stopped" }
+                    answers.filter { (id, _) -> InteractionId(id) in waiting }.forEach { (id, answer) ->
+                        if (!client.call(Api.Respond, RespondParams(sessionId, InteractionId(id), answer))) {
+                            settle(keepRuns = true)
+                            val now = checkNotNull(state)
+                            check(now.pending.none { it.id.value == id } || InteractionId(id) in now.staged) { "Interrupt $id could not be answered: the run was stopped or it was answered elsewhere" }
+                        }
+                    }
                     openInterrupts.remove(input.threadId)
                 }
             }.exceptionOrNull()
             if (error != null) return@coroutineScope fail(error.message ?: error.toString())
 
-            val first = withTimeoutOrNull(startTimeout) { changes.nextRun { it is AgUiEvent.RunStarted && (sent == null || it.runId == sent) } }
-                ?: return@coroutineScope fail(if (sent != null) "The message is queued behind another run and has not started" else "The Agent did not start a run")
+            val first = try {
+                withTimeoutOrNull(startTimeout) {
+                    var started: AgUiEvent.RunStarted? = null
+                    while (started == null) {
+                        when (val change = next() ?: break) {
+                            is SessionChange.Run -> (change.event as? AgUiEvent.RunStarted)?.let { event ->
+                                if (sent != null) { if (event.runId == sent) started = event }
+                                else if (event.runId in sendRuns) throw IllegalStateException("The run was stopped") else started = event
+                            }
+                            is SessionChange.Item -> if (sent == null && change.event is AgentEvent.Idle) throw IllegalStateException("The run was stopped")
+                            else -> Unit
+                        }
+                    }
+                    started
+                }
+            } catch (e: IllegalStateException) {
+                return@coroutineScope fail(e.message.orEmpty())
+            } ?: return@coroutineScope fail(if (sent != null) "The message is queued behind another run and has not started" else "The Agent did not start a run")
             var event: AgUiEvent? = first
             while (event != null) {
                 emit(event.forThread(input))
                 if (event is AgUiEvent.RunFinished || event is AgUiEvent.RunError) break
-                event = changes.nextRun { true }
+                event = nextRun(::next)
             }
         } finally {
             collector.cancel()
@@ -154,13 +197,11 @@ class AgUiGateway(private val client: KinuvoClient, private val agentId: AgentId
         require(open.isNotEmpty()) { "Thread $threadId has no open interrupts" }
         require(ids.size == ids.toSet().size) { "Each interrupt may be answered once" }
         require(open.containsAll(ids)) { "Unknown interrupts: ${(ids.toSet() - open).joinToString()}" }
-        require(ids.size == open.size) { "Resume must answer every open interrupt; missing: ${(open - ids.toSet()).joinToString()}" }
         return resume.map { it.interruptId to answer(it) }
     }
 
-    private suspend fun Channel<SessionChange>.nextRun(accept: (AgUiEvent) -> Boolean): AgUiEvent? {
-        for (change in this) (change as? SessionChange.Run)?.event?.takeIf(accept)?.let { return it }
-        return null
+    private suspend fun nextRun(next: suspend () -> SessionChange?): AgUiEvent? {
+        while (true) (next() ?: return null).let { if (it is SessionChange.Run) return it.event }
     }
 
     private fun AgUiEvent.forThread(input: RunAgentInput): AgUiEvent = when (this) {
@@ -242,8 +283,14 @@ suspend fun startAgUi(client: KinuvoClient, agentId: AgentId, host: String, port
                     call.respondText("Content-Type must be application/json", status = HttpStatusCode.UnsupportedMediaType)
                     return@post
                 }
-                val input = runCatching { ProtocolJson.decodeFromString(RunAgentInput.serializer(), call.receiveText()) }.getOrElse {
-                    call.respondTextWriter(ContentType.Text.EventStream, HttpStatusCode.BadRequest) { write(sse(AgUiEvent.RunError(it.message ?: "Invalid input"))) }
+                val body = call.receiveText()
+                val input = runCatching { ProtocolJson.decodeFromString(RunAgentInput.serializer(), body) }.getOrElse {
+                    val ids = runCatching { ProtocolJson.parseToJsonElement(body) as? JsonObject }.getOrNull()
+                    fun id(key: String) = (ids?.get(key) as? JsonPrimitive)?.contentOrNull.orEmpty()
+                    call.respondTextWriter(ContentType.Text.EventStream, HttpStatusCode.BadRequest) {
+                        write(sse(AgUiEvent.RunStarted(id("threadId"), id("runId"))))
+                        write(sse(AgUiEvent.RunError(it.message ?: "Invalid input")))
+                    }
                     return@post
                 }
                 call.response.cacheControl(CacheControl.NoCache(null))

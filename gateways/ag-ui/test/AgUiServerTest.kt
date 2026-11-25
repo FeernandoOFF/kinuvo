@@ -3,11 +3,15 @@ package kinuvo.gateways.agui
 import com.networknt.schema.InputFormat
 import com.networknt.schema.JsonSchemaFactory
 import com.networknt.schema.SpecVersion
+import kinuvo.client.KinuvoClient
+import kinuvo.protocol.Api
 import kinuvo.protocol.ProtocolJson
 import kinuvo.protocol.agent.AgentId
 import kinuvo.protocol.agui.AgUiEvent
 import kinuvo.protocol.agui.RunOutcome
 import kinuvo.protocol.approval.Risk
+import kinuvo.protocol.session.SessionsParams
+import kinuvo.protocol.session.StopParams
 import kinuvo.testing.server.FakeTool
 import kinuvo.testing.server.FakeTools
 import kinuvo.testing.server.TestServer
@@ -48,6 +52,8 @@ class AgUiServerTest {
     private fun input(thread: String, run: String, text: String) =
         """{"threadId":"$thread","runId":"$run","messages":[{"id":"m","role":"user","content":"$text"}],"tools":[],"context":[],"state":{},"forwardedProps":{}}"""
 
+    private lateinit var client: KinuvoClient
+
     private fun gatewayTest(origins: Set<String> = emptySet(), block: suspend CoroutineScope.(port: Int) -> Unit) = runBlocking {
         val server = TestServer.start(
             plugins = listOf(FakeTools(FakeTool("deploy", Risk.High, reason = "Pushes to production") { "deployed" })),
@@ -55,7 +61,7 @@ class AgUiServerTest {
             scenario = { agent("work") },
         )
         server.use {
-            val client = server.client(token = server.auth.sessionToken()).also { it.connect() }
+            client = server.client(token = server.auth.sessionToken()).also { it.connect() }
             val gateway = startAgUi(client, AgentId("work"), "127.0.0.1", 0, allowedOrigins = origins)
             try { withContext(Dispatchers.IO) { block(gateway.port) } } finally { gateway.stop() }
         }
@@ -185,6 +191,24 @@ class AgUiServerTest {
         assertEquals("Beta reply", events.text())
         assertEquals("run-beta", assertIs<AgUiEvent.RunFinished>(events.last()).runId)
         assertEquals(1, events.count { it is AgUiEvent.RunStarted })
+    }
+
+    @Test
+    fun aResumeAfterStopEndsWithAnErrorNotAnotherRun() = gatewayTest { port ->
+        val id = deployInterrupt(port, "s1")
+        val session = client.call(Api.Sessions, SessionsParams(AgentId("work"))).sessions.first().id
+        client.call(Api.Stop, StopParams(session))
+        val events = post(port, """{"threadId":"s1","runId":"r2","messages":[],"resume":[{"interruptId":"$id","status":"resolved","payload":{"decision":"allow_once"}}]}""")
+        assertEquals(listOf("RunStarted", "RunError"), events.map { it::class.simpleName })
+        assertTrue(errorOf(events).contains("stopped"))
+    }
+
+    @Test
+    fun aMalformedBodyGetsRunStartedThenRunError() = gatewayTest { port ->
+        val response = raw(port, """{"threadId":"b1","runId":"rb"}x""")
+        val events = response.body().split("\n\n").filter { it.startsWith("data: ") }.map { ProtocolJson.decodeFromString(AgUiEvent.serializer(), it.removePrefix("data: ")) }
+        assertIs<AgUiEvent.RunStarted>(events.first())
+        assertIs<AgUiEvent.RunError>(events.last())
     }
 
     @Test

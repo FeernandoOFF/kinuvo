@@ -12,7 +12,7 @@ Or against a real Server: `kinuvo agui --agent <id> [--host 127.0.0.1] [--port 8
 
 Point `@ag-ui/client` (`new HttpAgent({ url: "http://127.0.0.1:18086/" })`) or CopilotKit's `HttpAgent` runtime at it. Fixture phrases: "Deploy" parks on a `tool_call` interrupt, "Ask me" on `input_required`, anything else replies.
 
-Resuming sends `resume: [{interruptId, status, payload}]`. Approvals take `payload.decision` (`allow_once`, `allow_session`, `always_allow`, `deny`, optional `note`); a cancelled interrupt is denied or skipped. A missing or unknown `decision` is an error, never an approval. `resume` must answer every open interrupt of the thread, otherwise the run fails at once.
+Resuming sends `resume: [{interruptId, status, payload}]`. Approvals take `payload.decision` (`allow_once`, `allow_session`, `always_allow`, `deny`, optional `note`); a cancelled interrupt is denied or skipped. A missing or unknown `decision` is an error, never an approval. `resume` must answer every open interrupt another Device has not already answered, otherwise the run fails at once; after a failed resume, send only the remaining ones. A resume whose run was stopped ends with `RUN_ERROR`, and every error stream starts with `RUN_STARTED`.
 
 A send streams the run the Server started for it. A message queued behind an open interrupt or another run waits for its own run and reports an error if it has not started in time.
 
