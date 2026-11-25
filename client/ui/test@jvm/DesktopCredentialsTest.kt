@@ -36,4 +36,16 @@ class DesktopCredentialsTest {
         } finally { credentials.delete(server) }
         assertNull(DesktopCredentials(dir).read(server))
     }
+
+    @Test
+    fun macKeychainStoresATailcatLink() {
+        if (currentPlatform != Platform.MacOS) return
+        val credentials = DesktopCredentials(temporaryDirectories.create("tailcat-link").toFile())
+        val server = "tailcat://test-${UUID.randomUUID()}.link"
+        val link = """{"address":"100.64.0.1:443","key":"nodekey:ab\\/cd","name":"Phone \"Fold\"","payload":"{\\"code\\":\\"x\\"}"}"""
+        try {
+            credentials.write(server, link)
+            assertEquals(link, credentials.read(server))
+        } finally { credentials.delete(server) }
+    }
 }
