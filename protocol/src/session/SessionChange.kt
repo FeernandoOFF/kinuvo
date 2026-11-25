@@ -27,6 +27,10 @@ sealed interface SessionChange {
     @Serializable @SerialName("run")
     data class Run(val event: AgUiEvent) : SessionChange
 
+    /** What did not fit in the [Snapshot], in bounded frames: the persisted [entries] from [firstSeq] on, or events of the active [run], never both in one frame. */
+    @Serializable @SerialName("continued")
+    data class Continued(val firstSeq: Int = 0, val entries: List<SessionEntry> = emptyList(), val run: List<AgUiEvent> = emptyList()) : SessionChange
+
     /** A change with no AG-UI counterpart: queue, children, interactions, wake, Reflection, notice or a run-less status. */
     @Serializable @SerialName("item")
     data class Item(val event: AgentEvent) : SessionChange
@@ -36,8 +40,8 @@ sealed interface SessionChange {
  * The Session at one cutoff: the persisted entries from [firstSeq] up to [seq] (the position of the next entry), what
  * is queued, delegated or waiting for an answer in [state], and the AG-UI events of the active run since its
  * `RUN_STARTED` in [run]. Run items already in [entries] are skipped by the client. A page or run too large for one frame
- * puts only its first entries and events in the Snapshot; the rest of the entries up to [seq] follow as
- * [SessionChange.Entry] frames, then the rest of the run as [SessionChange.Run] frames, before anything live.
+ * puts only its first entries and events in the Snapshot; the rest of the entries up to [seq] follow in
+ * [SessionChange.Continued] frames, then the rest of the run, before anything live.
  */
 @Serializable
 data class SessionSnapshot(

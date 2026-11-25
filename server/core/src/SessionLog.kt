@@ -381,7 +381,8 @@ class SessionLog(
         send(agentId, sessionId, entries, after, limit, subscriber)
     }
 
-    private fun send(agentId: AgentId, sessionId: SessionId, entries: List<SessionEntry>, after: Int?, limit: Int, subscriber: Subscriber) {
+    /** The Snapshot and Continued frames that catch a client up from [after]; the lock must be held. */
+    private fun catchUp(sessionId: SessionId, entries: List<SessionEntry>, after: Int?, limit: Int): List<SessionChange> {
         val from = if (after == null || after > entries.size || entries.size - after > limit) maxOf(0, entries.size - limit) else after
         val children = entries.filterIsInstance<SessionEntry.Notice>().filterNot { it.code == "sub_agent_delivery" }
             .mapNotNull { it.child?.forClient() }.associateBy { it.sessionId }
@@ -393,10 +394,33 @@ class SessionLog(
         var runSize = 0
         val inlineRun = run.takeWhile { runSize += ProtocolJson.encodeToString(AgUiEvent.serializer(), it).encodeToByteArray().size; runSize <= snapshotEntryBytes }
         val snapshot = SessionSnapshot(from, entries.size, inline, state, inlineRun)
-        val changes = listOf<SessionChange>(SessionChange.Snapshot(snapshot)) +
-            page.drop(inline.size).mapIndexed { i, entry -> SessionChange.Entry(from + inline.size + i, entry) } +
-            run.drop(inlineRun.size).map { SessionChange.Run(it) }
-        for (change in changes) if (!subscriber.offer(SessionUpdate(agentId, sessionId, change))) return removeEverywhere(subscriber)
+        var next = from + inline.size
+        return listOf<SessionChange>(SessionChange.Snapshot(snapshot)) +
+            bounded(page.drop(inline.size)) { ProtocolJson.encodeToString(SessionEntry.serializer(), it) }
+                .map { chunk -> SessionChange.Continued(next, entries = chunk).also { next += chunk.size } } +
+            bounded(run.drop(inlineRun.size)) { ProtocolJson.encodeToString(AgUiEvent.serializer(), it) }.map { SessionChange.Continued(run = it) }
+    }
+
+    private fun <T> bounded(items: List<T>, encode: (T) -> String): List<List<T>> {
+        val chunks = mutableListOf<MutableList<T>>()
+        var used = 0
+        for (item in items) {
+            val size = encode(item).encodeToByteArray().size
+            if (chunks.isEmpty() || used + size > snapshotEntryBytes) { chunks.add(mutableListOf()); used = 0 }
+            chunks.last() += item
+            used += size
+        }
+        return chunks
+    }
+
+    private fun send(agentId: AgentId, sessionId: SessionId, entries: List<SessionEntry>, after: Int?, limit: Int, subscriber: Subscriber) {
+        for (change in catchUp(sessionId, entries, after, limit))
+            if (!subscriber.offer(SessionUpdate(agentId, sessionId, change))) return removeEverywhere(subscriber)
+    }
+
+    /** What [subscribe] would send for the whole Session, read at one point in time and without subscribing anyone. */
+    suspend fun capture(agentId: AgentId, sessionId: SessionId): List<SessionChange> = lock.withLock {
+        catchUp(sessionId, store.entries(agentId, sessionId), null, Int.MAX_VALUE)
     }
 
     /** Hands [event] to the Session's translator and delivers what comes out, buffering the active run's events. */

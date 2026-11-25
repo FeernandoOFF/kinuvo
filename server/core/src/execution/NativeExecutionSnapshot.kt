@@ -20,8 +20,6 @@ suspend fun SessionLog.executionSnapshot(agent: AgentId, id: SessionId): Executi
     session(agent, id)
     val messages = mutableListOf<ExecutionMessage>()
     var live = LiveState()
-    var captured = false
-    var cutoff = 0
     val run = mutableListOf<AgUiEvent>()
     fun add(seq: Int, entry: SessionEntry) {
         when (entry) {
@@ -35,20 +33,18 @@ suspend fun SessionLog.executionSnapshot(agent: AgentId, id: SessionId): Executi
             else -> Unit
         }
     }
-    val subscriber = SessionLog.Subscriber { update ->
-        val change = update.change
-        if (!captured && change is SessionChange.Snapshot) {
+    for (change in capture(agent, id)) when (change) {
+        is SessionChange.Snapshot -> {
             change.snapshot.entries.forEachIndexed { index, entry -> add(change.snapshot.firstSeq + index, entry) }
             live = change.snapshot.state
             run += change.snapshot.run
-            cutoff = change.snapshot.seq
-            captured = true
-        } else if (captured && change is SessionChange.Entry && change.seq < cutoff) add(change.seq, change.entry)
-        else if (captured && change is SessionChange.Run) run += change.event
-        true
+        }
+        is SessionChange.Continued -> {
+            change.entries.forEachIndexed { index, entry -> add(change.firstSeq + index, entry) }
+            run += change.run
+        }
+        else -> Unit
     }
-    try { subscribe(agent, id, null, Int.MAX_VALUE, subscriber) }
-    finally { unsubscribe(id, subscriber) }
     if (live.executionPhase != null) {
         live.entries.forEach { entry ->
             messages.add(ExecutionMessage(entry.identity()?.let { "${it.type}:${it.id}" } ?: "live", when(entry) {
