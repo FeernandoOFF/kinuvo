@@ -213,7 +213,7 @@ class FileStore(
     }
 
     override suspend fun appendAll(agentId: AgentId, sessionId: SessionId, entries: List<SessionEntry>): List<SessionEntry> = lock.withLock {
-        val saved = this.entries(agentId, sessionId)
+        val saved = readEntries(file(agentId, sessionId), sessionId)
         val added = missingEntries(saved, entries).map { it.withWrittenAt(it.writtenAt ?: clock()) }
         if (added.isNotEmpty()) {
             writeAtomically(file(agentId, sessionId), encode(saved + added))
@@ -230,8 +230,10 @@ class FileStore(
         file.appendText(separator + json.encodeToString(SessionEntry.serializer(), entry) + "\n")
     }
 
-    override suspend fun entries(agentId: AgentId, sessionId: SessionId): List<SessionEntry> =
+    // Under [lock] so a read never sees an append's partial last line.
+    override suspend fun entries(agentId: AgentId, sessionId: SessionId): List<SessionEntry> = lock.withLock {
         readEntries(file(agentId, sessionId), sessionId)
+    }
 
     override suspend fun deleteSession(agentId: AgentId, sessionId: SessionId) = lock.withLock {
         val file = file(agentId, sessionId)

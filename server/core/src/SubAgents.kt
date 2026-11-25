@@ -12,6 +12,7 @@ import kinuvo.protocol.approval.*
 import kinuvo.protocol.session.*
 import kinuvo.protocol.tool.ToolNames
 import kinuvo.protocol.execution.ExecutionPhase
+import kotlin.time.Duration.Companion.minutes
 import kotlin.uuid.Uuid
 import kinuvo.server.plugin.*
 import kotlinx.coroutines.*
@@ -487,10 +488,9 @@ class SubAgents internal constructor(
         if (!deletingSession && lock.withLock { id !in deleting }) children.forEach { dispatch.stop(it) }
     }
 
-    suspend fun answer(answer: RespondParams): Boolean {
-        val child = lock.withLock { interactions[answer.sessionId to answer.requestId] } ?: return false
-        return dispatch.answer(answer.copy(sessionId = child))
-    }
+    /** [answer] aimed at the child Session whose interaction it answers; null when it isn't for one. */
+    suspend fun target(answer: RespondParams): RespondParams? =
+        lock.withLock { interactions[answer.sessionId to answer.requestId] }?.let { answer.copy(sessionId = it) }
 
     private fun sameTurn(a: SubAgentState, b: SubAgentState) =
         a.sessionId == b.sessionId && turnKey(a) == turnKey(b)
@@ -511,7 +511,7 @@ class SubAgents internal constructor(
                     ChangePreview("Share Sub-agent result", note = "Open the child Session ${state.sessionId.value} in this conversation to read its result before sharing.")
                 else ChangePreview("Share Sub-agent result", body = state.result),
             ), state.sessionId.takeIf { transcriptExists }))
-            val allowed = withTimeoutOrNull(1800_000) { pending.await() }?.let { it !is ApprovalDecision.Deny } == true
+            val allowed = pending.await(30.minutes)?.let { it !is ApprovalDecision.Deny } == true
             return state.copy(result = if (allowed) state.result else "The user withheld the result")
         } finally {
             pending.close()

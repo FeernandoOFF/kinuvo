@@ -71,8 +71,9 @@ class NativeExecution(
             try {
                 while (true) {
                     runs.join(session)
+                    harness.interactions.awaitClear(session)
                     val started = deliveryLock.withLock {
-                        if (runs.isActive(session)) return@withLock true
+                        if (runs.isActive(session) || harness.interactions.open(session)) return@withLock true
                         childReports.remove(session)?.let { pending ->
                             val wake = pending.take()
                             if (wake != null) {
@@ -218,7 +219,7 @@ class NativeExecution(
                     harness.log.updateDetails(agent.id, sessionId, settled = false)
                     inbox += pending
                 }
-                p.delivery == SendDelivery.Queue -> {
+                p.delivery == SendDelivery.Queue || p.delivery == SendDelivery.Turn && harness.interactions.open(sessionId) -> {
                     queued.getOrPut(sessionId) { mutableListOf() } += pending
                     publishQueue(agent, sessionId)
                     pump(sessionId)

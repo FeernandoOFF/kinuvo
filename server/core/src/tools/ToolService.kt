@@ -28,7 +28,6 @@ import kinuvo.protocol.ProtocolJson
 import kinuvo.protocol.session.SessionEntry
 import kinuvo.protocol.session.ToolCallId
 import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.jsonObject
 
@@ -98,7 +97,7 @@ class ToolService(
                     }.ifEmpty { null }
                     turn.emit(AgentEvent.InteractionRequested(PendingInteraction.Approval(pending.id, ToolCallId(approvalId), call.name, if (preview == null) call.args else "{}", hint, a.risk, a.reason, verdict.trustKeys.isNotEmpty(), tool?.identity, preview)))
                     val wait = approvals.wait
-                    val answer = if (wait == null) pending.await() else withTimeoutOrNull(wait) { pending.await() }
+                    val answer = if (wait == null) pending.await() else pending.await(wait)
                     turn.stopped("Cancelled by user")
                     turn.emit(AgentEvent.InteractionResolved(pending.id, answer != null && answer !is ApprovalDecision.Deny))
                     if (answer == null) {

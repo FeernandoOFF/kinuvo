@@ -400,7 +400,8 @@ class ServerClientTest {
                 val firstRequest = async(start = CoroutineStart.UNDISPATCHED) { original.approvals().first() }
                 original.call(Api.Send, SendParams(AgentId("default"), first, "make skill"))
                 val approval = firstRequest.await()
-                assertTrue(runCatching { original.call(Api.Send, SendParams(AgentId("default"), first, "again")) }.isFailure, "one run per Session")
+                val queued = original.call(Api.Send, SendParams(AgentId("default"), first, "again"))
+                original.call(Api.CancelQueued, CancelQueuedParams(AgentId("default"), first, queued.runId.value))
                 original.close()
 
                 val reconnected = KinuvoClient(url, "phone", token = token).also { it.connect() }
