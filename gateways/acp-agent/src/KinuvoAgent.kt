@@ -30,6 +30,7 @@ import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.serialization.json.*
+import java.util.concurrent.ConcurrentHashMap
 
 /** One selected native Agent; only Sessions created by this connection are reachable. */
 class KinuvoAgent(private val dispatch: ExecutionDispatch, private val agentId: AgentId) : AgentSupport {
@@ -54,7 +55,8 @@ class KinuvoAgent(private val dispatch: ExecutionDispatch, private val agentId: 
                     if (!cancelled) dispatch.send(SendParams(agentId, KinuvoSessionId(id), content.filterIsInstance<ContentBlock.Text>().joinToString("\n") { it.text }))
                 }
                 emit(SessionUpdate.StateUpdate(StateUpdate.Running()))
-                val answered = mutableSetOf<InteractionId>()
+                val answered = ConcurrentHashMap.newKeySet<InteractionId>()
+                val failures = ConcurrentHashMap<InteractionId, Int>()
                 coroutineScope {
                     while (true) {
                         val snapshot = dispatch.snapshot(agentId, KinuvoSessionId(id))
@@ -91,9 +93,12 @@ class KinuvoAgent(private val dispatch: ExecutionDispatch, private val agentId: 
                                 is PendingInteraction.Connect -> InteractionAnswer.Connect(false)
                                 else -> InteractionAnswer.Harness(JsonNull)
                             }
-                            try { dispatch.answer(RespondParams(KinuvoSessionId(id), request.id, answer)) }
+                            val delivered = try { dispatch.answer(RespondParams(KinuvoSessionId(id), request.id, answer)) }
                             catch (e: CancellationException) { throw e }
-                            catch (_: Exception) {}
+                            catch (_: Exception) { false }
+                            if (delivered) return@launch
+                            if (failures.merge(request.id, 1, Int::plus)!! < MAX_ANSWER_ATTEMPTS) answered.remove(request.id)
+                            else System.err.println("kinuvo: giving up answering ${request.id.value} after $MAX_ANSWER_ATTEMPTS attempts")
                         }
                         delay(100)
                     }
@@ -141,3 +146,5 @@ class KinuvoAgent(private val dispatch: ExecutionDispatch, private val agentId: 
         }
     }
 }
+
+private const val MAX_ANSWER_ATTEMPTS = 3
