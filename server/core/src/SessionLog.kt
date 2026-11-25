@@ -26,6 +26,7 @@ import kinuvo.protocol.agui.AgUiRunTranslator
 import kinuvo.protocol.agent.AgentId
 import kinuvo.protocol.session.SessionId
 import kinuvo.protocol.approval.InteractionId
+import io.github.oshai.kotlinlogging.KotlinLogging
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.withContext
@@ -35,6 +36,8 @@ import kotlin.concurrent.atomics.AtomicReference
 import kotlin.concurrent.atomics.ExperimentalAtomicApi
 import kotlin.concurrent.atomics.update
 import kotlin.uuid.Uuid
+
+private val logger = KotlinLogging.logger("kinuvo.sessions")
 
 /**
  * Every Session as one ordered stream of [SessionUpdate]s: its entries (seq = position), the active run as AG-UI events
@@ -384,6 +387,7 @@ class SessionLog(
     /** The Snapshot and Continued frames that catch a client up from [after]; the lock must be held. */
     private fun catchUp(sessionId: SessionId, entries: List<SessionEntry>, after: Int?, limit: Int): List<SessionChange> {
         val from = if (after == null || after > entries.size || entries.size - after > limit) maxOf(0, entries.size - limit) else after
+        if (after != null && from != after) logger.info { "session.resync session=${sessionId.value} after=$after entries=${entries.size} from=$from" }
         val children = entries.filterIsInstance<SessionEntry.Notice>().filterNot { it.code == "sub_agent_delivery" }
             .mapNotNull { it.child?.forClient() }.associateBy { it.sessionId }
         val state = (live[sessionId] ?: LiveState()).let { it.copy(children = children + it.children) }.forSnapshot()
@@ -415,7 +419,7 @@ class SessionLog(
 
     private fun send(agentId: AgentId, sessionId: SessionId, entries: List<SessionEntry>, after: Int?, limit: Int, subscriber: Subscriber) {
         for (change in catchUp(sessionId, entries, after, limit))
-            if (!subscriber.offer(SessionUpdate(agentId, sessionId, change))) return removeEverywhere(subscriber)
+            if (!subscriber.offer(SessionUpdate(agentId, sessionId, change))) return dropped(sessionId, subscriber)
     }
 
     /** What [subscribe] would send for the whole Session, read at one point in time and without subscribing anyone; relayed child interactions staged in their own Session count as staged. */
@@ -475,7 +479,12 @@ class SessionLog(
     }
 
     private fun deliver(update: SessionUpdate) {
-        subscribers[update.sessionId]?.toList()?.forEach { if (!it.offer(update)) removeEverywhere(it) }
+        subscribers[update.sessionId]?.toList()?.forEach { if (!it.offer(update)) dropped(update.sessionId, it) }
+    }
+
+    private fun dropped(sessionId: SessionId, subscriber: Subscriber) {
+        logger.warn { "session.subscriber.dropped session=${sessionId.value}: it couldn't keep up or has gone" }
+        removeEverywhere(subscriber)
     }
 
     private fun changed(info: SessionInfo) = changeListeners.load().forEach { it(info) }

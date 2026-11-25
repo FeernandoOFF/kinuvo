@@ -20,7 +20,7 @@ class ModuleEdgesTest {
 
     private val rules = listOf(
         Rule("protocol", emptyList(), harnessTests),
-        Rule("client/*", listOf("protocol", "client/*"), harnessTests),
+        Rule("client/*", listOf("protocol", "client/*", "libs/diagnostics"), harnessTests),
         Rule("harness/api", listOf("protocol"), harnessTests),
         Rule("harness/builtin", listOf("harness/api", "protocol"), harnessTests),
         Rule("harness/acp", listOf("harness/api", "protocol"), harnessTests),
@@ -32,6 +32,7 @@ class ModuleEdgesTest {
         Rule("plugins/*", listOf("server/plugin-api", "protocol"), serverTests),
         Rule("gateways/kinuvo-mcp", listOf("server/core", "harness/api", "protocol"), serverTests + "harness/acp"),
         Rule("gateways/*", listOf("client/sdk", "harness/api", "protocol"), serverTests),
+        Rule("libs/diagnostics", emptyList(), harnessTests),
         Rule("libs/tailcat", listOf("client/sdk", "server/plugin-api", "protocol"), serverTests + "server/core"),
         Rule("server/jvm", hostTo, serverTests),
         Rule("server/embedded", hostTo, serverTests),
@@ -122,7 +123,7 @@ class ModuleEdgesTest {
 
     @Test fun clientsReachNoServerCode() {
         val reached = modules().filter { it.startsWith("client/") }.flatMap { module -> closure(module).map { "$module -> $it" } }
-            .filter { !it.substringAfter(" -> ").let { to -> to == "protocol" || to.startsWith("client/") } }
+            .filter { !it.substringAfter(" -> ").let { to -> to == "protocol" || to == "libs/diagnostics" || to.startsWith("client/") } }
         assertEquals(emptyList(), reached, "client modules reach Server, harness, plugin or provider modules")
     }
 

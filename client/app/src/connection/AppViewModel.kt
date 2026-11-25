@@ -545,7 +545,8 @@ class AppViewModel(
         connecting?.cancel()
         watching?.cancel()
         owner.close()
-        state.update { it.cleared() }
+        // Never leave Ready behind a closed Server: screens built from it would find no client.
+        state.update { it.cleared().copy(connection = Connection.Connecting()) }
     }
 
     private fun AppState.cleared() = copy(agents = emptyList(), sessions = RepositoryState(), routines = emptyMap(), devices = DevicesState(), usage = null,

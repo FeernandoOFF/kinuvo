@@ -1,5 +1,6 @@
 package kinuvo.ui.e2e
 
+import kinuvo.app.diagnostics.LogSharing
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.semantics.SemanticsProperties
@@ -66,6 +67,7 @@ internal fun appTest(
     onboarding: Boolean = false,
     /** Delays every streamed frame of the model's reply, to widen a run's live window. */
     modelDelayMillis: Long = 0,
+    logSharing: LogSharing? = null,
     block: suspend AppTest.() -> Unit,
 ) = (if (desktop) ::runDesktopTest else ::runPhoneTest) {
     val server = withContext(Dispatchers.Default) {
@@ -80,7 +82,7 @@ internal fun appTest(
             embedded = if (onboarding) object : EmbeddedServer {
                 private val token = server.pairDevice()
                 override suspend fun endpoint() = Endpoint("memory://test-server", token) { server.connect() }
-            } else null)
+            } else null, logSharing = logSharing)
     } finally {
         withContext(Dispatchers.Default + NonCancellable) { server.stop() }
     }
@@ -90,7 +92,7 @@ internal fun appTest(
 internal const val REPLY = "Hello from the scripted model"
 
 @OptIn(ExperimentalTestApi::class)
-private suspend fun <T : AppDriver> ComposeUiTest.runApp(connect: suspend (String) -> FrameConnection, app: T, block: suspend T.() -> Unit, mode: InteractionMode = InteractionMode.Touch, embedded: EmbeddedServer? = null) {
+private suspend fun <T : AppDriver> ComposeUiTest.runApp(connect: suspend (String) -> FrameConnection, app: T, block: suspend T.() -> Unit, mode: InteractionMode = InteractionMode.Touch, embedded: EmbeddedServer? = null, logSharing: LogSharing? = null) {
     val values = mutableMapOf<String, String>()
     val tokens = mutableMapOf<String, String>()
     val preferences = object : Preferences {
@@ -104,6 +106,12 @@ private suspend fun <T : AppDriver> ComposeUiTest.runApp(connect: suspend (Strin
         override fun delete(server: String) { tokens.remove(server) }
     }
     val koin = kinuvoApplication(module {
+        // Never this machine's own logs and crashes.
+        single<LogSharing> { logSharing ?: object : LogSharing {
+            override fun crashedLastTime() = false
+            override fun dismissCrash() {}
+            override suspend fun bundle(): String = error("No logs in tests")
+        } }
         single<Preferences> { preferences }
         single<DeviceCredentials> { credentials }
         single { Device("Test phone", "UTC", SERVER_URL) }
