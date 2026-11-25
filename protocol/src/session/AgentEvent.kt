@@ -28,6 +28,10 @@ sealed interface AgentEvent {
     @Serializable @SerialName("INTERACTION_STAGED")
     data class InteractionStaged(val id: InteractionId) : AgentEvent
 
+    /** [id]'s staged answer was not released, so it can be answered again. */
+    @Serializable @SerialName("INTERACTION_UNSTAGED")
+    data class InteractionUnstaged(val id: InteractionId) : AgentEvent
+
     /** The Session has no run and no work left, e.g. after Stop on a run that was waiting for answers. */
     @Serializable @SerialName("IDLE")
     data object Idle : AgentEvent

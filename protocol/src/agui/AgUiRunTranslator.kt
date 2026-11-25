@@ -148,7 +148,7 @@ class AgUiRunTranslator(private val sessionId: SessionId, private val parentRunI
                 children -= event.id
                 item()
             }
-            is AgentEvent.InteractionStaged, is AgentEvent.QueueChanged, is AgentEvent.SubAgentChanged, is AgentEvent.ExecutionEntryChanged, is AgentEvent.ReflectionStarted -> item()
+            is AgentEvent.InteractionStaged, is AgentEvent.InteractionUnstaged, is AgentEvent.QueueChanged, is AgentEvent.SubAgentChanged, is AgentEvent.ExecutionEntryChanged, is AgentEvent.ReflectionStarted -> item()
             is AgentEvent.Idle -> {
                 if (open != null) { closeItems(::run); runId = null; run(AgUiEvent.RunFinished(sessionId.value, open.value, RunOutcome.Cancelled)) }
                 reset()

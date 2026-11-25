@@ -108,6 +108,12 @@ class SessionLog(
         if (live[sessionId]?.pending?.any { it.id == id } == true) publishLocked(agentId, sessionId, AgentEvent.InteractionStaged(id))
     }
 
+    /** Shows every client that [id] needs an answer again after its staged one was not released. */
+    suspend fun unstaged(sessionId: SessionId, id: InteractionId) = lock.withLock {
+        val agentId = owners[sessionId] ?: return@withLock
+        if (live[sessionId]?.staged?.contains(id) == true) publishLocked(agentId, sessionId, AgentEvent.InteractionUnstaged(id))
+    }
+
     /** Stop was requested for [sessionId]: a run that waits for answers ends as Idle instead of opening a new run. */
     suspend fun stopping(sessionId: SessionId) = lock.withLock { translators[sessionId]?.stopping() }
 

@@ -108,7 +108,7 @@ class AgentExecution(
     /** Every answer, from any client, is staged in its run's interaction set and released with the rest of it. */
     override suspend fun answer(answer: RespondParams): Boolean {
         val target = subAgents?.target(answer)?.takeIf { child -> log.pending(child.sessionId).any { it.id == child.requestId } } ?: answer
-        log.pending(target.sessionId).firstOrNull { it.id == target.requestId }?.let { harness.checkAnswer(it, target.answer) }
+        log.pending(target.sessionId).firstOrNull { it.id == target.requestId }?.let { harness.checkAnswer(it, target.answer, external.owns(target.sessionId)) }
         val parked = if (external.owns(target.sessionId)) external.isActive(target.sessionId) else runs.isActive(target.sessionId)
         return harness.interactions.respond(target, parked, ::release)
     }
