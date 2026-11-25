@@ -104,7 +104,8 @@ class KinuvoAgent(private val dispatch: ExecutionDispatch, private val agentId: 
                                     val delivered = try { dispatch.answer(RespondParams(KinuvoSessionId(id), request.id, answer)) }
                                     catch (e: CancellationException) { throw e }
                                     catch (_: Exception) { false }
-                                    if (delivered) {
+                                    val settled = delivered || dispatch.snapshot(agentId, KinuvoSessionId(id)).let { s -> s.pending.none { it.id == request.id } || request.id in s.staged }
+                                    if (settled) {
                                         failures.remove(request.id)
                                         deliveredAt[request.id] = clock.incrementAndGet()
                                     } else if (failures.merge(request.id, 1, Int::plus)!! >= MAX_ANSWER_ATTEMPTS) abandon(request.id)
@@ -119,7 +120,8 @@ class KinuvoAgent(private val dispatch: ExecutionDispatch, private val agentId: 
         }
 
         private suspend fun abandon(request: InteractionId) {
-            if (dispatch.snapshot(agentId, KinuvoSessionId(id)).pending.none { it.id == request }) return
+            val snapshot = dispatch.snapshot(agentId, KinuvoSessionId(id))
+            if (snapshot.pending.none { it.id == request } || request in snapshot.staged) return
             try { dispatch.stop(KinuvoSessionId(id)) }
             catch (e: CancellationException) { throw e }
             catch (_: Exception) {}
