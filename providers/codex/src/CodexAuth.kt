@@ -27,6 +27,8 @@ import kotlin.time.Duration.Companion.seconds
 import kotlin.time.Instant
 import kotlin.time.TimeSource
 
+private val log = KotlinLogging.logger("kinuvo.codex.auth")
+
 data class CodexTokens(val accessToken: String, val accountId: String, val usesChatGptPlan: Boolean = false)
 
 /** ChatGPT OAuth tokens, kept like the Codex CLI's auth.json in [store]; refreshes and writes them back in place. */
@@ -145,6 +147,7 @@ class CodexAuth(
             put("refresh_token", refreshToken)
             put("scope", "openid profile email")
         })
+        if (!res.status.isSuccess()) log.warn { "chatgpt.token.refresh.failed status=${res.status.value}" }
         check(res.status.isSuccess()) { "Codex token refresh failed (${res.status}). Run `kinuvo login` or `codex login`." }
         val fresh = Json.parseToJsonElement(res.bodyAsText()).jsonObject
         val tokens = JsonObject(root.tokens + fresh.filterKeys { it in TOKEN_KEYS })

@@ -87,6 +87,11 @@ import kinuvo.protocol.session.SessionId
 import kotlin.io.encoding.Base64
 import kotlinx.coroutines.CancellationException
 import kinuvo.server.providers.ModelProvider
+import io.github.oshai.kotlinlogging.KotlinLogging
+import kotlin.time.Duration.Companion.seconds
+import kotlin.time.TimeSource
+
+private val logger = KotlinLogging.logger("kinuvo.runs")
 
 private class ScratchStorage : SessionStorage {
     private val entries = mutableListOf<SessionEntry>()
@@ -208,7 +213,13 @@ class RunComposer internal constructor(
             ?: CapabilityState.unsupported("No model provider '${e.agent.config.provider}'; this model provider is not installed")
         if (activate && requireModel) chat.requireReady()
         val run = RunContext(e.agent, sessionId, routine?.routine, taskId)
-        val contributed = (if (privateSession) emptyList() else plugins).map { it.prepare(run, activate).ownedBy(it.instance, it.manifest) }
+        val contributed = (if (privateSession) emptyList() else plugins).map { plugin ->
+            val began = TimeSource.Monotonic.markNow()
+            plugin.prepare(run, activate).ownedBy(plugin.instance, plugin.manifest).also {
+                val took = began.elapsedNow()
+                if (took >= SLOW_PREPARE) logger.warn { "plugin.prepare.slow plugin=${plugin.instance.pluginId} instance=${plugin.instance.instanceId} duration=${took.inWholeMilliseconds}ms" }
+            }
+        }
         val own = PluginTools(if (privateSession) subAgents?.tools(agent.id, requireNotNull(sessionId)).orEmpty() + manageTools(agent, sessionId, true) + listOf(AskUserTool()) else toolsFor(e, sessionId, routine, catalogs, scope)).ownedBy(PluginInstanceId("kinuvo.core")).tools
         val aliased = own + contributed.flatMap { it.tools }
         val all = aliased.withModelNames().also { it.indexedTools() }
@@ -418,6 +429,7 @@ class RunComposer internal constructor(
         val TOOL_FEATURES = mapOf(ToolNames.SKILLS to ServerFeature.Skills, ToolNames.SCHEDULE to ServerFeature.Routines, ToolNames.ARTIFACT to ServerFeature.Artifacts,
             ToolNames.KNOWLEDGE to ServerFeature.Knowledge, ToolNames.TASKS to ServerFeature.Tasks, ToolNames.DEVICE_TOOLS to ServerFeature.DeviceTools,
             ToolNames.COMPUTER to ServerFeature.Computer)
+        val SLOW_PREPARE = 1.seconds
         const val UNATTENDED_DENIAL = "This is an unattended Routine run, so tool calls that need an Approval are denied."
     }
 }

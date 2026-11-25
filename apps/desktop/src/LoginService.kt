@@ -6,6 +6,9 @@ import kinuvo.tailcat.Tailcat
 import kinuvo.server.jvm.LoginServiceSettings
 import kinuvo.server.jvm.ServeException
 import kinuvo.server.jvm.kinuvoHome
+import kinuvo.diagnostics.Diagnostics
+import kinuvo.diagnostics.jvmAppInfo
+import kinuvo.protocol.device.currentPlatform
 import kinuvo.server.jvm.serve
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
@@ -78,6 +81,7 @@ internal fun serveFromLogin(): Int {
     System.setProperty("logback.configurationFile", "logback-service.xml")
     System.setProperty("kinuvo.log.file", File(logs, "server.log").path)
     PrintStream(FileOutputStream(File(logs, "service-output.log"), true), true).let { System.setOut(it); System.setErr(it) }
+    Diagnostics(kinuvoHome(), jvmAppInfo(currentPlatform.displayName)).install("service")
     val log = KotlinLogging.logger("kinuvo.desktop")
     return try {
         runBlocking {

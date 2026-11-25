@@ -25,9 +25,14 @@ import io.modelcontextprotocol.kotlin.sdk.types.ReadResourceRequest
 import io.modelcontextprotocol.kotlin.sdk.types.ReadResourceRequestParams
 import io.modelcontextprotocol.kotlin.sdk.types.ReadResourceResult
 import kotlinx.serialization.json.*
+import io.github.oshai.kotlinlogging.KotlinLogging
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlin.time.Clock
+import kotlin.time.Duration.Companion.seconds
+import kotlin.time.TimeSource
+
+private val log = KotlinLogging.logger("kinuvo.mcp")
 
 /**
  * A lazily connected MCP server; reconnects on the next use after a failure. HTTP servers sign in through [auth].
@@ -67,6 +72,7 @@ class McpServer(
         } catch (e: Exception) {
             if (e is CancellationException) throw e
             val detail = processDetail()
+            log.warn { "mcp.failed server=${config.name} phase=${if (client == null) "connect" else "call"} error=${e::class.simpleName}: ${e.message?.take(200)}" }
             close()
             val http = config as? McpServerConfig.Http
             val failure = if (http != null && auth != null && (unauthorized(e) || auth.isRequired(http.signInId) && forbidden(e))) {
@@ -88,8 +94,12 @@ class McpServer(
 
     private suspend fun connect(): Client = withTimeoutOrNull(connectTimeoutMillis) {
         val c = Client(Implementation("kinuvo", "0.1"), ClientOptions(capabilities = appCapabilities))
+        val began = TimeSource.Monotonic.markNow()
         c.connect(transport())
         connections++
+        val took = began.elapsedNow()
+        if (took >= SLOW_CONNECT) log.warn { "mcp.connect.slow server=${config.name} duration=${took.inWholeMilliseconds}ms" }
+        else log.info { "mcp.connected server=${config.name} duration=${took.inWholeMilliseconds}ms" }
         c
     } ?: throw IllegalStateException("MCP server '${config.name}' didn't respond within ${connectTimeoutMillis}ms")
 
@@ -135,6 +145,8 @@ class McpServer(
         process?.destroyNow()
     }
 }
+
+private val SLOW_CONNECT = 2.seconds
 
 internal val appCapabilities = ClientCapabilities(extensions = mapOf(
     "io.modelcontextprotocol/ui" to buildJsonObject {
