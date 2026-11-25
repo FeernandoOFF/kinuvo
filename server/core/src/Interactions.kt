@@ -5,6 +5,10 @@ import kinuvo.protocol.approval.PendingInteraction
 import kinuvo.protocol.approval.RespondParams
 import kinuvo.protocol.session.SessionId
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.flow.first
@@ -27,6 +31,9 @@ class InteractionSets(private val log: SessionLog) {
     init {
         log.onInteractionResolved = { session, id -> resolved(session, id) }
     }
+
+    /** Releases a batch that a resolution completed outside the publisher, which may hold the lock of the very work being released. */
+    internal var scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
     /**
      * Stages [answer]; [release] hands it to the waiting work. False when it is a duplicate, late or unknown. Without a
@@ -79,7 +86,7 @@ class InteractionSets(private val log: SessionLog) {
             claimed -= id
             claimCovered(session)
         }
-        releaseAll(batch, null)
+        if (batch.isNotEmpty()) scope.launch { try { releaseAll(batch, null) } catch (_: Exception) {} }
     }
 
     private suspend fun unclaimed(session: SessionId): List<PendingInteraction> {

@@ -83,7 +83,7 @@ class ServerRuntime(
     /** Held while a live voice call runs, so the host keeps serving it in real time. */
     private val keepAwake: () -> AutoCloseable = { AutoCloseable {} },
 ) {
-    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default).also { harness.interactions.scope = it }
     val executions = executionRegistry
     private val hub = object : ServerHub {
         override val capabilities: ServerCapabilities get() = this@ServerRuntime.capabilities

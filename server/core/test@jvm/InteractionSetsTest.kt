@@ -14,6 +14,8 @@ import kinuvo.protocol.team.TeamSpec
 import kinuvo.testing.server.FakeHarness
 import kinuvo.testing.server.TestServer
 import kotlinx.coroutines.*
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlin.test.*
 import kotlin.time.Duration.Companion.milliseconds
 
@@ -133,6 +135,20 @@ class InteractionSetsTest {
             val later = server.extra(agent, session.id)
             assertTrue(sets.respond(answer(later.id), true) { released += it.requestId; true })
             assertTrue(released.isEmpty(), "stopped siblings still block the set")
+        }
+    }
+
+    @Test fun aResolutionPublishedUnderTheReleasedWorksLockDoesNotDeadlock() = runBlocking {
+        lateinit var agent: Agent
+        TestServer.start(script = { on("regular") { reply("ok") } }, scenario = { agent = agent("work") }).use { server ->
+            val session = server.startSession(agent.id)
+            val first = server.extra(agent, session.id)
+            val second = server.extra(agent, session.id)
+            val work = Mutex()
+            val released = CompletableDeferred<Unit>()
+            assertTrue(server.harness.interactions.respond(RespondParams(session.id, first.id, form), true) { work.withLock { released.complete(Unit) }; true })
+            withTimeout(5_000) { work.withLock { server.harness.log.publish(agent.id, session.id, AgentEvent.InteractionResolved(second.id)) } }
+            withTimeout(5_000) { released.await() }
         }
     }
 
