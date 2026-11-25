@@ -130,6 +130,7 @@ internal fun LiveViewContent(state: LiveViewState, actions: LiveActions, back: (
                     else {
                         Stage(state, screen, actions, Modifier.weight(1f).fillMaxWidth().padding(if (wide) Spacing.space12 else Spacing.space8),
                             onFocus = { if (state.interactive && "type" in screen.capabilities.inputs) keyboardFocus.requestFocus() }, top = docked)
+                        if (state.ownsControl) AndroidNavBar(state, actions, Modifier.widthIn(max = 320.dp).fillMaxWidth().align(Alignment.CenterHorizontally).padding(horizontal = Spacing.space12))
                         if (state.ownsControl && "type" in screen.capabilities.inputs) key(state.selected, state.control.generation) {
                             RemoteKeyboard(state, actions, keyboardFocus, keyboard)
                         }

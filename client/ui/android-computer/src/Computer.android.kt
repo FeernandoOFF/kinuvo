@@ -1,6 +1,7 @@
 package kinuvo.ui
 
 import kinuvo.app.computer.ComputerDriver
+import kinuvo.client.KinuvoClient
 
 import android.accessibilityservice.AccessibilityService
 import android.accessibilityservice.GestureDescription
@@ -129,6 +130,9 @@ class ComputerService : AccessibilityService() {
 
 /** Sees the screen through [ComputerService]: elements from the accessibility tree, screenshots on Android 11+. */
 class AndroidComputer(private val context: Context) : ComputerDriver {
+    private val keepalive = ComputerKeepalive(context)
+    override fun connection(client: KinuvoClient?, enabled: Boolean, stop: suspend () -> Unit) = keepalive.connection(client, enabled, stop)
+
     private class Capture(val id: String, val scale: Float, val nodes: Map<Int, AccessibilityNodeInfo>)
     private val lock = Mutex()
     private var last: Capture? = null
@@ -163,7 +167,7 @@ class AndroidComputer(private val context: Context) : ComputerDriver {
             val message = request.action?.let { action ->
                 val error = try { act(service, action, request) } catch (e: CancellationException) { throw e } catch (e: Exception) { e.message ?: "That didn't work" }
                 if (error != null) return@withContext ComputerResult(DeviceToolStatus.Denied, error, capture(service, request.screenshot, request.elements), userControl = service.userControl)
-                settle(service)
+                settle(service, request.user)
                 null
             }
             ComputerResult(DeviceToolStatus.Ready, message, capture(service, request.screenshot, request.elements), userControl = service.userControl)
@@ -313,10 +317,10 @@ class AndroidComputer(private val context: Context) : ComputerDriver {
     private fun focusedInput(service: ComputerService) = service.findFocus(AccessibilityNodeInfo.FOCUS_INPUT)
 
     /** Waits for the screen to stop changing, up to two seconds. */
-    private suspend fun settle(service: ComputerService) {
-        delay(250)
-        val until = System.currentTimeMillis() + 2_000
-        while (System.currentTimeMillis() < until && System.currentTimeMillis() - service.lastEvent < 300) delay(100)
+    private suspend fun settle(service: ComputerService, user: Boolean) {
+        val until = System.currentTimeMillis() + if (user) 600 else 2_250
+        delay(if (user) 120 else 250)
+        while (System.currentTimeMillis() < until && System.currentTimeMillis() - service.lastEvent < if (user) 120 else 300) delay(if (user) 40 else 100)
     }
 
     private fun screenSize(): Pair<Int, Int> {

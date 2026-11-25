@@ -45,9 +45,12 @@ class DeviceAccess(private val prefs: Preferences, val reader: DeviceReader, val
         this.server = server
         this.client = client
         state.value = DeviceAccessState(tools(server))
+        updateComputer()
     }
 
-    fun detach() { cancelAuthorization(); client = null; server = null; state.value = DeviceAccessState() }
+    private fun updateComputer() = computer?.connection(client, DeviceToolKind.Computer in state.value.enabled) { setEnabled(DeviceToolKind.Computer, false) }
+
+    fun detach() { computer?.connection(null, false); cancelAuthorization(); client = null; server = null; state.value = DeviceAccessState() }
 
     /** Forgets every Server's grants, after the preferences holding them were cleared. */
     fun reset() { detach(); saved.value = emptyMap() }
@@ -77,6 +80,7 @@ class DeviceAccess(private val prefs: Preferences, val reader: DeviceReader, val
         saved.update { it + (server to tools) }
         prefs[KEY] = ProtocolJson.encodeToString(serializer, saved.value)
         state.update { it.copy(enabled = tools, busy = null, error = null) }
+        updateComputer()
         val attached = client
         try { attached?.updateDeviceTools() }
         catch (e: CancellationException) { throw e }

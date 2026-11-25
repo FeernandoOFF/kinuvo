@@ -1,5 +1,6 @@
 package kinuvo.app.computer
 
+import kinuvo.client.KinuvoClient
 import kinuvo.protocol.computer.ComputerRequest
 import kinuvo.protocol.computer.ComputerResult
 
@@ -9,5 +10,6 @@ interface ComputerDriver {
     val requirement: String
     /** Whether the OS currently lets Kinuvo control the screen. */
     val ready: Boolean
+    fun connection(client: KinuvoClient?, enabled: Boolean, stop: suspend () -> Unit = {}) {}
     suspend fun perform(request: ComputerRequest): ComputerResult
 }

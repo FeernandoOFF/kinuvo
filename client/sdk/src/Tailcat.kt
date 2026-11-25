@@ -82,7 +82,7 @@ suspend fun tailcatConnection(link: String, forwarder: TailcatForwarder,
 ): FrameConnection {
     check(forwarder.supported) { "Tailcat connections are not supported on this platform yet" }
     val forward = withContext(NonCancellable) { forwarder.open(link) }
-    val http = try { httpClient { install(WebSockets) { maxFrameSize = MAX_FRAME_SIZE } } }
+    val http = try { httpClient { install(WebSockets) { maxFrameSize = MAX_FRAME_SIZE; pingIntervalMillis = 15_000 } } }
     catch (e: Throwable) {
         withContext(NonCancellable) { forward.close() }
         throw e

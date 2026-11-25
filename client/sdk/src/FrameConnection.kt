@@ -12,7 +12,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
 
 internal suspend fun HttpClient.connection(url: String): FrameConnection {
-    val socket = webSocketSession(url)
+    val socket = webSocketSession(url).apply { timeoutMillis = 15_000 }
     return object : FrameConnection {
         override val incoming = flow {
             for (frame in socket.incoming) {
