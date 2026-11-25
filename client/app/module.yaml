@@ -16,6 +16,7 @@ dependencies:
   - io.github.xxfast:kstore:1.1.0
   - io.insert-koin:koin-core:4.2.2: exported
   - io.insert-koin:koin-core-viewmodel:4.2.2
+  - io.github.oshai:kotlin-logging:8.0.4
 
 dependencies@jvmAndMobile:
   - io.github.xxfast:kstore-file:1.1.0

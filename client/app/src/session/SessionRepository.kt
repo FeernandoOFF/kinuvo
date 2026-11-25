@@ -33,6 +33,9 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import io.github.oshai.kotlinlogging.KotlinLogging
+
+private val log = KotlinLogging.logger("kinuvo.sessions")
 
 /**
  * One Session as held on this Device: a window of its entries starting at [firstSeq], what its Server reports besides
@@ -382,8 +385,11 @@ class SessionRepository(private val notifications: Notifications, internal val c
                 put(id, data.copy(firstSeq = if (continuing) data.firstSeq else snapshot.firstSeq, entries = entries, live = snapshot.state, run = run, loaded = true))
             }
             is SessionChange.Entry -> when {
-                change.seq < data.seen -> Unit
-                change.seq > data.seen -> scope.launch { subscribe(id) }
+                change.seq < data.seen -> log.info { "session.seq.dropped session=${id.value} seq=${change.seq} seen=${data.seen}" }
+                change.seq > data.seen -> {
+                    log.warn { "session.seq.gap session=${id.value} seq=${change.seq} expected=${data.seen}" }
+                    scope.launch { subscribe(id) }
+                }
                 else -> put(id, data.copy(entries = data.entries + change.entry, live = data.live.on(change.entry), run = data.run.committed(change.entry)), received = true)
             }
             is SessionChange.Run -> put(id, data.copy(run = data.run.on(change.event), live = event?.let(data.live::on) ?: data.live), received = true)

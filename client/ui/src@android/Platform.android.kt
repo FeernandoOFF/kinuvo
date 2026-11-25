@@ -2,6 +2,11 @@ package kinuvo.ui
 
 import kinuvo.app.connection.*
 import kinuvo.app.device.*
+import kinuvo.app.diagnostics.LogSharing
+import kinuvo.diagnostics.Diagnostics
+import kinuvo.ui.diagnostics.DiagnosticsLogSharing
+import kinuvo.ui.diagnostics.androidDiagnostics
+import kinuvo.ui.diagnostics.androidLogExports
 
 import android.app.ActivityManager
 import android.content.Context
@@ -47,8 +52,10 @@ private class HapticNotifier(context: Context) : Notifier {
 }
 
 internal actual val platformModule = module {
-    System.setProperty("kotlin-logging-to-android-native", "true")
     System.setProperty("kotlin-logging.logStartupMessage", "false")
+    // Before anything else logs, so the Server and client lines reach the log files as well as Logcat.
+    single(createdAtStart = true) { androidDiagnostics(androidContext()).also { it.install("android") } }
+    single<LogSharing> { DiagnosticsLogSharing(get<Diagnostics>(), androidLogExports(androidContext())) }
     single<OnDeviceSupport> {
         val manager = androidContext().getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager
         val memory = ActivityManager.MemoryInfo().also(manager::getMemoryInfo)

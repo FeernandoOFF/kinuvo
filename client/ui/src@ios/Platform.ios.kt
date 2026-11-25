@@ -2,6 +2,11 @@ package kinuvo.ui
 
 import kinuvo.app.connection.*
 import kinuvo.app.device.*
+import kinuvo.app.diagnostics.LogSharing
+import kinuvo.diagnostics.Diagnostics
+import kinuvo.ui.diagnostics.DiagnosticsLogSharing
+import kinuvo.ui.diagnostics.iosDiagnostics
+import kinuvo.ui.diagnostics.iosLogExports
 import kinuvo.app.session.*
 
 import org.koin.dsl.bind
@@ -42,6 +47,9 @@ private class HapticNotifier : Notifier {
 }
 
 internal actual val platformModule = module {
+    // Before anything else logs, so the Server and client lines reach the log files as well as the console.
+    single(createdAtStart = true) { iosDiagnostics().also { it.install("ios") } }
+    single<LogSharing> { DiagnosticsLogSharing(get<Diagnostics>(), iosLogExports()) }
     single { iosTestMode() }
     single<DeviceReader> { IosDeviceReader() }
     single<SpeechEngine> { checkNotNull(nativeSpeech) }
