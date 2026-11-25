@@ -11,6 +11,7 @@ import kinuvo.protocol.agui.AgUiEvent
 import kinuvo.protocol.agui.RunOutcome
 import kinuvo.protocol.approval.ApprovalDecision
 import kinuvo.protocol.approval.InteractionAnswer
+import kinuvo.protocol.approval.InteractionId
 import kinuvo.protocol.approval.RespondParams
 import kinuvo.protocol.approval.Risk
 import kinuvo.protocol.approval.approval
@@ -119,7 +120,7 @@ class AgUiWireTest {
     fun anApprovalInsideAScriptInterruptsTheRun() = runBlocking {
         lateinit var session: SessionInfo
         val server = TestServer.start(
-            plugins = listOf(FakeTools(deploy, FakeScript("script", "deploy"))),
+            plugins = listOf(FakeTools(deploy, FakeConnect("link"), FakeScript("script", "deploy", "link"))),
             script = { on("please script") { toolCall("script"); reply("Done") } },
             scenario = { session = session(agent("work")) },
         )
@@ -136,12 +137,18 @@ class AgUiWireTest {
                 }
                 awaitCondition("the run to park", 5.seconds) { synchronized(changes) { changes.any { (it as? SessionChange.Run)?.event is AgUiEvent.RunFinished } } }
                 assertTrue(client.call(Api.Respond, RespondParams(session.id, approval.id, InteractionAnswer.Approval(ApprovalDecision.AllowOnce))))
+                fun finished() = synchronized(changes) { changes.filterIsInstance<SessionChange.Run>().map { it.event }.filterIsInstance<AgUiEvent.RunFinished>() }
+                awaitCondition("the run to park on the sign-in", 5.seconds) { finished().size == 2 }
+                val connect = assertIs<RunOutcome.Interrupted>(finished().last().outcome).interrupts.single()
+                assertEquals("kinuvo:connect", connect.reason)
+                assertTrue(client.call(Api.Respond, RespondParams(session.id, InteractionId(connect.id), InteractionAnswer.Connect(true))))
                 awaitCondition("the run to end", 5.seconds) { client.call(Api.Session, SessionParams(AgentId("work"), session.id)).status == SessionStatus.Idle }
                 collector.cancel()
                 val run = synchronized(changes) { changes.filterIsInstance<SessionChange.Run>().map { it.event } }
                 conform(run)
                 val interrupted = assertIs<RunOutcome.Interrupted>(run.filterIsInstance<AgUiEvent.RunFinished>().first().outcome)
                 assertEquals(approval.id.value, interrupted.interrupts.single().id)
+                assertEquals(RunOutcome.Success(), run.filterIsInstance<AgUiEvent.RunFinished>().last().outcome)
             }
         }
     }

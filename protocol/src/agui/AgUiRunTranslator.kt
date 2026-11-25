@@ -40,6 +40,7 @@ class AgUiRunTranslator(private val sessionId: SessionId, private val parentRunI
     private val pending = LinkedHashMap<InteractionId, PendingInteraction>()
     private val children = mutableSetOf<InteractionId>()
     private val openTools = mutableSetOf<String>()
+    private val roots = mutableMapOf<String, String>()
     private var activities = 0
     private var base: String? = null
     private var resumed = 0
@@ -109,6 +110,7 @@ class AgUiRunTranslator(private val sessionId: SessionId, private val parentRunI
                 closeText(::run)
                 closeReasoning(::run)
                 openTools += event.toolCallId.value
+                event.rootToolCallId?.let { roots[event.toolCallId.value] = it.value }
                 val meta = kinuvo {
                     put("args", event.args)
                     event.identity?.let { put("identity", ProtocolJson.encodeToJsonElement(it)) }
@@ -132,6 +134,7 @@ class AgUiRunTranslator(private val sessionId: SessionId, private val parentRunI
                 }, metadata = meta)) else {
                     run(AgUiEvent.ToolCallResult("result:$id", id, event.content, meta))
                     openTools -= id
+                    roots -= id
                     interrupt(::run)
                 }
             }
@@ -199,9 +202,10 @@ class AgUiRunTranslator(private val sessionId: SessionId, private val parentRunI
         val open = runId ?: return
         val waiting = pending.values.filter { it.id !in children }
         if (waiting.isEmpty()) return
+        fun root(id: String) = roots[id] ?: id
         val parkedTools = waiting.mapNotNullTo(mutableSetOf()) { (it as? PendingInteraction.Approval)?.toolCallId?.value
-            ?: (it as? PendingInteraction.Questions)?.toolCallId?.value ?: (it as? PendingInteraction.Connect)?.toolCallId?.value }
-        if (openTools.any { id -> id !in parkedTools && parkedTools.none { id.startsWith("$it-") } }) return
+            ?: (it as? PendingInteraction.Questions)?.toolCallId?.value ?: (it as? PendingInteraction.Connect)?.toolCallId?.value }.mapTo(mutableSetOf(), ::root)
+        if (openTools.any { id -> root(id) !in parkedTools }) return
         closeItems(emit)
         runId = null
         parked = true
@@ -229,6 +233,7 @@ class AgUiRunTranslator(private val sessionId: SessionId, private val parentRunI
         interrupted.clear()
         deferred.clear()
         openTools.clear()
+        roots.clear()
     }
 
     private fun closeItems(emit: (AgUiEvent) -> Unit) {

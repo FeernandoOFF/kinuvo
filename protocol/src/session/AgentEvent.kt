@@ -56,7 +56,11 @@ sealed interface AgentEvent {
     data class ThinkingContent(val messageId: String, val delta: String) : AgentEvent
 
     @Serializable @SerialName("TOOL_CALL_START")
-    data class ToolCallStart(val toolCallId: ToolCallId, val toolCallName: String, val args: String, val identity: ToolIdentity? = null) : AgentEvent
+    data class ToolCallStart(
+        val toolCallId: ToolCallId, val toolCallName: String, val args: String, val identity: ToolIdentity? = null,
+        /** The top-level call, e.g. a Script, that made this call; interactions raised under it park the run together. */
+        val rootToolCallId: ToolCallId? = null,
+    ) : AgentEvent
 
     /** The call's result, or with [progress] its live output so far, which the final result replaces. */
     @Serializable @SerialName("TOOL_CALL_RESULT")

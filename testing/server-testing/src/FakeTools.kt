@@ -48,6 +48,18 @@ class FakeScript(name: String, private vararg val calls: String) : Tool {
     override suspend fun execute(args: JsonObject, callId: String, run: ToolRun) = calls.map { run.call(it, "{}").output }.joinToString(",")
 }
 
+/** A tool that asks the user to sign in, as an MCP tool does when its server needs it. */
+class FakeConnect(name: String) : Tool {
+    override val descriptor = toolSpec(name, "Fake sign-in $name")
+
+    override fun assess(args: JsonObject) = Assessment(listOf(Action(Risk.Low, listOf(descriptor.name))))
+
+    override suspend fun execute(args: JsonObject) = error("Needs a run")
+
+    override suspend fun execute(args: JsonObject, callId: String, run: ToolRun) =
+        if (run.connect(AgentId("work"), "service").connected) "connected" else "declined"
+}
+
 /** Offers [tools] to every Agent's runs, and to the MCP Apps that call them by name. */
 class FakeTools(private vararg val tools: Tool) : ServerPlugin {
     override val definition = PluginDefinition("test.tools", "Test tools")
