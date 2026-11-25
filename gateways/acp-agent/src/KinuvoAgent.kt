@@ -88,9 +88,12 @@ class KinuvoAgent(private val dispatch: ExecutionDispatch, private val agentId: 
                             val answer = when (request) {
                                 is PendingInteraction.HarnessApproval -> approve(request)
                                 is PendingInteraction.Questions -> answerQuestions(request)
+                                is PendingInteraction.Connect -> InteractionAnswer.Connect(false)
                                 else -> InteractionAnswer.Harness(JsonNull)
                             }
-                            dispatch.answer(RespondParams(KinuvoSessionId(id), request.id, answer))
+                            try { dispatch.answer(RespondParams(KinuvoSessionId(id), request.id, answer)) }
+                            catch (e: CancellationException) { throw e }
+                            catch (_: Exception) {}
                         }
                         delay(100)
                     }
