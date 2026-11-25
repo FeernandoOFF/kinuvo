@@ -47,6 +47,7 @@ behavior in shared flows; use native Maestro platform conditions for interaction
 Scenarios live in `testing/fixture-server/src/Main.kt`:
 
 - `chat`: Agent "E2E Agent", the Board task "Plan mobile tests", and the scripted reply "Hello from the fixture Server".
+- `agui`: Agent "E2E Agent". "Deploy" asks for an Approval, "Ask me" shows Questions, "Wait" runs a 60-second tool to Stop.
 - `showcase`: the dense data of the Compose `showcase` flows.
 
 Flows that run against the launcher:
