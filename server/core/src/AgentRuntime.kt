@@ -181,6 +181,12 @@ open class AgentRuntime(
 
     /** Fails for an answer [respondToTool] would reject, before it is staged. */
     fun checkAnswer(pending: PendingInteraction, answer: InteractionAnswer) {
+        require(when (pending) {
+            is PendingInteraction.Approval -> answer is InteractionAnswer.Approval || answer is InteractionAnswer.Harness
+            is PendingInteraction.Questions -> answer is InteractionAnswer.Questions || answer is InteractionAnswer.Harness
+            is PendingInteraction.Connect -> answer is InteractionAnswer.Connect
+            else -> answer is InteractionAnswer.Harness || answer is InteractionAnswer.Questions
+        }) { "${pending::class.simpleName} can't take a ${answer::class.simpleName} answer" }
         if (pending is PendingInteraction.Approval && answer is InteractionAnswer.Harness) harnessOption(pending, answer)
     }
 

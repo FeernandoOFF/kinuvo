@@ -69,6 +69,53 @@ class InteractionSetsTest {
         }
     }
 
+    @Test fun anAnswerOfTheWrongKindIsRefusedAndTheInteractionStaysAnswerable() = runBlocking {
+        lateinit var agent: Agent
+        TestServer.start(script = { on("hold") { toolCall("ask_user", hold); reply("parent done") } }, scenario = { agent = agent("work") { it.copy(approvals = "full") } }).use { server ->
+            val session = server.startSession(agent.id, "hold")
+            untilReady { server.harness.log.pending(session.id).isNotEmpty() }
+            val ask = server.harness.log.pending(session.id).single()
+            val client = server.client(token = server.auth.sessionToken()); client.connect()
+            assertFails { client.call(Api.Respond, RespondParams(session.id, ask.id, InteractionAnswer.Approval(ApprovalDecision.AllowOnce))) }
+            assertTrue(server.live(agent, session.id).staged.isEmpty())
+            assertTrue(client.call(Api.Respond, RespondParams(session.id, ask.id, form)))
+            untilReady { server.replies(agent, session.id).contains("parent done") }
+        }
+    }
+
+    @Test fun aCancelledReleaseLeavesTheRestOfTheBatchAnswerable() = runBlocking {
+        lateinit var agent: Agent
+        TestServer.start(script = { on("regular") { reply("ok") } }, scenario = { agent = agent("work") }).use { server ->
+            val session = server.startSession(agent.id)
+            val first = server.extra(agent, session.id)
+            val second = server.extra(agent, session.id)
+            val sets = server.harness.interactions
+            fun answer(id: InteractionId) = RespondParams(session.id, id, form)
+            val released = mutableListOf<InteractionId>()
+            assertTrue(sets.respond(answer(second.id), true) { released += it.requestId; true })
+            val hanging = CompletableDeferred<Boolean>()
+            val responder = launch(Dispatchers.Default) { sets.respond(answer(first.id), true) { hanging.await() } }
+            delay(200)
+            responder.cancelAndJoin()
+            assertTrue(released.isEmpty())
+            assertTrue(sets.respond(answer(first.id), true) { released += it.requestId; true })
+            assertTrue(sets.respond(answer(second.id), true) { released += it.requestId; true })
+            assertEquals(setOf(first.id, second.id), released.toSet())
+        }
+    }
+
+    @Test fun aReleaseThatReturnsFalseLeavesTheInteractionAnswerable() = runBlocking {
+        lateinit var agent: Agent
+        TestServer.start(script = { on("regular") { reply("ok") } }, scenario = { agent = agent("work") }).use { server ->
+            val session = server.startSession(agent.id)
+            val only = server.extra(agent, session.id)
+            val sets = server.harness.interactions
+            val answer = RespondParams(session.id, only.id, form)
+            assertFalse(sets.respond(answer, true) { false })
+            assertTrue(sets.respond(answer, true) { true })
+        }
+    }
+
     @Test fun anAnswerStagedForAnInteractionKeepsItsTimeoutFromSettlingIt() = runBlocking {
         lateinit var agent: Agent
         TestServer.start(script = { on("hold") { toolCall("ask_user", hold); reply("parent done") } }, scenario = { agent = agent("work") { it.copy(approvals = "full") } }).use { server ->

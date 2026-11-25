@@ -5,6 +5,8 @@ import kinuvo.protocol.approval.PendingInteraction
 import kinuvo.protocol.approval.RespondParams
 import kinuvo.protocol.session.SessionId
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -88,17 +90,23 @@ class InteractionSets(private val log: SessionLog) {
     private suspend fun releaseAll(batch: List<Staged>, own: InteractionId?): Boolean {
         var failure: Exception? = null
         var released = true
-        for (item in batch) {
+        for ((index, item) in batch.withIndex()) {
             val ok = try { item.release(item.answer) }
-            catch (e: CancellationException) { throw e }
+            catch (e: CancellationException) { unclaim(batch.drop(index)); throw e }
             catch (e: Exception) {
-                lock.withLock { claimed -= item.answer.requestId }
                 if (failure == null) failure = e
                 false
             }
-            if (!ok && item.answer.requestId == own) released = false
+            if (!ok) {
+                unclaim(listOf(item))
+                if (item.answer.requestId == own) released = false
+            }
         }
         failure?.let { throw it }
         return released
+    }
+
+    private suspend fun unclaim(items: List<Staged>) = withContext(NonCancellable) {
+        lock.withLock { items.forEach { claimed -= it.answer.requestId } }
     }
 }
