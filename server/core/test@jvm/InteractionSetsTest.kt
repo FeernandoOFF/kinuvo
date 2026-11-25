@@ -16,6 +16,7 @@ import kinuvo.testing.server.TestServer
 import kotlinx.coroutines.*
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.serialization.json.JsonNull
 import kotlin.test.*
 import kotlin.time.Duration.Companion.milliseconds
 
@@ -79,13 +80,14 @@ class InteractionSetsTest {
             val ask = server.harness.log.pending(session.id).single()
             val client = server.client(token = server.auth.sessionToken()); client.connect()
             assertFails { client.call(Api.Respond, RespondParams(session.id, ask.id, InteractionAnswer.Approval(ApprovalDecision.AllowOnce))) }
+            assertFails { client.call(Api.Respond, RespondParams(session.id, ask.id, InteractionAnswer.Harness(JsonNull))) }
             assertTrue(server.live(agent, session.id).staged.isEmpty())
             assertTrue(client.call(Api.Respond, RespondParams(session.id, ask.id, form)))
             untilReady { server.replies(agent, session.id).contains("parent done") }
         }
     }
 
-    @Test fun aCancelledReleaseLeavesTheRestOfTheBatchAnswerable() = runBlocking {
+    @Test fun aCancelledResponderCannotInterruptAClaimedRelease() = runBlocking {
         lateinit var agent: Agent
         TestServer.start(script = { on("regular") { reply("ok") } }, scenario = { agent = agent("work") }).use { server ->
             val session = server.startSession(agent.id)
@@ -99,21 +101,28 @@ class InteractionSetsTest {
             val responder = launch(Dispatchers.Default) { sets.respond(answer(first.id), true) { hanging.await() } }
             delay(200)
             responder.cancelAndJoin()
-            assertTrue(released.isEmpty())
-            assertTrue(sets.respond(answer(first.id), true) { released += it.requestId; true })
-            assertTrue(sets.respond(answer(second.id), true) { released += it.requestId; true })
-            assertEquals(setOf(first.id, second.id), released.toSet())
+            hanging.complete(true)
+            untilReady { released.contains(second.id) }
+            assertFalse(sets.respond(answer(first.id), true) { true }, "the claim stays with the release")
         }
     }
 
-    @Test fun aReleaseThatReturnsFalseLeavesTheInteractionAnswerable() = runBlocking {
+    @Test fun aReleaseThatReturnsFalseUnstagesTheInteractionSoItCanBeAnsweredAgain() = runBlocking {
         lateinit var agent: Agent
         TestServer.start(script = { on("regular") { reply("ok") } }, scenario = { agent = agent("work") }).use { server ->
             val session = server.startSession(agent.id)
             val only = server.extra(agent, session.id)
             val sets = server.harness.interactions
             val answer = RespondParams(session.id, only.id, form)
+            val unstaged = CompletableDeferred<Unit>()
+            val device = SessionLog.Subscriber { update ->
+                if ((update.change as? SessionChange.Item)?.event == AgentEvent.InteractionUnstaged(only.id)) unstaged.complete(Unit)
+                true
+            }
+            server.harness.log.subscribe(agent.id, session.id, null, 100, device)
             assertFalse(sets.respond(answer, true) { false })
+            withTimeout(5_000) { unstaged.await() }
+            assertTrue(server.live(agent, session.id).staged.isEmpty())
             assertTrue(sets.respond(answer, true) { true })
         }
     }
@@ -135,6 +144,18 @@ class InteractionSetsTest {
             val later = server.extra(agent, session.id)
             assertTrue(sets.respond(answer(later.id), true) { released += it.requestId; true })
             assertTrue(released.isEmpty(), "stopped siblings still block the set")
+        }
+    }
+
+    @Test fun stopWithoutARunLeavesAnOutOfRunInteractionAnswerable() = runBlocking {
+        lateinit var agent: Agent
+        TestServer.start(script = { on("regular") { reply("ok") } }, scenario = { agent = agent("work") }).use { server ->
+            val session = server.startSession(agent.id)
+            val open = server.extra(agent, session.id)
+            val client = server.client(token = server.auth.sessionToken()); client.connect()
+            client.call(Api.Stop, StopParams(session.id))
+            assertTrue(client.call(Api.Respond, RespondParams(session.id, open.id, form)))
+            assertEquals(mapOf("ok" to listOf("yes")), open.await())
         }
     }
 

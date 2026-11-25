@@ -129,6 +129,13 @@ class AgUiRunStateTest {
         assertEquals(listOf("n"), replay.messages.map { it.id })
     }
 
+    @Test fun runFramesAfterTheSnapshotSkipWhatItsEntriesHold() {
+        val committed = setOf("m")
+        val snapshot = fold(started, AgUiEvent.TextMessageContent("n", "a"), committed = committed).copy(done = committed)
+        val tail = snapshot.on(AgUiEvent.TextMessageContent("m", "late")).on(AgUiEvent.TextMessageContent("n", "b"))
+        assertEquals(listOf("n" to "ab"), tail.messages.map { it.id to it.text })
+    }
+
     @Test fun streamingMessagesShowInTheTranscriptUntilTheirEntryLands() {
         val run = fold(started, AgUiEvent.ReasoningMessageContent("r", "hm"), AgUiEvent.TextMessageContent("m", "Hel"))
         val data = SessionData(AgentId("a"), loaded = true, run = run)

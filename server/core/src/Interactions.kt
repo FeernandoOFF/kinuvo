@@ -8,6 +8,7 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.async
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.withContext
@@ -32,7 +33,7 @@ class InteractionSets(private val log: SessionLog) {
         log.onInteractionResolved = { session, id -> resolved(session, id) }
     }
 
-    /** Releases a batch that a resolution completed outside the publisher, which may hold the lock of the very work being released. */
+    /** Releases each claimed batch, so a responder that goes away can't interrupt it, and one a resolution completed outside the publisher, which may hold the lock of the very work being released. */
     internal var scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
     /**
@@ -50,7 +51,7 @@ class InteractionSets(private val log: SessionLog) {
             log.staged(session, answer.requestId)
             claimCovered(session)
         } ?: return release(answer)
-        return releaseAll(batch, answer.requestId)
+        return scope.async { releaseAll(batch, answer.requestId) }.await()
     }
 
     /** Runs [action] to settle [id] without an answer, e.g. a timeout; false when an answer is staged or [action] lost the race. */
@@ -126,5 +127,6 @@ class InteractionSets(private val log: SessionLog) {
 
     private suspend fun unclaim(items: List<Staged>) = withContext(NonCancellable) {
         lock.withLock { items.forEach { claimed -= it.answer.requestId } }
+        items.forEach { log.unstaged(it.answer.sessionId, it.answer.requestId) }
     }
 }

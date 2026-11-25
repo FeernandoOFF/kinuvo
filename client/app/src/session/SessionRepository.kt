@@ -373,6 +373,7 @@ class SessionRepository(private val notifications: Notifications, internal val c
                 val entries = if (continuing) data.entries + snapshot.entries else snapshot.entries
                 val committed = entries.flatMapTo(mutableSetOf()) { it.runIds() }
                 val run = snapshot.run.fold(AgUiRunState()) { run, item -> run.on(item, committed) }
+                    .let { if (it.running) it.copy(done = committed) else it }
                 put(id, data.copy(firstSeq = if (continuing) data.firstSeq else snapshot.firstSeq, entries = entries, live = snapshot.state, run = run, loaded = true))
             }
             is SessionChange.Entry -> when {

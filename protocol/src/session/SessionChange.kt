@@ -35,8 +35,9 @@ sealed interface SessionChange {
 /**
  * The Session at one cutoff: the persisted entries from [firstSeq] up to [seq] (the position of the next entry), what
  * is queued, delegated or waiting for an answer in [state], and the AG-UI events of the active run since its
- * `RUN_STARTED` in [run]. Run items already in [entries] are skipped by the client. A page too large for one frame puts
- * only its first entries in [entries]; the rest up to [seq] follow as [SessionChange.Entry] frames before anything live.
+ * `RUN_STARTED` in [run]. Run items already in [entries] are skipped by the client. A page or run too large for one frame
+ * puts only its first entries and events in the Snapshot; the rest of the entries up to [seq] follow as
+ * [SessionChange.Entry] frames, then the rest of the run as [SessionChange.Run] frames, before anything live.
  */
 @Serializable
 data class SessionSnapshot(

@@ -37,7 +37,7 @@ data class AgUiRunState(
     fun on(event: AgUiEvent, committed: Set<String> = emptySet()): AgUiRunState {
         if (event is AgUiEvent.RunStarted) return AgUiRunState(event.threadId, event.runId, event.parentRunId)
         if (!running) return this
-        val committed = if (done.isEmpty()) committed else committed + done
+        val committed = if (done.isEmpty()) committed else if (committed.isEmpty()) done else committed + done
         return when (event) {
             is AgUiEvent.RunStarted -> this
             is AgUiEvent.RunFinished -> copy(outcome = event.outcome ?: RunOutcome.Success(), interrupts = (event.outcome as? RunOutcome.Interrupted)?.interrupts.orEmpty())

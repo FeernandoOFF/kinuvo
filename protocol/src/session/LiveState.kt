@@ -33,6 +33,7 @@ data class LiveState(
             interactionChildren = event.childSessionId?.let { interactionChildren + (event.interaction.id to it) } ?: interactionChildren)
         is AgentEvent.InteractionResolved -> copy(pending = pending.filterNot { it.id == event.id }, interactionChildren = interactionChildren - event.id, staged = staged - event.id)
         is AgentEvent.InteractionStaged -> if (pending.any { it.id == event.id }) copy(staged = staged + event.id) else this
+        is AgentEvent.InteractionUnstaged -> copy(staged = staged - event.id)
         is AgentEvent.Idle -> copy(running = false, pending = pending.filter { it.id in interactionChildren }, staged = emptySet())
         is AgentEvent.ExecutionPhaseChanged -> copy(
             executionPhase = event.phase,
