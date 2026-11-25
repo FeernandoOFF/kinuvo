@@ -120,12 +120,15 @@ class KinuvoAgent(private val dispatch: ExecutionDispatch, private val agentId: 
         }
 
         private suspend fun abandon(request: InteractionId) {
-            if (cancelled) return
-            val snapshot = dispatch.snapshot(agentId, KinuvoSessionId(id))
-            if (snapshot.pending.none { it.id == request } || request in snapshot.staged) return
-            try { dispatch.stop(KinuvoSessionId(id)) }
-            catch (e: CancellationException) { throw e }
-            catch (_: Exception) {}
+            // Under [commands] so a concurrent cancel() wins and the prompt ends as cancelled.
+            commands.withLock {
+                if (cancelled) return
+                val snapshot = dispatch.snapshot(agentId, KinuvoSessionId(id))
+                if (snapshot.pending.none { it.id == request } || request in snapshot.staged) return
+                try { dispatch.stop(KinuvoSessionId(id)) }
+                catch (e: CancellationException) { throw e }
+                catch (_: Exception) {}
+            }
             error("Could not deliver the answer to ${request.value}")
         }
 
