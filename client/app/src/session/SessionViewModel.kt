@@ -627,10 +627,11 @@ class SessionViewModel(
         route.sessionId?.let(repo::loadOlder)
     }
 
-    fun respond(decision: ApprovalDecision) {
+    /** Answers the Approval [id] that a card shows, not whichever one is first. */
+    fun respond(id: InteractionId, decision: ApprovalDecision) {
         val sessionId = route.sessionId ?: return
-        val approval = state.value.pending.filterIsInstance<PendingInteraction.Approval>().firstOrNull { it.id !in state.value.staged } ?: return
-        viewModelScope.launch { attempt { repo.respond(sessionId, approval.id, InteractionAnswer.Approval(decision)) } }
+        if (id in state.value.staged || state.value.pending.none { it.id == id && it is PendingInteraction.Approval }) return
+        viewModelScope.launch { attempt { repo.respond(sessionId, id, InteractionAnswer.Approval(decision)) } }
     }
 
     fun reviewReflection(proposalId: String, approve: Boolean, note: String? = null) {
@@ -658,13 +659,13 @@ class SessionViewModel(
     fun editAnswer(questionsId: InteractionId, questionId: String, value: List<String>) =
         state.update { it.copy(answers = it.answers + (questionsId to it.answers[questionsId].orEmpty() + (questionId to value))) }
 
-    /** Sends the open `ask_user` form's [answers]; null skips it. */
-    fun answer(answers: Map<String, List<String>>?) {
+    /** Sends the `ask_user` form [id]'s [answers]; null skips it. */
+    fun answer(id: InteractionId, answers: Map<String, List<String>>?) {
         val sessionId = route.sessionId ?: return
-        val questions = state.value.pending.filterIsInstance<PendingInteraction.Questions>().firstOrNull { it.id !in state.value.staged } ?: return
+        if (id in state.value.staged || state.value.pending.none { it.id == id && it is PendingInteraction.Questions }) return
         viewModelScope.launch { attempt {
-            repo.respond(sessionId, questions.id, InteractionAnswer.Questions(answers))
-            state.update { it.copy(answers = it.answers - questions.id) }
+            repo.respond(sessionId, id, InteractionAnswer.Questions(answers))
+            state.update { it.copy(answers = it.answers - id) }
         } }
     }
 

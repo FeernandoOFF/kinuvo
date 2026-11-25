@@ -111,7 +111,7 @@ internal fun RequestComposer(
     val body: @Composable (PendingRequest, Boolean) -> Unit = { current, wide ->
         val child = state.interactionChildren[current.id]?.let { state.children[it] }
         RequestHeader(current, requests.size, from = child?.let { "From Sub-agent ${actions.agents.firstOrNull { a -> a.id == it.agentId }?.name ?: it.agentId.value}: ${it.goal.lineSequence().first()}" },
-            onClose = if (current is PendingRequest.Questions) ({ actions.onAnswer(null) }) else null)
+            onClose = if (current is PendingRequest.Questions) ({ actions.onAnswer(current.id, null) }) else null)
         RequestBody(current, state.answers, inputs.of(current), actions, wide, state.connecting)
     }
     BoxWithConstraints(modifier.fillMaxWidth()) {
@@ -401,7 +401,7 @@ private fun QuestionsBody(asked: PendingInteraction.Questions, drafts: Map<Inter
         }
         Actions(wide,
             primary = {
-                Button(onClick = { if (last) actions.onAnswer(answers) else input.step = step + 1 }, modifier = it, enabled = if (last) asked.questions.all(::ready) else ready(asked.questions[step]), style = ButtonStyle.Primary) {
+                Button(onClick = { if (last) actions.onAnswer(asked.id, answers) else input.step = step + 1 }, modifier = it, enabled = if (last) asked.questions.all(::ready) else ready(asked.questions[step]), style = ButtonStyle.Primary) {
                     Text(if (asked.questions.isEmpty()) "Check again" else if (last) "Send" else "Next")
                 }
             },
@@ -412,7 +412,7 @@ private fun QuestionsBody(asked: PendingInteraction.Questions, drafts: Map<Inter
                     val skipped = answers + (current.id to emptyList())
                     Button(onClick = {
                         actions.onEditAnswer(asked.id, current.id, emptyList())
-                        if (last) actions.onAnswer(skipped) else input.step = step + 1
+                        if (last) actions.onAnswer(asked.id, skipped) else input.step = step + 1
                     }, modifier = it, enabled = !last || asked.questions.all { q -> q == current || ready(q) }, style = ButtonStyle.Ghost, contentColor = color(mutedColor)) { Text("Skip question") }
                 }
             })
@@ -425,11 +425,11 @@ private fun TakeoverBody(asked: PendingInteraction.Questions, input: RequestInpu
         Text("Do this step yourself in Live view, then hand back there. Sending a note or skipping doesn't hand it back.", style = TextStyles.caption, color = color(mutedColor))
         Actions(wide,
             primary = { Button(onClick = { asked.screen?.let { actions.onScreen(it, asked.title) } ?: actions.onWatch() }, modifier = it, style = ButtonStyle.Primary) { Text("Open Live view") } },
-            others = { Button(onClick = { actions.onAnswer(null) }, modifier = it, style = ButtonStyle.Ghost, contentColor = color(mutedColor)) { Text("Skip") } })
+            others = { Button(onClick = { actions.onAnswer(asked.id, null) }, modifier = it, style = ButtonStyle.Ghost, contentColor = color(mutedColor)) { Text("Skip") } })
         val question = asked.questions.firstOrNull()
         val text = input.note.text.toString()
         Input(input.note, "Add a note for the agent", capitalize = true, trailing = {
-            Button(onClick = { actions.onAnswer(mapOf((question?.id ?: "note") to listOfNotNull(text.takeIf(String::isNotBlank)))) }, enabled = question?.required != true || text.isNotBlank(),
+            Button(onClick = { actions.onAnswer(asked.id, mapOf((question?.id ?: "note") to listOfNotNull(text.takeIf(String::isNotBlank)))) }, enabled = question?.required != true || text.isNotBlank(),
                 style = ButtonStyle.Ghost, contentColor = color(accentColor)) { Text("Send") }
         })
     }

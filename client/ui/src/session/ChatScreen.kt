@@ -193,7 +193,7 @@ fun ChatScreen(
                 onConfigure = session::configure,
                 onRefreshModels = { session.loadModels(true) },
                 onStop = session::stop,
-                onDecision = { _, decision -> session.respond(decision) },
+                onDecision = session::respond,
                 onReviewReflection = session::reviewReflection,
                 onAnswer = session::answer,
                 onEditAnswer = session::editAnswer,
@@ -265,7 +265,7 @@ class ChatActions(
     val onDecision: (InteractionId, ApprovalDecision) -> Unit = { _, _ -> },
     val onReviewReflection: (String, Boolean, String?) -> Unit = { _, _, _ -> },
     /** The open `ask_user` form's answers by question ID; null skips it. */
-    val onAnswer: (Map<String, List<String>>?) -> Unit = {},
+    val onAnswer: (InteractionId, Map<String, List<String>>?) -> Unit = { _, _ -> },
     val onEditAnswer: (questionsId: InteractionId, questionId: String, value: List<String>) -> Unit = { _, _, _ -> },
     val onConnect: (PendingInteraction.Connect) -> Unit = {},
     val onCompleteConnect: (PendingInteraction.Connect, String) -> Unit = { _, _ -> },

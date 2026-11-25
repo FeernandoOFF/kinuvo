@@ -42,10 +42,10 @@ class StagedInteractionsTest {
                 vm.state.first { !it.resolving }
                 vm.shown()
                 vm.state.first { it.pending.size == 2 }
-                vm.respond(ApprovalDecision.AllowOnce)
+                vm.respond(first.id, ApprovalDecision.AllowOnce)
                 vm.state.first { first.id in it.staged }
                 assertEquals(second.id, vm.state.value.shownRequest())
-                vm.respond(ApprovalDecision.AllowOnce)
+                vm.respond(second.id, ApprovalDecision.AllowOnce)
                 withTimeout(5_000) { while (script.responded.size < 2) delay(10) }
                 assertEquals(listOf(first.id, second.id), script.responded)
             } finally { clearAndJoin() }
@@ -61,7 +61,22 @@ class StagedInteractionsTest {
                 vm.shown()
                 vm.state.first { it.pending.size == 2 }
                 assertEquals(second.id, vm.state.value.shownRequest())
-                vm.respond(ApprovalDecision.AllowOnce)
+                vm.respond(second.id, ApprovalDecision.AllowOnce)
+                withTimeout(5_000) { while (script.responded.isEmpty()) delay(10) }
+                assertEquals(listOf(second.id), script.responded)
+            } finally { clearAndJoin() }
+        }
+    }
+
+    @Test fun anAnswerTargetsTheCardItCameFromNotTheFirstPendingOne() = withServer(LiveState(pending = listOf(first, second))) { owner, script ->
+        val vm = SessionViewModel(owner.sessions, Route.Chat(AgentId("main"), SessionId("s1")))
+        ViewModelStore().run {
+            put("chat", vm)
+            try {
+                vm.state.first { !it.resolving }
+                vm.shown()
+                vm.state.first { it.pending.size == 2 }
+                vm.respond(second.id, ApprovalDecision.AllowOnce)
                 withTimeout(5_000) { while (script.responded.isEmpty()) delay(10) }
                 assertEquals(listOf(second.id), script.responded)
             } finally { clearAndJoin() }
