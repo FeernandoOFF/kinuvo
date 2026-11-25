@@ -34,7 +34,7 @@ internal class ComputerKeepalive(context: Context) : Application.ActivityLifecyc
     init {
         app.registerActivityLifecycleCallbacks(this)
         runCatching { app.getSystemService(ConnectivityManager::class.java).registerDefaultNetworkCallback(network) }
-        scope.launch { while (isActive) { update(); delay(500) } }
+        scope.launch { while (isActive) { update(); delay(2_000) } }
     }
 
     fun connection(client: KinuvoClient?, enabled: Boolean, stop: suspend () -> Unit) {
