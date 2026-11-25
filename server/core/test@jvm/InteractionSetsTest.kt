@@ -14,6 +14,8 @@ import kinuvo.protocol.team.TeamSpec
 import kinuvo.testing.server.FakeHarness
 import kinuvo.testing.server.TestServer
 import kotlinx.coroutines.*
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlin.test.*
 import kotlin.time.Duration.Companion.milliseconds
 
@@ -66,6 +68,102 @@ class InteractionSetsTest {
             assertEquals(mapOf("ok" to listOf("yes")), first.await())
             assertEquals(mapOf("ok" to listOf("yes")), late.await())
             assertFalse(respond(first.id), "a late answer is refused")
+        }
+    }
+
+    @Test fun anAnswerOfTheWrongKindIsRefusedAndTheInteractionStaysAnswerable() = runBlocking {
+        lateinit var agent: Agent
+        TestServer.start(script = { on("hold") { toolCall("ask_user", hold); reply("parent done") } }, scenario = { agent = agent("work") { it.copy(approvals = "full") } }).use { server ->
+            val session = server.startSession(agent.id, "hold")
+            untilReady { server.harness.log.pending(session.id).isNotEmpty() }
+            val ask = server.harness.log.pending(session.id).single()
+            val client = server.client(token = server.auth.sessionToken()); client.connect()
+            assertFails { client.call(Api.Respond, RespondParams(session.id, ask.id, InteractionAnswer.Approval(ApprovalDecision.AllowOnce))) }
+            assertTrue(server.live(agent, session.id).staged.isEmpty())
+            assertTrue(client.call(Api.Respond, RespondParams(session.id, ask.id, form)))
+            untilReady { server.replies(agent, session.id).contains("parent done") }
+        }
+    }
+
+    @Test fun aCancelledReleaseLeavesTheRestOfTheBatchAnswerable() = runBlocking {
+        lateinit var agent: Agent
+        TestServer.start(script = { on("regular") { reply("ok") } }, scenario = { agent = agent("work") }).use { server ->
+            val session = server.startSession(agent.id)
+            val first = server.extra(agent, session.id)
+            val second = server.extra(agent, session.id)
+            val sets = server.harness.interactions
+            fun answer(id: InteractionId) = RespondParams(session.id, id, form)
+            val released = mutableListOf<InteractionId>()
+            assertTrue(sets.respond(answer(second.id), true) { released += it.requestId; true })
+            val hanging = CompletableDeferred<Boolean>()
+            val responder = launch(Dispatchers.Default) { sets.respond(answer(first.id), true) { hanging.await() } }
+            delay(200)
+            responder.cancelAndJoin()
+            assertTrue(released.isEmpty())
+            assertTrue(sets.respond(answer(first.id), true) { released += it.requestId; true })
+            assertTrue(sets.respond(answer(second.id), true) { released += it.requestId; true })
+            assertEquals(setOf(first.id, second.id), released.toSet())
+        }
+    }
+
+    @Test fun aReleaseThatReturnsFalseLeavesTheInteractionAnswerable() = runBlocking {
+        lateinit var agent: Agent
+        TestServer.start(script = { on("regular") { reply("ok") } }, scenario = { agent = agent("work") }).use { server ->
+            val session = server.startSession(agent.id)
+            val only = server.extra(agent, session.id)
+            val sets = server.harness.interactions
+            val answer = RespondParams(session.id, only.id, form)
+            assertFalse(sets.respond(answer, true) { false })
+            assertTrue(sets.respond(answer, true) { true })
+        }
+    }
+
+    @Test fun anAnswerAfterStopCannotReleaseTheRun() = runBlocking {
+        lateinit var agent: Agent
+        TestServer.start(script = { on("regular") { reply("ok") } }, scenario = { agent = agent("work") }).use { server ->
+            val session = server.startSession(agent.id)
+            val first = server.extra(agent, session.id)
+            val second = server.extra(agent, session.id)
+            val sets = server.harness.interactions
+            fun answer(id: InteractionId) = RespondParams(session.id, id, form)
+            val released = mutableListOf<InteractionId>()
+            assertTrue(sets.respond(answer(first.id), true) { released += it.requestId; true })
+            sets.stop(session.id)
+            assertFalse(sets.respond(answer(second.id), true) { released += it.requestId; true })
+            assertFalse(sets.respond(answer(first.id), true) { released += it.requestId; true })
+            assertTrue(released.isEmpty())
+            val later = server.extra(agent, session.id)
+            assertTrue(sets.respond(answer(later.id), true) { released += it.requestId; true })
+            assertTrue(released.isEmpty(), "stopped siblings still block the set")
+        }
+    }
+
+    @Test fun aResolutionPublishedUnderTheReleasedWorksLockDoesNotDeadlock() = runBlocking {
+        lateinit var agent: Agent
+        TestServer.start(script = { on("regular") { reply("ok") } }, scenario = { agent = agent("work") }).use { server ->
+            val session = server.startSession(agent.id)
+            val first = server.extra(agent, session.id)
+            val second = server.extra(agent, session.id)
+            val work = Mutex()
+            val released = CompletableDeferred<Unit>()
+            assertTrue(server.harness.interactions.respond(RespondParams(session.id, first.id, form), true) { work.withLock { released.complete(Unit) }; true })
+            withTimeout(5_000) { work.withLock { server.harness.log.publish(agent.id, session.id, AgentEvent.InteractionResolved(second.id)) } }
+            withTimeout(5_000) { released.await() }
+        }
+    }
+
+    @Test fun aStopAfterTheAnswerWasClaimedStillEndsCleanly() = runBlocking {
+        lateinit var agent: Agent
+        TestServer.start(script = { on("regular") { reply("ok") } }, scenario = { agent = agent("work") }).use { server ->
+            val session = server.startSession(agent.id)
+            val only = server.extra(agent, session.id)
+            val sets = server.harness.interactions
+            val hanging = CompletableDeferred<Boolean>()
+            val responder = async(Dispatchers.Default) { sets.respond(RespondParams(session.id, only.id, form), true) { hanging.await() } }
+            delay(200)
+            sets.stop(session.id)
+            hanging.complete(true)
+            assertTrue(responder.await())
         }
     }
 

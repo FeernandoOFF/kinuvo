@@ -5,6 +5,12 @@ import kinuvo.protocol.approval.PendingInteraction
 import kinuvo.protocol.approval.RespondParams
 import kinuvo.protocol.session.SessionId
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -20,10 +26,14 @@ class InteractionSets(private val log: SessionLog) {
     private val lock = Mutex()
     private val staged = LinkedHashMap<InteractionId, Staged>()
     private val claimed = mutableMapOf<InteractionId, SessionId>()
+    private val stopped = mutableMapOf<SessionId, MutableSet<InteractionId>>()
 
     init {
         log.onInteractionResolved = { session, id -> resolved(session, id) }
     }
+
+    /** Releases a batch that a resolution completed outside the publisher, which may hold the lock of the very work being released. */
+    internal var scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
     /**
      * Stages [answer]; [release] hands it to the waiting work. False when it is a duplicate, late or unknown. Without a
@@ -33,6 +43,7 @@ class InteractionSets(private val log: SessionLog) {
         val session = answer.sessionId
         val batch = lock.withLock {
             if (unclaimed(session).none { it.id == answer.requestId }) return false
+            if (answer.requestId in stopped[session].orEmpty()) return false
             if (answer.requestId in staged) return false
             if (!grouped) return@withLock null
             staged[answer.requestId] = Staged(answer, release)
@@ -56,9 +67,16 @@ class InteractionSets(private val log: SessionLog) {
         }
     }
 
-    /** Drops answers waiting on siblings, e.g. when the run is stopped and its work is cancelled instead. */
+    /**
+     * Drops answers waiting on siblings, e.g. when the run is stopped and its work is cancelled instead. Interactions open
+     * now can no longer be answered or released, so a final answer racing the Stop can't release work after it.
+     */
     suspend fun stop(sessionId: SessionId) {
-        lock.withLock { staged.values.removeAll { it.answer.sessionId == sessionId } }
+        lock.withLock {
+            staged.values.removeAll { it.answer.sessionId == sessionId }
+            val open = unclaimed(sessionId).mapTo(mutableSetOf()) { it.id }
+            if (open.isNotEmpty()) stopped[sessionId] = open
+        }
         log.stopping(sessionId)
     }
 
@@ -68,37 +86,45 @@ class InteractionSets(private val log: SessionLog) {
             claimed -= id
             claimCovered(session)
         }
-        releaseAll(batch, null)
+        if (batch.isNotEmpty()) scope.launch { try { releaseAll(batch, null) } catch (_: Exception) {} }
     }
 
     private suspend fun unclaimed(session: SessionId): List<PendingInteraction> {
         val all = log.open(session)
         val ids = all.mapTo(mutableSetOf()) { it.id }
         claimed.entries.removeAll { it.value == session && it.key !in ids }
+        stopped[session]?.let { it.retainAll(ids); if (it.isEmpty()) stopped -= session }
         staged.values.removeAll { it.answer.sessionId == session && it.answer.requestId !in ids }
         return all.filter { it.id !in claimed }
     }
 
     private suspend fun claimCovered(session: SessionId): List<Staged> {
         val open = unclaimed(session)
-        if (open.isEmpty() || open.any { it.id !in staged }) return emptyList()
+        val blocked = stopped[session].orEmpty()
+        if (open.isEmpty() || open.any { it.id !in staged || it.id in blocked }) return emptyList()
         return open.map { requireNotNull(staged.remove(it.id)) }.also { batch -> batch.forEach { claimed[it.answer.requestId] = session } }
     }
 
     private suspend fun releaseAll(batch: List<Staged>, own: InteractionId?): Boolean {
         var failure: Exception? = null
         var released = true
-        for (item in batch) {
+        for ((index, item) in batch.withIndex()) {
             val ok = try { item.release(item.answer) }
-            catch (e: CancellationException) { throw e }
+            catch (e: CancellationException) { unclaim(batch.drop(index)); throw e }
             catch (e: Exception) {
-                lock.withLock { claimed -= item.answer.requestId }
                 if (failure == null) failure = e
                 false
             }
-            if (!ok && item.answer.requestId == own) released = false
+            if (!ok) {
+                unclaim(listOf(item))
+                if (item.answer.requestId == own) released = false
+            }
         }
         failure?.let { throw it }
         return released
+    }
+
+    private suspend fun unclaim(items: List<Staged>) = withContext(NonCancellable) {
+        lock.withLock { items.forEach { claimed -= it.answer.requestId } }
     }
 }

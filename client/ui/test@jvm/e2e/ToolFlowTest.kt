@@ -7,6 +7,7 @@ import kinuvo.protocol.Api
 import kinuvo.protocol.approval.ApprovalDecision
 import kinuvo.protocol.approval.InteractionAnswer
 import kinuvo.protocol.approval.Risk
+import kotlinx.coroutines.awaitCancellation
 import kotlinx.serialization.json.jsonPrimitive
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -20,7 +21,24 @@ class ToolFlowTest {
             }
         },
         FakeTool("shell", Risk.Medium, reason = "Runs a test command") { "test" },
+        FakeTool("long_task") { awaitCancellation() },
     ))
+
+    @Test fun stoppingARunningToolEndsItsCard() = appTest("tool-stopped", tools, script = {
+        on("Hello from Maestro") { toolCall("read_file", """{"path":"notes.txt"}"""); reply("File read completed") }
+        on("Wait please") { toolCall("long_task"); reply("unreachable") }
+    }) {
+        sendFirstMessage()
+        await("File read completed")
+        tap("Message")
+        type("Wait please")
+        tap("Send")
+        await("Running")
+        tap("Stop")
+        gone("Running")
+        screenshot("tool-stopped")
+        requests(Api.Stop, 1)
+    }
 
     @Test fun toolSuccessShowsItsResult() = appTest("tool-success", tools, script = {
         on("Hello from Maestro") { toolCall("read_file", """{"path":"notes.txt"}"""); reply("File read completed") }

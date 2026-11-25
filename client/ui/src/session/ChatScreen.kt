@@ -160,6 +160,7 @@ fun ChatScreen(
         },
         answers = current.answers,
         pending = current.pending,
+        staged = current.staged,
         phase = current.phase,
         resume = current.capabilities?.execution?.resume,
         resuming = current.resuming,

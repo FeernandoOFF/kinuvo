@@ -116,6 +116,37 @@ class AgUiWireTest {
     }
 
     @Test
+    fun anApprovalInsideAScriptInterruptsTheRun() = runBlocking {
+        lateinit var session: SessionInfo
+        val server = TestServer.start(
+            plugins = listOf(FakeTools(deploy, FakeScript("script", "deploy"))),
+            script = { on("please script") { toolCall("script"); reply("Done") } },
+            scenario = { session = session(agent("work")) },
+        )
+        server.use {
+            withContext(Dispatchers.Default) {
+                val client = server.client().also { it.connect() }
+                val changes = mutableListOf<SessionChange>()
+                val collector = launch(start = CoroutineStart.UNDISPATCHED) { client.events(Api.Update).filter { it.sessionId == session.id }.collect { synchronized(changes) { changes += it.change } } }
+                client.call(Api.Subscribe, SubscribeParams(AgentId("work"), session.id))
+                val approval = coroutineScope {
+                    val asked = async(start = CoroutineStart.UNDISPATCHED) { client.events(Api.Update).mapNotNull { (it.change as? SessionChange.Item)?.event?.approval }.first() }
+                    client.call(Api.Send, SendParams(AgentId("work"), session.id, "please script"))
+                    asked.await()
+                }
+                awaitCondition("the run to park", 5.seconds) { synchronized(changes) { changes.any { (it as? SessionChange.Run)?.event is AgUiEvent.RunFinished } } }
+                assertTrue(client.call(Api.Respond, RespondParams(session.id, approval.id, InteractionAnswer.Approval(ApprovalDecision.AllowOnce))))
+                awaitCondition("the run to end", 5.seconds) { client.call(Api.Session, SessionParams(AgentId("work"), session.id)).status == SessionStatus.Idle }
+                collector.cancel()
+                val run = synchronized(changes) { changes.filterIsInstance<SessionChange.Run>().map { it.event } }
+                conform(run)
+                val interrupted = assertIs<RunOutcome.Interrupted>(run.filterIsInstance<AgUiEvent.RunFinished>().first().outcome)
+                assertEquals(approval.id.value, interrupted.interrupts.single().id)
+            }
+        }
+    }
+
+    @Test
     fun stopOnAParkedRunEndsWithItemsAndNoNewRun() = runBlocking {
         lateinit var session: SessionInfo
         val server = TestServer.start(

@@ -39,7 +39,6 @@ class AgUiRunTranslator(private val sessionId: SessionId, private val parentRunI
     private var reasoning: String? = null
     private val pending = LinkedHashMap<InteractionId, PendingInteraction>()
     private val children = mutableSetOf<InteractionId>()
-    private val answered = mutableSetOf<String>()
     private val openTools = mutableSetOf<String>()
     private var activities = 0
     private var base: String? = null
@@ -127,13 +126,14 @@ class AgUiRunTranslator(private val sessionId: SessionId, private val parentRunI
                     put("isError", event.isError)
                     event.identity?.let { put("identity", ProtocolJson.encodeToJsonElement(it)) }
                 }
-                if (answered.add(id)) run(AgUiEvent.ToolCallResult("result:$id", id, event.content, meta))
-                else run(AgUiEvent.ActivitySnapshot("progress:$id", "kinuvo:tool-progress", buildJsonObject {
+                if (event.progress) run(AgUiEvent.ActivitySnapshot("progress:$id", "kinuvo:tool-progress", buildJsonObject {
                     put("toolCallId", id)
                     put("content", event.content)
-                }, metadata = meta))
-                openTools -= id
-                interrupt(::run)
+                }, metadata = meta)) else {
+                    run(AgUiEvent.ToolCallResult("result:$id", id, event.content, meta))
+                    openTools -= id
+                    interrupt(::run)
+                }
             }
             is AgentEvent.Compacted -> if (open == null) item() else run(activity("kinuvo:compaction", "summary" to event.summary))
             is AgentEvent.Warning -> if (open == null) item() else run(activity("kinuvo:warning", "message" to event.message))
@@ -201,7 +201,7 @@ class AgUiRunTranslator(private val sessionId: SessionId, private val parentRunI
         if (waiting.isEmpty()) return
         val parkedTools = waiting.mapNotNullTo(mutableSetOf()) { (it as? PendingInteraction.Approval)?.toolCallId?.value
             ?: (it as? PendingInteraction.Questions)?.toolCallId?.value ?: (it as? PendingInteraction.Connect)?.toolCallId?.value }
-        if ((openTools - parkedTools).isNotEmpty()) return
+        if (openTools.any { id -> id !in parkedTools && parkedTools.none { id.startsWith("$it-") } }) return
         closeItems(emit)
         runId = null
         parked = true

@@ -112,14 +112,15 @@ class AgUiConformanceTest {
         assertEquals("a.txt", events.filterIsInstance<AgUiEvent.ToolCallResult>().single().content)
     }
 
-    @Test fun repeatedToolResultIsActivityProgress() {
+    @Test fun progressIsActivityAndOnlyTheFinalResultIsTheResult() {
         val events = conform(translate(
             AgentEvent.RunStarted(run), AgentEvent.ToolCallStart(call, "exec", "{}"),
-            AgentEvent.ToolCallResult(call, "partial", false), AgentEvent.ToolCallResult(call, "final", false),
+            AgentEvent.ToolCallResult(call, "partial", false, progress = true), AgentEvent.ToolCallResult(call, "final", false),
             AgentEvent.RunFinished(run),
         ))
-        assertEquals(1, events.filterIsInstance<AgUiEvent.ToolCallResult>().size)
         assertEquals("kinuvo:tool-progress", events.filterIsInstance<AgUiEvent.ActivitySnapshot>().single().activityType)
+        assertEquals("final", events.filterIsInstance<AgUiEvent.ToolCallResult>().single().content)
+        assertTrue(events.indexOfFirst { it is AgUiEvent.ActivitySnapshot } < events.indexOfFirst { it is AgUiEvent.ToolCallResult })
     }
 
     @Test fun approvalInterruptsTheRun() {

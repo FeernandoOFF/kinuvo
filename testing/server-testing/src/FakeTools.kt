@@ -10,6 +10,7 @@ import kinuvo.server.plugin.RunContext
 import kinuvo.server.plugin.Action
 import kinuvo.server.plugin.Assessment
 import kinuvo.server.plugin.Tool
+import kinuvo.server.plugin.ToolRun
 import kinuvo.protocol.capability.Integration
 import kinuvo.protocol.mcp.McpAppRef
 import kinuvo.protocol.mcp.McpAppResource
@@ -36,8 +37,19 @@ class FakeTool(
     override suspend fun execute(args: JsonObject) = run(args)
 }
 
+/** A tool that, like a Script, calls the run's other tools by name and returns what they answered. */
+class FakeScript(name: String, private vararg val calls: String) : Tool {
+    override val descriptor = toolSpec(name, "Fake script $name")
+
+    override fun assess(args: JsonObject) = Assessment(listOf(Action(Risk.Low, listOf(descriptor.name))))
+
+    override suspend fun execute(args: JsonObject) = error("Needs a run")
+
+    override suspend fun execute(args: JsonObject, callId: String, run: ToolRun) = calls.map { run.call(it, "{}").output }.joinToString(",")
+}
+
 /** Offers [tools] to every Agent's runs, and to the MCP Apps that call them by name. */
-class FakeTools(private vararg val tools: FakeTool) : ServerPlugin {
+class FakeTools(private vararg val tools: Tool) : ServerPlugin {
     override val definition = PluginDefinition("test.tools", "Test tools")
 
     override suspend fun prepare(run: RunContext, activate: Boolean) = PluginTools(tools.toList())

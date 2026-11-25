@@ -54,8 +54,9 @@ sealed interface AgentEvent {
     @Serializable @SerialName("TOOL_CALL_START")
     data class ToolCallStart(val toolCallId: ToolCallId, val toolCallName: String, val args: String, val identity: ToolIdentity? = null) : AgentEvent
 
+    /** The call's result, or with [progress] its live output so far, which the final result replaces. */
     @Serializable @SerialName("TOOL_CALL_RESULT")
-    data class ToolCallResult(val toolCallId: ToolCallId, val content: String, val isError: Boolean, val identity: ToolIdentity? = null) : AgentEvent
+    data class ToolCallResult(val toolCallId: ToolCallId, val content: String, val isError: Boolean, val identity: ToolIdentity? = null, val progress: Boolean = false) : AgentEvent
 
     @Serializable @SerialName("REFLECTION_STARTED")
     data class ReflectionStarted(val id: String) : AgentEvent
