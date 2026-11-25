@@ -116,6 +116,41 @@ class InteractionSetsTest {
         }
     }
 
+    @Test fun anAnswerAfterStopCannotReleaseTheRun() = runBlocking {
+        lateinit var agent: Agent
+        TestServer.start(script = { on("regular") { reply("ok") } }, scenario = { agent = agent("work") }).use { server ->
+            val session = server.startSession(agent.id)
+            val first = server.extra(agent, session.id)
+            val second = server.extra(agent, session.id)
+            val sets = server.harness.interactions
+            fun answer(id: InteractionId) = RespondParams(session.id, id, form)
+            val released = mutableListOf<InteractionId>()
+            assertTrue(sets.respond(answer(first.id), true) { released += it.requestId; true })
+            sets.stop(session.id)
+            assertFalse(sets.respond(answer(second.id), true) { released += it.requestId; true })
+            assertFalse(sets.respond(answer(first.id), true) { released += it.requestId; true })
+            assertTrue(released.isEmpty())
+            val later = server.extra(agent, session.id)
+            assertTrue(sets.respond(answer(later.id), true) { released += it.requestId; true })
+            assertTrue(released.isEmpty(), "stopped siblings still block the set")
+        }
+    }
+
+    @Test fun aStopAfterTheAnswerWasClaimedStillEndsCleanly() = runBlocking {
+        lateinit var agent: Agent
+        TestServer.start(script = { on("regular") { reply("ok") } }, scenario = { agent = agent("work") }).use { server ->
+            val session = server.startSession(agent.id)
+            val only = server.extra(agent, session.id)
+            val sets = server.harness.interactions
+            val hanging = CompletableDeferred<Boolean>()
+            val responder = async(Dispatchers.Default) { sets.respond(RespondParams(session.id, only.id, form), true) { hanging.await() } }
+            delay(200)
+            sets.stop(session.id)
+            hanging.complete(true)
+            assertTrue(responder.await())
+        }
+    }
+
     @Test fun anAnswerStagedForAnInteractionKeepsItsTimeoutFromSettlingIt() = runBlocking {
         lateinit var agent: Agent
         TestServer.start(script = { on("hold") { toolCall("ask_user", hold); reply("parent done") } }, scenario = { agent = agent("work") { it.copy(approvals = "full") } }).use { server ->

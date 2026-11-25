@@ -22,6 +22,7 @@ class InteractionSets(private val log: SessionLog) {
     private val lock = Mutex()
     private val staged = LinkedHashMap<InteractionId, Staged>()
     private val claimed = mutableMapOf<InteractionId, SessionId>()
+    private val stopped = mutableMapOf<SessionId, MutableSet<InteractionId>>()
 
     init {
         log.onInteractionResolved = { session, id -> resolved(session, id) }
@@ -35,6 +36,7 @@ class InteractionSets(private val log: SessionLog) {
         val session = answer.sessionId
         val batch = lock.withLock {
             if (unclaimed(session).none { it.id == answer.requestId }) return false
+            if (answer.requestId in stopped[session].orEmpty()) return false
             if (answer.requestId in staged) return false
             if (!grouped) return@withLock null
             staged[answer.requestId] = Staged(answer, release)
@@ -58,9 +60,16 @@ class InteractionSets(private val log: SessionLog) {
         }
     }
 
-    /** Drops answers waiting on siblings, e.g. when the run is stopped and its work is cancelled instead. */
+    /**
+     * Drops answers waiting on siblings, e.g. when the run is stopped and its work is cancelled instead. Interactions open
+     * now can no longer be answered or released, so a final answer racing the Stop can't release work after it.
+     */
     suspend fun stop(sessionId: SessionId) {
-        lock.withLock { staged.values.removeAll { it.answer.sessionId == sessionId } }
+        lock.withLock {
+            staged.values.removeAll { it.answer.sessionId == sessionId }
+            val open = unclaimed(sessionId).mapTo(mutableSetOf()) { it.id }
+            if (open.isNotEmpty()) stopped[sessionId] = open
+        }
         log.stopping(sessionId)
     }
 
@@ -77,13 +86,15 @@ class InteractionSets(private val log: SessionLog) {
         val all = log.open(session)
         val ids = all.mapTo(mutableSetOf()) { it.id }
         claimed.entries.removeAll { it.value == session && it.key !in ids }
+        stopped[session]?.let { it.retainAll(ids); if (it.isEmpty()) stopped -= session }
         staged.values.removeAll { it.answer.sessionId == session && it.answer.requestId !in ids }
         return all.filter { it.id !in claimed }
     }
 
     private suspend fun claimCovered(session: SessionId): List<Staged> {
         val open = unclaimed(session)
-        if (open.isEmpty() || open.any { it.id !in staged }) return emptyList()
+        val blocked = stopped[session].orEmpty()
+        if (open.isEmpty() || open.any { it.id !in staged || it.id in blocked }) return emptyList()
         return open.map { requireNotNull(staged.remove(it.id)) }.also { batch -> batch.forEach { claimed[it.answer.requestId] = session } }
     }
 
