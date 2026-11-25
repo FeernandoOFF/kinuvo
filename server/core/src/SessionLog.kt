@@ -19,6 +19,7 @@ import kinuvo.protocol.session.SessionStatus
 import kinuvo.protocol.session.SessionUpdate
 import kinuvo.protocol.session.SubAgentState
 import kinuvo.protocol.session.SessionSnapshot
+import kinuvo.protocol.ProtocolJson
 import kinuvo.protocol.agui.AgUiEvent
 import kinuvo.protocol.agui.AgUiOutput
 import kinuvo.protocol.agui.AgUiRunTranslator
@@ -46,7 +47,12 @@ import kotlin.uuid.Uuid
  * table keyed by (session, seq) that holds both, and serve catch-ups and history with range queries.
  */
 @OptIn(ExperimentalAtomicApi::class)
-class SessionLog(private val store: Store, private val clock: () -> Long = { Clock.System.now().toEpochMilliseconds() }) : Store by store {
+class SessionLog(
+    private val store: Store,
+    /** How much history a Snapshot carries; the rest of the page follows as Entry frames, so no frame nears the client's limit. */
+    private val snapshotEntryBytes: Int = 4 * 1024 * 1024,
+    private val clock: () -> Long = { Clock.System.now().toEpochMilliseconds() },
+) : Store by store {
     /** Receives one client's updates; returns false when it can't keep up, which unsubscribes it everywhere. */
     fun interface Subscriber {
         fun offer(update: SessionUpdate): Boolean
@@ -375,8 +381,12 @@ class SessionLog(private val store: Store, private val clock: () -> Long = { Clo
             .mapNotNull { it.child?.forClient() }.associateBy { it.sessionId }
         val state = (live[sessionId] ?: LiveState()).let { it.copy(children = children + it.children) }.forSnapshot()
         val run = if (translators[sessionId]?.active == true) runEvents[sessionId].orEmpty().toList() else emptyList()
-        val snapshot = SessionSnapshot(from, entries.size, entries.drop(from).map { it.forClient() }, state, run)
-        if (!subscriber.offer(SessionUpdate(agentId, sessionId, SessionChange.Snapshot(snapshot)))) removeEverywhere(subscriber)
+        val page = entries.drop(from).map { it.forClient() }
+        var size = 0
+        val inline = page.takeWhile { size += ProtocolJson.encodeToString(SessionEntry.serializer(), it).length; size <= snapshotEntryBytes }
+        val snapshot = SessionSnapshot(from, entries.size, inline, state, run)
+        val changes = listOf<SessionChange>(SessionChange.Snapshot(snapshot)) + page.drop(inline.size).mapIndexed { i, entry -> SessionChange.Entry(from + inline.size + i, entry) }
+        for (change in changes) if (!subscriber.offer(SessionUpdate(agentId, sessionId, change))) return removeEverywhere(subscriber)
     }
 
     /** Hands [event] to the Session's translator and delivers what comes out, buffering the active run's events. */

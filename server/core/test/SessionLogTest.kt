@@ -12,6 +12,7 @@ import kinuvo.protocol.agui.RunOutcome
 import kinuvo.protocol.session.withWrittenAt
 import kinuvo.protocol.session.SessionEntry
 import kinuvo.protocol.session.SessionUpdate
+import kinuvo.protocol.ProtocolJson
 import kinuvo.server.store.SessionCommitConflict
 import kotlin.test.assertFailsWith
 import kotlin.test.assertTrue
@@ -127,6 +128,24 @@ class SessionLogTest {
         assertTrue(first.hasMore)
         assertEquals(0, log.page(agent, first.sessions.single().id.value, 1).settledCount)
         assertEquals(2, log.page(agent, null, 1, routine.id).settledCount)
+    }
+
+    @Test fun aPageLargerThanOneFrameArrivesAsASnapshotThenEntries() = runBlocking {
+        val fixture = RuntimeFixture()
+        val log = SessionLog(fixture.store)
+        val id = log.createSession(fixture.agent.id, "").id
+        val texts = List(8) { i -> "$i".repeat(2 * 1024 * 1024) }
+        texts.forEach { log.append(fixture.agent.id, id, SessionEntry.UserMessage(it)) }
+        val received = mutableListOf<SessionChange>()
+        log.subscribe(fixture.agent.id, id, null, 100, object : SessionLog.Subscriber {
+            override fun offer(update: SessionUpdate): Boolean { received += update.change; return true }
+        })
+        val snapshot = (received.first() as SessionChange.Snapshot).snapshot
+        val rest = received.drop(1).map { it as SessionChange.Entry }
+        assertTrue(snapshot.entries.isNotEmpty() && rest.isNotEmpty())
+        assertEquals((snapshot.firstSeq + snapshot.entries.size until snapshot.seq).toList(), rest.map { it.seq })
+        assertEquals(texts, (snapshot.entries + rest.map { it.entry }).filterIsInstance<SessionEntry.UserMessage>().map { it.text })
+        received.forEach { assertTrue(ProtocolJson.encodeToString(SessionChange.serializer(), it).length < 15 * 1024 * 1024) }
     }
 
     @Test fun queuedMessagesReachLiveSubscribersAndReconnectWhileIdle() = runBlocking {

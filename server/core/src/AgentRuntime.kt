@@ -75,7 +75,7 @@ open class AgentRuntime(
     var agentManagement: AgentManagement? = null
     var subAgents: SubAgents? = null
     var teams: Teams? = null
-    val log = SessionLog(dependencies.store, dependencies.clock)
+    val log = SessionLog(dependencies.store, clock = dependencies.clock)
     val store: Store = log
     val docs = dependencies.docs
     val skills = dependencies.skills
