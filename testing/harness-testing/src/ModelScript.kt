@@ -52,10 +52,13 @@ class ModelScript(var fallback: String = "Scripted reply") {
         val last = messages.indexOfLast { it is Message.User && it.parts.none { part -> part is MessagePart.Tool.Result } }
         val user = messages.getOrNull(last)?.textContent().orEmpty()
         val answered = messages.drop(last + 1).toolResults.size
+        // Unique per Session, as AG-UI clients expect; the first turn keeps `call-N`.
+        val turn = messages.count { it is Message.User && it.parts.none { part -> part is MessagePart.Tool.Result } } - 1
+        val id = if (turn <= 0) "call-$answered" else "call-$turn-$answered"
         val steps = rules.value.firstOrNull { it.text == null || it.text in user }?.steps.orEmpty()
         return when (val step = steps.getOrNull(answered) ?: ScriptedStep.Reply(fallback)) {
             is ScriptedStep.Reply -> flowOf(StreamFrame.TextDelta(step.text), StreamFrame.End())
-            is ScriptedStep.ToolCall -> flowOf(StreamFrame.ToolCallComplete("call-$answered", step.name, step.args), StreamFrame.End())
+            is ScriptedStep.ToolCall -> flowOf(StreamFrame.ToolCallComplete(id, step.name, step.args), StreamFrame.End())
         }
     }
 }
