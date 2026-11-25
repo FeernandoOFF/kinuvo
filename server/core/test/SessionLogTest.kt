@@ -149,6 +149,27 @@ class SessionLogTest {
         received.forEach { assertTrue(ProtocolJson.encodeToString(SessionChange.serializer(), it).length < 15 * 1024 * 1024) }
     }
 
+    @Test fun anActiveRunTooLargeForOneFrameReplaysAsSnapshotThenRunFrames() = runBlocking {
+        val fixture = RuntimeFixture()
+        val log = SessionLog(fixture.store)
+        val agent = fixture.agent.id
+        val id = log.createSession(agent, "").id
+        log.publish(agent, id, AgentEvent.RunStarted(RunId("run")))
+        val deltas = List(8) { i -> "$i".repeat(2 * 1024 * 1024) }
+        deltas.forEach { log.publish(agent, id, AgentEvent.TextMessageContent("m", it)) }
+        val received = mutableListOf<SessionChange>()
+        log.subscribe(agent, id, null, 100, object : SessionLog.Subscriber {
+            override fun offer(update: SessionUpdate): Boolean { received += update.change; return true }
+        })
+        val snapshot = (received.first() as SessionChange.Snapshot).snapshot
+        val rest = received.drop(1).map { (it as SessionChange.Run).event }
+        assertTrue(snapshot.run.isNotEmpty() && rest.isNotEmpty(), "run ${snapshot.run.size} rest ${rest.size}")
+        val replayed = (snapshot.run + rest).filterIsInstance<AgUiEvent.TextMessageContent>().map { it.delta }
+        assertEquals(deltas, replayed)
+        received.forEach { assertTrue(ProtocolJson.encodeToString(SessionChange.serializer(), it).encodeToByteArray().size < 15 * 1024 * 1024) }
+        assertEquals(deltas.joinToString(""), log.executionSnapshot(agent, id).messages.single { it.id == "assistant:m" }.text)
+    }
+
     @Test fun anExecutionSnapshotKeepsEntriesPastTheInlineBudget() = runBlocking {
         val fixture = RuntimeFixture()
         val log = SessionLog(fixture.store)

@@ -49,7 +49,7 @@ import kotlin.uuid.Uuid
 @OptIn(ExperimentalAtomicApi::class)
 class SessionLog(
     private val store: Store,
-    /** How much history a Snapshot carries; the rest of the page follows as Entry frames, so no frame nears the client's limit. */
+    /** How many bytes of history, and of the active run, a Snapshot carries; the rest follows as Entry and Run frames, so no frame nears the client's limit. */
     private val snapshotEntryBytes: Int = 4 * 1024 * 1024,
     private val clock: () -> Long = { Clock.System.now().toEpochMilliseconds() },
 ) : Store by store {
@@ -389,9 +389,13 @@ class SessionLog(
         val run = if (translators[sessionId]?.active == true) runEvents[sessionId].orEmpty().toList() else emptyList()
         val page = entries.drop(from).map { it.forClient() }
         var size = 0
-        val inline = page.takeWhile { size += ProtocolJson.encodeToString(SessionEntry.serializer(), it).length; size <= snapshotEntryBytes }
-        val snapshot = SessionSnapshot(from, entries.size, inline, state, run)
-        val changes = listOf<SessionChange>(SessionChange.Snapshot(snapshot)) + page.drop(inline.size).mapIndexed { i, entry -> SessionChange.Entry(from + inline.size + i, entry) }
+        val inline = page.takeWhile { size += ProtocolJson.encodeToString(SessionEntry.serializer(), it).encodeToByteArray().size; size <= snapshotEntryBytes }
+        var runSize = 0
+        val inlineRun = run.takeWhile { runSize += ProtocolJson.encodeToString(AgUiEvent.serializer(), it).encodeToByteArray().size; runSize <= snapshotEntryBytes }
+        val snapshot = SessionSnapshot(from, entries.size, inline, state, inlineRun)
+        val changes = listOf<SessionChange>(SessionChange.Snapshot(snapshot)) +
+            page.drop(inline.size).mapIndexed { i, entry -> SessionChange.Entry(from + inline.size + i, entry) } +
+            run.drop(inlineRun.size).map { SessionChange.Run(it) }
         for (change in changes) if (!subscriber.offer(SessionUpdate(agentId, sessionId, change))) return removeEverywhere(subscriber)
     }
 

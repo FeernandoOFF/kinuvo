@@ -22,7 +22,7 @@ suspend fun SessionLog.executionSnapshot(agent: AgentId, id: SessionId): Executi
     var live = LiveState()
     var captured = false
     var cutoff = 0
-    var run = emptyList<AgUiEvent>()
+    val run = mutableListOf<AgUiEvent>()
     fun add(seq: Int, entry: SessionEntry) {
         when (entry) {
             is SessionEntry.UserMessage -> messages.add(ExecutionMessage(entry.submissionId?.let { "user:$it" } ?: "user:entry:$seq", "user", entry.modelText, ProtocolJson.encodeToJsonElement(SessionEntry.serializer(), entry)))
@@ -40,10 +40,11 @@ suspend fun SessionLog.executionSnapshot(agent: AgentId, id: SessionId): Executi
         if (!captured && change is SessionChange.Snapshot) {
             change.snapshot.entries.forEachIndexed { index, entry -> add(change.snapshot.firstSeq + index, entry) }
             live = change.snapshot.state
-            run = change.snapshot.run
+            run += change.snapshot.run
             cutoff = change.snapshot.seq
             captured = true
         } else if (captured && change is SessionChange.Entry && change.seq < cutoff) add(change.seq, change.entry)
+        else if (captured && change is SessionChange.Run) run += change.event
         true
     }
     try { subscribe(agent, id, null, Int.MAX_VALUE, subscriber) }
