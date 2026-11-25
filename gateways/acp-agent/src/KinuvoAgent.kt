@@ -120,6 +120,7 @@ class KinuvoAgent(private val dispatch: ExecutionDispatch, private val agentId: 
         }
 
         private suspend fun abandon(request: InteractionId) {
+            if (cancelled) return
             val snapshot = dispatch.snapshot(agentId, KinuvoSessionId(id))
             if (snapshot.pending.none { it.id == request } || request in snapshot.staged) return
             try { dispatch.stop(KinuvoSessionId(id)) }
