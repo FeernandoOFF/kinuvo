@@ -2,12 +2,15 @@ package kinuvo.ui.e2e
 
 import kinuvo.protocol.Api
 import kinuvo.protocol.session.SendParams
+import kotlinx.coroutines.CompletableDeferred
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
 @OptIn(androidx.compose.ui.test.ExperimentalTestApi::class)
 class ChatFlowTest {
+    private val held = CompletableDeferred<Unit>()
+
     @Test fun pairsStartsASessionAndShowsTheReply() = appTest("chat", script = { on("Hello from Maestro") { reply(REPLY) } }) {
         screenshot("pairing")
         pair()
@@ -43,7 +46,7 @@ class ChatFlowTest {
     }
 
     @Test fun secondSendInAnOpenSessionShowsItsOwnReply() = appTest("chat-second-send",
-        script = { on("Hey") { reply("Hi there") }; on("Who are you") { reply("I'm the E2E Agent") } },
+        script = { on("Hey") { reply("Hi there") }; on("Who are you") { reply("I'm the E2E Agent", after = held) } },
     ) {
         pair()
         tap("Message")
@@ -54,7 +57,10 @@ class ChatFlowTest {
         tap("Message")
         type("Who are you")
         tap("Send")
+        await("Working…")
+        held.complete(Unit)
         await("I'm the E2E Agent")
+        gone("Working…")
         settle(500)
         screenshot("second-reply")
         requests(Api.Send, 2)

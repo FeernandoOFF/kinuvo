@@ -8,3 +8,6 @@ private fun shareText(text: String): Unit = js("navigator.share({ text: text }).
 
 @Composable
 internal actual fun rememberShare(): ((String) -> Unit)? = if (canShare()) ::shareText else null
+
+@Composable
+internal actual fun rememberShareFile(): ((String) -> Unit)? = null

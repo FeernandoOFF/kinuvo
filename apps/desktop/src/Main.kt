@@ -29,6 +29,9 @@ import kinuvo.server.jvm.JvmServerHost
 import kinuvo.server.jvm.LocalServer
 import kinuvo.server.jvm.LoginServiceSettings
 import kinuvo.server.jvm.kinuvoHome
+import kinuvo.diagnostics.Diagnostics
+import kinuvo.diagnostics.jvmAppInfo
+import kinuvo.protocol.device.currentPlatform
 import kinuvo.app.computer.ComputerDriver
 import kinuvo.client.TailcatForwarder
 import kinuvo.tailcat.Tailcat
@@ -124,6 +127,7 @@ fun main(args: Array<String>) {
         "--serve" -> exitProcess(serveFromLogin())
         "--service" -> exitProcess(runServiceCommand(args.getOrNull(1)))
     }
+    Diagnostics(kinuvoHome(), jvmAppInfo(currentPlatform.displayName)).install("desktop")
     startKinuvo(module {
         single<EmbeddedServer> { HarnessEmbeddedServer }
         single<ComputerDriver> { CuaComputerDriver() }
