@@ -42,15 +42,19 @@ class InteractionSets(private val log: SessionLog) {
      */
     suspend fun respond(answer: RespondParams, grouped: Boolean, release: suspend (RespondParams) -> Boolean): Boolean {
         val session = answer.sessionId
-        val batch = lock.withLock {
-            if (unclaimed(session).none { it.id == answer.requestId }) return false
-            if (answer.requestId in stopped[session].orEmpty()) return false
-            if (answer.requestId in staged) return false
-            if (!grouped) return@withLock null
-            staged[answer.requestId] = Staged(answer, release)
-            log.staged(session, answer.requestId)
-            claimCovered(session)
-        } ?: return release(answer)
+        val batch = withContext(NonCancellable) {
+            lock.withLock {
+                if (unclaimed(session).none { it.id == answer.requestId }) return@withLock null
+                if (answer.requestId in stopped[session].orEmpty()) return@withLock null
+                if (answer.requestId in staged) return@withLock null
+                if (!grouped) return@withLock emptyList()
+                staged[answer.requestId] = Staged(answer, release)
+                log.staged(session, answer.requestId)
+                claimCovered(session)
+            }
+        } ?: return false
+        if (!grouped) return release(answer)
+        if (batch.isEmpty()) return true
         return scope.async { releaseAll(batch, answer.requestId) }.await()
     }
 
@@ -126,7 +130,9 @@ class InteractionSets(private val log: SessionLog) {
     }
 
     private suspend fun unclaim(items: List<Staged>) = withContext(NonCancellable) {
-        lock.withLock { items.forEach { claimed -= it.answer.requestId } }
-        items.forEach { log.unstaged(it.answer.sessionId, it.answer.requestId) }
+        lock.withLock {
+            items.forEach { claimed -= it.answer.requestId }
+            items.forEach { log.unstaged(it.answer.sessionId, it.answer.requestId) }
+        }
     }
 }
