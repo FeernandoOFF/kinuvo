@@ -61,6 +61,7 @@ data class ExecutionSnapshot(
     val phase: ExecutionPhase = ExecutionPhase.Idle,
     val messages: List<ExecutionMessage> = emptyList(),
     val pending: List<PendingInteraction> = emptyList(),
+    val staged: Set<InteractionId> = emptySet(),
     val stopReason: String? = null,
     val externalSessionId: String? = null,
 )

@@ -99,7 +99,7 @@ private class NativeExecutionSession(private val factory: NativeExecutionFactory
                 sink.publish(AgentEvent.RunStarted(runId))
                 val run = try { factory.runner(host.run(agentId, sessionId, input)) }
                 catch (e: CancellationException) {
-                    withContext(NonCancellable) { sink.publish(AgentEvent.RunFinished(runId)) }
+                    withContext(NonCancellable) { sink.publish(AgentEvent.RunFinished(runId, cancelled = true)) }
                     throw e
                 }
                 catch (e: Exception) {

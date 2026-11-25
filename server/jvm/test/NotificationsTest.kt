@@ -109,7 +109,7 @@ class NotificationsTest {
                 mapOf("token" to SecretUpdate.Remove)))
             assertNull(harness.files.serviceConfig(ServiceKind.Notifications).options["token"])
             val sessionId = phone.call(Api.CreateSession, AgentRef(AgentId("default"))).id
-            phone.call(Api.CatchUp, CatchUpParams(AgentId("default"), sessionId))
+            phone.call(Api.Subscribe, SubscribeParams(AgentId("default"), sessionId))
             suspend fun turn() = coroutineScope {
                 val idle = async(start = CoroutineStart.UNDISPATCHED) { phone.events(Api.SessionChanged).filter { it.id == sessionId && it.status == SessionStatus.Idle }.first() }
                 phone.call(Api.Send, SendParams(AgentId("default"), sessionId, "hi"))

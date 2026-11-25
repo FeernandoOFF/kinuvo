@@ -3,6 +3,7 @@ package kinuvo.app.session
 import kinuvo.protocol.agui.AgUiEvent
 import kinuvo.protocol.agui.Interrupt
 import kinuvo.protocol.agui.RunOutcome
+import kinuvo.protocol.session.SessionEntry
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.contentOrNull
@@ -20,6 +21,7 @@ data class AgUiRunState(
     val interrupts: List<Interrupt> = emptyList(),
     val outcome: RunOutcome? = null,
     val error: String? = null,
+    val done: Set<String> = emptySet(),
 ) {
     val running: Boolean get() = runId != null && outcome == null && error == null
 
@@ -31,10 +33,11 @@ data class AgUiRunState(
 
     data class Activity(val id: String, val type: String, val content: JsonObject)
 
-    /** Folds [event]; items whose id is in [committed] are skipped, as is anything after the run ended. */
+    /** Folds [event]; items whose id is in [committed] or was committed since are skipped, as is anything after the run ended. */
     fun on(event: AgUiEvent, committed: Set<String> = emptySet()): AgUiRunState {
         if (event is AgUiEvent.RunStarted) return AgUiRunState(event.threadId, event.runId, event.parentRunId)
         if (!running) return this
+        val committed = if (done.isEmpty()) committed else if (committed.isEmpty()) done else committed + done
         return when (event) {
             is AgUiEvent.RunStarted -> this
             is AgUiEvent.RunFinished -> copy(outcome = event.outcome ?: RunOutcome.Success(), interrupts = (event.outcome as? RunOutcome.Interrupted)?.interrupts.orEmpty())
@@ -58,6 +61,16 @@ data class AgUiRunState(
         }
     }
 
+    /** [entry] landed in history: what the run shows of it goes away, and its later events are skipped. */
+    fun committed(entry: SessionEntry): AgUiRunState {
+        val ids = entry.runIds()
+        if (ids.isEmpty()) return this
+        return copy(
+            messages = messages.filterNot { it.id in ids }, tools = tools.filterNot { it.id in ids },
+            activities = activities.filterNot { it.id.removePrefix("progress:") in ids }, done = done + ids,
+        )
+    }
+
     private fun start(id: String, reasoning: Boolean, committed: Set<String>) =
         if (id in committed || messages.any { it.id == id && it.reasoning == reasoning }) this else copy(messages = messages + Message(id, reasoning))
 
@@ -78,3 +91,12 @@ data class AgUiRunState(
 }
 
 private fun JsonObject.kinuvo(): JsonObject? = get("kinuvo")?.jsonObject
+
+/** The ids a run's items share with the entries they become. */
+internal fun SessionEntry.runIds(): List<String> = when (this) {
+    is SessionEntry.AssistantMessage -> listOfNotNull(messageId)
+    is SessionEntry.Reasoning -> listOfNotNull(messageId)
+    is SessionEntry.ToolCall -> listOf(id.value)
+    is SessionEntry.ToolResult -> listOf(id.value)
+    else -> emptyList()
+}

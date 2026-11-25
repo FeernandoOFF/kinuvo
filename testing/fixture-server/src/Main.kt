@@ -30,6 +30,11 @@ private val SCENARIOS: Map<String, suspend Scenario.() -> Unit> = mapOf(
         agent("e2e", "E2E Agent")
         withoutDefaultAgent()
     },
+    // Interrupts and Stop, triggered by the phrases in [main]'s script.
+    "agui" to {
+        agent("e2e", "E2E Agent")
+        withoutDefaultAgent()
+    },
     "showcase" to {
         showcase(agent("e2e", "E2E Agent"))
         withoutDefaultAgent()
@@ -40,6 +45,8 @@ private val SCENARIOS: Map<String, suspend Scenario.() -> Unit> = mapOf(
 private val FIXTURE_TOOLS = FakeTools(
     FakeTool("orders_lookup") { """{"order":"A-10492","status":"delayed","days":3}""" },
     FakeTool("email_send", Risk.High, reason = "Sends an email to the customer") { "sent" },
+    FakeTool("deploy", Risk.High, reason = "Pushes to production") { "deployed" },
+    FakeTool("long_task") { delay(60_000); "done" },
 )
 
 /** A triage Workflow with every kind of step a model or a fake tool can serve, and a short one that only asks for an Approval. */
@@ -76,6 +83,9 @@ fun main(args: Array<String>): Unit = runBlocking {
     val server = TestServer.start(plugins = listOf(FIXTURE_TOOLS), script = {
         on("Classify this message") { reply("```json\n{\"urgent\":true,\"customer\":\"Dana Whitfield\",\"reason\":\"Production is down\"}\n```") }
         on("Draft a reply") { reply("Hi Dana, we are on it and will update you within the hour.") }
+        on("Deploy") { toolCall("deploy"); reply("Deployed to production.") }
+        on("Ask me") { toolCall("ask_user", """{"title":"Release details","questions":[{"id":"version","label":"Which version?"}]}"""); reply("Thanks, noted.") }
+        on("Wait") { toolCall("long_task"); reply("Finished waiting.") }
         reply(FIXTURE_REPLY)
     }, scenario = scenario)
     if (name == "workflows") seedWorkflows(server)

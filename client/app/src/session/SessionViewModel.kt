@@ -220,6 +220,8 @@ data class ChatState(
     val answers: Map<InteractionId, Map<String, List<String>>> = emptyMap(),
     /** What the Session waits on: Approvals and forms for [respond][SessionViewModel.respond] and [answer][SessionViewModel.answer], or an external Agent's harness requests. */
     val pending: List<PendingInteraction> = emptyList(),
+    /** The [pending] interactions that already have an answer waiting on their siblings; [requests] list them last. */
+    val staged: Set<InteractionId> = emptySet(),
     /** An `mcp_login` Connect card's own sign-in, by interaction ID, as [connect][SessionViewModel.connect] drives it. */
     val connecting: Map<InteractionId, ConnectState> = emptyMap(),
     /** Names an external Agent's harness. */
@@ -239,7 +241,7 @@ data class ChatState(
     val ended get() = if (external && selected != null && capabilities?.chat?.reasonCode != "archived") SessionEnd.of(phase, capabilities?.chat, resume) else null
     val resumeOnSend get() = external && resumeOnSend(phase, capabilities)
     /** Everything the open Session waits on from the user, oldest first. */
-    val requests get() = pendingRequests(items, pending)
+    val requests get() = pendingRequests(items, pending, staged)
     /** The requests of an external Agent's harness, shown above its composer. */
     val prompts get() = if (external) requests.filterIsInstance<PendingRequest.External>().map { it.prompt } else emptyList()
     val canStop get() = !external || capabilities?.execution?.cancel == true
@@ -296,6 +298,8 @@ data class SessionState(
     val aiConsent: AiConsentRequest? = null,
 ) {
     val pending get() = data?.live?.pending.orEmpty()
+    /** The pending interactions whose answers are waiting on their siblings. */
+    val staged get() = data?.live?.staged.orEmpty()
     val phase get() = data?.live?.executionPhase
     val loaded get() = !resolving && (route.sessionId == null || data?.loaded == true)
     val resumeOnSend get() = resumeOnSend(phase, capabilities)
@@ -623,10 +627,11 @@ class SessionViewModel(
         route.sessionId?.let(repo::loadOlder)
     }
 
-    fun respond(decision: ApprovalDecision) {
+    /** Answers the Approval [id] that a card shows, not whichever one is first. */
+    fun respond(id: InteractionId, decision: ApprovalDecision) {
         val sessionId = route.sessionId ?: return
-        val approval = state.value.pending.filterIsInstance<PendingInteraction.Approval>().firstOrNull() ?: return
-        viewModelScope.launch { attempt { repo.respond(sessionId, approval.id, InteractionAnswer.Approval(decision)) } }
+        if (id in state.value.staged || state.value.pending.none { it.id == id && it is PendingInteraction.Approval }) return
+        viewModelScope.launch { attempt { repo.respond(sessionId, id, InteractionAnswer.Approval(decision)) } }
     }
 
     fun reviewReflection(proposalId: String, approve: Boolean, note: String? = null) {
@@ -654,13 +659,13 @@ class SessionViewModel(
     fun editAnswer(questionsId: InteractionId, questionId: String, value: List<String>) =
         state.update { it.copy(answers = it.answers + (questionsId to it.answers[questionsId].orEmpty() + (questionId to value))) }
 
-    /** Sends the open `ask_user` form's [answers]; null skips it. */
-    fun answer(answers: Map<String, List<String>>?) {
+    /** Sends the `ask_user` form [id]'s [answers]; null skips it. */
+    fun answer(id: InteractionId, answers: Map<String, List<String>>?) {
         val sessionId = route.sessionId ?: return
-        val questions = state.value.pending.filterIsInstance<PendingInteraction.Questions>().firstOrNull() ?: return
+        if (id in state.value.staged || state.value.pending.none { it.id == id && it is PendingInteraction.Questions }) return
         viewModelScope.launch { attempt {
-            repo.respond(sessionId, questions.id, InteractionAnswer.Questions(answers))
-            state.update { it.copy(answers = it.answers - questions.id) }
+            repo.respond(sessionId, id, InteractionAnswer.Questions(answers))
+            state.update { it.copy(answers = it.answers - id) }
         } }
     }
 

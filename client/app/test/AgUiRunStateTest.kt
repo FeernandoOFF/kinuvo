@@ -1,6 +1,11 @@
 package kinuvo.app
 
 import kinuvo.app.session.AgUiRunState
+import kinuvo.app.session.ChatItem
+import kinuvo.app.session.SessionData
+import kinuvo.protocol.agent.AgentId
+import kinuvo.protocol.session.SessionEntry
+import kinuvo.protocol.session.ToolCallId
 import kinuvo.protocol.agui.AgUiEvent
 import kinuvo.protocol.agui.Interrupt
 import kinuvo.protocol.agui.RunOutcome
@@ -107,5 +112,36 @@ class AgUiRunStateTest {
         assertEquals("p", state.parentRunId)
         assertTrue(state.messages.isEmpty())
         assertTrue(state.running)
+    }
+
+    @Test fun committedEntryDropsItsItemAndLaterEventsForIt() {
+        val streaming = fold(started, AgUiEvent.TextMessageContent("m", "Hel"), AgUiEvent.ToolCallStart("c", "shell"))
+        val committed = streaming.committed(SessionEntry.AssistantMessage("Hello", "m")).committed(SessionEntry.ToolCall(ToolCallId("c"), "shell", "{}"))
+        assertTrue(committed.messages.isEmpty())
+        assertTrue(committed.tools.isEmpty())
+        val later = committed.on(AgUiEvent.TextMessageContent("m", "lo")).on(AgUiEvent.ToolCallResult("result:c", "c", "ok"))
+        assertTrue(later.messages.isEmpty())
+        assertTrue(later.tools.isEmpty())
+    }
+
+    @Test fun replayedEventsSkipWhatTheSnapshotAlreadyHolds() {
+        val replay = fold(started, AgUiEvent.TextMessageContent("m", "Hello"), AgUiEvent.TextMessageContent("n", "more"), committed = setOf("m"))
+        assertEquals(listOf("n"), replay.messages.map { it.id })
+    }
+
+    @Test fun runFramesAfterTheSnapshotSkipWhatItsEntriesHold() {
+        val committed = setOf("m")
+        val snapshot = fold(started, AgUiEvent.TextMessageContent("n", "a"), committed = committed).copy(done = committed)
+        val tail = snapshot.on(AgUiEvent.TextMessageContent("m", "late")).on(AgUiEvent.TextMessageContent("n", "b"))
+        assertEquals(listOf("n" to "ab"), tail.messages.map { it.id to it.text })
+    }
+
+    @Test fun streamingMessagesShowInTheTranscriptUntilTheirEntryLands() {
+        val run = fold(started, AgUiEvent.ReasoningMessageContent("r", "hm"), AgUiEvent.TextMessageContent("m", "Hel"))
+        val data = SessionData(AgentId("a"), loaded = true, run = run)
+        assertEquals(listOf("reasoning-r" to "hm", "text-m" to "Hel"), data.items.map { it.id to ((it as? ChatItem.Reasoning)?.text ?: (it as ChatItem.Assistant).text) })
+        val saved = SessionData(AgentId("a"), entries = listOf(SessionEntry.AssistantMessage("Hello", "m")), loaded = true, run = run.committed(SessionEntry.AssistantMessage("Hello", "m")))
+        assertEquals(listOf("text-m", "reasoning-r"), saved.items.map { it.id })
+        assertEquals("Hello", (saved.items.first() as ChatItem.Assistant).text)
     }
 }

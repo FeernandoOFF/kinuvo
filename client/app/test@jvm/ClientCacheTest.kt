@@ -142,9 +142,9 @@ class ClientCacheTest {
                 Api.Presence.name -> reply(request, Api.Presence, Unit)
                 Api.Agents.name -> reply(request, Api.Agents, listOf(AgentInfo(AgentId("agent"), "Live", "none")))
                 Api.Sessions.name -> reply(request, Api.Sessions, SessionPage(listOf(SessionInfo(SessionId("session"), AgentId("agent"), "Live chat")), false))
-                Api.CatchUp.name -> {
-                    catchUpAfter.complete(ProtocolJson.decodeFromJsonElement(Api.CatchUp.params, request.params).after)
-                    reply(request, Api.CatchUp, Unit)
+                Api.Subscribe.name -> {
+                    catchUpAfter.complete(ProtocolJson.decodeFromJsonElement(Api.Subscribe.params, request.params).after)
+                    reply(request, Api.Subscribe, Unit)
                 }
                 Api.Routines.name -> reply(request, Api.Routines, emptyList())
                 else -> frames.send(Frame.Response(request.id, false, error = WireError(WireErrorCode.Internal, "Unsupported in test: ${request.method}")))

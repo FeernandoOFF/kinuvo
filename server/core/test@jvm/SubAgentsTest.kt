@@ -901,9 +901,9 @@ class SubAgentsTest {
             val subscriber = SessionLog.Subscriber { catchUp.add(it.change); true }
             server.harness.log.subscribe(cloud.id, parent.id, null, 100, subscriber)
             server.harness.log.unsubscribe(parent.id, subscriber)
-            val replayed = catchUp.filterIsInstance<SessionChange.Entry>().map { it.entry }.filterIsInstance<SessionEntry.Notice>()
+            val replayed = catchUp.filterIsInstance<SessionChange.Snapshot>().single().snapshot.entries.filterIsInstance<SessionEntry.Notice>()
             assertNull(replayed.single { it.id == "legacy" }.child?.result)
-            assertNull(catchUp.filterIsInstance<SessionChange.Live>().single().state.children.getValue(child.sessionId).result)
+            assertNull(catchUp.filterIsInstance<SessionChange.Snapshot>().single().snapshot.state.children.getValue(child.sessionId).result)
             val past = server.harness.log.history(cloud.id, parent.id, Int.MAX_VALUE, 100)
             assertNull(past.map { it.entry }.filterIsInstance<SessionEntry.Notice>().single { it.id == "legacy" }.child?.result)
             server.harness.log.deleteSession(local.id, child.sessionId)
@@ -913,21 +913,21 @@ class SubAgentsTest {
             assertFalse(viewer.connect().management)
             val client = server.client(token = server.auth.sessionToken())
             assertTrue(client.connect().management)
-            val catchUpParams = CatchUpParams(cloud.id, parent.id)
-            viewer.call(Api.CatchUp, catchUpParams)
+            val catchUpParams = SubscribeParams(cloud.id, parent.id)
+            viewer.call(Api.Subscribe, catchUpParams)
             val liveApproval = async(start = CoroutineStart.UNDISPATCHED) {
                 viewer.events(Api.Update).mapNotNull {
-                    ((it.change as? SessionChange.Event)?.event as? AgentEvent.InteractionRequested)
+                    ((it.change as? SessionChange.Item)?.event as? AgentEvent.InteractionRequested)
                         ?.interaction as? PendingInteraction.Approval
                 }.first()
             }
             suspend fun catchUpApproval(viewer: KinuvoClient): PendingInteraction.Approval = coroutineScope {
                 val pending = async(start = CoroutineStart.UNDISPATCHED) {
                     viewer.events(Api.Update).mapNotNull {
-                        (it.change as? SessionChange.Live)?.state?.pending?.filterIsInstance<PendingInteraction.Approval>()?.singleOrNull()
+                        (it.change as? SessionChange.Snapshot)?.snapshot?.state?.pending?.filterIsInstance<PendingInteraction.Approval>()?.singleOrNull()
                     }.first()
                 }
-                viewer.call(Api.CatchUp, catchUpParams)
+                viewer.call(Api.Subscribe, catchUpParams)
                 withTimeout(5_000) { pending.await() }
             }
             val delivery = async { waitTool.execute(buildJsonObject {
@@ -1000,7 +1000,7 @@ class SubAgentsTest {
             val subscriber = SessionLog.Subscriber { updates.add(it.change); true }
             server.harness.log.subscribe(agent.id, parent.id, null, 100, subscriber)
             server.harness.log.unsubscribe(parent.id, subscriber)
-            assertTrue(updates.filterIsInstance<SessionChange.Live>().single().state.children.getValue(child.sessionId).delivered)
+            assertTrue(updates.filterIsInstance<SessionChange.Snapshot>().single().snapshot.state.children.getValue(child.sessionId).delivered)
             for (steer in listOf(false, true)) {
                 assertEquals(SubAgentError.Unknown(child.sessionId), either {
                     children.send(agent.id, parent.id, child.sessionId, ToolCallId("deleted"), "again", steer)

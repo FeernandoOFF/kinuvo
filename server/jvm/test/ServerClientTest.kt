@@ -25,6 +25,8 @@ import kinuvo.providers.codex.CodexAuth
 import kinuvo.server.plugin.PrivateFile
 import kinuvo.providers.codex.CodexProvider
 import kinuvo.protocol.*
+import kinuvo.protocol.agui.AgUiEvent
+import kinuvo.protocol.agui.RunOutcome
 import kinuvo.protocol.agent.*
 import kinuvo.protocol.approval.*
 import kinuvo.protocol.capability.*
@@ -55,7 +57,7 @@ import kinuvo.server.lanAddresses
 import kinuvo.server.providers.ModelProviders
 
 private fun KinuvoClient.approvals() =
-    events(Api.Update).mapNotNull { (it.change as? SessionChange.Event)?.event?.approval }
+    events(Api.Update).mapNotNull { (it.change as? SessionChange.Item)?.event?.approval }
 
 private fun KinuvoClient.statuses(sessionId: SessionId) = events(Api.SessionChanged).filter { it.id == sessionId }.map { it.status }
 
@@ -65,23 +67,19 @@ private suspend fun <T> ReceiveTurbine<T>.awaitUntil(done: (T) -> Boolean): List
 
 private suspend fun KinuvoClient.newSession() = call(Api.CreateSession, AgentRef(AgentId("default"))).id
 
-/** What a catch-up sent: the window start when it was reset, the entries and the live state. */
-private data class CaughtUp(val reset: Int?, val entries: List<SessionEntry>, val live: LiveState)
+/** What a subscription's snapshot held: where its window starts, the entries, the live state and the active run's events. */
+private data class CaughtUp(val firstSeq: Int, val entries: List<SessionEntry>, val live: LiveState, val run: List<AgUiEvent> = emptyList())
 
-/** Subscribes to [sessionId] from [after] and collects the catch-up. */
+/** Subscribes to [sessionId] from [after] and collects the snapshot. */
 private suspend fun KinuvoClient.catchUp(sessionId: SessionId, after: Int? = 0, limit: Int = 100): CaughtUp {
-    lateinit var all: List<SessionChange>
+    lateinit var snapshot: SessionSnapshot
     turbineScope {
         val changes = events(Api.Update).filter { it.sessionId == sessionId }.map { it.change }.testIn(this, EVENT_TIMEOUT)
-        call(Api.CatchUp, CatchUpParams(AgentId("default"), sessionId, after, limit))
-        all = changes.awaitUntil { it is SessionChange.Live }
+        call(Api.Subscribe, SubscribeParams(AgentId("default"), sessionId, after, limit))
+        snapshot = (changes.awaitUntil { it is SessionChange.Snapshot }.last() as SessionChange.Snapshot).snapshot
         changes.cancel()
     }
-    return CaughtUp(
-        all.filterIsInstance<SessionChange.Reset>().singleOrNull()?.firstSeq,
-        all.filterIsInstance<SessionChange.Entry>().map { it.entry },
-        (all.last() as SessionChange.Live).state,
-    )
+    return CaughtUp(snapshot.firstSeq, snapshot.entries, snapshot.state, snapshot.run)
 }
 
 class ServerClientTest {
@@ -354,7 +352,7 @@ class ServerClientTest {
                     approvalRequest.cancel()
                     assertEquals("c1", approval.toolCallId.value)
                     assertTrue(client.call(Api.Respond, RespondParams(sessionId, approval.id, InteractionAnswer.Approval(ApprovalDecision.AllowOnce))))
-                    val streamedChanges = streamed.awaitUntil { (it as? SessionChange.Event)?.event is AgentEvent.RunFinished }
+                    val streamedChanges = streamed.awaitUntil { ((it as? SessionChange.Run)?.event as? AgUiEvent.RunFinished)?.outcome == RunOutcome.Success() }
                     streamed.cancel()
                     statuses.awaitUntil { it == SessionStatus.Idle }
                     statuses.cancel()
@@ -363,7 +361,7 @@ class ServerClientTest {
                 }
                 val live = changes.filterIsInstance<SessionChange.Entry>().map { it.entry }
 
-                assertEquals(sent.runId, changes.filterIsInstance<SessionChange.Event>().map { it.event }.filterIsInstance<AgentEvent.RunStarted>().single().runId)
+                assertEquals(sent.runId.value, changes.filterIsInstance<SessionChange.Run>().map { it.event }.filterIsInstance<AgUiEvent.RunStarted>().first().runId)
                 assertTrue(live.any { it is SessionEntry.ToolResult && !it.isError }, "$live")
                 assertEquals("done", live.filterIsInstance<SessionEntry.AssistantMessage>().last().text)
                 assertTrue(File(home, "agents/default/skills/x/SKILL.md").isFile)
@@ -520,7 +518,7 @@ class ServerClientTest {
                 val sessionId = ids.last()
                 repeat(5) { harness.store.append(agent.id, sessionId, SessionEntry.UserMessage("m$it")) }
                 val window = client.catchUp(sessionId, after = null, limit = 2)
-                assertEquals(4, window.reset)
+                assertEquals(4, window.firstSeq)
                 assertEquals(listOf("m3", "m4"), window.entries.map { (it as SessionEntry.UserMessage).text })
                 val older = client.call(Api.History, HistoryParams(AgentId("default"), sessionId, before = 4, limit = 2))
                 assertEquals(listOf(2 to "m1", 3 to "m2"), older.map { it.seq to (it.entry as SessionEntry.UserMessage).text })

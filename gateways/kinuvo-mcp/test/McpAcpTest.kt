@@ -151,7 +151,7 @@ class McpAcpTest {
             client.call(Api.SaveServerRules, TrustRules(deny = DenyRules(tools = listOf(requireNotNull(deploy.identity).key))))
             assertEquals(Authorization.Denied, client.call(Api.Capabilities, CapabilitiesParams(agent, session.id)).tools.single { it.id == "deploy" }.state.authorization)
             client.call(Api.SaveServerRules, TrustRules())
-            client.call(Api.CatchUp, CatchUpParams(agent, session.id))
+            client.call(Api.Subscribe, SubscribeParams(agent, session.id))
             suspend fun phase(expected: ExecutionPhase) = withTimeout(10000) {
                 while (client.call(Api.ExecutionSnapshot, ExecutionRef(session.id.value)).phase != expected) delay(10)
             }

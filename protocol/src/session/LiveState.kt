@@ -6,8 +6,8 @@ import kinuvo.protocol.execution.ExecutionPhase
 import kotlinx.serialization.Serializable
 
 /**
- * What a running turn shows before it's persisted: built from [AgentEvent]s, cleared as the matching entries land.
- * Server and clients fold the same way, so a catch-up can hand over the state instead of replaying deltas.
+ * What a Session shows besides its entries: built from [AgentEvent]s, cleared as the matching entries land. The Server
+ * folds all of them; clients fold only the items of a subscription, and a run's own text comes from its AG-UI events.
  */
 @Serializable
 data class LiveState(
@@ -23,7 +23,7 @@ data class LiveState(
     val entries: List<SessionEntry> = emptyList(),
     val children: Map<SessionId, SubAgentState> = emptyMap(),
     val interactionChildren: Map<InteractionId, SessionId> = emptyMap(),
-    /** Pending interactions whose answer is recorded and waits for the rest of the run's interactions; sent as a [kinuvo.protocol.session.SessionChange.Live] update. */
+    /** Pending interactions whose answer is recorded and waits for the rest of the run's interactions. */
     val staged: Set<InteractionId> = emptySet(),
 ) {
     fun on(event: AgentEvent): LiveState = when (event) {
@@ -32,6 +32,9 @@ data class LiveState(
         is AgentEvent.InteractionRequested -> copy(pending = pending.filterNot { it.id == event.interaction.id } + event.interaction,
             interactionChildren = event.childSessionId?.let { interactionChildren + (event.interaction.id to it) } ?: interactionChildren)
         is AgentEvent.InteractionResolved -> copy(pending = pending.filterNot { it.id == event.id }, interactionChildren = interactionChildren - event.id, staged = staged - event.id)
+        is AgentEvent.InteractionStaged -> if (pending.any { it.id == event.id }) copy(staged = staged + event.id) else this
+        is AgentEvent.InteractionUnstaged -> copy(staged = staged - event.id)
+        is AgentEvent.Idle -> copy(running = false, pending = pending.filter { it.id in interactionChildren }, staged = emptySet())
         is AgentEvent.ExecutionPhaseChanged -> copy(
             executionPhase = event.phase,
             running = event.phase == ExecutionPhase.Running || event.phase == ExecutionPhase.RequiresAction,
@@ -59,6 +62,9 @@ data class LiveState(
         else -> this
     }
 
+    /** The part a subscription snapshot carries; the active run's text and reasoning arrive as AG-UI events. */
+    fun forSnapshot(): LiveState = copy(messageId = null, text = "", reasoning = "")
+
     val status: SessionStatus
         get() = when {
             pending.isNotEmpty() -> SessionStatus.Waiting
@@ -83,8 +89,3 @@ data class LiveState(
         else -> this
     }
 }
-
-/** False for events whose content arrives as a [SessionEntry] instead. */
-val AgentEvent.isLive: Boolean
-    get() = this !is AgentEvent.ToolCallStart && this !is AgentEvent.ToolCallResult &&
-        this !is AgentEvent.TextMessageEnd && this !is AgentEvent.Compacted
