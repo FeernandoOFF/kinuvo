@@ -71,7 +71,9 @@ data class LiveState(
     }
 
     private fun saved(entry: SessionEntry): LiveState = when (entry) {
-        is SessionEntry.Notice -> entry.child?.let { copy(children = children + (it.sessionId to it)) } ?: this
+        is SessionEntry.Notice -> entry.child?.takeUnless { entry.code == "sub_agent_delivery" }?.let {
+            copy(children = children + (it.sessionId to it))
+        } ?: this
         is SessionEntry.Reflection -> if (reflectionId == entry.id) copy(reflectionId = null) else this
         is SessionEntry.AssistantMessage -> if (entry.messageId == null || entry.messageId == messageId) copy(text = "") else this
         is SessionEntry.Reasoning -> if (entry.messageId == null || entry.messageId == messageId) copy(reasoning = "") else this

@@ -48,6 +48,8 @@ import kotlin.uuid.Uuid
 import kotlinx.coroutines.CancellationException
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.builtins.ListSerializer
 
 sealed interface ChatItem {
     data class VoiceCall(override val id: String, val turns: List<VoiceTurn>, val startedAt: Long, val durationMillis: Long) : ChatItem
@@ -86,7 +88,7 @@ sealed interface ChatItem {
     data class Error(override val id: String, val message: String) : ChatItem
     data class Reflection(override val id: String, val result: ReflectionResult? = null, val reviews: Map<String, Boolean> = emptyMap(), val revised: Set<String> = emptySet()) : ChatItem
     data class Compaction(override val id: String, val summary: String) : ChatItem
-    data class ToolReport(override val id: String, val tool: String, val callId: ToolCallId?, val content: String) : ChatItem
+    data class ToolReport(override val id: String, val tool: String, val callId: ToolCallId?, val content: String, val children: List<SubAgentCompletion> = emptyList()) : ChatItem
 
     data class Activation(override val id: String, val name: String, val content: String) : ChatItem
 }
@@ -110,7 +112,7 @@ sealed interface ChatRow {
 fun List<ChatItem>.rows(): List<ChatRow> {
     val rows = mutableListOf<ChatRow>()
     var steps = mutableListOf<ChatItem>()
-    for (item in this) {
+    for (item in withoutRepeatedWaits()) {
         if (item is ChatItem.Measurement) continue
         if (item.isStep()) steps += item
         else {
@@ -154,7 +156,34 @@ private fun ChatItem.isStep() = when (this) {
     else -> false
 }
 
-val SUB_AGENT_TOOLS = setOf(ToolNames.AGENTS_SPAWN, ToolNames.AGENTS_WAIT, ToolNames.AGENTS_SEND)
+val SUB_AGENT_TOOLS = setOf(ToolNames.AGENTS_SPAWN, ToolNames.AGENTS_WAIT, ToolNames.AGENTS_SEND, ToolNames.AGENTS_CANCEL)
+
+/** Children an `agents_wait` returned, from `{children}` or the older bare array. */
+fun ChatItem.ToolCall.waitedChildren(): List<SubAgentState> {
+    val json = result?.takeIf { name == ToolNames.AGENTS_WAIT && !isError }?.let { runCatching { ProtocolJson.parseToJsonElement(it) }.getOrNull() } ?: return emptyList()
+    val array = (json as? JsonObject)?.get("children") ?: json
+    return runCatching { ProtocolJson.decodeFromJsonElement(ListSerializer(SubAgentState.serializer()), array) }.getOrDefault(emptyList())
+}
+
+/** A finished `agents_wait` that returned before its children did. */
+fun ChatItem.ToolCall.waitTimedOut(): Boolean {
+    val json = result?.takeIf { name == ToolNames.AGENTS_WAIT && !isError }?.let { runCatching { ProtocolJson.parseToJsonElement(it) }.getOrNull() } ?: return false
+    val flag = ((json as? JsonObject)?.get("timed_out") as? JsonPrimitive)?.content?.toBooleanStrictOrNull()
+    return flag ?: waitedChildren().any { it.status == SubAgentStatus.Running }
+}
+
+private fun ChatItem.ToolCall.waitIds() = runCatching {
+    (ProtocolJson.parseToJsonElement(args) as JsonObject)["session_ids"].toString()
+}.getOrNull()
+
+/** Waits that timed out and were repeated on the same children, so polling shows as one card. */
+private fun List<ChatItem>.withoutRepeatedWaits(): List<ChatItem> {
+    val next = filterNot { it is ChatItem.Measurement }
+    val dropped = next.zipWithNext().filter { (a, b) ->
+        a is ChatItem.ToolCall && b is ChatItem.ToolCall && a.name == ToolNames.AGENTS_WAIT && b.name == ToolNames.AGENTS_WAIT && a.waitTimedOut() && a.waitIds() != null && a.waitIds() == b.waitIds()
+    }.map { it.first.id }.toSet()
+    return if (dropped.isEmpty()) this else filterNot { it.id in dropped }
+}
 
 /** [loaded] is false until the Session's first catch-up, so the empty state doesn't flash. */
 data class ChatState(

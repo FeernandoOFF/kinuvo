@@ -6,6 +6,7 @@ import kinuvo.protocol.Api
 import kinuvo.protocol.agent.AgentId
 import kinuvo.protocol.approval.*
 import kinuvo.protocol.session.*
+import kinuvo.protocol.execution.*
 import kinuvo.server.tools.ToolScope
 import kinuvo.testing.server.*
 import kotlinx.coroutines.*
@@ -13,6 +14,50 @@ import kotlinx.serialization.json.*
 import kotlin.test.*
 
 class McpGatewayTest {
+    @Test fun rejectionIsUnsafeWhenAToolStartsBeforeTheLeaseDrains() = runBlocking {
+        val external = FakeHarness()
+        val agent = AgentId("external")
+        TestServer.start(harnesses = listOf(external), scenario = { externalAgent(external, agent.value) }).use { server ->
+            val id = server.startSession(agent).id
+            val access = McpAccess()
+            val state = ExecutionState(id, sink = object : ExecutionSink {
+                override suspend fun publish(event: AgentEvent) {}
+                override suspend fun commit(entries: List<SessionEntry>) {}
+            })
+            val delegate = object : ExecutionFactory {
+                override suspend fun open(config: HarnessConnection, registration: AgentRegistration, state: ExecutionState, broker: ExecutionBroker, scope: CoroutineScope) =
+                    object : ExecutionSession {
+                        override val acceptsMcp = true
+                        override val capabilities = ExecutionCapabilities()
+                        override suspend fun prompt(input: ExecutionInput): ExecutionAcceptance {
+                            val lease = either { access.resolve(requireNotNull(input.mcp).authorization) }.getOrNull()!!
+                            val run = requireNotNull(lease.run)
+                            CoroutineScope(run.job).launch(start = CoroutineStart.UNDISPATCHED) {
+                                try { awaitCancellation() }
+                                finally {
+                                    withContext(NonCancellable) {
+                                        state.boundSink().publish(AgentEvent.ToolCallStart(ToolCallId("late"), "read", "{}"))
+                                    }
+                                }
+                            }
+                            assertFalse(state.hasStartedTool())
+                            throw ExecutionRejected("Prompt rejected")
+                        }
+                        override suspend fun cancel() {}
+                        override suspend fun answer(requestId: InteractionId, answer: InteractionAnswer) {}
+                    }
+            }
+            val factory = McpExecutionFactory(delegate, server.harness, access) { "http://127.0.0.1" }
+            val registration = AgentRegistration(agent, "External", "acp")
+            val session = factory.open(HarnessConnection("acp", "ACP", ExecutionConnection.Acp(listOf("mock"))), registration, state, ExecutionBroker(state), this)
+            try {
+                val failure = assertFailsWith<IllegalStateException> { session.prompt(ExecutionInput("wake")) }
+                assertIs<ExecutionRejected>(failure.cause)
+                assertTrue(state.hasStartedTool())
+            } finally { session.close() }
+        }
+    }
+
     @Test fun localManagementToolsAreExposedButExternalIdentityIsExcluded() = runBlocking {
         lateinit var agent: Agent
         val external = FakeHarness("external", "External host")
@@ -66,7 +111,7 @@ class McpGatewayTest {
             val id = spawned.getValue("sessionId").jsonPrimitive.content
             val waiting = call("agents_wait", buildJsonObject { put("session_ids", JsonArray(listOf(JsonPrimitive(id)))); put("timeout_seconds", "5") })
             assertTrue(server.harness.log.pending(session.id).isEmpty())
-            val result = Json.parseToJsonElement(waiting).jsonArray.single().jsonObject
+            val result = Json.parseToJsonElement(waiting).jsonObject.getValue("children").jsonArray.single().jsonObject
             assertEquals(id, result.getValue("sessionId").jsonPrimitive.content)
             assertEquals("child answer", result.getValue("result").jsonPrimitive.content)
             access.revoke(credential); run.job.cancel()

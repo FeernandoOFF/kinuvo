@@ -2,6 +2,8 @@ package kinuvo.harness.builtin
 
 import kinuvo.harness.modelText
 import kinuvo.protocol.session.SessionEntry
+import kinuvo.protocol.session.SessionEntryIdentity
+import kinuvo.protocol.session.identity
 import kinuvo.protocol.tool.ToolNames
 import kinuvo.harness.builtin.tools.RawSchemaToolDescriptor
 import ai.koog.agents.core.tools.ToolDescriptor
@@ -33,9 +35,9 @@ fun List<SessionEntry>.withoutBlockedRepeats(): List<SessionEntry> {
     return if (blocked.isEmpty()) this else filterNot { it is SessionEntry.ToolCall && it.id in blocked || it is SessionEntry.ToolResult && it.id in blocked }
 }
 
-fun List<SessionEntry>.latestTurn(): List<SessionEntry> {
+fun List<SessionEntry>.latestTurn(retain: Set<SessionEntryIdentity> = emptySet()): List<SessionEntry> {
     val at = indexOfLast { it is SessionEntry.UserMessage }
-    return if (at < 0) this else filterIndexed { index, entry -> index >= at || entry is SessionEntry.Context || entry is SessionEntry.Activation }
+    return if (at < 0) this else filterIndexed { index, entry -> index >= at || entry is SessionEntry.Context || entry is SessionEntry.Activation || entry.identity() in retain }
 }
 
 /** Drops all but the last [keep] tool results' screenshots, which are many and soon outdated, noting where one was. */

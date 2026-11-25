@@ -42,13 +42,15 @@ data class RunActivity(val runs: Int = 0, val steps: Long = 0)
 class Runs(private val log: SessionLog, private val scope: CoroutineScope, private val factory: ExecutionFactory) {
     class Run(val id: RunId, val job: Job)
 
+    enum class Kind { User, Child, Routine, Workflow, Report, Wake, Task }
+
     val activity: StateFlow<RunActivity>
         field = MutableStateFlow(RunActivity())
 
     /** The run was stopped while it was being set up, so nothing ran; its onDone has been called. */
     class StoppedBeforeStart : IllegalStateException("Stopped before it started")
 
-    var onBegin: suspend (AgentId, SessionId) -> Unit = { _, _ -> }
+    var onBegin: suspend (AgentId, SessionId, Kind) -> Unit = { _, _, _ -> }
     private val finishListeners = mutableListOf<suspend (AgentId, SessionId, Boolean) -> Unit>()
 
     /** Adds a listener told when a run ends, [Boolean] being whether it was stopped; listeners run in the order added. */
@@ -86,6 +88,7 @@ class Runs(private val log: SessionLog, private val scope: CoroutineScope, priva
         sessionId: SessionId,
         input: ExecutionInput,
         queued: Boolean = false,
+        kind: Kind = Kind.User,
         reserved: suspend () -> Unit = {},
         onEvent: suspend (AgentEvent) -> Unit = {},
         onDone: suspend (stopped: Boolean) -> Unit = {},
@@ -107,7 +110,7 @@ class Runs(private val log: SessionLog, private val scope: CoroutineScope, priva
         val counted = Job().also { activity.update { a -> a.copy(runs = a.runs + 1) } }
         counted.invokeOnCompletion { activity.update { a -> a.copy(runs = a.runs - 1) } }
         try {
-            onBegin(agent.id, sessionId)
+            onBegin(agent.id, sessionId, kind)
             reserved()
             val sink = object : ExecutionSink {
                 override suspend fun publish(event: AgentEvent) {
@@ -118,19 +121,24 @@ class Runs(private val log: SessionLog, private val scope: CoroutineScope, priva
             val state = ExecutionState(sessionId, sink = sink)
             val session = factory.open(BUILT_IN_HARNESS, builtInRegistration(agent), state, ExecutionBroker(state), scope)
             val runId = input.runId ?: RunId(Uuid.random().toString())
-            if (!reservation.isActive) stoppedEarly(sessionId, reservation, onDone)
             val job = active.block { runs ->
                 if (!reservation.isActive || runs[sessionId] != reservation) return@block null
                 (input.kind as? RunKind.Routine)?.let { routines[sessionId] = it.turn.ref }
                 // Cancellation before dispatch must still enter the cleanup block.
                 scope.launch(start = CoroutineStart.ATOMIC) {
                     var stopped = false
+                    var setupFailed = false
                     var failure: Throwable? = null
                     val began = TimeSource.Monotonic.markNow()
                     logger.info { "run.start session=${sessionId.value} agent=${agent.id.value} run=${runId.value}" }
                     try {
                         ensureActive()
-                        session.prompt(input.copy(runId = runId))
+                        session.prompt(input.copy(runId = runId, onSetupFailure = input.onSetupFailure?.let { failed ->
+                            { error ->
+                                setupFailed = true
+                                failed(error)
+                            }
+                        }))
                     } catch (e: CancellationException) {
                         stopped = true
                         throw e
@@ -141,24 +149,39 @@ class Runs(private val log: SessionLog, private val scope: CoroutineScope, priva
                         val took = began.elapsedNow().inWholeMilliseconds
                         if (failure != null) logger.warn { "run.failed session=${sessionId.value} run=${runId.value} duration=${took}ms error=${failure::class.simpleName}: ${failure.message?.take(200)}" }
                         else logger.info { "run.finish session=${sessionId.value} run=${runId.value} stopped=$stopped duration=${took}ms" }
-                        withContext(NonCancellable) { try { session.close() } finally { if (stopped) onCancel(sessionId); finishListeners.forEach { it(agent.id, sessionId, stopped) }; onDone(stopped) } }
+                        withContext(NonCancellable) {
+                            try { session.close() } finally {
+                                if (stopped) {
+                                    if (log.completion(sessionId) != AgentEvent.RunFinished(runId, cancelled = true))
+                                        sink.publish(AgentEvent.RunFinished(runId, cancelled = true))
+                                    onCancel(sessionId)
+                                }
+                                if (!setupFailed || stopped) finishListeners.forEach { it(agent.id, sessionId, stopped) }
+                                onDone(stopped)
+                            }
+                        }
                     }
                 }.also { job ->
                     runs[sessionId] = job
                     job.invokeOnCompletion { routines.remove(sessionId); active.removeExact(sessionId, job); counted.complete() }
                 }
-            } ?: stoppedEarly(sessionId, reservation, onDone)
+            } ?: withContext(NonCancellable) {
+                try { session.close() } finally {
+                    sink.publish(AgentEvent.RunFinished(runId, cancelled = true))
+                    onCancel(sessionId)
+                    finishListeners.forEach { it(agent.id, sessionId, true) }
+                    onDone(true)
+                }
+                throw StoppedBeforeStart()
+            }
             return Run(runId, job)
         } catch (e: Throwable) {
             active.removeExact(sessionId, reservation)
             counted.complete()
             throw e
+        } finally {
+            reservation.complete()
         }
-    }
-
-    private suspend fun stoppedEarly(sessionId: SessionId, reservation: Job, onDone: suspend (Boolean) -> Unit): Nothing {
-        try { onCancel(sessionId); onDone(true) } finally { active.removeExact(sessionId, reservation) }
-        throw StoppedBeforeStart()
     }
 
     fun stop(sessionId: SessionId) = active.block { it[sessionId]?.cancel() }

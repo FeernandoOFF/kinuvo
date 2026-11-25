@@ -9,6 +9,7 @@ import kinuvo.protocol.approval.*
 import kinuvo.protocol.execution.*
 import kinuvo.protocol.session.*
 import kinuvo.protocol.surface.*
+import kinuvo.protocol.tool.ToolNames
 import kinuvo.protocol.agent.AgentId
 /** Uses the native log's atomic catch-up so persisted and live text retain their IDs. */
 suspend fun SessionLog.executionSnapshot(agent: Agent, id: SessionId) = executionSnapshot(agent.id, id)
@@ -59,13 +60,13 @@ suspend fun SessionLog.executionSnapshot(agent: AgentId, id: SessionId): Executi
     val requests = live.pending.map { if (it is PendingInteraction.Approval) it.forHarness() else it }
     return ExecutionSnapshot(id, live.executionPhase ?: if (requests.isNotEmpty()) ExecutionPhase.RequiresAction else if (live.running) ExecutionPhase.Running else ExecutionPhase.Idle, messages, requests, stopReason = when(val terminal = completion(id)) {
         is AgentEvent.RunError -> "error:${terminal.message}"
-        is AgentEvent.RunFinished -> "completed"
+        is AgentEvent.RunFinished -> if (terminal.cancelled) "cancelled" else "completed"
         else -> null
     })
 }
 
 /** A linked Server and harness clients see an Approval as a harness permission request with Kinuvo's own options. */
-internal fun PendingInteraction.Approval.forHarness() = PendingInteraction.HarnessApproval(id, toolCallName, preview?.text() ?: reason, buildList {
+internal fun PendingInteraction.Approval.forHarness() = PendingInteraction.HarnessApproval(id, toolCallName, preview?.takeUnless { toolCallName == ToolNames.AGENTS_WAIT }?.text() ?: reason, buildList {
     add(ExternalApprovalOption("allow_once", "Allow once", "allow_once"))
     if (trustable) add(ExternalApprovalOption("allow_session", "Allow for this Session", "allow_always"))
     if (trustable) add(ExternalApprovalOption("always_allow", "Always allow", "allow_always"))

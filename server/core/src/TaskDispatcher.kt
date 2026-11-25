@@ -67,7 +67,7 @@ class TaskDispatcher(private val harness: AgentRuntime, private val runs: Runs, 
             log.info { "Task ${task.id}: starting Agent ${agent.id}, Session ${session.id}" }
             var reply: String? = null
             var completed = false
-            runs.start(agent, session.id, ExecutionInput(prompt(task), kind = RunKind.Chat(taskId = task.id)), onEvent = { event ->
+            runs.start(agent, session.id, ExecutionInput(prompt(task), kind = RunKind.Chat(taskId = task.id)), kind = Runs.Kind.Task, onEvent = { event ->
                 when (event) {
                     is AgentEvent.TextMessageEnd -> reply = event.text
                     is AgentEvent.ToolCallStart -> reply = null
