@@ -1,5 +1,6 @@
 package kinuvo.ui
 
+import androidx.compose.foundation.layout.Column
 import androidx.compose.runtime.*
 import androidx.compose.ui.ImageComposeScene
 import androidx.compose.ui.geometry.Offset
@@ -213,18 +214,24 @@ class MobileLiveViewScreenTest {
             val ref = ScreenRef("computer", "one")
             val frame = ScreenFrame(ref, "sub", "epoch", 1, sample())
             val capabilities = ScreenCapabilities(ScreenDelivery.CaptureRefresh, setOf("tap", "key", "type"),
-                keys = if (android) listOf("Back", "Home", "Recents") else listOf("Tab", "Escape", "Left", "Enter", "C"),
+                keys = if (android) listOf("Back", "Home", "Recents", "Notifications") else listOf("Tab", "Escape", "Left", "Enter", "C"),
                 modifiers = if (android) emptyList() else listOf("Command", "Shift"))
             val state = LiveViewState(screens = listOf(ScreenInfo(ref, "Computer", capabilities, ScreenStatus.Ready, ScreenControl(1, "device"))),
                 selected = ref, connected = true, device = "device", frame = frame, displayed = frame)
             val sent = mutableListOf<ScreenAction>()
             ImageComposeScene(390, 844, Density(1f), content = { KinuvoTheme {
-                MobileKeyTray(state, LiveActions(input = { _, actions -> sent.addAll(actions) }))
+                Column {
+                    AndroidNavBar(state, LiveActions(input = { _, actions -> sent.addAll(actions) }))
+                    MobileKeyTray(state, LiveActions(input = { _, actions -> sent.addAll(actions) }))
+                }
             } }).use { scene ->
                 repeat(5) { scene.render(System.nanoTime()) }
                 if (android) {
-                    click(scene, "Home")
-                    assertEquals("Home", sent.single().key)
+                    click(scene, "Android Back")
+                    click(scene, "Android Home")
+                    click(scene, "Recent apps")
+                    click(scene, "Notifications")
+                    assertEquals(listOf("Back", "Home", "Recents", "Notifications"), sent.map { it.key })
                 } else {
                     click(scene, "Command")
                     click(scene, "C")

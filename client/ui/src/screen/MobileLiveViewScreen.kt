@@ -11,6 +11,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.graphics.Color
@@ -113,6 +114,7 @@ internal fun MobileLiveViewContent(state: LiveViewState, actions: LiveActions, b
                         state.control.generation, "scroll" in screen.capabilities.inputs, trackpad = trackpad, recenter = recenter)
                 }
             }
+            if (state.ownsControl) AndroidNavBar(state, actions, Modifier.fillMaxWidth().padding(horizontal = Spacing.space12).padding(top = Spacing.space4))
             if (state.ownsControl && "type" in screen.capabilities.inputs) key(state.selected, state.control.generation) {
                 RemoteKeyboard(state, actions, focus, keyboard, compact = true)
             }
@@ -134,8 +136,8 @@ internal fun MobileLiveViewContent(state: LiveViewState, actions: LiveActions, b
                     val android = "Recents" in capabilities.keys
                     val desktop = state.owner == null && !android
                     val copyModifier = capabilities.modifiers.firstOrNull { it == "Command" } ?: capabilities.modifiers.firstOrNull { it == "Control" }
+                    // A phone's Recents sits in its navigation bar.
                     val switcher = when {
-                        android -> "Recents"
                         desktop && "Tab" in capabilities.keys && "Command" in capabilities.modifiers -> "Command+Tab"
                         desktop && "Tab" in capabilities.keys && "Alt" in capabilities.modifiers -> "Alt+Tab"
                         else -> null
@@ -277,7 +279,8 @@ internal fun MobileKeyTray(state: LiveViewState, actions: LiveActions) {
     val android = "Recents" in capabilities.keys
     var modifiers by remember { mutableStateOf(setOf<String>()) }
     LaunchedEffect(state.interactive) { if (!state.interactive) modifiers = emptySet() }
-    val primary = listOf("Back", "Home", "Recents", "Notifications", "Quick_settings", "Escape", "ArrowLeft", "Left", "ArrowUp", "Up",
+    // A phone's Back, Home and Recents sit in AndroidNavBar.
+    val primary = (if (android) emptyList() else listOf("Back", "Home", "Recents")) + listOf("Notifications", "Quick_settings", "Escape", "ArrowLeft", "Left", "ArrowUp", "Up",
         "ArrowDown", "Down", "ArrowRight", "Right", "Tab", "Backspace", "Enter")
     Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(Spacing.space6)) {
         val keys = primary.filter { it in capabilities.keys } + if (modifiers.isNotEmpty()) capabilities.keys.filter { it.length == 1 } else emptyList()
@@ -302,6 +305,25 @@ internal fun MobileKeyTray(state: LiveViewState, actions: LiveActions) {
             repeat((5 - capabilities.modifiers.size).coerceAtLeast(0)) { Spacer(Modifier.weight(1f)) }
         }
         if (modifiers.isNotEmpty()) Text("Choose a key to send ${modifiers.joinToString("+")}+…", Modifier.padding(horizontal = Spacing.space4), style = TextStyles.overline, color = color(mutedColor))
+    }
+}
+
+/** Android's three-button navigation under a phone's screen: Back, Home and Recents, always one tap away while in control. */
+@Composable
+internal fun AndroidNavBar(state: LiveViewState, actions: LiveActions, modifier: Modifier = Modifier) {
+    val keys = state.screen?.capabilities?.keys ?: return
+    if ("Recents" !in keys) return
+    val tint = if (state.interactive) color(onPanelColor) else color(mutedColor).copy(alpha = 0.5f)
+    Row(modifier.height(48.dp).clip(RoundedCornerShape(Radius.menu)).background(color(panelColor)).border(1.dp, color(borderColor), RoundedCornerShape(Radius.menu)),
+        verticalAlignment = Alignment.CenterVertically) {
+        listOf(Triple("Back", "Android Back", Lucide.Triangle), Triple("Home", "Android Home", Lucide.Circle), Triple("Recents", "Recent apps", Lucide.Square))
+            .filter { it.first in keys }.forEach { (key, label, icon) ->
+                Box(Modifier.weight(1f).fillMaxHeight().clickable(enabled = state.interactive, onClickLabel = label, role = Role.Button) {
+                    state.displayed?.takeIf { state.interactive }?.let { actions.input(it, listOf(ScreenAction(ScreenActionKind.Key, key = key))) }
+                }.semantics(mergeDescendants = true) { contentDescription = label; role = Role.Button }, contentAlignment = Alignment.Center) {
+                    Icon(icon, Modifier.size(if (key == "Recents") 17.dp else 19.dp).then(if (key == "Back") Modifier.rotate(-90f) else Modifier), tint = tint)
+                }
+            }
     }
 }
 
