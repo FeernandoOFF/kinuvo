@@ -21,6 +21,7 @@ suspend fun SessionLog.executionSnapshot(agent: AgentId, id: SessionId): Executi
     val messages = mutableListOf<ExecutionMessage>()
     var live = LiveState()
     var captured = false
+    var cutoff = 0
     var run = emptyList<AgUiEvent>()
     fun add(seq: Int, entry: SessionEntry) {
         when (entry) {
@@ -40,8 +41,9 @@ suspend fun SessionLog.executionSnapshot(agent: AgentId, id: SessionId): Executi
             change.snapshot.entries.forEachIndexed { index, entry -> add(change.snapshot.firstSeq + index, entry) }
             live = change.snapshot.state
             run = change.snapshot.run
+            cutoff = change.snapshot.seq
             captured = true
-        }
+        } else if (captured && change is SessionChange.Entry && change.seq < cutoff) add(change.seq, change.entry)
         true
     }
     try { subscribe(agent, id, null, Int.MAX_VALUE, subscriber) }

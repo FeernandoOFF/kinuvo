@@ -13,6 +13,7 @@ import kinuvo.protocol.session.withWrittenAt
 import kinuvo.protocol.session.SessionEntry
 import kinuvo.protocol.session.SessionUpdate
 import kinuvo.protocol.ProtocolJson
+import kinuvo.server.execution.executionSnapshot
 import kinuvo.server.store.SessionCommitConflict
 import kotlin.test.assertFailsWith
 import kotlin.test.assertTrue
@@ -146,6 +147,15 @@ class SessionLogTest {
         assertEquals((snapshot.firstSeq + snapshot.entries.size until snapshot.seq).toList(), rest.map { it.seq })
         assertEquals(texts, (snapshot.entries + rest.map { it.entry }).filterIsInstance<SessionEntry.UserMessage>().map { it.text })
         received.forEach { assertTrue(ProtocolJson.encodeToString(SessionChange.serializer(), it).length < 15 * 1024 * 1024) }
+    }
+
+    @Test fun anExecutionSnapshotKeepsEntriesPastTheInlineBudget() = runBlocking {
+        val fixture = RuntimeFixture()
+        val log = SessionLog(fixture.store)
+        val id = log.createSession(fixture.agent.id, "").id
+        val texts = List(8) { i -> "$i".repeat(2 * 1024 * 1024) }
+        texts.forEach { log.append(fixture.agent.id, id, SessionEntry.UserMessage(it)) }
+        assertEquals(texts, log.executionSnapshot(fixture.agent.id, id).messages.map { it.text })
     }
 
     @Test fun queuedMessagesReachLiveSubscribersAndReconnectWhileIdle() = runBlocking {
