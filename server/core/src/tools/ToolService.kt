@@ -139,7 +139,7 @@ class ToolService(
 
     /** What [call]'s tool may call: the run's other tools, each shown as its own call and answered like one. */
     private fun toolRun(call: SessionEntry.ToolCall, approvalId: String, turn: ToolTurn, attached: MutableList<Attachment>) = object : ToolRun {
-        override suspend fun progress(content: String) { turn.progress(AgentEvent.ToolCallResult(call.id, content, false, call.identity)) }
+        override suspend fun progress(content: String) { turn.progress(AgentEvent.ToolCallResult(call.id, content, false, call.identity, progress = true)) }
         override fun background(started: String, work: suspend () -> String): String {
             requireNotNull(reports) { "Background reports are unavailable in this run" }.start(call.name, call.id.value, work)
             return started
