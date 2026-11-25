@@ -89,6 +89,17 @@ class ClientCacheTest {
         }
     }
 
+    @Test fun resetNeverShowsReadyOnceTheServerIsClosed() = runBlocking {
+        withApp(transport = { awaitCancellation() }) { app, cache ->
+            app.state.first { it.connection is Connection.Ready }
+            var duringReset: Connection? = null
+            cache.onClear = { duringReset = app.state.value.connection }
+            app.resetDevice().join()
+            assertNotNull(duringReset)
+            assertFalse(duringReset is Connection.Ready)
+        }
+    }
+
     private suspend fun withApp(transport: suspend (String) -> FrameConnection, block: suspend (AppViewModel, MemoryCache) -> Unit) {
         Dispatchers.setMain(Dispatchers.Unconfined)
         val store = ViewModelStore()
@@ -114,7 +125,8 @@ class ClientCacheTest {
         override suspend fun read(server: String) = snapshots[server]
         override suspend fun write(server: String, snapshot: Snapshot) { snapshots[server] = snapshot; writes.value += snapshot }
         override suspend fun remove(server: String) { snapshots -= server }
-        override suspend fun clear() = snapshots.clear()
+        var onClear: () -> Unit = {}
+        override suspend fun clear() { onClear(); snapshots.clear() }
     }
 
     private class FakeServer : FrameConnection {

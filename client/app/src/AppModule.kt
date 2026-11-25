@@ -12,6 +12,7 @@ import kinuvo.app.onboarding.*
 import kinuvo.app.artifacts.ArtifactsViewModel
 import kinuvo.app.board.BoardViewModel
 import kinuvo.app.connection.*
+import kinuvo.app.diagnostics.LogsViewModel
 import kinuvo.app.device.DeviceAccess
 import kinuvo.app.home.HomeViewModel
 import kinuvo.app.knowledge.KnowledgeViewModel
@@ -56,6 +57,7 @@ val appModule = module {
     viewModel { (engine: SpeechEngine, session: SessionViewModel) -> VoiceViewModel(engine, session, get(), get()) }
     viewModel { (transcriber: Transcriber) -> DictationViewModel(if (transcriber is SpeechEngine) ServerSpeech(transcriber, get()) else transcriber) }
     viewModel { (route: Route.Settings) -> SettingsViewModel(get(), get(), get(), route) }
+    viewModel { LogsViewModel(getOrNull()) }
     viewModel { BoardViewModel(get()) }
     viewModel { AgentInspectorViewModel(get()) }
     viewModel { SidePanelViewModel() }

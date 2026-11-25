@@ -2,6 +2,11 @@ package kinuvo.ui
 
 import kinuvo.app.connection.*
 import kinuvo.app.device.*
+import kinuvo.app.diagnostics.LogSharing
+import kinuvo.diagnostics.Diagnostics
+import kinuvo.diagnostics.jvmAppInfo
+import kinuvo.ui.diagnostics.DiagnosticsLogSharing
+import kotlinx.io.files.Path
 
 import androidx.compose.ui.platform.UriHandler
 import kinuvo.app.session.SpeechEngine
@@ -62,6 +67,8 @@ internal class FilePreferences(dir: File) : Preferences {
 private val home get() = System.getenv("KINUVO_HOME")?.let(::File) ?: File(System.getProperty("user.home"), ".kinuvo")
 
 internal actual val platformModule = module {
+    // The desktop app installs the log files at launch; this only reads them and writes the ZIP beside them.
+    single<LogSharing> { DiagnosticsLogSharing(Diagnostics(Path(home.path), jvmAppInfo(currentPlatform.displayName)), Path(File(home, "exports").path)) }
     if (currentPlatform == Platform.MacOS || currentPlatform == Platform.Windows || currentPlatform == Platform.Linux) {
         single<SpeechEngine> { DesktopSpeechEngine() }
     }
