@@ -76,7 +76,7 @@ private suspend fun seedWorkflows(server: TestServer) {
     client.close()
 }
 
-/** Usage: `fixture-server [scenario] [--port=N] [--agui=PORT]`; `--agui` also serves Agent `e2e` to AG-UI clients; the port defaults to `KINUVO_FIXTURE_PORT`, then 18081. */
+/** Usage: `fixture-server [scenario] [--port=N] [--agui=PORT] [--agui-allow-origin=ORIGIN]...`; `--agui` also serves Agent `e2e` to AG-UI clients (browser Origins need `--agui-allow-origin`); the port defaults to `KINUVO_FIXTURE_PORT`, then 18081. */
 fun main(args: Array<String>): Unit = runBlocking {
     val name = args.firstOrNull { !it.startsWith("--") } ?: "chat"
     val scenario = requireNotNull(SCENARIOS[name]) { "Unknown scenario '$name'; choose one of ${SCENARIOS.keys.joinToString()}" }
@@ -96,7 +96,7 @@ fun main(args: Array<String>): Unit = runBlocking {
     println("Fixture Server '$name' listening on $url")
     args.firstOrNull { it.startsWith("--agui=") }?.substringAfter('=')?.toInt()?.let { aguiPort ->
         val client = server.client(token = server.auth.sessionToken()).also { it.connect() }
-        launch { serveAgUi(client, AgentId("e2e"), "127.0.0.1", aguiPort) }
+        launch { serveAgUi(client, AgentId("e2e"), "127.0.0.1", aguiPort, args.filter { it.startsWith("--agui-allow-origin=") }.map { it.substringAfter('=') }.toSet()) }
         println("AG-UI gateway on http://127.0.0.1:$aguiPort/")
     }
     var shown = ""
