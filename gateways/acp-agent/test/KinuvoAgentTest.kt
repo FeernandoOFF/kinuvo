@@ -20,6 +20,7 @@ import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.*
 import kotlinx.serialization.json.*
 import kotlin.test.*
+import java.util.concurrent.atomic.AtomicInteger
 import com.agentclientprotocol.model.v2.SessionUpdate
 
 class KinuvoAgentTest {
@@ -78,9 +79,79 @@ class KinuvoAgentTest {
         }
     }
 
+    private val approval = PendingInteraction.HarnessApproval(InteractionId("ask"), "Run", null, listOf(ExternalApprovalOption("allow_once", "Allow once", "allow_once")))
+
+    private fun acp(backend: FakeExecution, prompts: AtomicInteger, block: suspend () -> Unit) = runBlocking {
+        withTimeout(15000) {
+            val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+            val toAgent = Channel<String>(Channel.UNLIMITED)
+            val toClient = Channel<String>(Channel.UNLIMITED)
+            val server = Protocol(scope, StdioTransport(scope, Dispatchers.Default, toAgent.receiveAsFlow(), toClient::send))
+            val peer = Protocol(scope, StdioTransport(scope, Dispatchers.Default, toClient.receiveAsFlow(), toAgent::send))
+            Agent(server, KinuvoAgent(backend, AgentId("native")))
+            val client = Client(peer, object : ElicitationHandler {
+                override suspend fun createElicitation(request: CreateElicitationRequest) = CreateElicitationResponse(ElicitationAction.Decline)
+            })
+            try {
+                server.start(); peer.start()
+                client.initialize(ClientInfo(PROTOCOL_VERSION_V2, Implementation("test", "1")))
+                val session = client.newSession("/tmp", operations = object : ClientSessionOperations {
+                    override suspend fun requestPermission(request: RequestPermissionRequest): RequestPermissionResponse {
+                        prompts.incrementAndGet()
+                        return RequestPermissionResponse(RequestPermissionOutcome.Selected(request.options.first().optionId))
+                    }
+                })
+                session.prompt(listOf(ContentBlock.Text("hello")))
+                backend.started.await()
+                backend.state = backend.state.copy(phase = ExecutionPhase.RequiresAction, pending = listOf(approval))
+                block()
+            } finally { server.close(); peer.close(); scope.cancel() }
+        }
+    }
+
+    @Test fun failedDeliveryRetriesTheCachedAnswerWithoutPromptingAgain() {
+        val backend = FakeExecution().apply { refuse = 2 }
+        val prompts = AtomicInteger()
+        acp(backend, prompts) {
+            backend.approval.await()
+            assertEquals(3, backend.answers.size)
+            assertEquals(1, prompts.get())
+            assertEquals(1, backend.answers.map { it.answer }.toSet().size)
+        }
+    }
+
+    @Test fun persistentFailureEndsThePromptAndStopsTheExecution() {
+        val backend = FakeExecution().apply { refuse = Int.MAX_VALUE }
+        val prompts = AtomicInteger()
+        acp(backend, prompts) {
+            while (backend.stopped.isEmpty()) delay(50)
+            delay(500)
+            assertEquals(3, backend.answers.size)
+            assertEquals(1, prompts.get())
+            assertEquals(listOf("s"), backend.stopped)
+        }
+    }
+
+    @Test fun unstagedInteractionIsRedeliveredFromTheCache() {
+        val backend = FakeExecution().apply { keepPending = true }
+        val prompts = AtomicInteger()
+        acp(backend, prompts) {
+            while (backend.answers.isEmpty()) delay(50)
+            backend.state = backend.state.copy(staged = setOf(approval.id))
+            delay(500)
+            assertEquals(1, backend.answers.size, "a staged answer is not resent")
+            backend.state = backend.state.copy(staged = emptySet())
+            while (backend.answers.size < 2) delay(50)
+            assertEquals(1, prompts.get())
+            assertEquals(backend.answers[0], backend.answers[1])
+        }
+    }
+
     private class FakeExecution : ExecutionDispatch {
         @Volatile var state = ExecutionSnapshot(SessionId("s"))
-        val answers = mutableListOf<RespondParams>()
+        val answers = java.util.concurrent.CopyOnWriteArrayList<RespondParams>()
+        @Volatile var refuse = 0
+        @Volatile var keepPending = false
         val stopped = mutableListOf<String>()
         val started = CompletableDeferred<Unit>()
         val approval = CompletableDeferred<Unit>()
@@ -92,6 +163,11 @@ class KinuvoAgentTest {
         override suspend fun stop(sessionId: SessionId) { stopped.add(sessionId.value); state = state.copy(phase = ExecutionPhase.Idle) }
         override suspend fun answer(answer: RespondParams): Boolean {
             answers.add(answer)
+            if (answer.requestId == InteractionId("ask")) {
+                if (refuse-- > 0) throw IllegalArgumentException("refused")
+                if (keepPending) return true
+                state = state.copy(phase = ExecutionPhase.Running, pending = emptyList()); approval.complete(Unit); return true
+            }
             if (answer.requestId == InteractionId("link") && answers.count { it.requestId == answer.requestId } == 1) { link.complete(Unit); throw IllegalArgumentException("refused") }
             state = state.copy(phase = ExecutionPhase.Running, pending = emptyList())
             when (answer.requestId) {

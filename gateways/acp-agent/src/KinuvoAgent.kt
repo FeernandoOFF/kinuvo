@@ -31,6 +31,7 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.serialization.json.*
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.atomic.AtomicLong
 
 /** One selected native Agent; only Sessions created by this connection are reachable. */
 class KinuvoAgent(private val dispatch: ExecutionDispatch, private val agentId: AgentId) : AgentSupport {
@@ -55,10 +56,14 @@ class KinuvoAgent(private val dispatch: ExecutionDispatch, private val agentId: 
                     if (!cancelled) dispatch.send(SendParams(agentId, KinuvoSessionId(id), content.filterIsInstance<ContentBlock.Text>().joinToString("\n") { it.text }))
                 }
                 emit(SessionUpdate.StateUpdate(StateUpdate.Running()))
-                val answered = ConcurrentHashMap.newKeySet<InteractionId>()
+                val inFlight = ConcurrentHashMap.newKeySet<InteractionId>()
+                val answers = ConcurrentHashMap<InteractionId, InteractionAnswer>()
                 val failures = ConcurrentHashMap<InteractionId, Int>()
+                val deliveredAt = ConcurrentHashMap<InteractionId, Long>()
+                val clock = AtomicLong()
                 coroutineScope {
                     while (true) {
+                        val seen = clock.incrementAndGet()
                         val snapshot = dispatch.snapshot(agentId, KinuvoSessionId(id))
                         for (message in snapshot.messages) {
                             if (previous.put(message.id, message) == message) continue
@@ -86,25 +91,39 @@ class KinuvoAgent(private val dispatch: ExecutionDispatch, private val agentId: 
                                 break
                             }
                         }
-                        for (request in snapshot.pending) if (answered.add(request.id)) launch {
-                            val answer = when (request) {
-                                is PendingInteraction.HarnessApproval -> approve(request)
-                                is PendingInteraction.Questions -> answerQuestions(request)
-                                is PendingInteraction.Connect -> InteractionAnswer.Connect(false)
-                                else -> InteractionAnswer.Harness(JsonNull)
+                        for (request in snapshot.pending) {
+                            if (request.id in snapshot.staged || (deliveredAt[request.id] ?: 0) >= seen || !inFlight.add(request.id)) continue
+                            launch {
+                                try {
+                                    val answer = answers[request.id] ?: when (request) {
+                                        is PendingInteraction.HarnessApproval -> approve(request)
+                                        is PendingInteraction.Questions -> answerQuestions(request)
+                                        is PendingInteraction.Connect -> InteractionAnswer.Connect(false)
+                                        else -> InteractionAnswer.Harness(JsonNull)
+                                    }.also { answers[request.id] = it }
+                                    val delivered = try { dispatch.answer(RespondParams(KinuvoSessionId(id), request.id, answer)) }
+                                    catch (e: CancellationException) { throw e }
+                                    catch (_: Exception) { false }
+                                    if (delivered) {
+                                        failures.remove(request.id)
+                                        deliveredAt[request.id] = clock.incrementAndGet()
+                                    } else if (failures.merge(request.id, 1, Int::plus)!! >= MAX_ANSWER_ATTEMPTS) abandon(request.id)
+                                } finally { inFlight.remove(request.id) }
                             }
-                            val delivered = try { dispatch.answer(RespondParams(KinuvoSessionId(id), request.id, answer)) }
-                            catch (e: CancellationException) { throw e }
-                            catch (_: Exception) { false }
-                            if (delivered) return@launch
-                            if (failures.merge(request.id, 1, Int::plus)!! < MAX_ANSWER_ATTEMPTS) answered.remove(request.id)
-                            else System.err.println("kinuvo: giving up answering ${request.id.value} after $MAX_ANSWER_ATTEMPTS attempts")
                         }
                         delay(100)
                     }
                     coroutineContext.cancelChildren()
                 }
             }
+        }
+
+        private suspend fun abandon(request: InteractionId) {
+            if (dispatch.snapshot(agentId, KinuvoSessionId(id)).pending.none { it.id == request }) return
+            try { dispatch.stop(KinuvoSessionId(id)) }
+            catch (e: CancellationException) { throw e }
+            catch (_: Exception) {}
+            error("Could not deliver the answer to ${request.value}")
         }
 
         private suspend fun approve(request: PendingInteraction.HarnessApproval): InteractionAnswer {

@@ -70,7 +70,7 @@ suspend fun SessionLog.executionSnapshot(agent: AgentId, id: SessionId): Executi
         }
     }
     val requests = live.pending.map { if (it is PendingInteraction.Approval) it.forHarness() else it }
-    return ExecutionSnapshot(id, live.executionPhase ?: if (requests.isNotEmpty()) ExecutionPhase.RequiresAction else if (live.running) ExecutionPhase.Running else ExecutionPhase.Idle, messages, requests, stopReason = when(val terminal = completion(id)) {
+    return ExecutionSnapshot(id, live.executionPhase ?: if (requests.isNotEmpty()) ExecutionPhase.RequiresAction else if (live.running) ExecutionPhase.Running else ExecutionPhase.Idle, messages, requests, live.staged, stopReason = when(val terminal = completion(id)) {
         is AgentEvent.RunError -> "error:${terminal.message}"
         is AgentEvent.RunFinished -> if (terminal.cancelled) "cancelled" else "completed"
         else -> null
