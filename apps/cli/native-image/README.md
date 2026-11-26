@@ -46,6 +46,33 @@ a list of individual model classes. A Feature adapts to dependency changes; a
 static conditional metadata list would need regenerating whenever those change.
 Keep tracing homes, tokens and binary artifacts out of Git.
 
+## Native voice support
+
+WebRTC's native code constructs Java values and calls Java observers through JNI.
+Traces from startup do not cover every constructor, field or callback, so the
+Feature registers all members in `dev.onvoid.webrtc`, including callback
+implementations and reachable synthetic interface implementations. The JNI audit
+also covers LiteRT-LM (`com.google.ai.edge.litertlm`), QuickJS (`com.dokar.quickjs`)
+and zstd (`com.github.luben.zstd`). The image includes the bundled macOS arm64
+WebRTC, QuickJS and zstd libraries. LiteRT's engine remains an on-demand download;
+registering its API does not download or bundle the engine.
+
+A native image has no classpath jar for downloaded voice's worker extraction.
+The build generates `server-voice/files.list` and includes `server-voice/**` as
+resources. `Inference.bundled()` can extract that indexed bundle through the
+class loader, preserving every file's bytes and making the worker executable.
+The `KINUVO_VOICE_WORKER` override still takes precedence; jar and packaged-app
+lookup remain available.
+
+`--webrtc-probe` uses a headless audio module, creates a peer connection, reads
+its configuration through JNI, creates a data channel and asynchronously creates
+an SDP offer. It does not use a microphone, remote peer or Codex credentials.
+`--voice-worker-probe` checks extracted bytes against the resource, verifies the
+macOS signature, and starts the executable without arguments (expected usage
+exit 2). That checks extraction and executable loading, not engine or model
+inference. The verifier clears `KINUVO_VOICE_WORKER` only for this bundled-worker
+probe. No models are downloaded by either probe.
+
 ## Runtime serialization and Browser checks (November 26, 2026)
 
 The earlier trace exercised Chat Completions, leaving Responses API subclasses

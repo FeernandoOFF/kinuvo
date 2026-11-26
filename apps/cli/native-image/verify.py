@@ -43,7 +43,9 @@ def run(args,input=None,timeout=30):
   command=prefix()
   if args[0] in ['--serialization-probe','--browser-probe','--responses-probe','--webrtc-probe','--voice-worker-probe'] and mode in ['jvm','trace']:
    command=[jbr+'/bin/java','-cp',str(root/'build/native-image/probe')+':'+str(root/'build/native-image/flat/BOOT-INF/classes')+':'+str(root/'build/native-image/flat/BOOT-INF/lib/*')+':'+str(root/'build/native-image/flat'),'NativeCli']
-  p=subprocess.run(command+args,env=env,cwd=base,input=input,text=True,capture_output=True,timeout=timeout)
+  command_env=dict(env)
+  if args[0]=='--voice-worker-probe':command_env.pop('KINUVO_VOICE_WORKER',None)
+  p=subprocess.run(command+args,env=command_env,cwd=base,input=input,text=True,capture_output=True,timeout=timeout)
   out=p.stdout+p.stderr; rc=p.returncode
   if "but isn't reachable" in out or 'Error:' in out:rc=1
  except subprocess.TimeoutExpired as e: out='TIMEOUT';rc=124
