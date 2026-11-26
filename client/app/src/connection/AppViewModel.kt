@@ -558,7 +558,9 @@ class AppViewModel(
     }
 
     /** Loads every Agent's first page of Sessions too, so the rail can mark the ones with news. */
-    private fun setAgents(agents: List<AgentInfo>) {
+    private fun setAgents(all: List<AgentInfo>) {
+        // A deleted external Agent's registration is only archived on the Server; it's gone for the user.
+        val agents = all.filter { it.readiness.reasonCode != "archived" }
         state.update { it.copy(agents = agents, agentsLoaded = true) }
         agents.filter { it.id !in state.value.sessions.lists }.forEach { repo.loadSessions(it.id) }
         // Home lists every Agent's next and latest runs.

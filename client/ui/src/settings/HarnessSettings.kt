@@ -107,7 +107,7 @@ private fun HarnessList(p: Pane) {
 private fun HarnessDetail(c: HarnessConnectionStatus, p: Pane) {
     val h = p.ui.state.harnesses
     val server = p.ui.serverName
-    val agents = h.catalog?.agents.orEmpty().filter { it.connectionId == c.config.id }
+    val agents = h.catalog?.agents.orEmpty().filter { it.connectionId == c.config.id && !it.archived }
     val r = readiness(c, server)
     DetailPane(p.back, c.config.name, error = p.ui.error,
         trailing = { if (c.kind == ExecutionKind.Acp) HeaderButton(Lucide.Pencil, "Edit", { p.go(p.ui.route.copy(editing = true)) }) }) {
