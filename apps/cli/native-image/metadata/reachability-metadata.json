@@ -1,10 +1,31 @@
 {
   "reflection": [
     {
+      "type": "ai.koog.agents.core.agent.context.GraphAgentContextData"
+    },
+    {
+      "type": "ai.koog.agents.core.agent.context.PlannerAgentContextData"
+    },
+    {
+      "type": "ai.koog.agents.core.feature.debugger.Debugger"
+    },
+    {
+      "type": "ai.koog.agents.features.opentelemetry.feature.OpenTelemetry"
+    },
+    {
       "type": "android.os.Build"
     },
     {
       "type": "android.os.Build$VERSION"
+    },
+    {
+      "type": "apple.security.AppleProvider",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": []
+        }
+      ]
     },
     {
       "type": "ch.qos.logback.classic.encoder.PatternLayoutEncoder",
@@ -80,6 +101,101 @@
     },
     {
       "type": "ch.qos.logback.core.spi.ContextAware"
+    },
+    {
+      "type": "com.fasterxml.jackson.core.JsonFactory"
+    },
+    {
+      "type": "com.sun.crypto.provider.AESCipher$General",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "type": "com.sun.crypto.provider.ARCFOURCipher",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "type": "com.sun.crypto.provider.ChaCha20Cipher$ChaCha20Poly1305",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "type": "com.sun.crypto.provider.DESCipher",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "type": "com.sun.crypto.provider.DESedeCipher",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "type": "com.sun.crypto.provider.DHParameters",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "type": "com.sun.crypto.provider.GaloisCounterMode$AESGCM",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "type": "com.sun.crypto.provider.HKDFKeyDerivation$HKDFSHA384",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": [
+            "javax.crypto.KDFParameters"
+          ]
+        }
+      ]
+    },
+    {
+      "type": "com.sun.crypto.provider.HmacCore$HmacSHA384",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "type": "com.sun.crypto.provider.TlsMasterSecretGenerator",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": []
+        }
+      ]
     },
     {
       "type": "com.sun.org.apache.xerces.internal.jaxp.SAXParserFactoryImpl",
@@ -645,6 +761,12 @@
       "type": "io.ktor.client.engine.apache.ApacheEngineContainer"
     },
     {
+      "type": "io.ktor.client.engine.apache.ApacheResponseConsumer"
+    },
+    {
+      "type": "io.ktor.client.engine.apache.InterestControllerHolder"
+    },
+    {
       "type": "io.ktor.client.engine.cio.CIOEngineContainer"
     },
     {
@@ -652,6 +774,9 @@
     },
     {
       "type": "io.ktor.client.engine.java.JavaHttpEngineContainer"
+    },
+    {
+      "type": "io.ktor.client.engine.java.JavaHttpResponseBodyHandler$JavaHttpResponseBodySubscriber"
     },
     {
       "type": "io.ktor.client.plugins.DefaultRequest"
@@ -678,6 +803,15 @@
       "type": "io.ktor.client.plugins.api.ClientPluginInstance"
     },
     {
+      "type": "io.ktor.client.plugins.sse.ClientSSESession"
+    },
+    {
+      "type": "io.ktor.client.plugins.sse.DefaultClientSSESession"
+    },
+    {
+      "type": "io.ktor.client.plugins.sse.SSEBufferPolicy"
+    },
+    {
       "type": "io.ktor.client.plugins.websocket.DefaultClientWebSocketSession"
     },
     {
@@ -690,10 +824,25 @@
       "type": "io.ktor.client.request.HttpRequestBuilder"
     },
     {
+      "type": "io.ktor.client.request.ResponseAdapter"
+    },
+    {
       "type": "io.ktor.client.statement.HttpResponse"
     },
     {
+      "type": "io.ktor.http.ContentType"
+    },
+    {
       "type": "io.ktor.http.HttpStatusCode"
+    },
+    {
+      "type": "io.ktor.http.content.OutgoingContent"
+    },
+    {
+      "type": "io.ktor.http.content.OutgoingContent$ReadChannelContent"
+    },
+    {
+      "type": "io.ktor.http.content.Version"
     },
     {
       "type": "io.ktor.network.selector.InterestSuspensionsMap"
@@ -714,10 +863,16 @@
       "type": "io.ktor.network.sockets.SocketBase"
     },
     {
+      "type": "io.ktor.serialization.kotlinx.json.KotlinxSerializationJsonExtensionProvider"
+    },
+    {
       "type": "io.ktor.server.application.PluginInstance"
     },
     {
       "type": "io.ktor.server.engine.BaseApplicationResponse"
+    },
+    {
+      "type": "io.ktor.server.http.content.CompressedFileType"
     },
     {
       "type": "io.ktor.server.plugins.MutableOriginConnectionPoint"
@@ -750,6 +905,9 @@
       "type": "io.ktor.utils.io.ByteChannel"
     },
     {
+      "type": "io.ktor.utils.io.ByteReadChannel"
+    },
+    {
       "type": "io.ktor.utils.io.pool.DefaultPool"
     },
     {
@@ -757,6 +915,69 @@
     },
     {
       "type": "io.ktor.websocket.WebSocketExtension"
+    },
+    {
+      "type": "io.modelcontextprotocol.kotlin.sdk.client.Client"
+    },
+    {
+      "type": "io.modelcontextprotocol.kotlin.sdk.shared.Protocol"
+    },
+    {
+      "type": "io.modelcontextprotocol.kotlin.sdk.shared.Protocol$Connection"
+    },
+    {
+      "type": "io.modelcontextprotocol.kotlin.sdk.types.JSONRPCNotification",
+      "fields": [
+        {
+          "name": "Companion"
+        }
+      ]
+    },
+    {
+      "type": "io.modelcontextprotocol.kotlin.sdk.types.JSONRPCNotification$Companion",
+      "methods": [
+        {
+          "name": "serializer",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "type": "io.modelcontextprotocol.kotlin.sdk.types.JSONRPCRequest",
+      "fields": [
+        {
+          "name": "Companion"
+        }
+      ]
+    },
+    {
+      "type": "io.modelcontextprotocol.kotlin.sdk.types.JSONRPCRequest$Companion",
+      "methods": [
+        {
+          "name": "serializer",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "type": "io.modelcontextprotocol.kotlin.sdk.types.RequestId$StringId",
+      "fields": [
+        {
+          "name": "Companion"
+        }
+      ]
+    },
+    {
+      "type": "io.modelcontextprotocol.kotlin.sdk.types.RequestId$StringId$Companion",
+      "methods": [
+        {
+          "name": "serializer",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "type": "io.opentelemetry.api.incubator.metrics.ExtendedDefaultMeterProvider"
     },
     {
       "type": "java.io.File"
@@ -788,6 +1009,11 @@
     {
       "type": "java.lang.ClassLoader",
       "jniAccessible": true,
+      "fields": [
+        {
+          "name": "classLoaderValueMap"
+        }
+      ],
       "methods": [
         {
           "name": "loadClass",
@@ -804,13 +1030,48 @@
       "type": "java.lang.Object"
     },
     {
+      "type": "java.lang.String"
+    },
+    {
       "type": "java.net.StandardSocketOptions"
     },
     {
       "type": "java.nio.file.Files"
     },
     {
+      "type": "java.security.AlgorithmParametersSpi"
+    },
+    {
+      "type": "java.security.KeyStoreSpi"
+    },
+    {
+      "type": "java.security.interfaces.ECPrivateKey"
+    },
+    {
+      "type": "java.security.interfaces.ECPublicKey"
+    },
+    {
       "type": "java.util.concurrent.ScheduledThreadPoolExecutor"
+    },
+    {
+      "type": "jdk.internal.misc.Unsafe"
+    },
+    {
+      "type": "kinuvo.cli.MainKt",
+      "methods": [
+        {
+          "name": "main",
+          "parameterTypes": [
+            "java.lang.String[]"
+          ]
+        }
+      ]
+    },
+    {
+      "type": "kinuvo.harness.builtin.SessionFeature"
+    },
+    {
+      "type": "kinuvo.harness.builtin.ToolLoopFeature"
     },
     {
       "type": "kotlin.Any"
@@ -889,6 +1150,12 @@
       "type": "kotlin.collections.Map"
     },
     {
+      "type": "kotlin.coroutines.SafeContinuation"
+    },
+    {
+      "type": "kotlin.coroutines.jvm.internal.BaseContinuationImpl"
+    },
+    {
       "type": "kotlin.jvm.internal.DefaultConstructorMarker"
     },
     {
@@ -911,6 +1178,18 @@
     },
     {
       "type": "kotlin.reflect.jvm.internal.impl.load.java.JavaIncompatibilityRulesOverridabilityCondition"
+    },
+    {
+      "type": "kotlin.time.Duration"
+    },
+    {
+      "type": "kotlinx.atomicfu.AtomicBoolean"
+    },
+    {
+      "type": "kotlinx.atomicfu.AtomicInt"
+    },
+    {
+      "type": "kotlinx.atomicfu.AtomicRef"
     },
     {
       "type": "kotlinx.coroutines.CancellableContinuationImpl"
@@ -967,6 +1246,9 @@
       "type": "kotlinx.coroutines.internal.Segment"
     },
     {
+      "type": "kotlinx.coroutines.internal.StackTraceRecoveryKt"
+    },
+    {
       "type": "kotlinx.coroutines.internal.ThreadSafeHeap"
     },
     {
@@ -986,6 +1268,41 @@
     },
     {
       "type": "kotlinx.coroutines.sync.SemaphoreAndMutexImpl"
+    },
+    {
+      "type": "org.apache.commons.logging.LogFactory"
+    },
+    {
+      "type": "org.apache.commons.logging.impl.Jdk14Logger",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": [
+            "java.lang.String"
+          ]
+        }
+      ]
+    },
+    {
+      "type": "org.apache.commons.logging.impl.Log4JLogger"
+    },
+    {
+      "type": "org.apache.commons.logging.impl.LogFactoryImpl",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "type": "org.apache.commons.logging.impl.WeakHashtable",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": []
+        }
+      ]
     },
     {
       "type": "sun.management.VMManagementImpl",
@@ -1014,6 +1331,60 @@
         },
         {
           "name": "threadContentionMonitoringSupport"
+        }
+      ]
+    },
+    {
+      "type": "sun.security.pkcs12.PKCS12KeyStore",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "type": "sun.security.pkcs12.PKCS12KeyStore$DualFormatPKCS12",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "type": "sun.security.provider.DSA$SHA224withDSA",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "type": "sun.security.provider.DSA$SHA256withDSA",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "type": "sun.security.provider.JavaKeyStore$DualFormatJKS",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "type": "sun.security.provider.JavaKeyStore$JKS",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": []
         }
       ]
     },
@@ -1049,7 +1420,34 @@
       ]
     },
     {
+      "type": "sun.security.provider.SHA2$SHA224",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
       "type": "sun.security.provider.SHA2$SHA256",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "type": "sun.security.provider.SHA5$SHA384",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "type": "sun.security.provider.SHA5$SHA512",
       "methods": [
         {
           "name": "<init>",
@@ -1065,6 +1463,231 @@
           "parameterTypes": []
         }
       ]
+    },
+    {
+      "type": "sun.security.provider.X509Factory",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "type": "sun.security.provider.certpath.PKIXCertPathValidator",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "type": "sun.security.rsa.PSSParameters",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "type": "sun.security.rsa.RSAKeyFactory$Legacy",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "type": "sun.security.rsa.RSAPSSSignature",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "type": "sun.security.rsa.RSASignature$SHA224withRSA",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "type": "sun.security.ssl.KeyManagerFactoryImpl$SunX509",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "type": "sun.security.ssl.SSLContextImpl$DefaultSSLContext",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "type": "sun.security.ssl.SSLContextImpl$TLSContext",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "type": "sun.security.ssl.TrustManagerFactoryImpl$PKIXFactory",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "type": "sun.security.x509.AuthorityInfoAccessExtension",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": [
+            "java.lang.Boolean",
+            "java.lang.Object"
+          ]
+        }
+      ]
+    },
+    {
+      "type": "sun.security.x509.AuthorityKeyIdentifierExtension",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": [
+            "java.lang.Boolean",
+            "java.lang.Object"
+          ]
+        }
+      ]
+    },
+    {
+      "type": "sun.security.x509.BasicConstraintsExtension",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": [
+            "java.lang.Boolean",
+            "java.lang.Object"
+          ]
+        }
+      ]
+    },
+    {
+      "type": "sun.security.x509.CRLDistributionPointsExtension",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": [
+            "java.lang.Boolean",
+            "java.lang.Object"
+          ]
+        }
+      ]
+    },
+    {
+      "type": "sun.security.x509.CertificatePoliciesExtension",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": [
+            "java.lang.Boolean",
+            "java.lang.Object"
+          ]
+        }
+      ]
+    },
+    {
+      "type": "sun.security.x509.ExtendedKeyUsageExtension",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": [
+            "java.lang.Boolean",
+            "java.lang.Object"
+          ]
+        }
+      ]
+    },
+    {
+      "type": "sun.security.x509.KeyUsageExtension",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": [
+            "java.lang.Boolean",
+            "java.lang.Object"
+          ]
+        }
+      ]
+    },
+    {
+      "type": "sun.security.x509.NetscapeCertTypeExtension",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": [
+            "java.lang.Boolean",
+            "java.lang.Object"
+          ]
+        }
+      ]
+    },
+    {
+      "type": "sun.security.x509.PrivateKeyUsageExtension",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": [
+            "java.lang.Boolean",
+            "java.lang.Object"
+          ]
+        }
+      ]
+    },
+    {
+      "type": "sun.security.x509.SubjectAlternativeNameExtension",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": [
+            "java.lang.Boolean",
+            "java.lang.Object"
+          ]
+        }
+      ]
+    },
+    {
+      "type": "sun.security.x509.SubjectKeyIdentifierExtension",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": [
+            "java.lang.Boolean",
+            "java.lang.Object"
+          ]
+        }
+      ]
+    },
+    {
+      "type": "sun.util.resources.cldr.CalendarData"
     }
   ],
   "resources": [
@@ -1075,7 +1698,13 @@
       "glob": "META-INF/services/io.ktor.client.HttpClientEngineContainer"
     },
     {
+      "glob": "META-INF/services/io.ktor.serialization.kotlinx.KotlinxSerializationExtensionProvider"
+    },
+    {
       "glob": "META-INF/services/java.net.spi.InetAddressResolverProvider"
+    },
+    {
+      "glob": "META-INF/services/java.net.spi.URLStreamHandlerProvider"
     },
     {
       "glob": "META-INF/services/java.nio.channels.spi.SelectorProvider"
@@ -1099,6 +1728,9 @@
       "glob": "META-INF/services/kotlinx.coroutines.CoroutineExceptionHandler"
     },
     {
+      "glob": "META-INF/services/org.apache.commons.logging.LogFactory"
+    },
+    {
       "glob": "META-INF/services/org.slf4j.spi.SLF4JServiceProvider"
     },
     {
@@ -1106,6 +1738,9 @@
     },
     {
       "glob": "ch/qos/logback/core/logback-core-version.properties"
+    },
+    {
+      "glob": "commons-logging.properties"
     },
     {
       "glob": "kinuvo-version"
@@ -1124,6 +1759,595 @@
     },
     {
       "glob": "logback.xml"
+    },
+    {
+      "glob": "mozilla/public-suffix-list.txt"
+    },
+    {
+      "glob": "org/apache/http/nio/client/version.properties"
+    },
+    {
+      "glob": "product.properties"
+    },
+    {
+      "glob": "server-voice/MacOS/KinuvoVoiceInference"
+    },
+    {
+      "glob": "web"
+    },
+    {
+      "glob": "web/agents"
+    },
+    {
+      "glob": "web/agents/index.html"
+    },
+    {
+      "glob": "web/composeResources/ui.generated.resources/files/avatar-berry-orb-idle.png"
+    },
+    {
+      "glob": "web/composeResources/ui.generated.resources/files/avatar-berry-orb-listening.png"
+    },
+    {
+      "glob": "web/composeResources/ui.generated.resources/files/avatar-berry-orb-needsyou.png"
+    },
+    {
+      "glob": "web/composeResources/ui.generated.resources/files/avatar-berry-orb-working.png"
+    },
+    {
+      "glob": "web/composeResources/ui.generated.resources/files/avatar-cocoa-bloop-idle.png"
+    },
+    {
+      "glob": "web/composeResources/ui.generated.resources/files/avatar-cocoa-bloop-listening.png"
+    },
+    {
+      "glob": "web/composeResources/ui.generated.resources/files/avatar-cocoa-bloop-needsyou.png"
+    },
+    {
+      "glob": "web/composeResources/ui.generated.resources/files/avatar-cocoa-bloop-working.png"
+    },
+    {
+      "glob": "web/composeResources/ui.generated.resources/files/avatar-coral-bloom-idle.png"
+    },
+    {
+      "glob": "web/composeResources/ui.generated.resources/files/avatar-coral-bloom-listening.png"
+    },
+    {
+      "glob": "web/composeResources/ui.generated.resources/files/avatar-coral-bloom-needsyou.png"
+    },
+    {
+      "glob": "web/composeResources/ui.generated.resources/files/avatar-coral-bloom-working.png"
+    },
+    {
+      "glob": "web/composeResources/ui.generated.resources/files/avatar-honey-star-idle.png"
+    },
+    {
+      "glob": "web/composeResources/ui.generated.resources/files/avatar-honey-star-listening.png"
+    },
+    {
+      "glob": "web/composeResources/ui.generated.resources/files/avatar-honey-star-needsyou.png"
+    },
+    {
+      "glob": "web/composeResources/ui.generated.resources/files/avatar-honey-star-working.png"
+    },
+    {
+      "glob": "web/composeResources/ui.generated.resources/files/avatar-lilac-cloud-idle.png"
+    },
+    {
+      "glob": "web/composeResources/ui.generated.resources/files/avatar-lilac-cloud-listening.png"
+    },
+    {
+      "glob": "web/composeResources/ui.generated.resources/files/avatar-lilac-cloud-needsyou.png"
+    },
+    {
+      "glob": "web/composeResources/ui.generated.resources/files/avatar-lilac-cloud-working.png"
+    },
+    {
+      "glob": "web/composeResources/ui.generated.resources/files/avatar-mint-pill-idle.png"
+    },
+    {
+      "glob": "web/composeResources/ui.generated.resources/files/avatar-mint-pill-listening.png"
+    },
+    {
+      "glob": "web/composeResources/ui.generated.resources/files/avatar-mint-pill-needsyou.png"
+    },
+    {
+      "glob": "web/composeResources/ui.generated.resources/files/avatar-mint-pill-working.png"
+    },
+    {
+      "glob": "web/composeResources/ui.generated.resources/files/avatar-sky-peak-idle.png"
+    },
+    {
+      "glob": "web/composeResources/ui.generated.resources/files/avatar-sky-peak-listening.png"
+    },
+    {
+      "glob": "web/composeResources/ui.generated.resources/files/avatar-sky-peak-needsyou.png"
+    },
+    {
+      "glob": "web/composeResources/ui.generated.resources/files/avatar-sky-peak-working.png"
+    },
+    {
+      "glob": "web/composeResources/ui.generated.resources/files/avatar-tangerine-drop-idle.png"
+    },
+    {
+      "glob": "web/composeResources/ui.generated.resources/files/avatar-tangerine-drop-listening.png"
+    },
+    {
+      "glob": "web/composeResources/ui.generated.resources/files/avatar-tangerine-drop-needsyou.png"
+    },
+    {
+      "glob": "web/composeResources/ui.generated.resources/files/avatar-tangerine-drop-working.png"
+    },
+    {
+      "glob": "web/composeResources/ui.generated.resources/files/avatars.png"
+    },
+    {
+      "glob": "web/composeResources/ui.generated.resources/files/avatars.riv"
+    },
+    {
+      "glob": "web/composeResources/ui.generated.resources/files/icon.png"
+    },
+    {
+      "glob": "web/composeResources/ui.generated.resources/files/inter_license.txt"
+    },
+    {
+      "glob": "web/composeResources/ui.generated.resources/files/libron_license.txt"
+    },
+    {
+      "glob": "web/composeResources/ui.generated.resources/files/licenses/Apache-2.0.txt"
+    },
+    {
+      "glob": "web/composeResources/ui.generated.resources/files/licenses/BSD-2-Clause.txt"
+    },
+    {
+      "glob": "web/composeResources/ui.generated.resources/files/licenses/BSD-3-Clause.txt"
+    },
+    {
+      "glob": "web/composeResources/ui.generated.resources/files/licenses/Classpath-exception-2.0.txt"
+    },
+    {
+      "glob": "web/composeResources/ui.generated.resources/files/licenses/EPL-1.0.txt"
+    },
+    {
+      "glob": "web/composeResources/ui.generated.resources/files/licenses/GPL-2.0.txt"
+    },
+    {
+      "glob": "web/composeResources/ui.generated.resources/files/licenses/GPL-3.0.txt"
+    },
+    {
+      "glob": "web/composeResources/ui.generated.resources/files/licenses/ISC.txt"
+    },
+    {
+      "glob": "web/composeResources/ui.generated.resources/files/licenses/LGPL-3.0.txt"
+    },
+    {
+      "glob": "web/composeResources/ui.generated.resources/files/licenses/MIT.txt"
+    },
+    {
+      "glob": "web/composeResources/ui.generated.resources/files/licenses/OFL-1.1.txt"
+    },
+    {
+      "glob": "web/composeResources/ui.generated.resources/files/tray.png"
+    },
+    {
+      "glob": "web/composeResources/ui.generated.resources/files/workflow/drawflow.LICENSE"
+    },
+    {
+      "glob": "web/composeResources/ui.generated.resources/files/workflow/drawflow.NOTICE.txt"
+    },
+    {
+      "glob": "web/composeResources/ui.generated.resources/files/workflow/drawflow.min.css"
+    },
+    {
+      "glob": "web/composeResources/ui.generated.resources/files/workflow/drawflow.min.js"
+    },
+    {
+      "glob": "web/composeResources/ui.generated.resources/files/workflow/editor.css"
+    },
+    {
+      "glob": "web/composeResources/ui.generated.resources/files/workflow/editor.html"
+    },
+    {
+      "glob": "web/composeResources/ui.generated.resources/files/workflow/editor.js"
+    },
+    {
+      "glob": "web/composeResources/ui.generated.resources/font/inter_bold.ttf"
+    },
+    {
+      "glob": "web/composeResources/ui.generated.resources/font/inter_bolditalic.ttf"
+    },
+    {
+      "glob": "web/composeResources/ui.generated.resources/font/inter_italic.ttf"
+    },
+    {
+      "glob": "web/composeResources/ui.generated.resources/font/inter_regular.ttf"
+    },
+    {
+      "glob": "web/composeResources/ui.generated.resources/font/inter_semibold.ttf"
+    },
+    {
+      "glob": "web/composeResources/ui.generated.resources/font/libron_bold.ttf"
+    },
+    {
+      "glob": "web/composeResources/ui.generated.resources/font/libron_bolditalic.ttf"
+    },
+    {
+      "glob": "web/composeResources/ui.generated.resources/font/libron_italic.ttf"
+    },
+    {
+      "glob": "web/composeResources/ui.generated.resources/font/libron_regular.ttf"
+    },
+    {
+      "glob": "web/import-map-loader.js"
+    },
+    {
+      "glob": "web/index.html"
+    },
+    {
+      "glob": "web/sessions"
+    },
+    {
+      "glob": "web/sessions/index.html"
+    },
+    {
+      "glob": "web/settings"
+    },
+    {
+      "glob": "web/settings/index.html"
+    },
+    {
+      "glob": "web/skiko.mjs"
+    },
+    {
+      "glob": "web/skiko.wasm"
+    },
+    {
+      "glob": "web/vendors/@js-joda/core/CHANGELOG.md"
+    },
+    {
+      "glob": "web/vendors/@js-joda/core/CheatSheet.md"
+    },
+    {
+      "glob": "web/vendors/@js-joda/core/LICENSE"
+    },
+    {
+      "glob": "web/vendors/@js-joda/core/README.md"
+    },
+    {
+      "glob": "web/vendors/@js-joda/core/bower.json"
+    },
+    {
+      "glob": "web/vendors/@js-joda/core/dist/js-joda.d.ts"
+    },
+    {
+      "glob": "web/vendors/@js-joda/core/dist/js-joda.esm.js"
+    },
+    {
+      "glob": "web/vendors/@js-joda/core/dist/js-joda.flow.js"
+    },
+    {
+      "glob": "web/vendors/@js-joda/core/dist/js-joda.js"
+    },
+    {
+      "glob": "web/vendors/@js-joda/core/dist/js-joda.js.map"
+    },
+    {
+      "glob": "web/vendors/@js-joda/core/dist/js-joda.min.js"
+    },
+    {
+      "glob": "web/vendors/@js-joda/core/package.json"
+    },
+    {
+      "glob": "web/vendors/@js-joda/core/src/Clock.js"
+    },
+    {
+      "glob": "web/vendors/@js-joda/core/src/DayOfWeek.js"
+    },
+    {
+      "glob": "web/vendors/@js-joda/core/src/Duration.js"
+    },
+    {
+      "glob": "web/vendors/@js-joda/core/src/Enum.js"
+    },
+    {
+      "glob": "web/vendors/@js-joda/core/src/Instant.js"
+    },
+    {
+      "glob": "web/vendors/@js-joda/core/src/LocalDate.js"
+    },
+    {
+      "glob": "web/vendors/@js-joda/core/src/LocalDateTime.js"
+    },
+    {
+      "glob": "web/vendors/@js-joda/core/src/LocalTime.js"
+    },
+    {
+      "glob": "web/vendors/@js-joda/core/src/MathUtil.js"
+    },
+    {
+      "glob": "web/vendors/@js-joda/core/src/Month.js"
+    },
+    {
+      "glob": "web/vendors/@js-joda/core/src/MonthDay.js"
+    },
+    {
+      "glob": "web/vendors/@js-joda/core/src/OffsetDateTime.js"
+    },
+    {
+      "glob": "web/vendors/@js-joda/core/src/OffsetTime.js"
+    },
+    {
+      "glob": "web/vendors/@js-joda/core/src/Period.js"
+    },
+    {
+      "glob": "web/vendors/@js-joda/core/src/StringUtil.js"
+    },
+    {
+      "glob": "web/vendors/@js-joda/core/src/Year.js"
+    },
+    {
+      "glob": "web/vendors/@js-joda/core/src/YearConstants.js"
+    },
+    {
+      "glob": "web/vendors/@js-joda/core/src/YearMonth.js"
+    },
+    {
+      "glob": "web/vendors/@js-joda/core/src/ZoneId.js"
+    },
+    {
+      "glob": "web/vendors/@js-joda/core/src/ZoneIdFactory.js"
+    },
+    {
+      "glob": "web/vendors/@js-joda/core/src/ZoneOffset.js"
+    },
+    {
+      "glob": "web/vendors/@js-joda/core/src/ZoneRegion.js"
+    },
+    {
+      "glob": "web/vendors/@js-joda/core/src/ZonedDateTime.js"
+    },
+    {
+      "glob": "web/vendors/@js-joda/core/src/_init.js"
+    },
+    {
+      "glob": "web/vendors/@js-joda/core/src/assert.js"
+    },
+    {
+      "glob": "web/vendors/@js-joda/core/src/chrono/ChronoLocalDate.js"
+    },
+    {
+      "glob": "web/vendors/@js-joda/core/src/chrono/ChronoLocalDateTime.js"
+    },
+    {
+      "glob": "web/vendors/@js-joda/core/src/chrono/ChronoZonedDateTime.js"
+    },
+    {
+      "glob": "web/vendors/@js-joda/core/src/chrono/IsoChronology.js"
+    },
+    {
+      "glob": "web/vendors/@js-joda/core/src/convert.js"
+    },
+    {
+      "glob": "web/vendors/@js-joda/core/src/errors.js"
+    },
+    {
+      "glob": "web/vendors/@js-joda/core/src/format/DateTimeBuilder.js"
+    },
+    {
+      "glob": "web/vendors/@js-joda/core/src/format/DateTimeFormatter.js"
+    },
+    {
+      "glob": "web/vendors/@js-joda/core/src/format/DateTimeFormatterBuilder.js"
+    },
+    {
+      "glob": "web/vendors/@js-joda/core/src/format/DateTimeParseContext.js"
+    },
+    {
+      "glob": "web/vendors/@js-joda/core/src/format/DateTimePrintContext.js"
+    },
+    {
+      "glob": "web/vendors/@js-joda/core/src/format/DecimalStyle.js"
+    },
+    {
+      "glob": "web/vendors/@js-joda/core/src/format/EnumMap.js"
+    },
+    {
+      "glob": "web/vendors/@js-joda/core/src/format/ParsePosition.js"
+    },
+    {
+      "glob": "web/vendors/@js-joda/core/src/format/ResolverStyle.js"
+    },
+    {
+      "glob": "web/vendors/@js-joda/core/src/format/SignStyle.js"
+    },
+    {
+      "glob": "web/vendors/@js-joda/core/src/format/StringBuilder.js"
+    },
+    {
+      "glob": "web/vendors/@js-joda/core/src/format/TextStyle.js"
+    },
+    {
+      "glob": "web/vendors/@js-joda/core/src/format/parser/CharLiteralPrinterParser.js"
+    },
+    {
+      "glob": "web/vendors/@js-joda/core/src/format/parser/CompositePrinterParser.js"
+    },
+    {
+      "glob": "web/vendors/@js-joda/core/src/format/parser/FractionPrinterParser.js"
+    },
+    {
+      "glob": "web/vendors/@js-joda/core/src/format/parser/NumberPrinterParser.js"
+    },
+    {
+      "glob": "web/vendors/@js-joda/core/src/format/parser/OffsetIdPrinterParser.js"
+    },
+    {
+      "glob": "web/vendors/@js-joda/core/src/format/parser/PadPrinterParserDecorator.js"
+    },
+    {
+      "glob": "web/vendors/@js-joda/core/src/format/parser/SettingsParser.js"
+    },
+    {
+      "glob": "web/vendors/@js-joda/core/src/format/parser/StringLiteralPrinterParser.js"
+    },
+    {
+      "glob": "web/vendors/@js-joda/core/src/format/parser/ZoneIdPrinterParser.js"
+    },
+    {
+      "glob": "web/vendors/@js-joda/core/src/js-joda.js"
+    },
+    {
+      "glob": "web/vendors/@js-joda/core/src/license-preamble.js"
+    },
+    {
+      "glob": "web/vendors/@js-joda/core/src/temporal/ChronoField.js"
+    },
+    {
+      "glob": "web/vendors/@js-joda/core/src/temporal/ChronoUnit.js"
+    },
+    {
+      "glob": "web/vendors/@js-joda/core/src/temporal/DefaultInterfaceTemporal.js"
+    },
+    {
+      "glob": "web/vendors/@js-joda/core/src/temporal/IsoFields.js"
+    },
+    {
+      "glob": "web/vendors/@js-joda/core/src/temporal/NativeJsTemporal.js"
+    },
+    {
+      "glob": "web/vendors/@js-joda/core/src/temporal/Temporal.js"
+    },
+    {
+      "glob": "web/vendors/@js-joda/core/src/temporal/TemporalAccessor.js"
+    },
+    {
+      "glob": "web/vendors/@js-joda/core/src/temporal/TemporalAdjuster.js"
+    },
+    {
+      "glob": "web/vendors/@js-joda/core/src/temporal/TemporalAdjusters.js"
+    },
+    {
+      "glob": "web/vendors/@js-joda/core/src/temporal/TemporalAmount.js"
+    },
+    {
+      "glob": "web/vendors/@js-joda/core/src/temporal/TemporalField.js"
+    },
+    {
+      "glob": "web/vendors/@js-joda/core/src/temporal/TemporalQueries.js"
+    },
+    {
+      "glob": "web/vendors/@js-joda/core/src/temporal/TemporalQueriesFactory.js"
+    },
+    {
+      "glob": "web/vendors/@js-joda/core/src/temporal/TemporalQuery.js"
+    },
+    {
+      "glob": "web/vendors/@js-joda/core/src/temporal/TemporalUnit.js"
+    },
+    {
+      "glob": "web/vendors/@js-joda/core/src/temporal/ValueRange.js"
+    },
+    {
+      "glob": "web/vendors/@js-joda/core/src/use.js"
+    },
+    {
+      "glob": "web/vendors/@js-joda/core/src/zone/SystemDefaultZoneId.js"
+    },
+    {
+      "glob": "web/vendors/@js-joda/core/src/zone/SystemDefaultZoneRules.js"
+    },
+    {
+      "glob": "web/vendors/@js-joda/core/src/zone/ZoneOffsetTransition.js"
+    },
+    {
+      "glob": "web/vendors/@js-joda/core/src/zone/ZoneRules.js"
+    },
+    {
+      "glob": "web/vendors/@js-joda/core/src/zone/ZoneRulesProvider.js"
+    },
+    {
+      "glob": "web/vendors/ws/LICENSE"
+    },
+    {
+      "glob": "web/vendors/ws/README.md"
+    },
+    {
+      "glob": "web/vendors/ws/browser.js"
+    },
+    {
+      "glob": "web/vendors/ws/index.js"
+    },
+    {
+      "glob": "web/vendors/ws/lib/buffer-util.js"
+    },
+    {
+      "glob": "web/vendors/ws/lib/constants.js"
+    },
+    {
+      "glob": "web/vendors/ws/lib/event-target.js"
+    },
+    {
+      "glob": "web/vendors/ws/lib/extension.js"
+    },
+    {
+      "glob": "web/vendors/ws/lib/limiter.js"
+    },
+    {
+      "glob": "web/vendors/ws/lib/permessage-deflate.js"
+    },
+    {
+      "glob": "web/vendors/ws/lib/receiver.js"
+    },
+    {
+      "glob": "web/vendors/ws/lib/sender.js"
+    },
+    {
+      "glob": "web/vendors/ws/lib/stream.js"
+    },
+    {
+      "glob": "web/vendors/ws/lib/subprotocol.js"
+    },
+    {
+      "glob": "web/vendors/ws/lib/validation.js"
+    },
+    {
+      "glob": "web/vendors/ws/lib/websocket-server.js"
+    },
+    {
+      "glob": "web/vendors/ws/lib/websocket.js"
+    },
+    {
+      "glob": "web/vendors/ws/package.json"
+    },
+    {
+      "glob": "web/vendors/ws/wrapper.mjs"
+    },
+    {
+      "glob": "web/web.import-object.mjs"
+    },
+    {
+      "glob": "web/web.js-builtins.mjs"
+    },
+    {
+      "glob": "web/web.mjs"
+    },
+    {
+      "glob": "web/web.wasm"
+    },
+    {
+      "module": "java.base",
+      "glob": "jdk/internal/icu/impl/data/icudt76b/nfc.nrm"
+    },
+    {
+      "module": "java.base",
+      "glob": "jdk/internal/icu/impl/data/icudt76b/nfkc.nrm"
+    },
+    {
+      "module": "java.base",
+      "glob": "jdk/internal/icu/impl/data/icudt76b/uprops.icu"
+    },
+    {
+      "module": "java.base",
+      "glob": "sun/net/idn/uidna.spp"
     }
   ],
   "foreign": {
@@ -1134,6 +2358,10 @@
           "void*",
           "void*"
         ]
+      },
+      {
+        "returnType": "jint",
+        "parameterTypes": []
       },
       {
         "returnType": "void",
