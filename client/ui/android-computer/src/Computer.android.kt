@@ -233,14 +233,15 @@ class AndroidComputer(private val context: Context) : ComputerDriver {
     private fun center(node: AccessibilityNodeInfo) = Rect().also(node::getBoundsInScreen).let { it.exactCenterX() to it.exactCenterY() }
 
     private suspend fun gesture(service: ComputerService, path: Path, duration: Long) {
-        val done = suspendCancellableCoroutine { continuation ->
+        // Android may never call back; without a bound the lock stays held and every later request waits forever.
+        val done = withTimeoutOrNull(duration.coerceIn(1, 10_000) + CALLBACK_GRACE) { suspendCancellableCoroutine<Boolean> { continuation ->
             val sent = service.dispatchGesture(GestureDescription.Builder().addStroke(GestureDescription.StrokeDescription(path, 0, duration.coerceIn(1, 10_000))).build(),
                 object : AccessibilityService.GestureResultCallback() {
                     override fun onCompleted(gestureDescription: GestureDescription?) { if (continuation.isActive) continuation.resume(true) }
                     override fun onCancelled(gestureDescription: GestureDescription?) { if (continuation.isActive) continuation.resume(false) }
                 }, null)
             if (!sent && continuation.isActive) continuation.resume(false)
-        }
+        } } ?: false
         check(done) { "Android cancelled the gesture" }
     }
 
@@ -381,12 +382,12 @@ class AndroidComputer(private val context: Context) : ComputerDriver {
         val wait = lastShot + 350 - System.currentTimeMillis()
         if (wait > 0) delay(wait)
         lastShot = System.currentTimeMillis()
-        val shot = suspendCancellableCoroutine<AccessibilityService.ScreenshotResult?> { continuation ->
+        val shot = withTimeoutOrNull(CALLBACK_GRACE) { suspendCancellableCoroutine<AccessibilityService.ScreenshotResult?> { continuation ->
             service.takeScreenshot(Display.DEFAULT_DISPLAY, context.mainExecutor, object : AccessibilityService.TakeScreenshotCallback {
                 override fun onSuccess(result: AccessibilityService.ScreenshotResult) { if (continuation.isActive) continuation.resume(result) else result.hardwareBuffer.close() }
                 override fun onFailure(errorCode: Int) { if (continuation.isActive) continuation.resume(null) }
             })
-        } ?: return null
+        } } ?: return null
         return shot.hardwareBuffer.use { buffer ->
             val hardware = Bitmap.wrapHardwareBuffer(buffer, shot.colorSpace) ?: return null
             val software = hardware.copy(Bitmap.Config.ARGB_8888, false)
@@ -403,6 +404,7 @@ class AndroidComputer(private val context: Context) : ComputerDriver {
         const val PLATFORM = "Android"
         const val MAX_SIDE = 1024
         const val MAX_ELEMENTS = 400
+        const val CALLBACK_GRACE = 5_000L
         /** Where Agents never tap or type: Kinuvo itself, and permission and install screens. */
         fun blocked(context: Context) = setOf(context.packageName, "com.android.permissioncontroller", "com.google.android.permissioncontroller",
             "com.android.packageinstaller", "com.google.android.packageinstaller")
