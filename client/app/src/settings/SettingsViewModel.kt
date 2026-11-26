@@ -210,12 +210,6 @@ class SettingsViewModel(
 
     fun createAgent(params: CreateAgentParams, onCreated: (String) -> Unit) = attempt { onCreated(config.createAgent(params).id.value) }
 
-    fun deleteAgent(onDeleted: () -> Unit) = attempt {
-        if (requireNotNull(state.value.config.details) { "Wait for the Agent to load before removing it" }.info.external) config.connection.harnesses.unregister(agentId.value)
-        else config.deleteAgent(agentId)
-        onDeleted()
-    }
-
     fun reloadRoutines() = routinesRepo.load(agentId)
 
     fun setEnabled(routineId: String, enabled: Boolean) = attempt { routinesRepo.update(agentId, routineId, RoutineSpec(enabled = enabled)) }

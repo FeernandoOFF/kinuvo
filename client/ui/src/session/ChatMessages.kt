@@ -306,16 +306,7 @@ internal fun ChatItemView(item: ChatItem, actions: ChatActions, spoken: Int? = n
             item.name == "artifact" && item.result != null && !item.isError -> Column { ArtifactCard(item, actions.onOpenArtifact); ToolAttachments(item.attachments, actions) }
             else -> ToolCallView(item, actions = actions)
         }
-        is ChatItem.Error -> Panel(
-            Modifier.fillMaxWidth(),
-            color = color(destructiveColor).copy(alpha = 0.08f),
-            borderColor = color(destructiveColor).copy(alpha = 0.3f),
-        ) {
-            Row(horizontalArrangement = Arrangement.spacedBy(Spacing.space8)) {
-                Icon(Lucide.CircleX, Modifier.size(16.dp).padding(top = Spacing.space2), tint = color(destructiveColor))
-                Text(item.message, color = color(destructiveColor), style = TextStyles.secondary)
-            }
-        }
+        is ChatItem.Error -> RunErrorCard(remember(item.message) { runError(item.message) })
         is ChatItem.Notice -> if (item.code == WORKFLOW_NOTE) WorkflowMarker(item.message)
         else if (item.code == CONTEXT_BREAK) WorkflowMarker("New context · earlier messages aren't sent to the model", Lucide.RotateCcw)
         else Expandable(Lucide.TriangleAlert, item.message, tint = color(warningColor)) {
@@ -720,6 +711,31 @@ private fun ReadAloudButton(reading: Boolean, onRead: () -> Unit, onStop: () -> 
             contentColor = if (reading) color(accentColor) else color(mutedColor),
         ) {
             Icon(if (reading) Lucide.Square else Lucide.Volume2, Modifier.size(14.dp), contentDescription = label)
+        }
+    }
+}
+
+/** A failed run: what happened and what to try, with the provider's raw error behind Details. */
+@Composable
+private fun RunErrorCard(error: RunError) = Panel(
+    Modifier.fillMaxWidth(),
+    color = color(destructiveColor).copy(alpha = 0.08f),
+    borderColor = color(destructiveColor).copy(alpha = 0.3f),
+) {
+    var open by remember { mutableStateOf(false) }
+    Row(horizontalArrangement = Arrangement.spacedBy(Spacing.space8)) {
+        Icon(Lucide.CircleX, Modifier.size(16.dp).padding(top = Spacing.space2), tint = color(destructiveColor))
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(Spacing.space4)) {
+            Text(error.title, color = color(destructiveColor), style = TextStyles.callout)
+            error.hint?.let { Text(it, color = color(mutedColor), style = TextStyles.secondary) }
+            error.details?.let { details ->
+                Text(if (open) "Hide details" else "Details", Modifier.clickable { open = !open }.padding(vertical = Spacing.space2),
+                    color = color(mutedColor), style = TextStyles.caption)
+                if (open) Box {
+                    CodeBlock(details, maxLines = 12)
+                    CopyButton(details, Modifier.align(Alignment.TopEnd))
+                }
+            }
         }
     }
 }
