@@ -8,6 +8,8 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.changedToUpIgnoreConsumed
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
@@ -32,5 +34,12 @@ internal fun Modifier.dismissMobileKeyboard(): Modifier {
     }
     return nestedScroll(scrolling).pointerInput(focus, keyboard) {
         detectTapGestures(onTap = { focus.clearFocus(); keyboard?.hide() })
+    }
+}
+
+/** For native views: a tap on one stays its own, so [dismissMobileKeyboard] doesn't hide the keyboard a web page just opened. Drags still scroll what's around it. */
+internal fun Modifier.keepNativeTouches(): Modifier = pointerInput(Unit) {
+    awaitPointerEventScope {
+        while (true) awaitPointerEvent(PointerEventPass.Initial).changes.forEach { if (it.changedToUpIgnoreConsumed()) it.consume() }
     }
 }

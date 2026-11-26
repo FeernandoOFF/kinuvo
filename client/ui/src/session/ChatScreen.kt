@@ -388,7 +388,12 @@ fun ChatContent(
             var dropping by remember { mutableStateOf(false) }
             val canDrop = !state.running && (state.files?.actionable != false || state.photos?.actionable != false)
             // Like the keyboard covering it: typing into a Surface or web page leaves the composer behind the keyboard.
-            val composerHidden = floating && !composerFocused && WindowInsets.ime.getBottom(density) > 0
+            // Decided as the keyboard opens, so dismissing it (which clears focus first) leaves the composer in place.
+            val imeOpen = WindowInsets.ime.getBottom(density) > 0
+            var keyboardElsewhere by remember { mutableStateOf(false) }
+            LaunchedEffect(imeOpen) { keyboardElsewhere = imeOpen && !composerFocused }
+            LaunchedEffect(composerFocused) { if (composerFocused) keyboardElsewhere = false }
+            val composerHidden = floating && keyboardElsewhere
             // Hides at once, under the rising keyboard; slides back up when it closes.
             val composerShift = remember { Animatable(0f) }
             LaunchedEffect(composerHidden) { if (composerHidden) composerShift.snapTo(1f) else composerShift.animateTo(0f, Motion.appearSpring()) }

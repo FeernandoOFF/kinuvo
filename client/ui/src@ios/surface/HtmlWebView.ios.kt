@@ -1,5 +1,6 @@
 package kinuvo.ui.surface
 
+import kinuvo.ui.design.keepNativeTouches
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
@@ -40,7 +41,7 @@ internal actual fun HtmlWebView(document: String, bridge: HtmlBridge, modifier: 
             bridge.post = { evaluateJavaScript(htmlSurfaceDelivery(it), null) }
             loadHTMLString(document, baseURL = null)
         }
-    }, modifier = modifier, onRelease = {
+    }, modifier = modifier.keepNativeTouches(), onRelease = {
         bridge.post = {}
         it.stopLoading()
         it.configuration.userContentController.removeScriptMessageHandlerForName("kinuvoNative")

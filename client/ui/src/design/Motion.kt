@@ -38,4 +38,7 @@ object Motion {
     fun <T> voiceAppearSpring() = spring<T>(0.45f, Spring.StiffnessLow)
     fun <T> voicePressSpring() = spring<T>(0.4f, Spring.StiffnessMedium)
     fun <T> revealSpring() = spring<T>(1f, 400f)
+    /** One control turning into another: soft, with a hint of overshoot. */
+    fun <T> morphSpring() = spring<T>(0.72f, 380f)
+    fun <T> pressSpring() = spring<T>(0.55f, 900f)
 }

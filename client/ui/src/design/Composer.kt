@@ -2,10 +2,13 @@ package kinuvo.ui.design
 
 import kinuvo.app.session.*
 
-import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.*
 import androidx.compose.animation.core.*
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
+import androidx.compose.foundation.LocalIndication
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
+import androidx.compose.ui.graphics.TransformOrigin
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.ExperimentalFoundationApi
@@ -48,7 +51,12 @@ import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.input.*
 import kinuvo.app.markdown.*
 import org.intellij.markdown.MarkdownElementTypes
+import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.platform.LocalTextToolbar
+import androidx.compose.ui.platform.TextToolbar
 import kotlin.math.PI
+import kotlin.time.Duration.Companion.milliseconds
+import kotlin.time.TimeSource
 import kotlin.math.sin
 import androidx.compose.ui.graphics.Color
 
@@ -159,32 +167,47 @@ fun Composer(
     val shape = RoundedCornerShape(Radius.composer)
     Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(Spacing.space6)) {
         Column(Modifier.fillMaxWidth()) {
-            if (notice != null || blocked != null) {
+            AnimatedVisibility(notice != null || blocked != null,
+                enter = expandVertically(Motion.resizeSpring(), Alignment.Bottom) + fadeIn(tween(Motion.reveal, delayMillis = Motion.revealDelay)),
+                exit = shrinkVertically(tween(Motion.exit), Alignment.Bottom) + fadeOut(tween(Motion.fast))) {
                 val noticeShape = RoundedCornerShape(Radius.bubble)
-                Column(Modifier.fillMaxWidth().clip(noticeShape)
+                Column(Modifier.padding(bottom = Spacing.space8).fillMaxWidth().clip(noticeShape)
                     .background(color(panelColor)).border(1.dp, color(borderColor), noticeShape)
                     .heightIn(max = 320.dp).verticalScroll(rememberScrollState())
                     .padding(horizontal = Spacing.space14, vertical = Spacing.space10), verticalArrangement = Arrangement.spacedBy(Spacing.space10)) {
-                    blocked?.let { Text(it, style = TextStyles.secondary, color = color(mutedColor)) }
-                    notice?.invoke()
+                    // Keeps the last content while the panel animates away.
+                    var shownBlocked by remember { mutableStateOf(blocked) }
+                    var shownNotice by remember { mutableStateOf(notice) }
+                    if (blocked != null || notice != null) { shownBlocked = blocked; shownNotice = notice }
+                    shownBlocked?.let { Text(it, style = TextStyles.secondary, color = color(mutedColor)) }
+                    shownNotice?.invoke()
                 }
             }
-            if (notice != null || blocked != null) Spacer(Modifier.height(Spacing.space8))
             Box(Modifier.fillMaxWidth()) {
+                val border by animateColorAsState(if (focused) color(accentColor).copy(alpha = 0.55f) else color(borderColor), tween(Motion.standard, easing = Motion.smooth))
                 Column(
                     Modifier
                         .fillMaxWidth()
                         .clip(shape)
                         .then(backdrop)
                         .background(containerColor, shape)
-                        .border(1.dp, if (focused) color(accentColor).copy(alpha = 0.55f) else color(borderColor), shape)
+                        .border(1.dp, border, shape)
+                        .animateContentSize(Motion.resizeSpring(), Alignment.BottomStart)
                         .padding(Spacing.space8),
                     verticalArrangement = Arrangement.spacedBy(Spacing.space8),
                 ) {
                     attachments()
                     Box(Modifier.fillMaxWidth().padding(horizontal = Spacing.space8, vertical = Spacing.space6)) {
                         val style = inputTextStyle()
-                        if (empty) Text(placeholder, color = color(mutedColor), style = style)
+                        // Leaves at once under the first keystroke; eases back in once the field clears.
+                        if (empty) {
+                            val shown = remember { Animatable(0f) }
+                            LaunchedEffect(Unit) { shown.animateTo(1f, tween(Motion.enter, easing = Motion.smooth)) }
+                            Text(placeholder, Modifier.graphicsLayer { alpha = shown.value; translationX = (1f - shown.value) * 6.dp.toPx() }, color = color(mutedColor), style = style)
+                        }
+                        val platformToolbar = LocalTextToolbar.current
+                        val toolbar = remember(platformToolbar) { FocusTapToolbar(platformToolbar) }
+                        CompositionLocalProvider(LocalTextToolbar provides if (hasTouchKeyboard) toolbar else platformToolbar) {
                         BasicTextField(
                             state = state,
                             textStyle = style.copy(color = color(onFieldColor)),
@@ -197,49 +220,73 @@ fun Composer(
                                 .fillMaxWidth()
                                 .heightIn(min = 36.dp)
                                 .focusRequester(focus)
-                                .onFocusChanged { focused = it.isFocused }
+                                .onFocusChanged { focused = it.isFocused; toolbar.focused(it.isFocused) }
                                 .onPreviewKeyEvent { it.type == KeyEventType.KeyDown && (onCompletionKey(it) || onKey(it, state, ::submit, ::steer)) },
                         )
+                        }
                     }
                     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.space8)) {
                         Row(Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.space8), content = controls)
                         VoiceButton(Lucide.Mic, if (dictating) "Stop dictating" else "Dictate", onDictate, dictating)
-                        val accent = Modifier.size(40.dp).background(color(accentColor), CircleShape)
-                        if (sending && !stopWhileSending) {
-                            Box(Modifier.size(40.dp), contentAlignment = Alignment.Center) { Spinner(size = 18.dp) }
-                        } else if (running) {
-                            IconButton(onClick = onStop, enabled = canStop, modifier = Modifier.size(40.dp), style = ButtonStyle.Secondary, shape = CircleShape) {
-                                Icon(Lucide.Square, Modifier.size(18.dp), contentDescription = "Stop")
+                        val action = when {
+                            sending && !stopWhileSending -> Action.Sending
+                            running -> Action.Stop
+                            empty && !hasAttachments -> Action.Voice
+                            else -> Action.Send
+                        }
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            ActionButton(action, when (action) {
+                                Action.Sending -> false
+                                Action.Stop -> canStop
+                                Action.Voice -> onVoice != null
+                                Action.Send -> blocked == null
+                            }) {
+                                when (action) {
+                                    Action.Sending -> {}
+                                    Action.Stop -> onStop()
+                                    Action.Voice -> onVoice?.invoke()
+                                    Action.Send -> submit()
+                                }
                             }
-                            // Typing during a run offers to queue it (Enter) or steer the run with it.
-                            if (!empty && onQueue != null) QueueButton(::submit, onSteer?.let { { steer(); Unit } }, blocked == null)
-                        } else if (empty && !hasAttachments) {
-                            IconButton(onClick = { onVoice?.invoke() }, enabled = onVoice != null, modifier = accent, style = ButtonStyle.Ghost, shape = CircleShape, contentColor = color(onAccentColor)) {
-                                VoiceBars(Modifier.semantics { contentDescription = if (onVoice != null) "Voice chat" else "Voice chat (coming soon)" })
-                            }
-                        } else {
-                            IconButton(onClick = ::submit, enabled = blocked == null, modifier = accent, style = ButtonStyle.Ghost, shape = CircleShape, contentColor = color(onAccentColor)) {
-                                Icon(Lucide.ArrowUp, Modifier.size(22.dp), contentDescription = "Send")
+                            // Typing during a run offers to queue it (Enter) or steer the run with it; the pill grows out of Stop.
+                            // Clipped to a capsule as it grows, so it unrolls as a pill rather than behind a hard edge.
+                            val queueing = action == Action.Stop && !empty && onQueue != null
+                            AnimatedVisibility(queueing, Modifier.clip(CircleShape),
+                                enter = expandHorizontally(Motion.revealSpring(), Alignment.Start) + fadeIn(tween(Motion.enter)) +
+                                    scaleIn(Motion.morphSpring(), initialScale = 0.7f, transformOrigin = TransformOrigin(0f, 0.5f)),
+                                exit = shrinkHorizontally(tween(Motion.exit, easing = Motion.smooth), Alignment.Start) + fadeOut(tween(Motion.fast)) +
+                                    scaleOut(tween(Motion.exit), targetScale = 0.7f, transformOrigin = TransformOrigin(0f, 0.5f))) {
+                                QueueButton(::submit, onSteer?.let { { steer(); Unit } }, queueing && blocked == null, Modifier.padding(start = Spacing.space8))
                             }
                         }
                     }
                 }
                 // Floats above the input so showing it doesn't move the text being selected.
-                open?.let { q ->
-                    CompletionList(q, highlighted, onPick = { accept(q, it) }, Modifier.align(Alignment.TopStart).above(6.dp))
+                var shownQuery by remember { mutableStateOf(open) }
+                open?.let { shownQuery = it }
+                androidx.compose.animation.AnimatedVisibility(open != null, Modifier.align(Alignment.TopStart).above(6.dp),
+                    enter = fadeIn(tween(Motion.fast)) + scaleIn(Motion.morphSpring(), initialScale = 0.94f, transformOrigin = TransformOrigin(0.1f, 1f)) + slideInVertically(Motion.morphSpring()) { it / 10 },
+                    exit = fadeOut(tween(Motion.fast)) + scaleOut(tween(Motion.exit), targetScale = 0.97f, transformOrigin = TransformOrigin(0.1f, 1f))) {
+                    shownQuery?.let { q -> CompletionList(q, highlighted, onPick = { item -> open?.let { accept(it, item) } }) }
                 }
                 FormatBar(state, highlights, focused, Modifier.align(Alignment.TopStart).offset(x = 8.dp, y = (-44).dp))
             }
         }
-        hint?.takeIf { blocked == null }?.let { Text(it, Modifier.fillMaxWidth(), style = TextStyles.overline, color = color(mutedColor), textAlign = TextAlign.Center) }
+        val shownHint = hint?.takeIf { blocked == null }
+        AnimatedVisibility(shownHint != null, enter = fadeIn(tween(Motion.reveal)) + expandVertically(Motion.resizeSpring()), exit = fadeOut(tween(Motion.fast)) + shrinkVertically(tween(Motion.exit))) {
+            var last by remember { mutableStateOf(shownHint.orEmpty()) }
+            shownHint?.let { last = it }
+            Text(last, Modifier.fillMaxWidth(), style = TextStyles.overline, color = color(mutedColor), textAlign = TextAlign.Center)
+        }
     }
 }
 
 /** Sends during a run: the pill queues the message as the next turn; its menu can steer the running turn instead. */
 @Composable
-private fun QueueButton(onQueue: () -> Unit, onSteer: (() -> Unit)?, enabled: Boolean) {
+private fun QueueButton(onQueue: () -> Unit, onSteer: (() -> Unit)?, enabled: Boolean, modifier: Modifier = Modifier) {
     var open by remember { mutableStateOf(false) }
-    val pill = Modifier.height(40.dp).clip(CircleShape).background(color(accentColor))
+    LaunchedEffect(enabled) { if (!enabled) open = false }
+    val pill = modifier.height(40.dp).clip(CircleShape).background(color(accentColor))
     Row(pill, verticalAlignment = Alignment.CenterVertically) {
         Hint("Queue as the next message (Enter)", TooltipSide.Top) {
             Row(Modifier.fillMaxHeight().clickable(enabled = enabled, role = Role.Button, onClick = onQueue).padding(start = Spacing.space14, end = if (onSteer == null) Spacing.space14 else Spacing.space8),
@@ -248,15 +295,15 @@ private fun QueueButton(onQueue: () -> Unit, onSteer: (() -> Unit)?, enabled: Bo
                 Text("Queue", style = TextStyles.label, fontWeight = FontWeight.SemiBold, color = color(onAccentColor), singleLine = true)
             }
         }
-        if (onSteer != null) DropdownMenu(expanded = open, onExpandedChange = { open = it }, panel = {
+        if (onSteer != null) DropdownMenu(expanded = open && enabled, onExpandedChange = { open = it }, panel = {
             DropdownMenuPanel {
-                DropdownMenuItem(onClick = { open = false; onQueue() }) {
+                DropdownMenuItem(onClick = { open = false; if (enabled) onQueue() }) {
                     Column {
                         Text("Queue")
                         Text("Runs after this turn · Enter", style = TextStyles.caption, color = color(mutedColor))
                     }
                 }
-                DropdownMenuItem(onClick = { open = false; onSteer() }) {
+                DropdownMenuItem(onClick = { open = false; if (enabled) onSteer() }) {
                     Column {
                         Text("Steer now")
                         Text("Joins the turn in progress · ${shortcut("Enter")}", style = TextStyles.caption, color = color(mutedColor))
@@ -277,12 +324,64 @@ private fun QueueButton(onQueue: () -> Unit, onSteer: (() -> Unit)?, enabled: Bo
 
 @Composable
 private fun VoiceButton(icon: ImageVector, label: String, onClick: (() -> Unit)?, active: Boolean = false) {
-    val background = if (active) Modifier.background(color(accentColor).copy(alpha = 0.15f), CircleShape) else Modifier
-    IconButton(onClick = { onClick?.invoke() }, enabled = onClick != null, modifier = Modifier.size(40.dp).then(background), style = ButtonStyle.Ghost, shape = CircleShape,
-        contentColor = color(if (active) accentColor else onFieldColor)) {
-        // The bars replace the icon while active, so they carry its label.
-        if (active) VoiceBars(Modifier.semantics { contentDescription = label }, active = true) else Icon(icon, Modifier.size(22.dp), contentDescription = if (onClick != null) label else "$label (coming soon)")
+    val fill by animateColorAsState(color(accentColor).copy(alpha = if (active) 0.15f else 0f), Motion.morphSpring())
+    val tint by animateColorAsState(color(if (active) accentColor else onFieldColor), Motion.morphSpring())
+    IconButton(onClick = { onClick?.invoke() }, enabled = onClick != null, modifier = Modifier.size(40.dp).background(fill, CircleShape), style = ButtonStyle.Ghost, shape = CircleShape,
+        contentColor = tint) {
+        Box(Modifier.semantics { contentDescription = if (onClick != null || active) label else "$label (coming soon)" }, contentAlignment = Alignment.Center) {
+            AnimatedContent(active, transitionSpec = { morph() }, contentAlignment = Alignment.Center) { on ->
+                if (on) VoiceBars(active = true) else Icon(icon, Modifier.size(22.dp), contentDescription = null)
+            }
+        }
     }
+}
+
+private enum class Action { Sending, Stop, Voice, Send }
+
+/** The composer's main button: one circle whose fill and glyph morph between its jobs instead of swapping buttons. */
+@Composable
+private fun ActionButton(action: Action, enabled: Boolean, onClick: () -> Unit) {
+    val label = when (action) {
+        Action.Sending -> "Sending"
+        Action.Stop -> "Stop"
+        Action.Voice -> if (enabled) "Voice chat" else "Voice chat (coming soon)"
+        Action.Send -> "Send"
+    }
+    val accent = action == Action.Send || action == Action.Voice
+    val fill by animateColorAsState(color(if (accent) accentColor else secondaryColor), Motion.morphSpring())
+    val tint by animateColorAsState(color(if (accent) onAccentColor else onSecondaryColor).copy(alpha = if (enabled || action == Action.Sending) 1f else 0.45f), Motion.morphSpring())
+    val press = remember { MutableInteractionSource() }
+    Box(Modifier.size(40.dp).pressScale(press).clip(CircleShape).background(fill)
+        .clickable(press, LocalIndication.current, enabled = enabled, role = Role.Button, onClick = onClick)
+        .semantics { contentDescription = label }, contentAlignment = Alignment.Center) {
+        CompositionLocalProvider(LocalContentColor provides tint) {
+            AnimatedContent(action, transitionSpec = {
+                // Sending lifts the arrow away; everything else turns in place.
+                if (initialState == Action.Send && targetState != Action.Voice) morph(slideOut = true) else morph()
+            }, contentAlignment = Alignment.Center) { a ->
+                when (a) {
+                    Action.Sending -> Spinner(size = 18.dp, tint = tint)
+                    Action.Stop -> Icon(Lucide.Square, Modifier.size(16.dp), contentDescription = null)
+                    Action.Voice -> VoiceBars()
+                    Action.Send -> Icon(Lucide.ArrowUp, Modifier.size(22.dp), contentDescription = null)
+                }
+            }
+        }
+    }
+}
+
+private fun <S> AnimatedContentTransitionScope<S>.morph(slideOut: Boolean = false): ContentTransform {
+    val enter = fadeIn(tween(Motion.fast)) + scaleIn(Motion.morphSpring(), initialScale = 0.5f)
+    val exit = fadeOut(tween(Motion.immediate)) + if (slideOut) slideOutVertically(tween(Motion.exit, easing = Motion.smooth)) { -it } else scaleOut(tween(Motion.fast, easing = Motion.smooth), targetScale = 0.5f)
+    return (enter togetherWith exit).using(SizeTransform(clip = false))
+}
+
+/** Gives a press a soft squeeze. */
+@Composable
+private fun Modifier.pressScale(source: MutableInteractionSource): Modifier {
+    val pressed by source.collectIsPressedAsState()
+    val scale by animateFloatAsState(if (pressed) 0.9f else 1f, Motion.pressSpring())
+    return graphicsLayer { scaleX = scale; scaleY = scale }
 }
 
 /** Audio level bars, the voice chat glyph; they bounce while [active]. */
@@ -323,7 +422,9 @@ private fun onKey(event: KeyEvent, state: TextFieldState, submit: () -> Unit, st
 }
 
 @Composable
-private fun FormatBar(state: TextFieldState, highlights: State<MarkdownHighlights?>, focused: Boolean, modifier: Modifier) = AnimatedVisibility(focused && !state.selection.collapsed, modifier, enter = fadeIn(), exit = fadeOut()) {
+private fun FormatBar(state: TextFieldState, highlights: State<MarkdownHighlights?>, focused: Boolean, modifier: Modifier) = AnimatedVisibility(focused && !state.selection.collapsed, modifier,
+    enter = fadeIn(tween(Motion.fast)) + scaleIn(Motion.morphSpring(), initialScale = 0.9f, transformOrigin = TransformOrigin(0.1f, 1f)) + slideInVertically(Motion.morphSpring()) { it / 4 },
+    exit = fadeOut(tween(Motion.fast)) + scaleOut(tween(Motion.exit), targetScale = 0.95f, transformOrigin = TransformOrigin(0.1f, 1f))) {
     val highlights = highlights.value
     Panel(shape = Theme[shapes][mediumShape], contentPadding = PaddingValues(Spacing.space4)) {
         val active = if (highlights != null && highlights.text.contentEquals(state.text)) highlights.activeTypes(state.selection.min, state.selection.max) else emptySet()
@@ -349,5 +450,20 @@ private fun FormatToggle(icon: ImageVector, label: String, active: Boolean, onCl
         ) {
             Icon(icon, Modifier.size(14.dp), contentDescription = label)
         }
+    }
+}
+
+/** Drops cursor-only menus (Paste) for 600ms after the field gains focus, covering the focusing tap; later taps or a long press still show it. */
+private class FocusTapToolbar(private val platform: TextToolbar) : TextToolbar {
+    private var focusedAt: TimeSource.Monotonic.ValueTimeMark? = null
+
+    fun focused(focused: Boolean) { focusedAt = if (focused) TimeSource.Monotonic.markNow() else null }
+
+    override val status get() = platform.status
+    override fun hide() = platform.hide()
+    override fun showMenu(rect: Rect, onCopyRequested: (() -> Unit)?, onPasteRequested: (() -> Unit)?, onCutRequested: (() -> Unit)?, onSelectAllRequested: (() -> Unit)?) {
+        val cursorOnly = onCopyRequested == null && onCutRequested == null
+        if (cursorOnly && focusedAt?.let { it.elapsedNow() < 600.milliseconds } == true) return
+        platform.showMenu(rect, onCopyRequested, onPasteRequested, onCutRequested, onSelectAllRequested)
     }
 }
