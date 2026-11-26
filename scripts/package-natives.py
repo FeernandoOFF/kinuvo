@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Keep target natives in a Spring Boot executable jar; nested jars must remain STORED."""
+"""Strip on-demand engines and optionally foreign natives; nested jars remain STORED."""
 import argparse
 import io
 import re
@@ -26,7 +26,7 @@ def prune(data, os, arch, on_demand=False):
     with zipfile.ZipFile(io.BytesIO(data)) as source, zipfile.ZipFile(result, 'w') as out:
         removed = False
         for entry in source.infolist():
-            if re.search(r'\.(so(\.\d+)*|dylib|dll|jnilib)$', entry.filename) and (not target_native(entry.filename, os, arch) or on_demand):
+            if re.search(r'\.(so(\.\d+)*|dylib|dll|jnilib)$', entry.filename) and (on_demand or not target_native(entry.filename, os, arch)):
                 removed = True
                 continue
             out.writestr(entry, source.read(entry))
@@ -41,15 +41,16 @@ def prune(data, os, arch, on_demand=False):
     return cleaned.getvalue()
 
 
-def package(path, os, arch):
+def package(path, os=None, arch=None, on_demand_only=False):
     temporary = path.with_suffix('.tmp')
     with zipfile.ZipFile(path) as source, zipfile.ZipFile(temporary, 'w') as out:
         for entry in source.infolist():
-            if entry.filename.startswith('BOOT-INF/classes/natives/') and re.search(r'\.(so|dylib|dll)$', entry.filename) and not target_native(entry.filename, os, arch):
+            if not on_demand_only and entry.filename.startswith('BOOT-INF/classes/natives/') and re.search(r'\.(so|dylib|dll)$', entry.filename) and not target_native(entry.filename, os, arch):
                 continue
             data = source.read(entry)
             if entry.filename.startswith('BOOT-INF/lib/') and entry.filename.endswith('.jar'):
-                data = prune(data, os, arch, on_demand="/litertlm-jvm-" in entry.filename)
+                if not on_demand_only or "/litertlm-jvm-" in entry.filename:
+                    data = prune(data, os, arch, on_demand="/litertlm-jvm-" in entry.filename)
                 if len(data) != entry.file_size:
                     print(f'{entry.filename}: {entry.file_size} -> {len(data)} bytes')
                 entry.compress_type = zipfile.ZIP_STORED
@@ -60,7 +61,10 @@ def package(path, os, arch):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('jar', type=Path)
-    parser.add_argument('os', choices=['macos', 'linux', 'windows'])
-    parser.add_argument('arch', choices=['arm64', 'x64'])
+    parser.add_argument('--on-demand-only', action='store_true')
+    parser.add_argument('os', nargs='?', choices=['macos', 'linux', 'windows'])
+    parser.add_argument('arch', nargs='?', choices=['arm64', 'x64'])
     args = parser.parse_args()
-    package(args.jar, args.os, args.arch)
+    if not args.on_demand_only and (args.os is None or args.arch is None):
+        parser.error('os and arch are required unless --on-demand-only is set')
+    package(args.jar, args.os, args.arch, args.on_demand_only)
