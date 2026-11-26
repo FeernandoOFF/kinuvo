@@ -11,12 +11,16 @@ export TMPDIR="$work/tmp"
 rm -rf "$work/flat"
 mkdir -p "$work/flat"
 unzip -q "$jar" -d "$work/flat"
+if [[ -d "$work/flat/server-voice" ]]; then
+  (cd "$work/flat" && find server-voice -type f ! -name files.list | LC_ALL=C sort) > "$work/flat/server-voice/files.list"
+fi
 "$GRAALVM_HOME/bin/javac" -cp "$work/probe:$work/flat/BOOT-INF/classes:$work/flat/BOOT-INF/lib/*" \
-  -d "$work/probe" "$root/apps/cli/native-image/NativeCli.java" "$root/apps/cli/native-image/SerializationFeature.java"
+  -d "$work/probe" "$root/apps/cli/native-image/"*.java
 # Include root resources added by package-server.sh as well as BOOT-INF/classes.
 exec "$GRAALVM_HOME/bin/native-image" -J-Xmx8g -J-Djava.io.tmpdir="$work/tmp" --parallelism=4 --no-fallback \
   --enable-native-access=ALL-UNNAMED -H:+ForeignAPISupport \
   --features=SerializationFeature --enable-url-protocols=http,https \
+  '-H:IncludeResources=server-voice/.*|jni/macos_aarch64/.*|darwin/aarch64/.*' \
   -H:ConfigurationFileDirectories="$root/apps/cli/native-image/metadata" \
   "-H:NativeLinkerOption=-Wl,-sectcreate,__TEXT,__info_plist,$root/apps/cli/native-image/Info.plist" \
   -cp "$work/probe:$work/flat/BOOT-INF/classes:$work/flat/BOOT-INF/lib/*:$work/flat" \

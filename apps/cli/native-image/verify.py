@@ -41,7 +41,7 @@ def run(args,input=None,timeout=30):
  start=time.monotonic()
  try:
   command=prefix()
-  if args[0] in ['--serialization-probe','--browser-probe','--responses-probe'] and mode in ['jvm','trace']:
+  if args[0] in ['--serialization-probe','--browser-probe','--responses-probe','--webrtc-probe','--voice-worker-probe'] and mode in ['jvm','trace']:
    command=[jbr+'/bin/java','-cp',str(root/'build/native-image/probe')+':'+str(root/'build/native-image/flat/BOOT-INF/classes')+':'+str(root/'build/native-image/flat/BOOT-INF/lib/*')+':'+str(root/'build/native-image/flat'),'NativeCli']
   p=subprocess.run(command+args,env=env,cwd=base,input=input,text=True,capture_output=True,timeout=timeout)
   out=p.stdout+p.stderr; rc=p.returncode
@@ -71,6 +71,8 @@ def serve(extra=[]):
  healthy=ready and p.poll() is None and ('--tailcat' not in extra or 'Tailcat is active' in pathlib.Path(log.name).read_text())
  results.append(dict(command='serve '+' '.join(extra),rc=0 if healthy else 1,seconds=round(time.monotonic()-start,3),output=str(log.name)+' rss_kib='+subprocess.run(['ps','-o','rss=','-p',str(p.pid)],capture_output=True,text=True).stdout.strip()))
  return p
+run(['--webrtc-probe'])
+run(['--voice-worker-probe'])
 run(['--serialization-probe'])
 run(['--responses-probe','http://127.0.0.1:'+str(stub.server_port)])
 # Chrome uses only this disposable home's profile and is terminated by the probe.

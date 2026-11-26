@@ -1,6 +1,7 @@
 package kinuvo.plugins.voice
 
 import kinuvo.testing.harness.TemporaryDirectories
+import java.net.URLClassLoader
 import kotlinx.coroutines.*
 import kotlin.test.*
 
@@ -26,6 +27,34 @@ class InferenceTest {
             assertFalse(handle.isAlive)
         } finally { root.deleteRecursively() }
     }
+    @Test fun extractsIndexedWorkerAndNestedResourcesWithoutChangingBytes() {
+        val root = temporaryDirectories.create("voice-resources").toFile()
+        val worker = "MacOS/KinuvoVoiceInference"
+        root.resolve("server-voice/$worker").apply { parentFile.mkdirs(); writeBytes(byteArrayOf(0, 1, 2, 127)) }
+        root.resolve("server-voice/Resources/license.txt").apply { parentFile.mkdirs(); writeText("license") }
+        root.resolve("server-voice/files.list").writeText("server-voice/$worker\nserver-voice/Resources/license.txt\n")
+        URLClassLoader(arrayOf(root.toURI().toURL()), null).use { loader ->
+            val extracted = assertNotNull(extractBundledVoiceWorker(loader, worker))
+            val bundle = extracted.parentFile.parentFile
+            try {
+                assertTrue(extracted.canExecute())
+                assertContentEquals(byteArrayOf(0, 1, 2, 127), extracted.readBytes())
+                assertEquals("license", bundle.resolve("Resources/license.txt").readText())
+                assertNull(extractBundledVoiceWorker(loader, "linux-x64/missing"))
+            } finally { bundle.deleteRecursively() }
+        }
+    }
+
+    @Test fun rejectsIndexedResourcesOutsideTheBundle() {
+        val root = temporaryDirectories.create("voice-resources").toFile()
+        val worker = "MacOS/KinuvoVoiceInference"
+        root.resolve("server-voice/$worker").apply { parentFile.mkdirs(); writeText("worker") }
+        root.resolve("server-voice/files.list").writeText("server-voice/$worker\nserver-voice/../escape\n")
+        URLClassLoader(arrayOf(root.toURI().toURL()), null).use { loader ->
+            assertFailsWith<IllegalArgumentException> { extractBundledVoiceWorker(loader, worker) }
+        }
+    }
+
     @Test fun rejectsUnboundedAndMalformedPcmBeforeInference() {
         assertFailsWith<IllegalArgumentException> { Inference.pcmToFloat(byteArrayOf()) }
         assertFailsWith<IllegalArgumentException> { Inference.pcmToFloat(byteArrayOf(1)) }

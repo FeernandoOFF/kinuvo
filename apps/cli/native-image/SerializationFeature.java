@@ -10,8 +10,25 @@ import kotlinx.serialization.Serializable;
 import kotlinx.serialization.KSerializer;
 import org.graalvm.nativeimage.hosted.Feature;
 import org.graalvm.nativeimage.hosted.RuntimeReflection;
+import org.graalvm.nativeimage.hosted.RuntimeJNIAccess;
 
 public final class SerializationFeature implements Feature {
+    private static boolean jniType(Class<?> type) {
+        if (type == null) return false;
+        String name = type.getName();
+        if (name.startsWith("dev.onvoid.webrtc.") || name.startsWith("com.google.ai.edge.litertlm.") ||
+            name.startsWith("com.dokar.quickjs.") || name.startsWith("com.github.luben.zstd.")) return true;
+        for (Class<?> contract : type.getInterfaces()) if (jniType(contract)) return true;
+        return jniType(type.getSuperclass());
+    }
+
+    private static void registerJni(Class<?> type) {
+        RuntimeJNIAccess.register(type);
+        RuntimeJNIAccess.register(type.getDeclaredConstructors());
+        RuntimeJNIAccess.register(type.getDeclaredMethods());
+        RuntimeJNIAccess.register(type.getDeclaredFields());
+    }
+
     @Override
     public void beforeAnalysis(BeforeAnalysisAccess access) {
         var names = new TreeSet<String>();
@@ -31,11 +48,17 @@ public final class SerializationFeature implements Feature {
                 }
             } catch (IOException e) { throw new IllegalStateException("Cannot scan " + path, e); }
         }
+        int jni = 0;
         int registered = 0;
         int unavailable = 0;
         for (String name : names) {
             try {
                 Class<?> type = Class.forName(name, false, access.getApplicationClassLoader());
+                if (jniType(type)) {
+                    registerJni(type);
+                    if (type.isInterface()) access.registerSubtypeReachabilityHandler((analysis, subtype) -> registerJni(subtype), type);
+                    jni++;
+                }
                 boolean serializer = name.endsWith("$serializer");
                 boolean annotated = type.isAnnotationPresent(Serializable.class);
                 boolean factory = false;
@@ -70,11 +93,12 @@ public final class SerializationFeature implements Feature {
                 }
                 registered++;
             } catch (ClassNotFoundException | LinkageError e) {
-                if (name.endsWith("$serializer")) throw new IllegalStateException("Cannot register generated serializer " + name, e);
+                if (name.startsWith("dev.onvoid.webrtc.") || name.startsWith("com.google.ai.edge.litertlm.") || name.startsWith("com.dokar.quickjs.") || name.startsWith("com.github.luben.zstd.") || name.endsWith("$serializer")) throw new IllegalStateException("Cannot register native image type " + name, e);
                 // Optional platform dependencies in the portable jar are not all available on this host.
                 unavailable++;
             }
         }
+        System.out.println("JNI access: " + jni + " library and callback types");
         System.out.println("SerializationFeature: registered " + registered + " types; unavailable classpath entries: " + unavailable);
     }
 }

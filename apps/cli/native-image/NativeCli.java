@@ -25,6 +25,8 @@ import kotlinx.serialization.json.Json;
 
 final class NativeCli {
     public static void main(String[] args) throws Exception {
+        if (args.length == 1 && args[0].equals("--webrtc-probe")) { WebRtcProbe.run(); return; }
+        if (args.length == 1 && args[0].equals("--voice-worker-probe")) { VoiceWorkerProbe.run(); return; }
         if (args.length == 2 && args[0].equals("--responses-probe")) {
             var settings = new OpenAIClientSettings(args[1], new ConnectionTimeoutConfig(15000, 5000, 15000), "v1/chat/completions", "v1/responses", "v1/embeddings", "v1/moderations", "v1/models");
             var client = new OpenAILLMClient("stub-key", settings, new KtorKoogHttpClient.Factory());
