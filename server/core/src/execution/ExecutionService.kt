@@ -145,9 +145,14 @@ class ExecutionService internal constructor(
     suspend fun remoteExecution(token: String, call: RemoteExecutionCall) = gateway.call(token, call)
 
     context(_: Raise<ExecutionError>)
-    suspend fun saveConnection(config: HarnessConnection) = management.withLock {
-        if (external.inUse(config.id)) raise(ExecutionError.ConnectionInUse)
-        registry.save(config).also { catalogChanged() }
+    suspend fun saveConnection(config: HarnessConnection): HarnessConnectionStatus {
+        val saved = management.withLock {
+            if (external.inUse(config.id)) raise(ExecutionError.ConnectionInUse)
+            registry.save(config).also { catalogChanged() }
+        }
+        if (config.connection !is ExecutionConnection.Remote) return saved
+        val probe = checkHarness(config)
+        return saved.copy(readiness = probe.readiness)
     }
 
     context(_: Raise<ExecutionError>)
