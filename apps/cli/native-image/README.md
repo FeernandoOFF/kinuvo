@@ -51,7 +51,11 @@ Keep tracing homes, tokens and binary artifacts out of Git.
 WebRTC's native code constructs Java values and calls Java observers through JNI.
 Traces from startup do not cover every constructor, field or callback, so the
 Feature registers all members in `dev.onvoid.webrtc`, including callback
-implementations and reachable synthetic interface implementations. The JNI audit
+implementations and reachable synthetic interface implementations. These types
+also have reflection metadata because native code resolves them through
+`ClassLoader.loadClass`. Public Java/Kotlin APIs referenced by bundled native
+libraries receive JNI metadata too, including collection and iterator contracts.
+The JNI audit
 also covers LiteRT-LM (`com.google.ai.edge.litertlm`), QuickJS (`com.dokar.quickjs`)
 and zstd (`com.github.luben.zstd`). The image includes the bundled macOS arm64
 WebRTC, QuickJS and zstd libraries. LiteRT's engine remains an on-demand download;
@@ -72,6 +76,16 @@ macOS signature, and starts the executable without arguments (expected usage
 exit 2). That checks extraction and executable loading, not engine or model
 inference. The verifier clears `KINUVO_VOICE_WORKER` only for this bundled-worker
 probe. No models are downloaded by either probe.
+
+Verification on November 26, 2026: four scoped `InferenceTest` tests passed.
+JBR 25.0.5.1 and GraalVM CE 25.0.2 each completed 296 checks: 293 successes and
+the three expected SPA-route 404s. Both runtimes passed peer/configuration/data
+channel/offer creation and signed worker extraction/startup, alongside the
+serialization, Responses, Browser, CLI/ACP/MCP, web and startup checks. These
+checks do not establish authenticated Codex calls, real audio transport or
+voice-model inference. The image is 272,309,032 bytes; build time was 4m 53s,
+peak RSS 5.52 GB, with 380 resources and 568 JNI-accessible types. The earlier
+size and timing tables below describe the preceding images.
 
 ## Runtime serialization and Browser checks (November 26, 2026)
 
