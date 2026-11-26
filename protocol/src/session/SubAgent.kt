@@ -20,4 +20,17 @@ data class SubAgentState(
     val result: String? = null,
     val private: Boolean = true,
     val delivered: Boolean = false,
+    val turnId: String? = null,
+)
+
+/** A terminal child turn announced by a Sub-agent ToolReport. Result text is in the report content. */
+@Serializable
+data class SubAgentCompletion(
+    val sessionId: SessionId,
+    val agentId: AgentId,
+    val callId: ToolCallId,
+    val name: String,
+    val status: SubAgentStatus,
+    val private: Boolean,
+    val turnId: String? = null,
 )

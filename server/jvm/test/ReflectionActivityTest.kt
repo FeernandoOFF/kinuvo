@@ -48,7 +48,7 @@ class ReflectionActivityTest {
             val caught = mutableListOf<SessionUpdate>()
             val subscriber = SessionLog.Subscriber { caught += it; true }
             harness.log.subscribe(agent.id, sessionId, null, 100, subscriber)
-            assertNotNull(caught.map { it.change }.filterIsInstance<SessionChange.Live>().single().state.reflectionId)
+            assertNotNull(caught.map { it.change }.filterIsInstance<SessionChange.Snapshot>().single().snapshot.state.reflectionId)
             assertEquals(SessionStatus.Idle, harness.log.status(sessionId))
             harness.log.unsubscribeAll(subscriber)
             val knowledgeStage = tools.singleOrNull()?.name == "knowledge"
@@ -91,7 +91,7 @@ class ReflectionActivityTest {
         assertEquals("Ana", harness.knowledge.find("Ana")?.title)
         assertEquals(1, harness.knowledge.changes().size)
         assertEquals(1, FileStore(harness.files).entries(agent.id, sessionId).filterIsInstance<SessionEntry.ReflectionReview>().size)
-        assertTrue(updates.any { (it.change as? SessionChange.Event)?.event == AgentEvent.ReflectionStarted(saved.id) })
+        assertTrue(updates.any { (it.change as? SessionChange.Item)?.event == AgentEvent.ReflectionStarted(saved.id) })
         assertTrue(updates.any { (it.change as? SessionChange.Entry)?.entry == saved })
         assertEquals(saved, FileStore(harness.files).entries(agent.id, sessionId).filterIsInstance<SessionEntry.Reflection>().single())
 
@@ -107,7 +107,7 @@ class ReflectionActivityTest {
         assertEquals(List(3) { "Provider unavailable" }, results[2].result.error?.lines())
         val caught = mutableListOf<SessionUpdate>()
         harness.log.subscribe(agent.id, sessionId, null, 100, SessionLog.Subscriber { caught += it; true })
-        assertEquals(null, caught.map { it.change }.filterIsInstance<SessionChange.Live>().single().state.reflectionId)
+        assertEquals(null, caught.map { it.change }.filterIsInstance<SessionChange.Snapshot>().single().snapshot.state.reflectionId)
         assertEquals(SessionStatus.Idle, harness.log.status(sessionId))
     }
 }

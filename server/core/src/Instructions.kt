@@ -63,6 +63,7 @@ fun capabilitiesFor(agent: Agent, tools: List<Tool>, catalog: List<ResolvedTool>
     append("Model provider: ${agent.config.provider}. Exec backend: ${agent.config.exec}.\n")
     append("Available tools: ${tools.map { it.descriptor.name }.sorted().joinToString()}. Use these tools to establish what is possible; do not assume unlisted integrations exist.\n")
     tools.mapNotNull { it.coreMetadata }.distinct().filter { !compact || it.name !in CONFIGURATION_TOOLS }.forEach { append(if (compact) it.summary else it.hint ?: it.summary); append("\n") }
+    if (tools.coreName(ToolNames.AGENTS_SPAWN) != null) append("\n$SUB_AGENT_GUIDANCE\n")
     append(notSetUpFor(catalog, tools))
     tools.coreName(ToolNames.WEB_FETCH)?.let { webFetch -> append("Kinuvo documentation: $KINUVO_DOCS_URL/llms.txt lists the owner documentation; fetch the matching URL exactly as listed. Use $webFetch for questions about Kinuvo or how to set something up.\n") }
     if (!compact) append("Tool calls follow the Session's Risk tolerance and Trust/Deny rules. Background Reflection stages Knowledge and learned Skills for explicit Approval regardless of Risk tolerance.\n")
@@ -115,6 +116,7 @@ suspend fun basicContextFor(agent: Agent, docs: AgentDocs, tools: List<Tool>, to
     if (tools.isNotEmpty()) append("Tools: ${tools.joinToString { it.identity?.localId ?: it.descriptor.name }}. ")
     append("Use a tool when the user asks you to do something, and only say it's done after the tool succeeds.")
     if (tools.any { it.identity?.localId == ToolNames.MEMORY }) append(" To remember something about the user, use the memory tool.")
+    if (tools.coreName(ToolNames.AGENTS_SPAWN) != null) append("\n$SUB_AGENT_GUIDANCE\n")
     append("\nToday is $today.\n")
 }
 
@@ -135,7 +137,7 @@ suspend fun compactContextFor(agent: Agent, docs: AgentDocs): String =
 fun aboutKinuvoFor(tools: List<Tool>, discovery: Boolean = false): String = buildString {
     val names = tools.mapNotNull { it.coreMetadata?.name }.toSet()
     fun name(id: String) = tools.coreName(id)
-    val canLogin = ToolNames.MCP_LOGIN in names && ToolNames.ASK_USER in names
+    val canLogin = ToolNames.MCP_LOGIN in names
     append("## About Kinuvo\n\n")
     append("Kinuvo is a self-hosted personal AI harness. Its Server owns Agents, Sessions and Tools; paired Devices are clients. An Agent is a named participant; a Session is one bounded conversation. Tools read or change things under Kinuvo's Approvals.\n")
     if (ToolNames.MCP_LIST in names) {
@@ -191,3 +193,5 @@ private fun notSetUpFor(catalog: List<ResolvedTool>, tools: List<Tool>): String 
 }
 
 private fun List<Tool>.coreName(id: String) = firstOrNull { it.coreMetadata?.name == id }?.descriptor?.name
+
+private const val SUB_AGENT_GUIDANCE = "Sub-agent completion wakes this Session. Keep doing other work and end the turn when none remains. Do not poll with repeated agents_wait calls. Cancel children you no longer need with agents_cancel. As a child, do the work yourself and spawn only if your goal calls for it."

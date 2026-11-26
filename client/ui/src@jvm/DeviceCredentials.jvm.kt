@@ -24,6 +24,7 @@ internal class DesktopCredentials(private val dir: File) : DeviceCredentials {
         val account = account(server)
         val token = when (platform) {
             Platform.MacOS -> process(listOf("/usr/bin/security", "find-generic-password", "-s", SERVICE, "-a", account, "-w"), missing = 44)
+                ?.trimEnd('\n', '\r')?.let { if (it.startsWith(ENCODED)) String(Base64.getUrlDecoder().decode(it.removePrefix(ENCODED))) else it }
             Platform.Linux -> process(listOf("secret-tool", "lookup", "service", SERVICE, "account", account), missing = 1)
             Platform.Windows -> file(server).takeIf { it.isFile }?.let { dpapi(it.readText(), protect = false) }
             else -> error("This platform has no supported Device credential store")
@@ -37,8 +38,9 @@ internal class DesktopCredentials(private val dir: File) : DeviceCredentials {
         val account = account(server)
         when (platform) {
             Platform.MacOS -> {
-                require(token.all { it.isLetterOrDigit() || it in "-_." }) { "Invalid Device credential" }
-                process(listOf("/usr/bin/security", "-i"), "add-generic-password -U -s \"$SERVICE\" -a \"$account\" -w \"$token\"\n")
+                // `security -i` reads one quoted command line, so anything beyond these characters (a Tailcat link is JSON) goes in base64.
+                val stored = if (token.all { it.isLetterOrDigit() || it in "-_." }) token else ENCODED + Base64.getUrlEncoder().withoutPadding().encodeToString(token.toByteArray())
+                process(listOf("/usr/bin/security", "-i"), "add-generic-password -U -s \"$SERVICE\" -a \"$account\" -w \"$stored\"\n")
             }
             Platform.Linux -> process(listOf("secret-tool", "store", "--label=Kinuvo Device", "service", SERVICE, "account", account), token)
             Platform.Windows -> privateWrite(file(server), requireNotNull(dpapi(token, protect = true)))
@@ -76,7 +78,7 @@ internal class DesktopCredentials(private val dir: File) : DeviceCredentials {
         check(process.exitValue() == 0) { "Secure Device storage is locked or unavailable" }
         return process.inputStream.bufferedReader().readText()
     }
-    private companion object { const val SERVICE = "dev.kinuvo.devices" }
+    private companion object { const val SERVICE = "dev.kinuvo.devices"; const val ENCODED = "b64:" }
 }
 
 internal fun privateWrite(file: File, value: String) {

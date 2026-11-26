@@ -7,15 +7,21 @@ import kinuvo.server.store.Store
 import kinuvo.protocol.session.QueuedMessage
 import kinuvo.protocol.session.AgentEvent
 import kinuvo.protocol.session.SessionChange
+import kinuvo.protocol.agui.AgUiEvent
+import kinuvo.protocol.agui.RunOutcome
 import kinuvo.protocol.session.withWrittenAt
 import kinuvo.protocol.session.SessionEntry
 import kinuvo.protocol.session.SessionUpdate
+import kinuvo.protocol.ProtocolJson
+import kinuvo.server.execution.executionSnapshot
 import kinuvo.server.store.SessionCommitConflict
 import kotlin.test.assertFailsWith
 import kotlin.test.assertTrue
 import kinuvo.protocol.session.SessionSettings
 import kinuvo.protocol.agent.AgentId
 import kinuvo.protocol.session.SessionId
+import kinuvo.protocol.session.SessionParent
+import kinuvo.protocol.session.ToolCallId
 import kinuvo.protocol.session.RunId
 import kinuvo.protocol.approval.InteractionId
 import kinuvo.protocol.approval.PendingInteraction
@@ -34,6 +40,27 @@ import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 
 class SessionLogTest {
+    @Test fun deletingParentRescansForChildrenCreatedWhileStopping() = runBlocking {
+        val fixture = RuntimeFixture()
+        val log = SessionLog(fixture.store)
+        val agent = fixture.agent.id
+        val parent = log.createSession(agent, "")
+        val deleting = CompletableDeferred<Unit>()
+        val stopped = CompletableDeferred<Unit>()
+        log.onDelete = { _, id ->
+            if (id == parent.id) {
+                deleting.complete(Unit)
+                stopped.await()
+            }
+        }
+        val deletion = async { log.deleteSession(agent, parent.id) }
+        withTimeout(1000) { deleting.await() }
+        log.createChild(agent, SessionParent(agent, parent.id, ToolCallId("concurrent"), 1))
+        stopped.complete(Unit)
+        withTimeout(1000) { deletion.await() }
+        assertTrue(log.sessions(agent).isEmpty())
+    }
+
     @Test fun inboxDetailsSurviveReopeningTheStore() = runBlocking {
         val home = TestHome()
         val agent = home.agent.id
@@ -104,6 +131,106 @@ class SessionLogTest {
         assertEquals(2, log.page(agent, null, 1, routine.id).settledCount)
     }
 
+    @Test fun aPageLargerThanOneFrameArrivesAsASnapshotThenEntries() = runBlocking {
+        val fixture = RuntimeFixture()
+        val log = SessionLog(fixture.store)
+        val id = log.createSession(fixture.agent.id, "").id
+        val texts = List(8) { i -> "$i".repeat(2 * 1024 * 1024) }
+        texts.forEach { log.append(fixture.agent.id, id, SessionEntry.UserMessage(it)) }
+        val received = mutableListOf<SessionChange>()
+        log.subscribe(fixture.agent.id, id, null, 100, object : SessionLog.Subscriber {
+            override fun offer(update: SessionUpdate): Boolean { received += update.change; return true }
+        })
+        val snapshot = (received.first() as SessionChange.Snapshot).snapshot
+        val rest = received.drop(1).map { it as SessionChange.Continued }
+        assertTrue(snapshot.entries.isNotEmpty() && rest.isNotEmpty())
+        assertEquals(snapshot.firstSeq + snapshot.entries.size, rest.first().firstSeq)
+        assertEquals(texts, (snapshot.entries + rest.flatMap { it.entries }).filterIsInstance<SessionEntry.UserMessage>().map { it.text })
+        received.forEach { assertTrue(ProtocolJson.encodeToString(SessionChange.serializer(), it).length < 15 * 1024 * 1024) }
+    }
+
+    @Test fun anActiveRunTooLargeForOneFrameReplaysAsSnapshotThenRunFrames() = runBlocking {
+        val fixture = RuntimeFixture()
+        val log = SessionLog(fixture.store)
+        val agent = fixture.agent.id
+        val id = log.createSession(agent, "").id
+        log.publish(agent, id, AgentEvent.RunStarted(RunId("run")))
+        val deltas = List(8) { i -> "$i".repeat(2 * 1024 * 1024) }
+        deltas.forEach { log.publish(agent, id, AgentEvent.TextMessageContent("m", it)) }
+        val received = mutableListOf<SessionChange>()
+        log.subscribe(agent, id, null, 100, object : SessionLog.Subscriber {
+            override fun offer(update: SessionUpdate): Boolean { received += update.change; return true }
+        })
+        val snapshot = (received.first() as SessionChange.Snapshot).snapshot
+        val rest = received.drop(1).flatMap { (it as SessionChange.Continued).run }
+        assertTrue(snapshot.run.isNotEmpty() && rest.isNotEmpty(), "run ${snapshot.run.size} rest ${rest.size}")
+        val replayed = (snapshot.run + rest).filterIsInstance<AgUiEvent.TextMessageContent>().map { it.delta }
+        assertEquals(deltas, replayed)
+        received.forEach { assertTrue(ProtocolJson.encodeToString(SessionChange.serializer(), it).encodeToByteArray().size < 15 * 1024 * 1024) }
+        assertEquals(deltas.joinToString(""), log.executionSnapshot(agent, id).messages.single { it.id == "assistant:m" }.text)
+    }
+
+    @Test fun anOverflowOfManySmallItemsReplaysAsAFewFramesEntriesFirst() = runBlocking {
+        val fixture = RuntimeFixture()
+        val log = SessionLog(fixture.store, snapshotEntryBytes = 4 * 1024)
+        val agent = fixture.agent.id
+        val id = log.createSession(agent, "").id
+        repeat(3000) { log.append(agent, id, SessionEntry.UserMessage("entry $it")) }
+        log.publish(agent, id, AgentEvent.RunStarted(RunId("run")))
+        repeat(3000) { log.publish(agent, id, AgentEvent.TextMessageContent("m", "d$it ")) }
+        val received = mutableListOf<SessionChange>()
+        log.subscribe(agent, id, null, 5000, SessionLog.Subscriber { received += it.change; true })
+        assertTrue(received.size < 1024, "${received.size} frames")
+        val continued = received.drop(1).map { it as SessionChange.Continued }
+        val firstRun = continued.indexOfFirst { it.run.isNotEmpty() }
+        assertTrue(continued.take(firstRun).all { it.entries.isNotEmpty() } && continued.drop(firstRun).all { it.entries.isEmpty() })
+        val snapshot = (received.first() as SessionChange.Snapshot).snapshot
+        assertEquals(List(3000) { "entry $it" }, (snapshot.entries + continued.flatMap { it.entries }).filterIsInstance<SessionEntry.UserMessage>().map { it.text })
+        assertEquals(List(3000) { "d$it " }, (snapshot.run + continued.flatMap { it.run }).filterIsInstance<AgUiEvent.TextMessageContent>().map { it.delta })
+    }
+
+    @Test fun aCaptureDoesNotSeeARunStartedAfterIt() = runBlocking {
+        val fixture = RuntimeFixture()
+        val log = SessionLog(fixture.store)
+        val agent = fixture.agent.id
+        val id = log.createSession(agent, "").id
+        log.append(agent, id, SessionEntry.UserMessage("hi"))
+        val captured = log.capture(agent, id)
+        log.publish(agent, id, AgentEvent.RunStarted(RunId("run")))
+        log.publish(agent, id, AgentEvent.TextMessageContent("m", "late"))
+        val snapshot = (captured.single() as SessionChange.Snapshot).snapshot
+        assertTrue(snapshot.run.isEmpty())
+        assertTrue(log.capture(agent, id).filterIsInstance<SessionChange.Snapshot>().single().snapshot.run.isNotEmpty())
+    }
+
+    @Test fun anExecutionSnapshotCountsAnAnswerStagedInTheOwningChildSession() = runBlocking {
+        val fixture = RuntimeFixture()
+        val log = SessionLog(fixture.store)
+        val agent = fixture.agent.id
+        val parent = log.createSession(agent, "").id
+        val child = log.createSession(agent, "").id
+        val ask = PendingInteraction.Approval(InteractionId("ask"), ToolCallId("t1"), "shell", "{}")
+        val other = PendingInteraction.Approval(InteractionId("other"), ToolCallId("t2"), "shell", "{}")
+        for (request in listOf(ask, other)) {
+            log.publish(agent, child, AgentEvent.InteractionRequested(request))
+            log.publish(agent, parent, AgentEvent.InteractionRequested(request, childSessionId = child))
+        }
+        assertTrue(log.executionSnapshot(agent, parent).staged.isEmpty())
+        log.staged(child, ask.id)
+        val snapshot = log.executionSnapshot(agent, parent)
+        assertEquals(setOf(ask.id), snapshot.staged)
+        assertEquals(2, snapshot.pending.size)
+    }
+
+    @Test fun anExecutionSnapshotKeepsEntriesPastTheInlineBudget() = runBlocking {
+        val fixture = RuntimeFixture()
+        val log = SessionLog(fixture.store)
+        val id = log.createSession(fixture.agent.id, "").id
+        val texts = List(8) { i -> "$i".repeat(2 * 1024 * 1024) }
+        texts.forEach { log.append(fixture.agent.id, id, SessionEntry.UserMessage(it)) }
+        assertEquals(texts, log.executionSnapshot(fixture.agent.id, id).messages.map { it.text })
+    }
+
     @Test fun queuedMessagesReachLiveSubscribersAndReconnectWhileIdle() = runBlocking {
         val fixture = RuntimeFixture()
         val log = SessionLog(fixture.store)
@@ -115,12 +242,12 @@ class SessionLogTest {
         log.subscribe(fixture.agent.id, id, null, 100, object : SessionLog.Subscriber {
             override fun offer(update: SessionUpdate): Boolean { received += update; return true }
         })
-        assertEquals(queue, received.map { it.change }.filterIsInstance<SessionChange.Live>().single().state.queued)
+        assertEquals(queue, received.map { it.change }.filterIsInstance<SessionChange.Snapshot>().single().snapshot.state.queued)
         log.publish(fixture.agent.id, id, AgentEvent.RunStarted(RunId("run")))
         log.publish(fixture.agent.id, id, AgentEvent.RunFinished(RunId("run")))
         received.clear()
         log.publish(fixture.agent.id, id, AgentEvent.QueueChanged(emptyList()))
-        assertEquals(AgentEvent.QueueChanged(emptyList()), (received.single().change as SessionChange.Event).event)
+        assertEquals(AgentEvent.QueueChanged(emptyList()), (received.single().change as SessionChange.Item).event)
     }
 
     @Test fun metadataUpdatesPreserveEachOther() = runBlocking {
@@ -157,7 +284,7 @@ class SessionLogTest {
         assertEquals(committed, log.history(AgentId("external"), session, 100, 100).map { it.entry }.filterIsInstance<SessionEntry.AssistantMessage>().single())
         assertEquals(committed, log.entries(AgentId("external"), session).filterIsInstance<SessionEntry.AssistantMessage>().single())
         val entryIndex = updates.indexOfFirst { (it.change as? SessionChange.Entry)?.entry == committed }
-        val finishedIndex = updates.indexOfFirst { (it.change as? SessionChange.Event)?.event is AgentEvent.RunFinished }
+        val finishedIndex = updates.indexOfFirst { (it.change as? SessionChange.Run)?.event is AgUiEvent.RunFinished }
         assertTrue(entryIndex in 0 until finishedIndex)
         assertFailsWith<SessionCommitConflict> { log.appendAll(AgentId("external"), session, listOf(reply.copy(text = "conflict"))) }
         var cleaned = false
@@ -212,9 +339,16 @@ class SessionLogTest {
         val agent = home.agent.id
         val a = log.createSession(agent, "").id
         val b = log.createSession(agent, "").id
-        val seen = mutableMapOf(a to mutableListOf<AgentEvent>(), b to mutableListOf<AgentEvent>())
+        val seen = mutableMapOf(a to mutableListOf<String>(), b to mutableListOf<String>())
         for (id in listOf(a, b)) log.subscribe(agent, id, null, 100, object : SessionLog.Subscriber {
-            override fun offer(update: SessionUpdate): Boolean { (update.change as? SessionChange.Event)?.let { seen.getValue(id) += it.event }; return true }
+            override fun offer(update: SessionUpdate): Boolean {
+                when (val change = update.change) {
+                    is SessionChange.Run -> (change.event as? AgUiEvent.TextMessageContent)?.let { seen.getValue(id) += it.delta }
+                    is SessionChange.Item -> (change.event as? AgentEvent.TextMessageContent)?.let { seen.getValue(id) += it.delta }
+                    else -> Unit
+                }
+                return true
+            }
         })
         log.publish(agent, a, AgentEvent.RunStarted(RunId("a")))
         val reads = home.store.transcriptReads
@@ -224,7 +358,7 @@ class SessionLogTest {
         }
         log.publish(agent, a, AgentEvent.RunFinished(RunId("a")))
         assertEquals(reads, home.store.transcriptReads)
-        val deltas = { id: SessionId -> seen.getValue(id).filterIsInstance<AgentEvent.TextMessageContent>().map { it.delta } }
+        val deltas = { id: SessionId -> seen.getValue(id) }
         assertEquals(List(20) { "a$it" }, deltas(a))
         assertEquals(List(20) { "b$it" }, deltas(b))
         assertEquals(SessionStatus.Idle, log.status(a))
@@ -252,5 +386,87 @@ class SessionLogTest {
         val reads = home.store.transcriptReads
         assertEquals(20, log.page(home.agent.id, null, 20).sessions.size)
         assertEquals(reads, home.store.transcriptReads)
+    }
+
+    @Test
+    fun runErrorsAndWarningsAreOrderedEntriesThatSurviveAReconnect() = runBlocking {
+        val home = TestHome()
+        val agent = home.agent.id
+        val log = SessionLog(home.store)
+        val id = log.createSession(agent, "").id
+        log.append(agent, id, SessionEntry.UserMessage("first"))
+        log.publish(agent, id, AgentEvent.RunStarted(RunId("run")))
+        log.publish(agent, id, AgentEvent.Warning("MCP server 'Picsart' needs sign-in"))
+        log.publish(agent, id, AgentEvent.RunError(RunId("run"), "Codex request failed (200)"))
+        // The next turn's own message must land after the previous turn's errors, not get stuck behind them.
+        log.append(agent, id, SessionEntry.UserMessage("second"))
+
+        val entries = log.entries(agent, id)
+        val codes = entries.filterIsInstance<SessionEntry.UserMessage>().map { it.text } +
+            entries.filterIsInstance<SessionEntry.Notice>().map { it.code }
+        assertEquals(listOf("first", "run_error", "warning", "second").sorted(), codes.sorted())
+        assertEquals(listOf("warning", "run_error"), entries.filterIsInstance<SessionEntry.Notice>().map { it.code })
+        assertTrue(entries.indexOfFirst { it is SessionEntry.UserMessage && it.text == "first" } <
+            entries.indexOfFirst { it is SessionEntry.Notice })
+        assertTrue(entries.indexOfLast { it is SessionEntry.Notice } <
+            entries.indexOfFirst { it is SessionEntry.UserMessage && it.text == "second" })
+
+        // A reconnect subscribes fresh, from a Server that may even have restarted; the entries must still be there.
+        val reopened = SessionLog(FileStore(home.files))
+        assertEquals(entries.map { it.withWrittenAt(null) }, reopened.entries(agent, id).map { it.withWrittenAt(null) })
+    }
+
+    @Test
+    fun stoppingARunClearsRunningAndAnyPendingInteractionItLeftBehind() = runBlocking {
+        val log = SessionLog(RuntimeFixture().store)
+        val agent = AgentId("test")
+        val id = log.createSession(agent, "").id
+        log.publish(agent, id, AgentEvent.RunStarted(RunId("run")))
+        val interaction = PendingInteraction.Unsupported(InteractionId("connect"), "Needs sign-in")
+        log.publish(agent, id, AgentEvent.InteractionRequested(interaction))
+        assertEquals(SessionStatus.Waiting, log.status(id))
+
+        val updates = mutableListOf<SessionUpdate>()
+        log.subscribe(agent, id, 0, 100, object : SessionLog.Subscriber {
+            override fun offer(update: SessionUpdate): Boolean { updates += update; return true }
+        })
+        updates.clear()
+
+        // The run is cancelled rather than finishing or erroring, so no terminal event of its own ever arrives.
+        log.clearIfStopped(agent, id)
+
+        assertEquals(SessionStatus.Idle, log.status(id))
+        assertEquals(listOf(AgentEvent.InteractionResolved(interaction.id), AgentEvent.Idle), updates.map { it.change }.filterIsInstance<SessionChange.Item>().map { it.event })
+        assertTrue(updates.map { it.change }.filterIsInstance<SessionChange.Run>().all { (it.event as? AgUiEvent.RunFinished)?.outcome == RunOutcome.Cancelled })
+
+        // Already-resolved (Idle) sessions are left alone: no spurious update for a run that finished normally.
+        updates.clear()
+        log.clearIfStopped(agent, id)
+        assertTrue(updates.isEmpty())
+    }
+
+    @Test
+    fun recoverOrphanedToolCallsClosesOutCallsLeftRunningByAProcessRestart() = runBlocking {
+        val home = TestHome()
+        val agent = home.agent.id
+        val log = SessionLog(home.store)
+        val stuck = log.createSession(agent, "").id
+        log.append(agent, stuck, SessionEntry.ToolCall(ToolCallId("mcp_login"), "mcp_login", "{}"))
+        val answered = log.createSession(agent, "").id
+        log.append(agent, answered, SessionEntry.ToolCall(ToolCallId("c1"), "read", "{}"))
+        log.append(agent, answered, SessionEntry.ToolResult(ToolCallId("c1"), "read", "ok"))
+        val external = log.createSession(agent, "").id
+        log.append(agent, external, SessionEntry.ToolCall(ToolCallId("c2"), "read", "{}"))
+
+        // A fresh process: nothing can still be running, so any call still missing its result is orphaned.
+        val restarted = SessionLog(FileStore(home.files))
+        restarted.recoverOrphanedToolCalls { it == external }
+
+        val stuckResult = restarted.entries(agent, stuck).filterIsInstance<SessionEntry.ToolResult>().single()
+        assertEquals(ToolCallId("mcp_login"), stuckResult.id)
+        assertTrue(stuckResult.isError)
+
+        assertEquals(1, restarted.entries(agent, answered).filterIsInstance<SessionEntry.ToolResult>().size)
+        assertTrue(restarted.entries(agent, external).filterIsInstance<SessionEntry.ToolResult>().isEmpty())
     }
 }

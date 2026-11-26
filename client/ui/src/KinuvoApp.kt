@@ -83,6 +83,7 @@ import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import org.koin.compose.viewmodel.koinViewModel
 import org.koin.compose.koinInject
 import kinuvo.ui.voice.LiveCallHost
+import kinuvo.ui.diagnostics.CrashPrompt
 import org.koin.core.parameter.parametersOf
 import androidx.lifecycle.compose.LifecycleStartEffect
 import androidx.lifecycle.viewmodel.navigation3.rememberViewModelStoreNavEntryDecorator
@@ -652,6 +653,7 @@ fun KinuvoApp(app: AppViewModel = koinViewModel(), initialRoute: Route? = null, 
                 SettingsDiscardDialog(homeEdits)
                 SettingsDiscardDialog(inspectorEdits)
                 StripHost(strips)
+                CrashPrompt()
                 popovers.Host()
                 LiveCallHost(appState.agents)
                 (connection as? Connection.Ready)?.client?.let { client ->

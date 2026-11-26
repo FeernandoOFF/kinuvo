@@ -53,7 +53,7 @@ class ExternalFlowTest {
         tap("Send")
         await("External follow-up completed", 20_000)
         screenshot("continued")
-        requestsAtLeast(Api.CatchUp)
+        requestsAtLeast(Api.Subscribe)
         requestsAtLeast(Api.Capabilities)
         requests(Api.Respond, 1)
         requests(Api.Send, 1)
@@ -77,7 +77,7 @@ class ExternalFlowTest {
         tap("Execution ended before this output could be confirmed.")
         await("Unfinished external draft")
         screenshot("lost")
-        requestsAtLeast(Api.CatchUp)
+        requestsAtLeast(Api.Subscribe)
         requestsAtLeast(Api.Capabilities)
     }
 

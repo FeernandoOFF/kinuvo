@@ -5,6 +5,7 @@ interface NativeKeychain {
     fun read(service: String, account: String): String?
     fun write(service: String, account: String, value: String): Boolean
     fun delete(service: String, account: String)
+    fun clear(service: String): Boolean
 }
 
 internal var deviceKeychain: NativeKeychain? = null

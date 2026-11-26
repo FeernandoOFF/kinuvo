@@ -11,6 +11,7 @@ import kinuvo.protocol.capability.ServerCapabilities
 import kinuvo.protocol.execution.*
 import kinuvo.protocol.session.*
 import kinuvo.protocol.agent.AgentId
+import kinuvo.protocol.tool.ToolNames
 import kotlinx.coroutines.*
 import kotlinx.coroutines.test.*
 import kotlinx.serialization.json.*
@@ -30,6 +31,110 @@ class ExecutionCoordinatorTest {
             mapOf("image/png" to CapabilityState(), "text/plain" to CapabilityState()),
             coordinator.capabilities(agent, null, readiness, server, 0).attachments,
         )
+    }
+
+    @Test fun failedChildOpenRollsBackSessionAndRecovery() = runTest {
+        val store = InMemoryStore()
+        val log = SessionLog(store)
+        val recovery = MemoryExecutionRecovery()
+        val agent = AgentId("a")
+        val parent = log.createSession(AgentId("parent"), "")
+        val factory = object : ExecutionFactory {
+            override suspend fun open(config: HarnessConnection, registration: AgentRegistration, state: ExecutionState, broker: ExecutionBroker, scope: CoroutineScope): ExecutionSession {
+                assertEquals(state.sessionId, recovery.load().single().sessionId)
+                state.reference("allocated")
+                error("Open failed")
+            }
+        }
+        val coordinator = ExecutionCoordinator(registry(), factory, backgroundScope, log, recovery)
+        log.onDelete = { _, id -> assertFalse(coordinator.owns(id)) }
+        val error = assertFailsWith<IllegalStateException> {
+            coordinator.create(agent, SessionParent(parent.agentId, parent.id, ToolCallId("spawn"), 1))
+        }
+        assertEquals("Open failed", error.message)
+        assertTrue(store.sessions(agent).isEmpty())
+        assertTrue(recovery.load().isEmpty())
+        assertEquals(parent.id, log.session(parent.agentId, parent.id).id)
+    }
+
+    @Test fun failedRecoveryWritesStillCloseAndRemoveExternalChild() = runTest {
+        val store = InMemoryStore()
+        val log = SessionLog(store)
+        val backing = MemoryExecutionRecovery()
+        val recovery = object : ExecutionRecoveryStore by backing {
+            override fun save(record: ExecutionRecovery) {
+                check(!record.support.cancel && !record.lost) { "Recovery write failed" }
+                backing.save(record)
+            }
+        }
+        val agent = AgentId("a")
+        val parent = log.createSession(AgentId("parent"), "")
+        var opened: SessionId? = null
+        var closed = false
+        val factory = object : ExecutionFactory {
+            override suspend fun open(config: HarnessConnection, registration: AgentRegistration, state: ExecutionState, broker: ExecutionBroker, scope: CoroutineScope): ExecutionSession {
+                opened = state.sessionId
+                return object : ExecutionSession {
+                    override val capabilities = ExecutionCapabilities(cancel = true)
+                    override suspend fun prompt(input: ExecutionInput) = ExecutionAcceptance()
+                    override suspend fun cancel() {}
+                    override suspend fun close() { closed = true }
+                    override suspend fun answer(requestId: InteractionId, answer: InteractionAnswer) {}
+                }
+            }
+        }
+        val coordinator = ExecutionCoordinator(registry(), factory, backgroundScope, log, recovery)
+        log.onDelete = { _, deleted -> assertFalse(coordinator.owns(deleted)) }
+        val failure = assertFailsWith<IllegalStateException> {
+            coordinator.create(agent, SessionParent(parent.agentId, parent.id, ToolCallId("spawn"), 1))
+        }
+        assertEquals("Recovery write failed", failure.message)
+        assertTrue(closed)
+        assertFalse(coordinator.owns(assertNotNull(opened)))
+        assertTrue(store.sessions(agent).isEmpty())
+        assertTrue(recovery.load().isEmpty())
+    }
+
+    @Test fun stopBeforeSubmissionRestoresWakeAndClearsTheUnsentSubmission() = runTest {
+        val agent = AgentId("a")
+        val log = SessionLog(InMemoryStore())
+        val started = CompletableDeferred<Unit>()
+        val continueSend = CompletableDeferred<Unit>()
+        val prompts = mutableListOf<String>()
+        val factory = object : ExecutionFactory {
+            override suspend fun open(config: HarnessConnection, registration: AgentRegistration, state: ExecutionState, broker: ExecutionBroker, scope: CoroutineScope) =
+                object : ExecutionSession {
+                    override val capabilities = ExecutionCapabilities(cancel = true)
+                    override suspend fun prompt(input: ExecutionInput): ExecutionAcceptance {
+                        prompts += input.text
+                        return ExecutionAcceptance()
+                    }
+                    override suspend fun cancel() { error("No prompt was submitted") }
+                    override suspend fun answer(requestId: InteractionId, answer: InteractionAnswer) {}
+                }
+        }
+        val recovery = MemoryExecutionRecovery()
+        val coordinator = ExecutionCoordinator(registry(), factory, backgroundScope, log, recovery)
+        val id = coordinator.create(agent).id
+        var restored = 0
+        val report = SessionEntry.ToolReport(ToolNames.AGENTS_SPAWN, null, "completion")
+        val sending = launch {
+            coordinator.send(SendParams(agent, id, report.content, submissionId = "wake"), report, onStopped = { restored++ }) {
+                started.complete(Unit)
+                continueSend.await()
+            }
+        }
+        started.await()
+        val stopping = launch(start = CoroutineStart.UNDISPATCHED) { coordinator.stop(id) }
+        continueSend.complete(Unit)
+        sending.join()
+        stopping.join()
+        coordinator.join(id)
+        assertEquals(1, restored)
+        assertTrue(prompts.isEmpty())
+        assertTrue(recovery.load().single().submissions.isEmpty())
+        coordinator.send(SendParams(agent, id, "next turn"))
+        assertEquals(listOf("next turn"), prompts)
     }
 
     @Test fun durableOutputPrecedesTerminalAndSubmissionRetryDoesNotResend() = runTest {
@@ -129,6 +234,74 @@ class ExecutionCoordinatorTest {
         assertEquals(ExecutionPhase.Idle, coordinator.snapshot(id).phase)
         assertTrue(coordinator.agentInUse(AgentId("a")))
         coordinator.close()
+    }
+
+    @Test fun uncertainWakeSubmissionIsKeptForRecoveryWithoutRetrying() = runTest {
+        val agent = AgentId("a")
+        val log = SessionLog(InMemoryStore())
+        val failPrompt = CompletableDeferred<Unit>()
+        val factory = object : ExecutionFactory {
+            override suspend fun open(config: HarnessConnection, registration: AgentRegistration, state: ExecutionState, broker: ExecutionBroker, scope: CoroutineScope) =
+                object : ExecutionSession {
+                    override val capabilities = ExecutionCapabilities()
+                    override suspend fun prompt(input: ExecutionInput): ExecutionAcceptance {
+                        failPrompt.await()
+                        error("Connection ended without a prompt acknowledgement")
+                    }
+                    override suspend fun cancel() {}
+                    override suspend fun answer(requestId: InteractionId, answer: InteractionAnswer) {}
+                }
+        }
+        val recovery = MemoryExecutionRecovery()
+        val coordinator = ExecutionCoordinator(registry(), factory, backgroundScope, log, recovery)
+        val id = coordinator.create(agent).id
+        var restored = false
+        val report = SessionEntry.ToolReport(ToolNames.AGENTS_SPAWN, null, "completion")
+        coordinator.send(SendParams(agent, id, report.content, submissionId = "wake"), report, onRejected = { restored = true })
+        failPrompt.complete(Unit)
+        runCurrent()
+        assertEquals(ExecutionPhase.Lost, coordinator.snapshot(id).phase)
+        assertFalse(restored)
+        assertEquals(setOf("wake"), recovery.load().single().submissions.keys)
+        assertTrue(recovery.load().single().acceptedSubmissions.isEmpty())
+    }
+
+    @Test fun stopCancelsUntrackedHarnessWorkAndDeleteSettlesAnUnconfirmedTurn() = runTest {
+        val agent = AgentId("a")
+        val log = SessionLog(InMemoryStore())
+        lateinit var sink: ExecutionSink
+        var cancellations = 0
+        val factory = object : ExecutionFactory {
+            override suspend fun open(config: HarnessConnection, registration: AgentRegistration, state: ExecutionState, broker: ExecutionBroker, scope: CoroutineScope): ExecutionSession {
+                sink = state.boundSink()
+                return object : ExecutionSession {
+                    override val capabilities = ExecutionCapabilities(cancel = true)
+                    override suspend fun prompt(input: ExecutionInput) = ExecutionAcceptance()
+                    override suspend fun cancel() { cancellations++ }
+                    override suspend fun answer(requestId: InteractionId, answer: InteractionAnswer) {}
+                }
+            }
+        }
+        val coordinator = ExecutionCoordinator(registry(), factory, backgroundScope, log)
+        val finished = mutableListOf<Pair<Boolean, String?>>()
+        coordinator.onFinish = { _, _, cancelled, error -> finished += cancelled to error }
+        val id = coordinator.create(agent).id
+        coordinator.stop(id)
+        assertEquals(1, cancellations)
+
+        sink.publish(AgentEvent.ExecutionPhaseChanged(ExecutionPhase.Running))
+        coordinator.stop(id)
+        assertEquals(2, cancellations)
+        sink.publish(AgentEvent.ExecutionPhaseChanged(ExecutionPhase.Idle))
+        withTimeout(1_000) { coordinator.join(id) }
+        assertEquals(true to null, finished.single())
+
+        coordinator.send(SendParams(agent, id, "unconfirmed"))
+        coordinator.stop(id)
+        withTimeout(1_000) { coordinator.delete(agent, id) }
+        assertFalse(coordinator.owns(id))
+        assertEquals(true to "Harness connection lost", finished.last())
+        assertFailsWith<IllegalStateException> { sink.commit(listOf(SessionEntry.AssistantMessage("late"))) }
     }
 
     @Test fun linkedNativeToolsKeepTheirOriginalResult() {

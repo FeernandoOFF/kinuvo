@@ -132,6 +132,9 @@ class ServerSecurityTest {
             assertFails { ordinary.call(Api.Pairing, PairingParams(management = true)) }
             assertFails { ordinary.call(Api.Respond, RespondParams(SessionId("missing"), InteractionId("missing"), InteractionAnswer.Approval(ApprovalDecision.AllowOnce))) }
             assertFails { ordinary.call(Api.LoginProvider, ProviderRef("codex")) }
+            assertFails { ordinary.call(Api.SignInProvider, ProviderSignInParams("codex", "http://127.0.0.1:1455/auth/callback")) }
+            assertFails { ordinary.call(Api.CancelProviderSignIn, ProviderRef("codex")) }
+            assertFails { ordinary.call(Api.CompleteProviderSignIn, ProviderSignInCompleteParams("codex", "http://127.0.0.1:1455/auth/callback?state=x&code=x")) }
             ordinary.rotateToken()
             val current = ordinary.call(Api.PairedDevices, Unit).single { it.current }
             ordinary.call(Api.RevokeDevice, DeviceRef(current.id))

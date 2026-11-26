@@ -81,8 +81,8 @@ class EventType<T>(val name: String, val payload: KSerializer<T>)
  * version both speak. Additive changes go through [ServerCapabilities] instead of a new version.
  */
 object ProtocolVersion {
-    const val Current = 8
-    const val Minimum = 8
+    const val Current = 9
+    const val Minimum = 9
     const val Mismatch = "protocol_mismatch: Update the Server and Device to matching versions"
 
     /** The version to speak with a peer that speaks [minimum] through [version], or null when the ranges don't overlap. */
@@ -163,6 +163,9 @@ object Api {
     val SaveEndpoint = Method("providers.saveEndpoint", CustomEndpointParams.serializer(), ProviderRef.serializer())
     val Providers = Method("providers.list", Unit.serializer(), ListSerializer(ProviderInfo.serializer()))
     /** Starts signing in; the Server finishes it in the background and sends [ProvidersChanged]. */
+    val SignInProvider = Method("providers.signIn", ProviderSignInParams.serializer(), String.serializer())
+    val CancelProviderSignIn = Method("providers.signInCancel", ProviderRef.serializer(), Unit.serializer())
+    val CompleteProviderSignIn = Method("providers.signInComplete", ProviderSignInCompleteParams.serializer(), Unit.serializer())
     val LoginProvider = Method("providers.login", ProviderRef.serializer(), DeviceCode.serializer())
     val SetProviderApiKey = Method("providers.apiKey", SetProviderApiKeyParams.serializer(), Unit.serializer())
     val LogoutProvider = Method("providers.logout", ProviderRef.serializer(), Unit.serializer())
@@ -221,7 +224,7 @@ object Api {
     val LoginMcp = Method("mcp.login", McpLoginParams.serializer(), McpLogin.serializer())
     val CompleteMcpLogin = Method("mcp.loginComplete", McpLoginCompleteParams.serializer(), McpServerInfo.serializer())
     val LogoutMcp = Method("mcp.logout", McpParams.serializer(), Unit.serializer())
-    val CatchUp = Method("session.catchUp", CatchUpParams.serializer(), Unit.serializer())
+    val Subscribe = Method("session.subscribe", SubscribeParams.serializer(), Unit.serializer())
     val Unsubscribe = Method("session.unsubscribe", UnsubscribeParams.serializer(), Unit.serializer())
     val History = Method("session.history", HistoryParams.serializer(), ListSerializer(SessionChange.Entry.serializer()))
     val Session = Method("session.get", SessionParams.serializer(), SessionInfo.serializer())

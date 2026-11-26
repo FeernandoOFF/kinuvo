@@ -1,5 +1,8 @@
 package kinuvo.server.tools
 
+import kinuvo.protocol.agent.AgentId
+import kinuvo.protocol.agent.ConfigScope
+import kinuvo.protocol.approval.InteractionAnswer
 import kinuvo.protocol.approval.InteractionId
 import kinuvo.harness.ToolSpec
 import kinuvo.server.plugin.Tool
@@ -25,7 +28,6 @@ import kinuvo.protocol.ProtocolJson
 import kinuvo.protocol.session.SessionEntry
 import kinuvo.protocol.session.ToolCallId
 import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.jsonObject
 
@@ -39,6 +41,7 @@ class ToolService(
     advertisedTools: List<ToolSpec> = tools.map { it.descriptor },
     private val approvals: Approvals = Approvals.none(),
     private val questions: Broker<Map<String, List<String>>?>? = null,
+    private val connects: Broker<InteractionAnswer.Connect>? = null,
     private val attach: ((String, ByteArray) -> Attachment)? = null,
     private val maxItems: Int? = null,
     private val callsPerTurn: Int? = null,
@@ -59,7 +62,7 @@ class ToolService(
         invoke(call.copy(identity = toolsByName[call.name]?.identity), call.id.value, turn)
 
     private suspend fun invoke(call: SessionEntry.ToolCall, approvalId: String, turn: ToolTurn): SessionEntry.ToolResult {
-        turn.emit(AgentEvent.ToolCallStart(call.id, call.name, call.args, call.identity))
+        turn.emit(AgentEvent.ToolCallStart(call.id, call.name, call.args, call.identity, ToolCallId(approvalId).takeIf { it != call.id }))
         val result = perform(call, approvalId, turn)
         turn.complete(result)
         return result
@@ -94,7 +97,7 @@ class ToolService(
                     }.ifEmpty { null }
                     turn.emit(AgentEvent.InteractionRequested(PendingInteraction.Approval(pending.id, ToolCallId(approvalId), call.name, if (preview == null) call.args else "{}", hint, a.risk, a.reason, verdict.trustKeys.isNotEmpty(), tool?.identity, preview)))
                     val wait = approvals.wait
-                    val answer = if (wait == null) pending.await() else withTimeoutOrNull(wait) { pending.await() }
+                    val answer = if (wait == null) pending.await() else pending.await(wait)
                     turn.stopped("Cancelled by user")
                     turn.emit(AgentEvent.InteractionResolved(pending.id, answer != null && answer !is ApprovalDecision.Deny))
                     if (answer == null) {
@@ -136,7 +139,7 @@ class ToolService(
 
     /** What [call]'s tool may call: the run's other tools, each shown as its own call and answered like one. */
     private fun toolRun(call: SessionEntry.ToolCall, approvalId: String, turn: ToolTurn, attached: MutableList<Attachment>) = object : ToolRun {
-        override suspend fun progress(content: String) { turn.progress(AgentEvent.ToolCallResult(call.id, content, false, call.identity)) }
+        override suspend fun progress(content: String) { turn.progress(AgentEvent.ToolCallResult(call.id, content, false, call.identity, progress = true)) }
         override fun background(started: String, work: suspend () -> String): String {
             requireNotNull(reports) { "Background reports are unavailable in this run" }.start(call.name, call.id.value, work)
             return started
@@ -156,6 +159,18 @@ class ToolService(
         }
         override suspend fun attach(name: String, bytes: ByteArray) =
             requireNotNull(attach) { "Files can't be shown to the model in this run" }(name, bytes).also { attached += it }
+        override suspend fun connect(agentId: AgentId, server: String, scope: ConfigScope?, site: String?, reason: String?): InteractionAnswer.Connect {
+            val broker = connects ?: return InteractionAnswer.Connect(false, "There's no user to connect in this run.")
+            val pending = broker.register()
+            try {
+                turn.emit(AgentEvent.InteractionRequested(PendingInteraction.Connect(pending.id, call.id, agentId, server, scope, site, reason)))
+                val answer = pending.await()
+                turn.emit(AgentEvent.InteractionResolved(pending.id))
+                return answer
+            } finally {
+                pending.close()
+            }
+        }
     }
 
     private suspend fun ask(call: SessionEntry.ToolCall, turn: ToolTurn, formId: String = call.id.value): SessionEntry.ToolResult {

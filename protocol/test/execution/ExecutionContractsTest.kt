@@ -34,6 +34,7 @@ class ExecutionContractsTest {
             PendingInteraction.HarnessApproval(InteractionId("a"), "Allow", null, listOf(ExternalApprovalOption("once", "Once", "allow_once"))),
             PendingInteraction.OpenLink(InteractionId("u"), "Sign in", "https://example.com/", "example.com"),
             PendingInteraction.Unsupported(InteractionId("x"), "Unsupported"),
+            PendingInteraction.Connect(InteractionId("c"), ToolCallId("tool"), AgentId("a"), "server-1", site = "mcp.example.com"),
         )
         interactions.forEach { interaction ->
             val snapshot = ExecutionSnapshot(SessionId("s"), pending = listOf(interaction))

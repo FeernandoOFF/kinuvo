@@ -527,7 +527,12 @@ class AppViewModel(
     fun resetDevice() = viewModelScope.launch {
         disconnect()
         cache.clear()
-        servers.reset()
+        try { servers.reset() }
+        catch (e: CancellationException) { throw e }
+        catch (e: Exception) {
+            state.update { it.copy(notice = userMessage(e.message) ?: "Couldn't reset this device") }
+            return@launch
+        }
         deviceAccess.reset()
         views.clear()
         drafts.clear()
@@ -540,7 +545,8 @@ class AppViewModel(
         connecting?.cancel()
         watching?.cancel()
         owner.close()
-        state.update { it.cleared() }
+        // Never leave Ready behind a closed Server: screens built from it would find no client.
+        state.update { it.cleared().copy(connection = Connection.Connecting()) }
     }
 
     private fun AppState.cleared() = copy(agents = emptyList(), sessions = RepositoryState(), routines = emptyMap(), devices = DevicesState(), usage = null,

@@ -48,4 +48,19 @@ class SubAgentFlowTest {
         tap("Open parent")
         await("Sub-agent started")
     }
+
+    @Test fun finishedSubAgentWakesTheParent() = appTest("sub-agent-wake", script = {
+        on("Hello from Maestro") { toolCall("agents_spawn", """{"goal":"Summarize the fixture notes"}"""); reply("Sub-agent started") }
+        on("Summarize the fixture notes") { reply("Fixture summary") }
+    }) {
+        sendFirstMessage()
+        scrollTo("Allow agents_spawn\\?")
+        tap("Allow once")
+        await("Sub-agent started")
+        scrollTo("E2E Agent finished")
+        screenshot("woken")
+        tap("Result")
+        await("Fixture summary")
+        screenshot("woken-result")
+    }
 }

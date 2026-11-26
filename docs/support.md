@@ -16,9 +16,27 @@ You can use the on-device Server or connect to your own remote Server. No hosted
 
 ## Report a problem
 
-Email your platform, app version/build, Device/OS version, whether the Server is on-device or remote, and the steps that caused the issue. Explain what you expected and what happened. Use a small, redacted example. Do not include passwords, pairing codes, API keys, private screenshots or a full Server backup.
+Email your platform, app version/build, Device/OS version, whether the Server is on-device or remote, and the steps that caused the issue. Explain what you expected and what happened. Attach the ZIP from [Share your logs](#share-your-logs) if you can. Use a small, redacted example. Do not include passwords, pairing codes, API keys, private screenshots or a full Server backup.
 
 For offensive or unsafe AI output, you can contact support using the same address.
+
+## Share your logs
+
+When something breaks, logs and crash files usually say why. Open **Settings → About → Share logs**. Kinuvo zips this Device's logs and crash files into one file and hands it to you: Android and iOS open the share sheet, and the desktop app shows the ZIP in your file manager (it is saved in `<Kinuvo home>/exports/`, by default `~/.kinuvo/exports/`). Open the ZIP, look through it, then attach it to your email or issue. Nothing is uploaded automatically.
+
+If the app crashed last time, Kinuvo offers to share logs when it next opens. You can decline and share later from Settings.
+
+The ZIP holds:
+
+- `logs/`: recent events from the app and, on a phone or the desktop app, its own Server: when runs start and finish and how long they took, slow plugins, connection and Server connect/disconnect events, Session sync gaps, model-provider and MCP sign-in or connection errors.
+- `crashes/`: the stack traces of recent crashes.
+- `system.json`: the app version and build, platform, OS version and Device model.
+
+It never includes your chats or message text, attachments, files, notes, Memory, configuration, databases, API keys, tokens or passwords. Secrets, e-mail addresses and the query strings of URLs are removed as lines are written and again when the ZIP is made, and user names are removed from file paths. Redaction is best effort: error messages from other services can still contain details, so review the files before sharing.
+
+Logs are kept on your Device in up to four files of about 1 MiB per process, newest first; older lines are dropped. The ZIP has the newest part of each file, up to about 6 MiB in total. The last ten crashes are kept. On Android the files live in the app's private storage and on iOS in its Caches folder; the desktop app and headless Servers use `<Kinuvo home>/logs/` and `<Kinuvo home>/crashes/`. A Server you run on another computer keeps its own logs there, so share those files from that computer.
+
+A sudden termination by the operating system, such as being stopped for memory, may leave no crash file.
 
 ## Connection and permission help
 

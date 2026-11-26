@@ -18,6 +18,7 @@ object ToolNames {
     const val AGENTS_SPAWN = "agents_spawn"
     const val AGENTS_WAIT = "agents_wait"
     const val AGENTS_SEND = "agents_send"
+    const val AGENTS_CANCEL = "agents_cancel"
     const val AGENTS_LIST = "agents_list"
     const val MEMORY = "memory"
     const val WEB_FETCH = "web_fetch"

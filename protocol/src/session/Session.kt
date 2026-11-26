@@ -125,8 +125,15 @@ sealed interface SessionEntry {
     @Serializable @SerialName("activation")
     data class Activation(val name: String, val content: String, override val writtenAt: Long? = null) : SessionEntry
 
+    /** Sub-agent wakes use tool = agents_spawn, with one [children] item per completed child turn. */
     @Serializable @SerialName("tool_report")
-    data class ToolReport(val tool: String, val callId: ToolCallId?, val content: String, override val writtenAt: Long? = null) : SessionEntry
+    data class ToolReport(
+        val tool: String,
+        val callId: ToolCallId?,
+        val content: String,
+        override val writtenAt: Long? = null,
+        val children: List<SubAgentCompletion> = emptyList(),
+    ) : SessionEntry
 
     /** The Session's settings from here on; the model doesn't see it. */
     @Serializable @SerialName("settings")
@@ -163,6 +170,7 @@ fun SessionEntry.identity(): SessionEntryIdentity? = when (this) {
     is SessionEntry.ToolCall -> SessionEntryIdentity("tool_call", id.value)
     is SessionEntry.ToolResult -> SessionEntryIdentity("tool_result", id.value)
     is SessionEntry.Notice -> SessionEntryIdentity("notice", id)
+    is SessionEntry.ToolReport -> children.firstOrNull()?.let { SessionEntryIdentity("sub_agent_report", "${it.sessionId.value}:${it.turnId ?: it.callId.value}") }
     else -> null
 }
 

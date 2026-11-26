@@ -27,6 +27,8 @@ data class BrowserCommand(val owner: BrowserOwner, val action: BrowserAction, va
     val revision: String? = null, val ref: String? = null, val text: String? = null, val x: Int? = null, val y: Int? = null,
     val take: Boolean? = null, val width: Int? = null, val height: Int? = null)
 
+const val BrowserHomePage = "https://www.google.com"
+
 /** What an address bar entry means: a URL as is, a bare host over HTTPS, anything else a Google search. */
 fun browserAddress(typed: String): String {
     val text = typed.trim()

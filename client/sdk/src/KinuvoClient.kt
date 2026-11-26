@@ -14,11 +14,13 @@ import kinuvo.protocol.device.*
 import kinuvo.protocol.session.SessionId
 import kinuvo.protocol.surface.*
 import kinuvo.protocol.voice.*
+import io.github.oshai.kotlinlogging.KotlinLogging
 import kotlin.concurrent.Volatile
 import io.ktor.client.HttpClient
 import io.ktor.client.plugins.websocket.WebSockets
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
@@ -29,6 +31,8 @@ import kotlin.concurrent.atomics.incrementAndFetch
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.intOrNull
+
+private val log = KotlinLogging.logger("kinuvo.client")
 
 sealed interface ConnectionState {
     data object Connecting : ConnectionState
@@ -59,6 +63,9 @@ class ProtocolMismatchException(val server: ProtocolRange? = null) : Exception(w
     else -> "This app and the Server can't talk to each other. Update both to their latest versions."
 })
 
+/** How long a read that reached a connecting Device waits for the Server's answer to Connect before it says the Device is unavailable. */
+private const val CONNECT_ANSWER_WAIT_MILLIS = 10_000L
+
 /** A request that failed because the connection is down; the client retries on its own. */
 class DisconnectedException(message: String = "Disconnected") : IllegalStateException(message)
 
@@ -86,7 +93,7 @@ class KinuvoClient(
     /** False for a temporary connection that must leave the Device's tool registration to the foreground one. */
     private val registerDeviceTools: Boolean = true,
 ) {
-    private val http by lazy { httpClient { install(WebSockets) { maxFrameSize = MAX_FRAME_SIZE } } }
+    private val http by lazy { httpClient { install(WebSockets) { maxFrameSize = MAX_FRAME_SIZE; pingIntervalMillis = 15_000 } } }
     private val scope = CoroutineScope(SupervisorJob() + dispatcher)
     private val pending = mutableMapOf<String, CompletableDeferred<Frame.Response>>()
     private val ids = AtomicLong(0)
@@ -96,6 +103,9 @@ class KinuvoClient(
     private var session: FrameConnection? = null
     private var token: String? = token
     private var loop: Job? = null
+    private val reconnect = Channel<Unit>(Channel.CONFLATED)
+
+    fun reconnectNow() { if (state.value !is ConnectionState.Connected) reconnect.trySend(Unit) }
     val foreground: StateFlow<Boolean>
         field = MutableStateFlow(true)
     private val viewing = MutableStateFlow<SessionId?>(null)
@@ -129,7 +139,9 @@ class KinuvoClient(
         loop = scope.launch {
             var backoff = ReconnectBackoff.step
             var version = ProtocolVersion.Current
+            var attempts = 0
             while (isActive) {
+                attempts++
                 _state.value = ConnectionState.Connecting
                 var incompatible = false
                 val connected = CompletableDeferred<Unit>()
@@ -154,10 +166,13 @@ class KinuvoClient(
                     lastConnect = result
                     connected.complete(Unit)
                     _state.value = ConnectionState.Connected(result.serverName)
+                    log.info { "server.connected protocol=$version attempts=$attempts" }
+                    attempts = 0
                     sendPresence()
                     first.complete(result)
                     backoff = ReconnectBackoff.step
                     reader.join()
+                    log.warn { "server.disconnected: the connection was lost" }
                     _state.value = ConnectionState.Disconnected("Connection lost")
                 } catch (e: CancellationException) {
                     throw e
@@ -165,14 +180,19 @@ class KinuvoClient(
                     // A Server that doesn't say what it speaks only takes its own version, so try older ones this Device speaks.
                     if (e.server == null && version > ProtocolVersion.Minimum) { version--; continue }
                     version = ProtocolVersion.Current
+                    log.warn { "server.incompatible: ${e.message?.take(200)}" }
                     _state.value = ConnectionState.Disconnected(e.message.orEmpty(), incompatible = true)
                     if (!first.isCompleted && !retry) { first.completeExceptionally(e); return@launch }
                     incompatible = true
                 } catch (e: AuthException) {
+                    log.warn { "server.rejected: ${e.message?.take(200)}" }
                     _state.value = ConnectionState.Disconnected(e.message ?: "Unauthorized", rejected = true)
                     first.completeExceptionally(e)
                     return@launch
                 } catch (e: Exception) {
+                    // Retries back off for as long as the Server is away, so only the first failure of an outage is a warning.
+                    if (attempts <= 1) log.warn { "server.connect.failed: ${e::class.simpleName}: ${e.message?.take(200)}" }
+                    else log.debug { "server.connect.failed attempt=$attempts: ${e::class.simpleName}" }
                     _state.value = ConnectionState.Disconnected(e.userMessage)
                     if (!first.isCompleted && !retry) { first.completeExceptionally(e); return@launch }
                 } finally {
@@ -188,7 +208,7 @@ class KinuvoClient(
                 if (incompatible) { delay(IncompatibleRetry); continue }
                 val next = backoff(Unit) as? Schedule.Decision.Continue ?: return@launch
                 backoff = next.step
-                delay(reconnectWait(next.delay))
+                withTimeoutOrNull(reconnectWait(next.delay)) { reconnect.receive() }
             }
         }
         return first.await()
@@ -291,6 +311,8 @@ class KinuvoClient(
                             when (f.method) {
                                 Api.DeviceRead.name -> {
                                     val p = ProtocolJson.decodeFromJsonElement(Api.DeviceRead.params, f.params)
+                                    // The Server registers this Device before it answers Connect, so a waiting read can arrive first.
+                                    if (session === ws) withTimeoutOrNull(CONNECT_ANSWER_WAIT_MILLIS) { _state.first { it !is ConnectionState.Connecting } }
                                     val result = if (foreground.value && _state.value is ConnectionState.Connected && session === ws) deviceRead(p)
                                         else DeviceToolResult(DeviceToolStatus.Unavailable, message = "Open Kinuvo on this Device")
                                     Frame.Response(f.id, true, ProtocolJson.encodeToJsonElement(Api.DeviceRead.result, result))

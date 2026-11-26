@@ -29,7 +29,10 @@ import kinuvo.protocol.surface.*
 import kinuvo.protocol.usage.*
 import kinuvo.protocol.tool.ToolNames
 import kinuvo.app.session.CompletionSource
+import kinuvo.client.userMessage
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
@@ -45,6 +48,8 @@ import kotlin.uuid.Uuid
 import kotlinx.coroutines.CancellationException
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.builtins.ListSerializer
 
 sealed interface ChatItem {
     data class VoiceCall(override val id: String, val turns: List<VoiceTurn>, val startedAt: Long, val durationMillis: Long) : ChatItem
@@ -55,7 +60,7 @@ sealed interface ChatItem {
     data class User(override val id: String, val text: String, val routine: String? = null, val attachments: List<Attachment> = emptyList(), val task: String? = null, val voice: Boolean = false, val action: SurfaceAction? = null, val inputs: List<MessageInput> = emptyList()) : ChatItem
     data class Assistant(override val id: String, val text: String, val at: Long? = null) : ChatItem
     data class Reasoning(override val id: String, val text: String) : ChatItem
-    /** [callId] is the model's tool-call ID; [approval] or [questions] is set while the call waits on the user. */
+    /** [callId] is the model's tool-call ID; [approval], [questions] or [connect] is set while the call waits on the user. */
     data class ToolCall(
         override val id: String,
         val callId: ToolCallId,
@@ -65,13 +70,14 @@ sealed interface ChatItem {
         val isError: Boolean = false,
         val approval: PendingInteraction.Approval? = null,
         val questions: PendingInteraction.Questions? = null,
+        val connect: PendingInteraction.Connect? = null,
         val identity: ToolIdentity? = null,
         val attachments: List<Attachment> = emptyList(),
         /** The MCP App this call shows, with the tool's full result for it. */
         val app: McpAppRef? = null,
         val appResult: JsonObject? = null,
     ) : ChatItem {
-        val waiting get() = approval != null || questions != null
+        val waiting get() = approval != null || questions != null || connect != null
         val trustHint get() = approval?.trustHint
         /** The user said no to it, which isn't a failure. The Server records only its output, so this reads that. */
         val denied get() = isError && result?.let { it.startsWith("The user denied") || it.startsWith("Denied") } == true
@@ -82,7 +88,7 @@ sealed interface ChatItem {
     data class Error(override val id: String, val message: String) : ChatItem
     data class Reflection(override val id: String, val result: ReflectionResult? = null, val reviews: Map<String, Boolean> = emptyMap(), val revised: Set<String> = emptySet()) : ChatItem
     data class Compaction(override val id: String, val summary: String) : ChatItem
-    data class ToolReport(override val id: String, val tool: String, val callId: ToolCallId?, val content: String) : ChatItem
+    data class ToolReport(override val id: String, val tool: String, val callId: ToolCallId?, val content: String, val children: List<SubAgentCompletion> = emptyList()) : ChatItem
 
     data class Activation(override val id: String, val name: String, val content: String) : ChatItem
 }
@@ -106,7 +112,7 @@ sealed interface ChatRow {
 fun List<ChatItem>.rows(): List<ChatRow> {
     val rows = mutableListOf<ChatRow>()
     var steps = mutableListOf<ChatItem>()
-    for (item in this) {
+    for (item in withoutRepeatedWaits()) {
         if (item is ChatItem.Measurement) continue
         if (item.isStep()) steps += item
         else {
@@ -150,7 +156,34 @@ private fun ChatItem.isStep() = when (this) {
     else -> false
 }
 
-val SUB_AGENT_TOOLS = setOf(ToolNames.AGENTS_SPAWN, ToolNames.AGENTS_WAIT, ToolNames.AGENTS_SEND)
+val SUB_AGENT_TOOLS = setOf(ToolNames.AGENTS_SPAWN, ToolNames.AGENTS_WAIT, ToolNames.AGENTS_SEND, ToolNames.AGENTS_CANCEL)
+
+/** Children an `agents_wait` returned, from `{children}` or the older bare array. */
+fun ChatItem.ToolCall.waitedChildren(): List<SubAgentState> {
+    val json = result?.takeIf { name == ToolNames.AGENTS_WAIT && !isError }?.let { runCatching { ProtocolJson.parseToJsonElement(it) }.getOrNull() } ?: return emptyList()
+    val array = (json as? JsonObject)?.get("children") ?: json
+    return runCatching { ProtocolJson.decodeFromJsonElement(ListSerializer(SubAgentState.serializer()), array) }.getOrDefault(emptyList())
+}
+
+/** A finished `agents_wait` that returned before its children did. */
+fun ChatItem.ToolCall.waitTimedOut(): Boolean {
+    val json = result?.takeIf { name == ToolNames.AGENTS_WAIT && !isError }?.let { runCatching { ProtocolJson.parseToJsonElement(it) }.getOrNull() } ?: return false
+    val flag = ((json as? JsonObject)?.get("timed_out") as? JsonPrimitive)?.content?.toBooleanStrictOrNull()
+    return flag ?: waitedChildren().any { it.status == SubAgentStatus.Running }
+}
+
+private fun ChatItem.ToolCall.waitIds() = runCatching {
+    (ProtocolJson.parseToJsonElement(args) as JsonObject)["session_ids"].toString()
+}.getOrNull()
+
+/** Waits that timed out and were repeated on the same children, so polling shows as one card. */
+private fun List<ChatItem>.withoutRepeatedWaits(): List<ChatItem> {
+    val next = filterNot { it is ChatItem.Measurement }
+    val dropped = next.zipWithNext().filter { (a, b) ->
+        a is ChatItem.ToolCall && b is ChatItem.ToolCall && a.name == ToolNames.AGENTS_WAIT && b.name == ToolNames.AGENTS_WAIT && a.waitTimedOut() && a.waitIds() != null && a.waitIds() == b.waitIds()
+    }.map { it.first.id }.toSet()
+    return if (dropped.isEmpty()) this else filterNot { it.id in dropped }
+}
 
 /** [loaded] is false until the Session's first catch-up, so the empty state doesn't flash. */
 data class ChatState(
@@ -187,6 +220,10 @@ data class ChatState(
     val answers: Map<InteractionId, Map<String, List<String>>> = emptyMap(),
     /** What the Session waits on: Approvals and forms for [respond][SessionViewModel.respond] and [answer][SessionViewModel.answer], or an external Agent's harness requests. */
     val pending: List<PendingInteraction> = emptyList(),
+    /** The [pending] interactions that already have an answer waiting on their siblings; [requests] list them last. */
+    val staged: Set<InteractionId> = emptySet(),
+    /** An `mcp_login` Connect card's own sign-in, by interaction ID, as [connect][SessionViewModel.connect] drives it. */
+    val connecting: Map<InteractionId, ConnectState> = emptyMap(),
     /** Names an external Agent's harness. */
     val harness: String? = null,
     /** The external Session's phase as its harness reports it; null when this Device can't see it. */
@@ -204,7 +241,7 @@ data class ChatState(
     val ended get() = if (external && selected != null && capabilities?.chat?.reasonCode != "archived") SessionEnd.of(phase, capabilities?.chat, resume) else null
     val resumeOnSend get() = external && resumeOnSend(phase, capabilities)
     /** Everything the open Session waits on from the user, oldest first. */
-    val requests get() = pendingRequests(items, pending)
+    val requests get() = pendingRequests(items, pending, staged)
     /** The requests of an external Agent's harness, shown above its composer. */
     val prompts get() = if (external) requests.filterIsInstance<PendingRequest.External>().map { it.prompt } else emptyList()
     val canStop get() = !external || capabilities?.execution?.cancel == true
@@ -251,6 +288,8 @@ data class SessionState(
     val capabilities: SessionCapabilities? = null,
     /** Half-filled `ask_user` forms by questions ID, then question ID, so they outlive the screen's layout. */
     val answers: Map<InteractionId, Map<String, List<String>>> = emptyMap(),
+    /** An `mcp_login` Connect card's own sign-in, by interaction ID, as [connect][SessionViewModel.connect] drives it. */
+    val connecting: Map<InteractionId, ConnectState> = emptyMap(),
     /** A shortcut asked for voice chat in this new Session, until it starts. */
     val voiceRequested: Boolean = false,
     /** An external Agent's Session as its harness runs it, with what it waits on. */
@@ -259,6 +298,8 @@ data class SessionState(
     val aiConsent: AiConsentRequest? = null,
 ) {
     val pending get() = data?.live?.pending.orEmpty()
+    /** The pending interactions whose answers are waiting on their siblings. */
+    val staged get() = data?.live?.staged.orEmpty()
     val phase get() = data?.live?.executionPhase
     val loaded get() = !resolving && (route.sessionId == null || data?.loaded == true)
     val resumeOnSend get() = resumeOnSend(phase, capabilities)
@@ -272,7 +313,10 @@ data class SessionState(
 
 /** One Session screen: a view of the Session in the [SessionRepository], plus sending, stopping, Approvals and answers. */
 @OptIn(ExperimentalCoroutinesApi::class)
-class SessionViewModel(private val repo: SessionRepository, route: Route.Chat, private val consent: AiConsent? = null, private val reader: Synthesizer? = null) : ViewModel() {
+class SessionViewModel(
+    private val repo: SessionRepository, route: Route.Chat, private val consent: AiConsent? = null, private val reader: Synthesizer? = null,
+    private val browser: OAuthBrowser? = null,
+) : ViewModel() {
     private val client: KinuvoClient = requireNotNull(repo.connection.client) { "Not connected" }
     val state: StateFlow<SessionState>
         field = MutableStateFlow(SessionState(route))
@@ -282,6 +326,8 @@ class SessionViewModel(private val repo: SessionRepository, route: Route.Chat, p
     private val ordered = Mutex()
     private var pendingSubmission: PendingSubmission? = null
     private val loadingAttachments = mutableSetOf<String>()
+    private val connectJobs = mutableMapOf<InteractionId, Job>()
+    private val connectPastes = mutableMapOf<InteractionId, CompletableDeferred<String>>()
 
     init {
         viewModelScope.launch {
@@ -581,10 +627,11 @@ class SessionViewModel(private val repo: SessionRepository, route: Route.Chat, p
         route.sessionId?.let(repo::loadOlder)
     }
 
-    fun respond(decision: ApprovalDecision) {
+    /** Answers the Approval [id] that a card shows, not whichever one is first. */
+    fun respond(id: InteractionId, decision: ApprovalDecision) {
         val sessionId = route.sessionId ?: return
-        val approval = state.value.pending.filterIsInstance<PendingInteraction.Approval>().firstOrNull() ?: return
-        viewModelScope.launch { attempt { repo.respond(sessionId, approval.id, InteractionAnswer.Approval(decision)) } }
+        if (id in state.value.staged || state.value.pending.none { it.id == id && it is PendingInteraction.Approval }) return
+        viewModelScope.launch { attempt { repo.respond(sessionId, id, InteractionAnswer.Approval(decision)) } }
     }
 
     fun reviewReflection(proposalId: String, approve: Boolean, note: String? = null) {
@@ -612,14 +659,70 @@ class SessionViewModel(private val repo: SessionRepository, route: Route.Chat, p
     fun editAnswer(questionsId: InteractionId, questionId: String, value: List<String>) =
         state.update { it.copy(answers = it.answers + (questionsId to it.answers[questionsId].orEmpty() + (questionId to value))) }
 
-    /** Sends the open `ask_user` form's [answers]; null skips it. */
-    fun answer(answers: Map<String, List<String>>?) {
+    /** Sends the `ask_user` form [id]'s [answers]; null skips it. */
+    fun answer(id: InteractionId, answers: Map<String, List<String>>?) {
         val sessionId = route.sessionId ?: return
-        val questions = state.value.pending.filterIsInstance<PendingInteraction.Questions>().firstOrNull() ?: return
+        if (id in state.value.staged || state.value.pending.none { it.id == id && it is PendingInteraction.Questions }) return
         viewModelScope.launch { attempt {
-            repo.respond(sessionId, questions.id, InteractionAnswer.Questions(answers))
-            state.update { it.copy(answers = it.answers - questions.id) }
+            repo.respond(sessionId, id, InteractionAnswer.Questions(answers))
+            state.update { it.copy(answers = it.answers - id) }
         } }
+    }
+
+    /** Runs this Connect card's own OAuth sign-in, then answers [interaction] once it finishes. */
+    fun connect(interaction: PendingInteraction.Connect) {
+        val sessionId = route.sessionId ?: return
+        connectJobs[interaction.id]?.cancel()
+        connectJobs[interaction.id] = viewModelScope.launch {
+            val browser = browser ?: run {
+                state.update { it.copy(connecting = it.connecting + (interaction.id to ConnectState.Failed(null, "Connecting isn't available on this Device"))) }
+                return@launch
+            }
+            val paste = CompletableDeferred<String>()
+            connectPastes[interaction.id] = paste
+            try {
+                runMcpSignIn(repo.connection.config, browser, interaction.agentId, interaction.server, interaction.scope,
+                    changed = { value -> state.update { it.copy(connecting = it.connecting + (interaction.id to value)) } }, paste = paste::await)
+                respondConnect(sessionId, interaction.id, connected = true)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                val last = state.value.connecting[interaction.id]
+                val url = (last as? ConnectState.SigningIn)?.url ?: (last as? ConnectState.AwaitingPaste)?.url
+                state.update { it.copy(connecting = it.connecting + (interaction.id to ConnectState.Failed(url, e.userMessage))) }
+            } finally {
+                connectPastes.remove(interaction.id)
+            }
+        }
+    }
+
+    /** Finishes a Connect card's sign-in with the address the browser ended on, when it couldn't come back on its own. */
+    fun completeConnect(interaction: PendingInteraction.Connect, pastedUrl: String) {
+        if (connectPastes[interaction.id]?.complete(pastedUrl) == true) return
+        val sessionId = route.sessionId ?: return
+        connectJobs[interaction.id]?.cancel()
+        connectJobs[interaction.id] = viewModelScope.launch {
+            try {
+                repo.connection.config.completeMcpLogin(interaction.agentId, pastedCallback(pastedUrl))
+                respondConnect(sessionId, interaction.id, connected = true)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                state.update { it.copy(connecting = it.connecting + (interaction.id to ConnectState.Failed(null, e.userMessage))) }
+            }
+        }
+    }
+
+    /** Declines a Connect card without signing in. */
+    fun skipConnect(interaction: PendingInteraction.Connect) {
+        connectJobs[interaction.id]?.cancel()
+        val sessionId = route.sessionId ?: return
+        viewModelScope.launch { respondConnect(sessionId, interaction.id, connected = false) }
+    }
+
+    private suspend fun respondConnect(sessionId: SessionId, id: InteractionId, connected: Boolean) = attempt {
+        if (!repo.respond(sessionId, id, InteractionAnswer.Connect(connected))) state.update { it.copy(errors = it.errors + "Already answered, or the Agent stopped waiting.") }
+        else state.update { it.copy(connecting = it.connecting - id) }
     }
 
     /** Asks the harness to reopen the open external Session after its process ended; the Server says why when it can't. */

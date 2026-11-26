@@ -76,7 +76,7 @@ open class AgentRuntime(
     var agentManagement: AgentManagement? = null
     var subAgents: SubAgents? = null
     var teams: Teams? = null
-    val log = SessionLog(dependencies.store, dependencies.clock)
+    val log = SessionLog(dependencies.store, clock = dependencies.clock)
     val store: Store = log
     val docs = dependencies.docs
     val skills = dependencies.skills
@@ -156,23 +156,39 @@ open class AgentRuntime(
     /** `/name rest` activates a user-invocable Skill; returns null when [text] isn't a Skill command. */
     suspend fun slashActivation(agent: Agent, text: String) = skills.slashActivation(agent, text)
 
-    val approvals = ApprovalBroker()
+    val interactions = InteractionSets(log)
+    val approvals = ApprovalBroker(interactions::settle)
     internal val sessionTrust = SessionTrust()
     /** Pending `ask_user` forms; null answers mean skipped. */
-    val questions = Broker<Map<String, List<String>>?>()
+    val questions = Broker<Map<String, List<String>>?>(interactions::settle)
+    /** Pending `mcp_login` sign-ins, answered once the client's own OAuth flow finishes. */
+    val connects = Broker<InteractionAnswer.Connect>(interactions::settle)
     val uiCatalogs = SurfaceCatalogs()
     val appCalls = AppCalls(log, { plugins.firstNotNullOfOrNull { it.apps } }, secrets, trustRules, sessionTrust, approvals)
 
     /** Answers a Server tool's interaction, including the neutral form used by external harness clients. */
     fun respondToTool(pending: PendingInteraction, answer: InteractionAnswer): Boolean = when {
         pending is PendingInteraction.Approval && answer is InteractionAnswer.Approval -> approvals.respond(pending.id, answer.decision)
-        pending is PendingInteraction.Approval && answer is InteractionAnswer.Harness -> {
-            val option = (answer.answer as? JsonObject)?.get("optionId")?.jsonPrimitive?.content
-            require(option == null || pending.forHarness().options.any { it.id == option })
-            approvals.respond(pending.id, approvalDecision(option))
-        }
+        pending is PendingInteraction.Approval && answer is InteractionAnswer.Harness -> approvals.respond(pending.id, approvalDecision(harnessOption(pending, answer)))
         pending is PendingInteraction.Questions && answer is InteractionAnswer.Questions -> questions.respond(pending.id, answer.answers)
+        pending is PendingInteraction.Connect && answer is InteractionAnswer.Connect -> connects.respond(pending.id, answer)
         else -> false
+    }
+
+    private fun harnessOption(pending: PendingInteraction.Approval, answer: InteractionAnswer.Harness): String? =
+        (answer.answer as? JsonObject)?.get("optionId")?.jsonPrimitive?.content.also { option ->
+            require(option == null || pending.forHarness().options.any { it.id == option })
+        }
+
+    /** Fails for an answer [respondToTool] would reject, before it is staged. */
+    fun checkAnswer(pending: PendingInteraction, answer: InteractionAnswer, external: Boolean) {
+        require(when (pending) {
+            is PendingInteraction.Approval -> answer is InteractionAnswer.Approval || answer is InteractionAnswer.Harness
+            is PendingInteraction.Questions -> answer is InteractionAnswer.Questions || external && answer is InteractionAnswer.Harness
+            is PendingInteraction.Connect -> answer is InteractionAnswer.Connect
+            else -> answer is InteractionAnswer.Harness || answer is InteractionAnswer.Questions
+        }) { "${pending::class.simpleName} can't take a ${answer::class.simpleName} answer" }
+        if (pending is PendingInteraction.Approval && answer is InteractionAnswer.Harness) harnessOption(pending, answer)
     }
 
     /** A file from [agent]'s Workspace, e.g. to copy into an Artifact. */

@@ -22,6 +22,9 @@ import kinuvo.server.jvm.JvmServerHost
 import kinuvo.server.jvm.ServeOptions
 import kinuvo.tailcat.Tailcat
 import java.io.File
+import kinuvo.diagnostics.Diagnostics
+import kinuvo.diagnostics.jvmAppInfo
+import kinuvo.protocol.device.currentPlatform
 import kotlinx.io.files.Path
 import kinuvo.server.jvm.serve
 import kinuvo.server.jvm.LocalServer
@@ -69,6 +72,7 @@ private class Login : CoreSuspendingCliktCommand("login") {
 }
 
 private suspend fun serve(host: String, port: Int, publicUrl: String? = null, trustedProxy: String? = null, computer: Boolean = false, tailscale: Boolean = false, tailscalePort: Int = 443, behindProxy: Boolean = false, tailcat: Boolean = false) {
+    Diagnostics(kinuvoHome(), jvmAppInfo(currentPlatform.displayName)).install("cli")
     serveErrors {
         serve(ServeOptions(host, port, publicUrl, trustedProxy, tailscale, tailscalePort, behindProxy, tailcat), Tailcat) { server, bind, bound ->
             if (!computer) return@serve null

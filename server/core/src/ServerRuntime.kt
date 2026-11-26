@@ -33,6 +33,7 @@ import kinuvo.protocol.push.PushSubscription
 import kinuvo.protocol.screen.*
 import kinuvo.protocol.session.*
 import kinuvo.protocol.surface.*
+import kinuvo.protocol.tool.ToolNames
 import kinuvo.protocol.usage.*
 import kinuvo.protocol.voice.*
 import kotlin.concurrent.atomics.AtomicInt
@@ -52,6 +53,10 @@ import kotlinx.coroutines.sync.withLock
 import kotlinx.datetime.TimeZone
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.serialization.json.contentOrNull
+import kinuvo.protocol.agui.AgUiEvent
+import kinuvo.protocol.agui.Interrupt
+import kinuvo.protocol.agui.RunOutcome
 import kotlin.concurrent.Volatile
 import kotlin.uuid.Uuid
 
@@ -79,7 +84,7 @@ class ServerRuntime(
     private val keepAwake: () -> AutoCloseable = { AutoCloseable {} },
 ) {
     private val deviceRateLimit = RequestRateLimit()
-    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default).also { harness.interactions.scope = it }
     val executions = executionRegistry
     private val hub = object : ServerHub {
         override val capabilities: ServerCapabilities get() = this@ServerRuntime.capabilities
@@ -110,17 +115,24 @@ class ServerRuntime(
     /** Runs going and the events they've produced; a foreground-only host keeps them alive while it can. */
     val runActivity get() = runs.activity
 
-    /** With nobody watching, runs paused on an Approval or a question can't go on, so they stop, now or once they pause; the rest keep going. */
+    /**
+     * With nobody watching, runs paused on an Approval or a question can't go on, so they stop, now or once they pause;
+     * the rest keep going. A Connect waits on the user signing in elsewhere, which needs leaving the app, so it's exempt.
+     */
     private suspend fun stopWaiting() {
-        val waiting = runs.sessions().filter { harness.log.status(it) == SessionStatus.Waiting }
+        val waiting = runs.sessions().filter { harness.log.status(it) == SessionStatus.Waiting && !connecting(it) }
         waiting.forEach(runs::stop)
-        executions.catalog().agents.flatMap { harness.store.sessions(it.id) }.filter { harness.log.status(it.id) == SessionStatus.Waiting }.forEach { external.stop(it.id) }
+        executions.catalog().agents.flatMap { harness.store.sessions(it.id) }.filter { harness.log.status(it.id) == SessionStatus.Waiting && !connecting(it.id) }.forEach { external.stop(it.id) }
         waiting.forEach { runs.join(it) }
     }
 
+    private suspend fun connecting(sessionId: SessionId) = harness.log.pending(sessionId).any { it is PendingInteraction.Connect }
+
     private fun changedCapabilities() = broadcast(Api.CapabilitiesChanged, Unit)
     init {
-        if (foregroundOnly) harness.log.onChange { if (it.status == SessionStatus.Waiting && unwatched()) scope.launch { assembly.dispatch.stop(it.id) } }
+        if (foregroundOnly) harness.log.onChange { info ->
+            if (info.status == SessionStatus.Waiting && unwatched()) scope.launch { if (!connecting(info.id)) assembly.dispatch.stop(info.id) }
+        }
     }
 
     private fun unwatched() = clients.block { it.none { c -> c.watching } }
@@ -134,6 +146,7 @@ class ServerRuntime(
             assembly.workflows.recover()
             external.reload()
             external.recover()
+            harness.log.recoverOrphanedToolCalls(external::owns)
             scope.launch { harness.usage.filterNotNull().collect { broadcast(Api.Usage, it) } }
             harness.log.onChange { if (!it.hidden) broadcast(Api.SessionChanged, it) }
             harness.log.onEvent(assembly.notifications::on)
@@ -170,7 +183,8 @@ class ServerRuntime(
         }
     }
 
-    suspend fun stopRuns() = runs.stopAll()
+    /** Stops every run, except one only waiting on a Connect: that wait needs leaving the app, and costs nothing while it does. */
+    suspend fun stopRuns() = runs.stopAll(except = runs.sessions().filter { connecting(it) }.toSet())
     suspend fun close() = withContext(NonCancellable) { lifecycle.withLock { shutdown() } }
 
     private suspend fun shutdown() = withContext(NonCancellable) {
@@ -236,18 +250,30 @@ class ServerRuntime(
 
         fun response(response: Frame.Response) { pending.remove(response.id)?.complete(response) }
 
-        fun refreshTools(tools: Set<DeviceToolKind> = this.tools, initial: Boolean = false) = harness.devices.lock.withLock {
-            if (!initial && deviceId?.let { harness.devices.owns(it, readDevice) } != true) return@withLock
+        private var detached = false
+
+        /** Records the Device's tools without offering them to runs; [registerTools] does that once the Connect answer is queued. */
+        fun recordTools(tools: Set<DeviceToolKind>) {
             this.tools = tools
-            val id = auth.setTools(requireNotNull(token), tools)
-            deviceId = id
+            deviceId = auth.setTools(requireNotNull(token), tools)
+        }
+
+        fun registerTools() = harness.devices.lock.withLock {
+            if (detached) return@withLock
+            val id = requireNotNull(deviceId)
             harness.devices.connect(id, tools, watching, readDevice)
             if (DeviceToolKind.Computer in tools) harness.computers.connect(id, actComputer) else harness.computers.disconnect(id, actComputer)
         }
 
+        fun refreshTools(tools: Set<DeviceToolKind> = this.tools) = harness.devices.lock.withLock {
+            if (deviceId?.let { harness.devices.owns(it, readDevice) } != true) return@withLock
+            recordTools(tools)
+            registerTools()
+        }
+
         fun detachTools() {
             harness.computers.unwatchAll(watcher)
-            harness.devices.lock.withLock { deviceId?.let { harness.devices.disconnect(it, readDevice); harness.computers.disconnect(it, actComputer) } }
+            harness.devices.lock.withLock { detached = true; deviceId?.let { harness.devices.disconnect(it, readDevice); harness.computers.disconnect(it, actComputer) } }
             pending.block { map -> map.values.toList().also { map.clear() } }.forEach { it.completeExceptionally(IllegalStateException("Device disconnected")) }
         }
 
@@ -312,12 +338,53 @@ class ServerRuntime(
         context(_: Raise<ExecutionError>)
         override suspend fun remoteExecution(call: RemoteExecutionCall) = assembly.execution.remoteExecution(requireNotNull(token), call)
 
-        override fun offer(update: SessionUpdate) = offer(frame(Api.Update, update))
+        private fun approvalForClient(interaction: PendingInteraction): PendingInteraction {
+            if (interaction !is PendingInteraction.Approval || interaction.toolCallName != ToolNames.AGENTS_WAIT)
+                return interaction
+            val preview = interaction.preview ?: return interaction
+            return if (preview.body == null || management) interaction else interaction.copy(preview = preview.copy(body = null))
+        }
+
+        private fun interruptForClient(interrupt: Interrupt): Interrupt {
+            val metadata = interrupt.metadata ?: return interrupt
+            val extra = metadata["kinuvo"] as? JsonObject ?: return interrupt
+            if (management || extra["toolCallName"]?.jsonPrimitive?.contentOrNull != ToolNames.AGENTS_WAIT) return interrupt
+            val preview = extra["preview"] as? JsonObject ?: return interrupt
+            if ("body" !in preview) return interrupt
+            return interrupt.copy(metadata = JsonObject(metadata + ("kinuvo" to JsonObject(extra + ("preview" to JsonObject(preview - "body"))))))
+        }
+
+        private fun runEventForClient(event: AgUiEvent): AgUiEvent {
+            val outcome = (event as? AgUiEvent.RunFinished)?.outcome as? RunOutcome.Interrupted
+            return if (event is AgUiEvent.RunFinished && outcome != null)
+                event.copy(outcome = RunOutcome.Interrupted(outcome.interrupts.map(::interruptForClient)))
+            else event
+        }
+
+        override fun offer(update: SessionUpdate): Boolean {
+            val change = when (val change = update.change) {
+                is SessionChange.Item -> {
+                    val event = change.event
+                    if (event is AgentEvent.InteractionRequested)
+                        change.copy(event = event.copy(interaction = approvalForClient(event.interaction)))
+                    else change
+                }
+                is SessionChange.Snapshot -> change.copy(snapshot = change.snapshot.copy(state = change.snapshot.state.copy(pending = change.snapshot.state.pending.map(::approvalForClient))))
+                is SessionChange.Run -> change.copy(event = runEventForClient(change.event))
+                is SessionChange.Continued -> change.copy(run = change.run.map(::runEventForClient))
+                else -> change
+            }
+            return offer(frame(Api.Update, update.copy(change = change)))
+        }
 
         fun offer(text: Frame): Boolean {
             if (linked && text is Frame.Event) return true
             if (!valid()) { if (closeAfterResponse == null) disconnect(); return false }
             if (outbox.trySend(text).isSuccess) return true
+            // The consumer (e.g. an embedded Server sharing the Device's own thread) didn't drain fast enough for
+            // the outbox to take one more frame; this drops every live update until the Device reconnects.
+            val kind = when (text) { is Frame.Request -> "request ${text.method}"; is Frame.Response -> "response"; is Frame.Event -> "event ${text.event}" }
+            log.warn { "Outbox full for Device ${deviceId ?: "unknown"}: dropping the connection instead of $kind" }
             disconnect()
             return false
         }
@@ -429,7 +496,7 @@ class ServerRuntime(
                         val token = (if (client.linked) supplied else auth.authenticate(p.device, supplied, if (connection.credential == null) p.pairingCode else null, tailcatPeer))
                             ?: raise(if (p.token != null) ConnectError.Unpaired else ConnectError.InvalidPairing)
                         client.token = token
-                        if (!client.linked && p.registerDeviceTools) client.refreshTools(p.deviceTools, initial = true)
+                        if (!client.linked && p.registerDeviceTools) client.recordTools(p.deviceTools)
                         if (!client.linked && auth.management(token)) p.timeZone?.let { zone -> runCatching { harness.timeZone = TimeZone.of(zone) } }
                         ConnectResult(token, name, harness.usage.value, capabilities, !client.linked && auth.management(token), version, client.deviceId)
                     }
@@ -438,6 +505,7 @@ class ServerRuntime(
                     if (response.ok && !authed) {
                         authed = true
                         timeout.cancel()
+                        if (client.deviceId != null) client.registerTools()
                         clients.add(client)
                         broadcast(Api.DevicesChanged, Unit)
                     }

@@ -15,6 +15,7 @@ Target layout:
 
 - `protocol`: wire and domain values (typed IDs, session entries, events, tool identity, neutral tool descriptors, `WireError`).
 - `libs/tailcat`: JVM, Android and iOS native Tailcat binding over TailPocket, an adapter for the `TailcatForwarder` (`client/sdk`) and `TailcatServing` (`server/plugin-api`) ports. Only `apps/*` depend on it and hand it to the client and Server hosts.
+- `libs/diagnostics`: JVM, Android and iOS rotating redacted log files, crash files and the logs ZIP people share. A leaf library: it depends on no other module, and `client/ui` and the apps use it.
 - `client/`: `sdk` (transport), `app` (repositories, ViewModels, the `EmbeddedServer` interface), `ui` (rendering only, no Server dependencies).
 - `harness/`: `api` (execution contracts), `builtin` (the native harness), and the adapters `acp` and `remote`.
 - `server/`: `plugin-api` (including verified model downloads), `core`, `rpc`, and the hosts `jvm` and `embedded`.
@@ -30,7 +31,7 @@ Target layout:
 
 **MCP gateway.** `gateways/kinuvo-mcp` may depend on `server/core`, `harness/api` and `protocol` to expose the existing tool service. Its JVM host installs it; harness adapters receive only a neutral descriptor. The directory avoids Amper's duplicate module name with `plugins/mcp`. Its integration tests may depend on `harness/acp` and `testing/*` for external-process tests against a real Server.
 
-**Enforcement.** `ModuleEdgesTest` in `testing/server-testing` parses `module.yaml` dependency edges against explicit per-layer rules, including the adapter and host edges, and checks that `harness/api` and `harness/builtin` reach only `harness/*` and `protocol`, and that `client/*` reaches only `client/*` and `protocol`, and that only `apps/*` depend on native bindings. Test dependencies may also reach `testing/*`, and Server-side modules may use `client/*` in tests. Edges outside the rules need a commented entry in the test's exception list, which is empty today.
+**Enforcement.** `ModuleEdgesTest` in `testing/server-testing` parses `module.yaml` dependency edges against explicit per-layer rules, including the adapter and host edges, and checks that `harness/api` and `harness/builtin` reach only `harness/*` and `protocol`, and that `client/*` reaches only `client/*`, `protocol` and `libs/diagnostics`, and that only `apps/*` depend on native bindings. Test dependencies may also reach `testing/*`, and Server-side modules may use `client/*` in tests. Edges outside the rules need a commented entry in the test's exception list, which is empty today.
 
 Where today's `harness/core` code goes (the plugin-facing contract goes to plugin-api, its stateful implementation to core):
 

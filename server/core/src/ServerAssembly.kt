@@ -79,15 +79,14 @@ internal class ServerAssembly(
     val runs = Runs(harness.log, scope, nativeFactory)
     val devicePush = devicePush(auth, harness.serverId)
     val notifications = Notifications(harness, scope, runs::routine, { external.registrationOrArchived(AgentId(it))?.name }, devicePush)
-    val workflows: Workflows = Workflows(harness, runs, scope, { hub.broadcast(Api.WorkflowsChanged, it) }, { hub.broadcast(Api.WorkflowRunChanged, it) }, wakeScheduler = { scheduler.wakeUp() }).also { harness.workflows = it }
+    val workflows: Workflows = Workflows(harness, runs, scope, { hub.broadcast(Api.WorkflowsChanged, it) }, { hub.broadcast(Api.WorkflowRunChanged, it) }, stopSession = { dispatch.stop(it) }, wakeScheduler = { scheduler.wakeUp() }).also { harness.workflows = it }
     val scheduler: Scheduler = Scheduler(harness, runs, scope, onRan = { hub.broadcast(Api.RoutineRan, it); notifications.routineRan(it) }, workflowTick = workflows::tick)
     val admin = Admin(harness, runs) { hub.broadcast(Api.AgentsChanged, it) }.also { harness.agentManagement = AgentManagement(harness, it) }
     private val reflectionReview = ReflectionReview(harness)
     val logins = ProviderLogins(harness.modelProviders, scope) { hub.broadcast(Api.ProvidersChanged, it); hub.changedCapabilities() }
     private val reflector = Reflector(harness, scope, runs::isActive)
-    val dispatch = AgentExecution(executions, external,
-        NativeExecution(harness, runs, scope, { admin.agent(it) }, { hub.capabilities }, reflector::ran) { sessionId, text -> hub.notifyVoice(sessionId, text) }, executionManagement).also { it.workflowSurface = workflows::submitSurface }
-    private val subAgents = SubAgents(harness, dispatch, scope, runs::join).also { harness.subAgents = it; dispatch.subAgents = it; runs.onBegin = { _, id -> it.begin(id) }; runs.onFinish(it::finish); runs.onCancel = it::cancelChildren }
+    val dispatch: AgentExecution = AgentExecution(executions, external,
+        NativeExecution(harness, runs, scope, { admin.agent(it) }, { hub.capabilities }, reflector::ran) { sessionId, text -> hub.notifyVoice(sessionId, text) }, executionManagement, runs, harness.log, harness).also { it.workflowSurface = workflows::submitSurface }
     val dispatcher = TaskDispatcher(harness, runs, scope)
     private val sessions = SessionService(harness, admin, external)
     private val routines = RoutineService(harness, admin, sessions) { hub.scheduling }
@@ -98,7 +97,12 @@ internal class ServerAssembly(
         hub.broadcast(Api.AgentsChanged, agents)
         hub.changedCapabilities()
     }
-    private val teams = Teams(harness, dispatch, scope, runs::join, execution::agents) { hub.broadcast(Api.TeamChanged, it) }.also { teams -> harness.teams = teams; runs.onFinish { _, session, cancelled -> teams.finished(session, cancelled) } }
+    private val subAgents = SubAgents(harness, dispatch, scope, execution::agents).also {
+        harness.subAgents = it; dispatch.subAgents = it; dispatch.onFinish(it::finish)
+    }
+    private val teams = Teams(harness, dispatch, scope, dispatch::join, execution::agents) { hub.broadcast(Api.TeamChanged, it) }.also { teams ->
+        harness.teams = teams; dispatch.onFinish { _, session, cancelled, error -> teams.finished(session, cancelled, error) }
+    }
     val services = ServerServices(harness, auth, admin, execution, dispatch, sessions, teams, routines, workflows, browserAccess, voice, reflectionReview, logins, notifications, harness.log, harness.knowledge, harness.tasks, harness.artifacts, harness.mcp, harness.secrets, harness.computers, harness, prepareAttachment, hub::changedCapabilities)
 
     init {
@@ -109,7 +113,7 @@ internal class ServerAssembly(
             }
         }
         harness.log.executionMetadata = { info -> if (external.owns(info.id)) info.copy(legacyOrder = external.record(info.id).legacyOrder) else info }
-        harness.log.onDelete = { a, id -> subAgents.cancelChildren(id); dispatch.stop(id); runs.join(id); external.delete(a, id) }; harness.computers.browserService = { harness.browser }; harness.devices.paired = auth::toolDevices; harness.computers.paired = auth::toolDevices
+        harness.log.onDelete = dispatch::delete; harness.computers.browserService = { harness.browser }; harness.devices.paired = auth::toolDevices; harness.computers.paired = auth::toolDevices
     }
 
     private suspend fun catalogChanged() { execution.catalogChanged() }

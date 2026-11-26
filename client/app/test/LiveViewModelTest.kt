@@ -39,7 +39,8 @@ class LiveViewModelTest {
         override suspend fun ack(frame: ScreenFrameAck) {}
         override suspend fun control(request: ScreenControlRequest) = control
         override suspend fun input(request: ScreenInputRequest): ScreenInputResult { inputs.add(request); inputBlock?.await(); return ScreenInputResult(if (partial) 0 else request.input.actions.size, if (partial) "Unknown outcome" else null) }
-        override suspend fun open(request: ScreenOpen): ScreenInfo = error("unused")
+        val opens = mutableListOf<ScreenOpen>()
+        override suspend fun open(request: ScreenOpen): ScreenInfo { opens.add(request); return list(null).first() }
         val commands = mutableListOf<ScreenCommand>()
         override suspend fun command(request: ScreenCommand) { commands.add(request) }
         fun frame() = ScreenFrame(ref, "s$epoch", "e$epoch", 1, ScreenSample("image", 100, 100, "geometry"))
@@ -104,6 +105,10 @@ class LiveViewModelTest {
         assertEquals(2, fake.commands.size)
     }
 
+    @Test fun blankOpenGoesToTheHomePage() = run(ScreenRef("browser", "one", BrowserOwner(AgentId("agent")))) { fake, vm ->
+        vm.open(""); runCurrent()
+        assertEquals("https://www.google.com", fake.opens.single().url)
+    }
     @Test fun resizingRequiresLocalControlAndDoesNotLoopBeforeTheNewFrame() = run { fake, vm ->
         fake.screens = listOf(ScreenInfo(fake.ref, "Browser", ScreenCapabilities(ScreenDelivery.Continuous, setOf("tap"), resize = true), ScreenStatus.Ready, fake.control))
         vm.retry(); runCurrent()

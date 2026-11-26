@@ -105,6 +105,29 @@ class SessionDataTest {
         assertEquals(asked, (data.items.single() as ChatItem.ToolCall).questions)
     }
     @Test
+    fun runErrorsAndWarningsSitWhereTheyOccurredNotAfterLaterMessages() {
+        val data = SessionData(AgentId("main"), entries = listOf(
+            SessionEntry.UserMessage("first"),
+            SessionEntry.Notice("n1", "run_error", "Codex request failed (200)"),
+            SessionEntry.UserMessage("second, after the error"),
+        ))
+        assertEquals(
+            listOf(
+                ChatItem.User("entry-0", "first"),
+                ChatItem.Error("notice-n1", "Codex request failed (200)"),
+                ChatItem.User("entry-2", "second, after the error"),
+            ),
+            data.items,
+        )
+    }
+
+    @Test
+    fun warningsKeepTheirWarningPrefixAsErrorsInPlace() {
+        val data = SessionData(AgentId("main"), entries = listOf(SessionEntry.Notice("n1", "warning", "MCP server 'Picsart' needs sign-in")))
+        assertEquals(listOf(ChatItem.Error("notice-n1", "⚠ MCP server 'Picsart' needs sign-in")), data.items)
+    }
+
+    @Test
     fun revisedProposalsRemainPendingAndTheOriginalIsNotCountedAsSaved() {
         val proposal = kinuvo.protocol.reflection.ReflectionProposal("original", "knowledge", kotlinx.serialization.json.JsonObject(emptyMap()), "Reason", "Evidence")
         val revised = proposal.copy(id = "revised")

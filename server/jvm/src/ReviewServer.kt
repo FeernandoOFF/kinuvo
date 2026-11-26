@@ -30,7 +30,7 @@ import kotlinx.coroutines.runBlocking
 internal object ReviewServer {
     val tools = setOf(ToolNames.MEMORY, ToolNames.TASKS, ToolNames.KNOWLEDGE, ToolNames.WEB_SEARCH, ToolNames.ASK_USER)
     const val MODEL = "openai/gpt-4.1-mini"
-    private val allowedMethods = listOf(Api.Agents, Api.Agent, Api.Sessions, Api.Session, Api.CatchUp, Api.Unsubscribe, Api.History,
+    private val allowedMethods = listOf(Api.Agents, Api.Agent, Api.Sessions, Api.Session, Api.Subscribe, Api.Unsubscribe, Api.History,
         Api.CreateSession, Api.UpdateSession, Api.Send, Api.CancelQueued, Api.Stop, Api.Respond, Api.Capabilities,
         Api.UploadAttachment, Api.Attachment, Api.Routines, Api.KnowledgeSearch, Api.KnowledgeNote, Api.KnowledgeChanges,
         Api.UndoKnowledgeChange, Api.TaskLists, Api.Tasks, Api.CreateTask, Api.UpdateTask, Api.TasksSettings,

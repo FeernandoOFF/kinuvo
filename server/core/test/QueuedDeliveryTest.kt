@@ -88,7 +88,7 @@ class QueuedDeliveryTest {
                         release.receive()
                         val steering = if (input.text == "no-safe-point") emptyList() else input.steering()
                         sink.commit(steering)
-                        if (input.text == "first" && steering.isNotEmpty()) assertEquals(listOf("adjust"), steering.map { it.text })
+                        if (input.text == "first" && steering.isNotEmpty()) assertEquals(listOf("adjust"), steering.map { assertIs<SessionEntry.UserMessage>(it).text })
                         sink.publish(if (input.text == "fail") AgentEvent.RunError(requireNotNull(input.runId), "failed") else AgentEvent.RunFinished(requireNotNull(input.runId)))
                         return ExecutionAcceptance()
                     }

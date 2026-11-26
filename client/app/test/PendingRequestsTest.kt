@@ -17,6 +17,7 @@ class PendingRequestsTest {
     private val form = PendingInteraction.Questions(InteractionId("q1"), ToolCallId("c2"), "Deploy?", listOf(Question("env", "Environment")))
     private val takeover = PendingInteraction.Questions(InteractionId("q2"), ToolCallId("c3"), "Take over Browser: Sign in.", listOf(Question("note", "Note")))
     private val external = PendingInteraction.HarnessApproval(InteractionId("p1"), "Allow edit?", null, emptyList())
+    private val connect = PendingInteraction.Connect(InteractionId("x1"), ToolCallId("c4"), AgentId("main"), "linear", site = "linear.app")
 
     private fun state(live: LiveState = LiveState(running = true), prompts: List<PendingInteraction> = emptyList(), vararg calls: SessionEntry.ToolCall) =
         ChatState(items = SessionData(AgentId("main"), entries = calls.toList(), live = live).items, pending = live.pending + prompts)
@@ -50,6 +51,14 @@ class PendingRequestsTest {
 
     @Test fun externalPromptsWrapTheHarnessPrompt() {
         assertEquals(listOf(PendingRequest.External(external)), state(prompts = listOf(external)).requests)
+    }
+
+    @Test fun connectIsNativeNotExternal() {
+        val request = assertIs<PendingRequest.Connect>(
+            state(LiveState(running = true, pending = listOf(connect)), calls = arrayOf(SessionEntry.ToolCall(ToolCallId("c4"), "mcp_login", "{}"))).requests.single(),
+        )
+        assertEquals(InteractionId("x1"), request.id)
+        assertEquals(connect, request.asked)
     }
 
     @Test fun externalSessionsKeepKinuvoRequestsInTheComposer() {

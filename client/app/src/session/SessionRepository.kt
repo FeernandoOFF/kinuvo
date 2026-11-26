@@ -8,6 +8,8 @@ import kinuvo.client.ConnectionState
 import kinuvo.client.KinuvoClient
 import kinuvo.protocol.*
 import kinuvo.protocol.agent.*
+import kinuvo.protocol.agui.AgUiEvent
+import kinuvo.protocol.agui.RunOutcome
 import kinuvo.protocol.approval.*
 import kinuvo.protocol.capability.ServerCapabilities
 import kinuvo.protocol.capability.ServerFeature
@@ -31,17 +33,20 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import io.github.oshai.kotlinlogging.KotlinLogging
+
+private val log = KotlinLogging.logger("kinuvo.sessions")
 
 /**
- * One Session as held on this Device: a window of its entries starting at [firstSeq], the live turn and run notes.
- * [loaded] turns true once the first catch-up arrived.
+ * One Session as held on this Device: a window of its entries starting at [firstSeq], what its Server reports besides
+ * them in [live] and the active run's AG-UI items in [run]. [loaded] turns true once the first snapshot arrived.
  */
 data class SessionData(
     val agentId: AgentId,
     val firstSeq: Int = 0,
     val entries: List<SessionEntry> = emptyList(),
     val live: LiveState = LiveState(),
-    val notes: List<String> = emptyList(),
+    val run: AgUiRunState = AgUiRunState(),
     val loaded: Boolean = false,
     val loadingOlder: Boolean = false,
     val receivedAt: Map<String, Long> = emptyMap(),
@@ -238,7 +243,7 @@ class SessionRepository(private val notifications: Notifications, internal val c
         recent += sessionId
         if (sessionId !in state.value.sessions) {
             put(sessionId, SessionData(agentId))
-            catchUp(sessionId)
+            subscribe(sessionId)
         }
         while (recent.size > MAX_CACHED) evict(SessionId(recent.first().value))
         if (serverInbox && viewing == sessionId) refreshViewed(agentId, sessionId)
@@ -347,29 +352,49 @@ class SessionRepository(private val notifications: Notifications, internal val c
         val id = update.sessionId
         val data = state.value.sessions[id] ?: return
         val change = update.change
-        val event = (change as? SessionChange.Event)?.event
+        if (change is SessionChange.Continued) {
+            change.entries.forEachIndexed { i, entry -> onUpdate(update.copy(change = SessionChange.Entry(change.firstSeq + i, entry))) }
+            change.run.forEach { onUpdate(update.copy(change = SessionChange.Run(it))) }
+            return
+        }
+        val event = when (change) {
+            is SessionChange.Item -> change.event
+            is SessionChange.Run -> change.event.asAgentEvent(data)
+            else -> null
+        }
         if (data.live.executionPhase != null) {
             when {
                 event is AgentEvent.RunStarted -> replies -= id
                 change is SessionChange.Entry && change.entry is SessionEntry.AssistantMessage -> replies += id
                 change is SessionChange.Entry && change.entry is SessionEntry.Notice -> replies -= id
                 event is AgentEvent.RunError || event is AgentEvent.ExecutionPhaseChanged && event.phase == ExecutionPhase.Lost -> replies -= id
-                event is AgentEvent.RunFinished && replies.remove(id) && data.live.executionPhase != ExecutionPhase.Lost && completions.add("$id:${event.runId}") -> {
+                event is AgentEvent.RunFinished && replies.remove(id) && !event.cancelled && data.live.executionPhase != ExecutionPhase.Lost && completions.add("$id:${event.runId}") -> {
                     notifications.post(Notice.RunFinished(update.agentId, id))
                     if (!serverInbox || statuses[id] != SessionStatus.Idle) markFinished(id)
                 }
             }
         }
         when (change) {
-            is SessionChange.Window -> put(id, data.copy(firstSeq = change.firstSeq, entries = change.entries, live = change.state, loaded = true))
-            is SessionChange.Reset -> put(id, data.copy(firstSeq = change.firstSeq, entries = emptyList()))
-            is SessionChange.Entry -> when {
-                change.seq < data.seen -> Unit
-                change.seq > data.seen -> scope.launch { catchUp(id) }
-                else -> put(id, data.copy(entries = data.entries + change.entry, live = data.live.on(change.entry)), received = true)
+            is SessionChange.Snapshot -> {
+                val snapshot = change.snapshot
+                val continuing = data.loaded && snapshot.firstSeq == data.seen
+                val entries = if (continuing) data.entries + snapshot.entries else snapshot.entries
+                val committed = entries.flatMapTo(mutableSetOf()) { it.runIds() }
+                val run = snapshot.run.fold(AgUiRunState()) { run, item -> run.on(item, committed) }
+                    .let { if (it.running) it.copy(done = committed) else it }
+                put(id, data.copy(firstSeq = if (continuing) data.firstSeq else snapshot.firstSeq, entries = entries, live = snapshot.state, run = run, loaded = true))
             }
-            is SessionChange.Event -> put(id, data.copy(live = data.live.on(change.event), notes = data.notes + listOfNotNull(note(change.event))), received = true)
-            is SessionChange.Live -> put(id, data.copy(live = change.state, loaded = true))
+            is SessionChange.Entry -> when {
+                change.seq < data.seen -> log.info { "session.seq.dropped session=${id.value} seq=${change.seq} seen=${data.seen}" }
+                change.seq > data.seen -> {
+                    log.warn { "session.seq.gap session=${id.value} seq=${change.seq} expected=${data.seen}" }
+                    scope.launch { subscribe(id) }
+                }
+                else -> put(id, data.copy(entries = data.entries + change.entry, live = data.live.on(change.entry), run = data.run.committed(change.entry)), received = true)
+            }
+            is SessionChange.Run -> put(id, data.copy(run = data.run.on(change.event), live = event?.let(data.live::on) ?: data.live), received = true)
+            is SessionChange.Item -> put(id, data.copy(live = data.live.on(change.event)), received = true)
+            is SessionChange.Continued -> Unit
         }
     }
 
@@ -473,13 +498,13 @@ class SessionRepository(private val notifications: Notifications, internal val c
         state.update { it.copy(finished = it.finished + sessionId) }
     }
 
-    /** Subscribes to [sessionId] from what's held, or a fresh window when nothing is. */
-    private suspend fun catchUp(sessionId: SessionId) {
+    /** Subscribes to [sessionId] from what's held, or a fresh snapshot window when nothing is. */
+    private suspend fun subscribe(sessionId: SessionId) {
         val client = client ?: return
         val data = state.value.sessions[sessionId] ?: return
         if (!catchingUp.add(sessionId)) return
         try {
-            client.call(Api.CatchUp, CatchUpParams(data.agentId, sessionId, after = if (data.loaded) data.seen else null))
+            client.call(Api.Subscribe, SubscribeParams(data.agentId, sessionId, after = if (data.loaded) data.seen else null))
         } catch (e: Exception) {
             if (e is CancellationException) throw e
         } finally {
@@ -489,7 +514,7 @@ class SessionRepository(private val notifications: Notifications, internal val c
 
     /** After (re)connecting: subscriptions start over, so catch up every cached Session and refresh what's shown. */
     private fun resync() {
-        state.value.sessions.keys.forEach { scope.launch { catchUp(it) } }
+        state.value.sessions.keys.forEach { scope.launch { subscribe(it) } }
         state.value.lists.keys.forEach { loadSessions(it) }
         state.value.skills.keys.forEach { loadSkills(it) }
         if (serverInbox) viewing?.let { id -> state.value.sessions[id]?.let { scope.launch { refreshViewed(it.agentId, id, refresh = true) } } }
@@ -540,12 +565,6 @@ private fun RepositoryState.withLocalSettled(settled: Set<SessionId>) = copy(set
 
 private fun List<SessionInfo>.localSettledCount(settled: Set<SessionId>) = count { it.id in settled && !it.favorite && it.inChats }
 
-private fun note(event: AgentEvent): String? = when (event) {
-    is AgentEvent.RunError -> event.message
-    is AgentEvent.Warning -> "⚠ ${event.message}"
-    else -> null
-}
-
 /** Transcript items with stable keys: a message keeps its key from live text to saved entry. */
 private fun SessionData.chatItems(): List<ChatItem> {
     val items = mutableListOf<ChatItem>()
@@ -572,13 +591,17 @@ private fun SessionData.chatItems(): List<ChatItem> {
             is SessionEntry.Measurement -> items += ChatItem.Measurement(key("metrics-${entry.metrics.id}", seq), entry.metrics)
             is SessionEntry.Reflection -> items += ChatItem.Reflection(key("reflection-${entry.id}", seq), entry.result, reviews, revised)
             is SessionEntry.Compaction -> items += ChatItem.Compaction(key(null, seq), entry.summary)
-            is SessionEntry.ToolReport -> items += ChatItem.ToolReport(key(null, seq), entry.tool, entry.callId, entry.content)
+            is SessionEntry.ToolReport -> items += ChatItem.ToolReport(key(null, seq), entry.tool, entry.callId, entry.content, entry.children)
             is SessionEntry.Activation -> items += ChatItem.Activation(key(null, seq), entry.name, entry.content)
             is SessionEntry.ReflectionReview -> entry.result?.takeIf { it.proposals.isNotEmpty() }?.let {
                 items += ChatItem.Reflection(key("reflection-review-${entry.proposalId}", seq), it, reviews, revised)
             }
             is SessionEntry.ContextBreak -> items += ChatItem.Notice(key(null, seq), "context_break", "New context", emptyList())
-            is SessionEntry.Notice -> if (entry.child == null) items += ChatItem.Notice(key("notice-${entry.id}", seq), entry.code, entry.message, SessionData(agentId, entries = entry.draft).items)
+            is SessionEntry.Notice -> when {
+                entry.code == "run_error" -> items += ChatItem.Error(key("notice-${entry.id}", seq), entry.message)
+                entry.code == "warning" -> items += ChatItem.Error(key("notice-${entry.id}", seq), "⚠ ${entry.message}")
+                entry.child == null -> items += ChatItem.Notice(key("notice-${entry.id}", seq), entry.code, entry.message, SessionData(agentId, entries = entry.draft).items)
+            }
             is SessionEntry.Started, is SessionEntry.Settings, is SessionEntry.Details, is SessionEntry.Context, is SessionEntry.Outcome -> Unit
         }
     }
@@ -595,13 +618,22 @@ private fun SessionData.chatItems(): List<ChatItem> {
                 val call = items.indexOfLast { it is ChatItem.ToolCall && it.callId == request.toolCallId && it.result == null }
                 if (call >= 0) items[call] = (items[call] as ChatItem.ToolCall).copy(questions = request)
             }
+            is PendingInteraction.Connect -> {
+                val call = items.indexOfLast { it is ChatItem.ToolCall && it.callId == request.toolCallId && it.result == null }
+                if (call >= 0) items[call] = (items[call] as ChatItem.ToolCall).copy(connect = request)
+            }
             else -> Unit
         }
+    }
+    run.messages.forEachIndexed { index, message ->
+        val prefix = if (message.reasoning) "reasoning" else "text"
+        if (message.text.isEmpty() || "$prefix-${message.id}" in keys) return@forEachIndexed
+        val id = key("$prefix-${message.id}", -10 - index)
+        items += if (message.reasoning) ChatItem.Reasoning(id, message.text) else ChatItem.Assistant(id, message.text)
     }
     if (live.reasoning.isNotEmpty() && "reasoning-${live.messageId}" !in keys) items += ChatItem.Reasoning(key("reasoning-${live.messageId}", -1), live.reasoning)
     if (live.text.isNotEmpty() && "text-${live.messageId}" !in keys) items += ChatItem.Assistant(key("text-${live.messageId}", -2), live.text)
     live.reflectionId?.takeIf { "reflection-$it" !in keys }?.let { items += ChatItem.Reflection(key("reflection-$it", -3)) }
-    notes.forEachIndexed { i, note -> items += ChatItem.Error("note-$i", note) }
     return items.map { if (it is ChatItem.Assistant) it.copy(at = it.at ?: receivedAt[it.id]) else it }
 }
 
@@ -612,6 +644,20 @@ private fun SessionData.withReceiptTimes(previous: SessionData?): SessionData {
     val now = Clock.System.now().toEpochMilliseconds()
     return copy(receivedAt = receivedAt + fresh.associate { it.id to now })
 }
+
+/** The Kinuvo item the client folds for a run event, kept in [SessionData.live] so status and replies follow the run. */
+private fun AgUiEvent.asAgentEvent(data: SessionData): AgentEvent? = when (this) {
+    is AgUiEvent.RunStarted -> AgentEvent.RunStarted(RunId(runId))
+    is AgUiEvent.RunFinished -> when (outcome) {
+        is RunOutcome.Interrupted -> AgentEvent.ExecutionPhaseChanged(ExecutionPhase.RequiresAction).takeIf { data.live.executionPhase != null }
+        is RunOutcome.Cancelled -> AgentEvent.RunFinished(RunId(runId), cancelled = true)
+        else -> AgentEvent.RunFinished(RunId(runId))
+    }
+    is AgUiEvent.RunError -> if (code == LOST_CODE) AgentEvent.ExecutionPhaseChanged(ExecutionPhase.Lost) else AgentEvent.RunError(RunId(data.run.runId.orEmpty()), message)
+    else -> null
+}
+
+private const val LOST_CODE = "kinuvo:lost"
 
 /** The tool name a Workflow's Approval step asks under; it stands for the step, not for a tool. */
 const val WORKFLOW_APPROVAL = "workflow_approval"

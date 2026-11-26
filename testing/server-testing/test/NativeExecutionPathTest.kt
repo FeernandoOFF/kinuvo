@@ -9,7 +9,7 @@ import kinuvo.testing.harness.awaitCondition
 import kinuvo.protocol.agent.AgentRef
 import kinuvo.protocol.Api
 import kinuvo.protocol.approval.ApprovalDecision
-import kinuvo.protocol.session.CatchUpParams
+import kinuvo.protocol.session.SubscribeParams
 import kinuvo.protocol.session.HistoryParams
 import kinuvo.protocol.approval.InteractionAnswer
 import kinuvo.protocol.approval.RespondParams
@@ -61,9 +61,9 @@ class NativeExecutionPathTest {
         server.use {
             withContext(Dispatchers.Default) {
                 val client = server.client().also { it.connect() }
-                val approvals = client.events(Api.Update).mapNotNull { (it.change as? SessionChange.Event)?.event?.approval }
+                val approvals = client.events(Api.Update).mapNotNull { (it.change as? SessionChange.Item)?.event?.approval }
                 approvals.test {
-                    client.call(Api.CatchUp, CatchUpParams(AgentId("work"), session.id))
+                    client.call(Api.Subscribe, SubscribeParams(AgentId("work"), session.id))
                     client.call(Api.Send, SendParams(AgentId("work"), session.id, "please deploy"))
                     val approval = awaitItem()
                     assertEquals("deploy", approval.toolCallName)

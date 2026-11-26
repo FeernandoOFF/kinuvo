@@ -132,12 +132,12 @@ class InstructionsTest {
         assertTrue("Use core_web_fetch" in capabilitiesFor(agent, real))
     }
 
-    @Test fun loginGuidanceRequiresAskUser() {
-        val tools = listOf("mcp_list", "mcp_add", "mcp_login").map { tool(it) }
-        val prompt = aboutKinuvoFor(tools)
+    @Test fun loginGuidanceFollowsMcpLogin() {
+        val withoutLogin = listOf("mcp_list", "mcp_add").map { tool(it) }
+        val prompt = aboutKinuvoFor(withoutLogin)
         assertFalse("then mcp_login" in prompt || "reconnect via mcp_login" in prompt)
         assertTrue("Settings → Server settings → Tools & MCP → MCP servers" in prompt)
-        val usable = aboutKinuvoFor(tools + tool("ask_user"))
+        val usable = aboutKinuvoFor(withoutLogin + tool("mcp_login"))
         assertTrue("then mcp_login" in usable && "reconnect via mcp_login" in usable)
     }
 

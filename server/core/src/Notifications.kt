@@ -29,6 +29,7 @@ class Notifications(private val harness: AgentRuntime, private val scope: Corout
     private val attempted = ConcurrentMutableSet<String>()
     fun on(agentId: AgentId, sessionId: SessionId, event: AgentEvent) {
         if (event !is AgentEvent.InteractionRequested && event !is AgentEvent.RunFinished && event !is AgentEvent.RunError) return
+        if (event is AgentEvent.RunFinished && event.cancelled) return
         val semantic = when (event) {
             is AgentEvent.InteractionRequested -> "request:${event.interaction.id}"
             is AgentEvent.RunFinished -> "finished:${event.runId}"
@@ -52,6 +53,7 @@ class Notifications(private val harness: AgentRuntime, private val scope: Corout
                     is PendingInteraction.HarnessApproval -> Notification("$name needs a response", interaction.title.clip(), agentId, sessionId, urgent = true)
                     is PendingInteraction.OpenLink -> Notification("$name needs a response", interaction.message.clip(), agentId, sessionId, urgent = true)
                     is PendingInteraction.Unsupported -> Notification("$name needs a response", "Execution is waiting".clip(), agentId, sessionId, urgent = true)
+                    is PendingInteraction.Connect -> Notification("$name wants to connect ${interaction.server}", "Finish sign-in on your Device".clip(), agentId, sessionId, urgent = true)
                 }
                 // Routine runs are told by [routineRan], when they have something to report.
                 is AgentEvent.RunFinished -> if (routine != null) null else Notification(name, plainText(lastReply(agentId.value, sessionId).orEmpty()).clip(), agentId, sessionId, kind = PushKind.Reply)

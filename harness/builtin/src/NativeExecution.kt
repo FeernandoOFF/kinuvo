@@ -95,18 +95,27 @@ private class NativeExecutionSession(private val factory: NativeExecutionFactory
             is RunKind.Chat, is RunKind.Routine -> {
                 val sink = state.boundSink()
                 val runId = input.runId ?: RunId(Uuid.random().toString())
+                // Started before composing, which loads tools and can take a while, so clients show the run right away.
+                sink.publish(AgentEvent.RunStarted(runId))
                 val run = try { factory.runner(host.run(agentId, sessionId, input)) }
-                catch (e: CancellationException) { throw e }
+                catch (e: CancellationException) {
+                    withContext(NonCancellable) { sink.publish(AgentEvent.RunFinished(runId, cancelled = true)) }
+                    throw e
+                }
                 catch (e: Exception) {
-                    sink.publish(AgentEvent.RunStarted(runId))
-                    sink.publish(AgentEvent.RunError(runId, e.message ?: e.toString()))
+                    val failed = input.onSetupFailure
+                    if (failed != null) {
+                        sink.publish(AgentEvent.RunFinished(runId, cancelled = true))
+                        failed(e)
+                    } else sink.publish(AgentEvent.RunError(runId, e.message ?: e.toString()))
                     return
                 }
                 val chat = input.kind as? RunKind.Chat
                 try {
-                    run.run(sessionId, input.text, chat?.activation, runId, chat?.attachments.orEmpty(), chat?.voice ?: false, input.action, chat?.report, input.inputs, input.steering).collect { sink.publish(it) }
+                    run.run(sessionId, input.text, chat?.activation, runId, chat?.attachments.orEmpty(), chat?.voice ?: false, input.action, chat?.report, input.inputs, input.steering)
+                        .collect { if (it !is AgentEvent.RunStarted || it.runId != runId) sink.publish(it) }
                 } catch (e: CancellationException) {
-                    withContext(NonCancellable) { sink.publish(AgentEvent.RunFinished(runId)) }
+                    withContext(NonCancellable) { sink.publish(AgentEvent.RunFinished(runId, cancelled = true)) }
                     throw e
                 }
             }

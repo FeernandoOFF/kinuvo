@@ -62,7 +62,7 @@ class ProtocolTest {
 
     @Test
     fun framesAndPayloadsRoundTrip() {
-        val event = SessionUpdate(AgentId("default"), SessionId("s1"), SessionChange.Event(AgentEvent.InteractionRequested(PendingInteraction.Approval(InteractionId("a1"), ToolCallId("c1"), "shell", "{}", "git status"))))
+        val event = SessionUpdate(AgentId("default"), SessionId("s1"), SessionChange.Item(AgentEvent.InteractionRequested(PendingInteraction.Approval(InteractionId("a1"), ToolCallId("c1"), "shell", "{}", "git status"))))
         val frame = Frame.Event(Api.Update.name, ProtocolJson.encodeToJsonElement(Api.Update.payload, event), 7)
         val text = ProtocolJson.encodeToString(Frame.serializer(), frame)
         val decoded = ProtocolJson.decodeFromString(Frame.serializer(), text) as Frame.Event
@@ -75,6 +75,8 @@ class ProtocolTest {
             InteractionAnswer.Questions(null),
             InteractionAnswer.Harness(JsonObject(mapOf("optionId" to JsonPrimitive("once")))),
             InteractionAnswer.Harness(JsonNull),
+            InteractionAnswer.Connect(true),
+            InteractionAnswer.Connect(false, "denied"),
         ).forEach { answer ->
             val params = RespondParams(SessionId("s1"), InteractionId("c1"), answer)
             assertEquals(params, ProtocolJson.decodeFromString(RespondParams.serializer(), ProtocolJson.encodeToString(RespondParams.serializer(), params)))

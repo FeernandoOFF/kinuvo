@@ -15,21 +15,22 @@ internal suspend fun discoverCodexModels(http: HttpClient): List<ModelInfo> {
     check(response.status.isSuccess()) { "Codex model discovery failed (${response.status.value})" }
     val bytes = response.bodyAsChannel().readBuffer(1024 * 1024L + 1).readByteArray()
     require(bytes.size <= 1024 * 1024) { "Codex model catalog is too large" }
-    return parseCodexModels(bytes.decodeToString())
+    return parseCodexModels(bytes.decodeToString(), response.call.request.url.host == "api.openai.com")
 }
 
-internal fun parseCodexModels(text: String): List<ModelInfo> {
+internal fun parseCodexModels(text: String, chatGptPlan: Boolean = false): List<ModelInfo> {
     val root = Json.parseToJsonElement(text).jsonObject
     return root.getValue("models").jsonArray.mapNotNull { item ->
         val m = item.jsonObject
         val id = m["slug"]?.jsonPrimitive?.contentOrNull?.takeIf { it.isNotBlank() } ?: return@mapNotNull null
+        if (chatGptPlan && m["visibility"]?.jsonPrimitive?.contentOrNull != "list") return@mapNotNull null
         if (m["visibility"]?.jsonPrimitive?.contentOrNull == "hide") return@mapNotNull null
         ModelInfo(
             id, m["display_name"]?.jsonPrimitive?.contentOrNull ?: id,
             reasoning = (m["supported_reasoning_levels"] as? JsonArray)?.mapNotNull { (it as? JsonObject)?.get("effort")?.jsonPrimitive?.contentOrNull },
             defaultReasoning = m["default_reasoning_level"]?.jsonPrimitive?.contentOrNull,
-            output = (m["output_modalities"] as? JsonArray)?.mapNotNull { it.jsonPrimitive.contentOrNull }
-                ?: listOf("text", "image").takeIf { id in IMAGE_TOOL_MODELS },
+            output = (m["output_modalities"] as? JsonArray)?.mapNotNull { it.jsonPrimitive.contentOrNull }?.filter { !chatGptPlan || it != "image" }
+                ?: listOf("text", "image").takeIf { !chatGptPlan && id in IMAGE_TOOL_MODELS },
             input = (m["input_modalities"] as? JsonArray)?.mapNotNull { it.jsonPrimitive.contentOrNull },
             context = m["context_window"]?.jsonPrimitive?.intOrNull,
         )

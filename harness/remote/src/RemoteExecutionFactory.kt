@@ -16,6 +16,7 @@ import kotlinx.coroutines.sync.withLock
 import kotlin.uuid.Uuid
 import kinuvo.client.AuthException
 import kinuvo.client.DisconnectedException
+import kinuvo.client.KinuvoException
 import kinuvo.client.ProtocolMismatchException
 
 /** KMP adapter: a linked party receives no management credential or catalog secrets. */
@@ -56,19 +57,25 @@ class RemoteExecutionFactory(private val link: (String) -> SaveRemoteLink, priva
             val sessionId = snapshot.sessionId
             state.reference(sessionId.value)
             val sink = state.boundSink()
-            val queue = Mutex()
             val commands = Mutex()
             val committed = mutableMapOf<String, ExecutionMessage>()
             var pending = emptyList<PendingInteraction>()
             var activeTurn = false
-            suspend fun reconcile(snapshot: ExecutionSnapshot) = queue.withLock {
+            var submission = 0L
+            suspend fun finishCancelled(runId: RunId) {
+                val draft = state.live().entries
+                if (draft.isNotEmpty())
+                    sink.commit(listOf(SessionEntry.Notice(runId.value, "remote_output_unconfirmed", "The source cancelled this turn.", draft)))
+                sink.publish(AgentEvent.RunFinished(runId, cancelled = true))
+            }
+            suspend fun reconcile(snapshot: ExecutionSnapshot) {
                 require(committed.keys.all { key -> snapshot.messages.any { it.id == key } }) { "Remote committed history disappeared" }
                 val fresh = snapshot.messages.filter { it.id !in committed }
                 require(snapshot.messages.none { committed[it.id]?.let { old -> old != it } == true }) { "Remote committed history changed" }
                 pending.filter { old -> snapshot.pending.none { it.id == old.id } }.forEach { state.resolve(it.id) }
                 snapshot.pending.filter { request -> pending.none { it.id == request.id } }.forEach { state.request(it) }
                 pending = snapshot.pending
-                if (snapshot.phase == ExecutionPhase.Lost) { broker.lost(); return@withLock }
+                if (snapshot.phase == ExecutionPhase.Lost) { broker.lost(); return }
                 if (fresh.isNotEmpty() || snapshot.phase != ExecutionPhase.Idle) {
                     if (!activeTurn) { sink.publish(AgentEvent.ExecutionPhaseChanged(ExecutionPhase.Running)); activeTurn = true }
                     val entries = remoteEntries(fresh, state.generation)
@@ -80,7 +87,8 @@ class RemoteExecutionFactory(private val link: (String) -> SaveRemoteLink, priva
                             sink.publish(AgentEvent.RunError(RunId(runId), stopReason.removePrefix("error:")))
                         } else {
                             sink.commit(entries)
-                            sink.publish(AgentEvent.RunFinished(RunId(runId)))
+                            if (stopReason == "cancelled") finishCancelled(RunId(runId))
+                            else sink.publish(AgentEvent.RunFinished(RunId(runId)))
                         }
                         fresh.forEach { committed[it.id] = it }
                         sink.publish(AgentEvent.ExecutionPhaseChanged(ExecutionPhase.Idle))
@@ -92,7 +100,8 @@ class RemoteExecutionFactory(private val link: (String) -> SaveRemoteLink, priva
                 } else if (activeTurn && snapshot.phase == ExecutionPhase.Idle) {
                     val runId = "remote:${state.generation}:${Uuid.random()}"
                     val draft = state.live().entries
-                    if (draft.isNotEmpty() || snapshot.stopReason?.startsWith("error:") == true) {
+                    if (snapshot.stopReason == "cancelled") finishCancelled(RunId(runId))
+                    else if (draft.isNotEmpty() || snapshot.stopReason?.startsWith("error:") == true) {
                         sink.commit(listOf(SessionEntry.Notice(runId, "remote_output_unconfirmed", "The source ended this turn without confirming its live output.", draft)))
                         sink.publish(AgentEvent.RunError(RunId(runId), "Source output was not confirmed"))
                     } else sink.publish(AgentEvent.RunFinished(RunId(runId)))
@@ -106,9 +115,16 @@ class RemoteExecutionFactory(private val link: (String) -> SaveRemoteLink, priva
                         delay(200)
                         if (client.state.value is ConnectionState.Connected) {
                             try {
-                                val snapshot = requireNotNull(withTimeout(10_000) { client.call(Api.RemoteExecution, RemoteExecutionCall(AgentId(agentId), sessionId, "snapshot")) }.snapshot)
-                                reconcile(snapshot)
-                                if (snapshot.phase != ExecutionPhase.Lost) readiness(config.id, true, "")
+                                val observed = commands.withLock { submission }
+                                val snapshot = requireNotNull(withTimeout(10_000) {
+                                    client.call(Api.RemoteExecution, RemoteExecutionCall(AgentId(agentId), sessionId, "snapshot"))
+                                }.snapshot)
+                                val phase = commands.withLock {
+                                    if (observed != submission) return@withLock null
+                                    reconcile(snapshot)
+                                    snapshot.phase
+                                }
+                                if (phase != null && phase != ExecutionPhase.Lost) readiness(config.id, true, "")
                             }
                             catch (_: DisconnectedException) { readiness(config.id, false, "host_offline") }
                             catch (_: TimeoutCancellationException) { readiness(config.id, false, "host_offline") }
@@ -127,7 +143,17 @@ class RemoteExecutionFactory(private val link: (String) -> SaveRemoteLink, priva
                 override val capabilities = ExecutionCapabilities(cancel = true, questions = true, approvals = true)
                 override suspend fun prompt(input: ExecutionInput): ExecutionAcceptance = commands.withLock {
                     require(input.attachments.isEmpty()) { "Remote attachments are unsupported" }
-                    client.call(Api.RemoteExecution, RemoteExecutionCall(AgentId(agentId), sessionId, "send", messageText(input.text, input.inputs), surfaceAction = input.action))
+                    submission++
+                    try {
+                        client.call(Api.RemoteExecution, RemoteExecutionCall(AgentId(agentId), sessionId, "send", messageText(input.text, input.inputs), surfaceAction = input.action))
+                    } catch (e: KinuvoException) {
+                        when (e) {
+                            is KinuvoException.InvalidParams, is KinuvoException.NotFound, is KinuvoException.Forbidden, is KinuvoException.Conflict ->
+                                throw ExecutionRejected(e.message ?: "Remote prompt rejected", e)
+                            else -> throw e
+                        }
+                    }
+                    activeTurn = true
                     ExecutionAcceptance()
                 }
                 override suspend fun cancel() { commands.withLock { client.call(Api.RemoteExecution, RemoteExecutionCall(AgentId(agentId), sessionId, "cancel")) } }

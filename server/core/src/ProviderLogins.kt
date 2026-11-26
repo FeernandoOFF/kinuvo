@@ -12,7 +12,10 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
+import io.github.oshai.kotlinlogging.KotlinLogging
 import kinuvo.server.providers.ModelProvider
+
+private val log = KotlinLogging.logger("kinuvo.providers")
 
 /** Model provider sign-ins: each runs in the background after handing its device code to the client; [changed] follows. */
 class ProviderLogins(private val providers: List<ModelProvider>, private val scope: CoroutineScope, private val changed: suspend (List<ProviderInfo>) -> Unit) {
@@ -20,7 +23,20 @@ class ProviderLogins(private val providers: List<ModelProvider>, private val sco
     private val errors = ConcurrentMutableMap<String, String>()
     private val lock = Mutex()
 
-    suspend fun list() = providers.map { ProviderInfo(it.id, it.name, it.auth?.account(), errors[it.id], it.apiKey?.status(), it.downloads?.state()) }
+    suspend fun list() = providers.map { ProviderInfo(it.id, it.name, it.auth?.account(), errors[it.id], it.apiKey?.status(), it.downloads?.state(), it.auth?.browserSignIn == true) }
+
+    suspend fun signIn(id: String, redirectUri: String, anotherAccount: Boolean = false, requestConsent: Boolean = false): String = lock.withLock {
+        running.remove(id)?.cancelAndJoin()
+        errors.remove(id)
+        checkNotNull(provider(id).auth).let { it.cancelSignIn(); it.signIn(redirectUri, anotherAccount, requestConsent) }
+    }
+
+    suspend fun cancelSignIn(id: String) = lock.withLock { provider(id).auth?.cancelSignIn(); Unit }
+
+    suspend fun completeSignIn(id: String, callbackUrl: String) {
+        lock.withLock { checkNotNull(provider(id).auth).completeSignIn(callbackUrl) }
+        changed(list())
+    }
 
     suspend fun refresh() { changed(list()) }
 
@@ -29,13 +45,17 @@ class ProviderLogins(private val providers: List<ModelProvider>, private val sco
         val code = CompletableDeferred<DeviceCode>()
         lock.withLock {
             running.remove(id)?.cancelAndJoin()
+            auth.cancelSignIn()
             errors.remove(id)
             val job = scope.launch(start = CoroutineStart.LAZY) {
                 try {
+                    log.info { "provider.signin.start provider=$id" }
                     auth.login { code.complete(it) }
+                    log.info { "provider.signin.ok provider=$id" }
                 } catch (e: CancellationException) {
                     throw e
                 } catch (e: Exception) {
+                    log.warn { "provider.signin.failed provider=$id error=${e::class.simpleName}: ${e.message?.take(200)}" }
                     errors[id] = e.message ?: "Sign-in failed"
                     code.completeExceptionally(e)
                 }

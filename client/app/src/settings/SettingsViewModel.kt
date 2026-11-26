@@ -60,6 +60,7 @@ data class SettingsState(
     val providers: List<ProviderInfo>? = null,
     /** The device code of the provider sign-in in progress, by provider. */
     val deviceCode: Pair<String, DeviceCode>? = null,
+    val providerSignIn: ProviderSignInState? = null,
     /** The Server's password managers, null until loaded. */
     val secrets: List<SecretProviderStatus>? = null,
     /** Names under each browsed path (scheme first, then vault and item), for picking a Secret reference. */
@@ -444,7 +445,14 @@ class SettingsViewModel(
         }
     }
 
+    private val chatGptSignIn = ProviderSignIn(config, browser, viewModelScope,
+        changed = { value -> state.update { it.copy(providerSignIn = value) } })
+    fun signInWithChatGPT(anotherAccount: Boolean = false, requestConsent: Boolean = false) = chatGptSignIn.start("codex", anotherAccount, requestConsent)
+    fun completeChatGPTSignIn(callbackUrl: String) = chatGptSignIn.complete(callbackUrl)
+    fun cancelChatGPTSignIn() = chatGptSignIn.cancel()
+
     fun loginProvider(id: String) = attempt {
+        chatGptSignIn.cancel()
         state.update { it.copy(deviceCode = null) }
         val code = config.loginProvider(id)
         state.update { it.copy(deviceCode = id to code) }

@@ -8,6 +8,7 @@ import kinuvo.protocol.surface.modelText
 import com.agentclientprotocol.client.v2.ClientSessionOperations
 import com.agentclientprotocol.client.v2.ClientSession
 import com.agentclientprotocol.model.v2.*
+import com.agentclientprotocol.protocol.JsonRpcException
 import com.agentclientprotocol.model.v2.SessionUpdate as AcpSessionUpdate
 import java.nio.ByteBuffer
 import kinuvo.harness.*
@@ -57,11 +58,21 @@ class AcpSession internal constructor(
         val content = input.content(capabilities)
         val response = commands.withLock {
             reducer.submitted()
-            val instructions = input.instructions?.takeIf { firstPrompt && it.isNotBlank() }
+            val initial = firstPrompt
+            val instructions = input.instructions?.takeIf { initial && it.isNotBlank() }
             firstPrompt = false
             val prompt = if (instructions == null) content else
                 listOf(ContentBlock.Text("<kinuvo_context>\n$instructions\n</kinuvo_context>")) + content
-            async(start = CoroutineStart.UNDISPATCHED) { connection.prompt(session, prompt) }
+            async(start = CoroutineStart.UNDISPATCHED) {
+                try { connection.prompt(session, prompt) }
+                catch (e: JsonRpcException) {
+                    commands.withLock {
+                        if (!reducer.rejected()) throw e
+                        firstPrompt = initial
+                    }
+                    throw ExecutionRejected(e.message, e)
+                }
+            }
         }.await()
         state.accepted()
         ExecutionAcceptance((response as? JsonObject)?.string("messageId"))

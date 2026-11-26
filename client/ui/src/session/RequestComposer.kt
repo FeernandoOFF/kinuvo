@@ -41,6 +41,8 @@ import com.composables.icons.lucide.MessageCircleQuestionMark
 import com.composables.icons.lucide.Pencil
 import com.composables.icons.lucide.ShieldAlert
 import com.composables.icons.lucide.X
+import com.composables.icons.lucide.Plug
+import com.composables.icons.lucide.ExternalLink
 import com.composables.ui.components.*
 import com.composables.ui.theme.*
 import kinuvo.app.session.*
@@ -49,6 +51,9 @@ import kinuvo.protocol.approval.ApprovalDecision
 import kinuvo.protocol.approval.Question
 import kinuvo.protocol.approval.Risk
 import kinuvo.ui.design.*
+import kinuvo.app.connection.ConnectState
+import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.foundation.text.input.rememberTextFieldState
 import com.composeunstyled.theme.Theme
 
 private val ComposerShape = RoundedCornerShape(Radius.composer)
@@ -106,8 +111,8 @@ internal fun RequestComposer(
     val body: @Composable (PendingRequest, Boolean) -> Unit = { current, wide ->
         val child = state.interactionChildren[current.id]?.let { state.children[it] }
         RequestHeader(current, requests.size, from = child?.let { "From Sub-agent ${actions.agents.firstOrNull { a -> a.id == it.agentId }?.name ?: it.agentId.value}: ${it.goal.lineSequence().first()}" },
-            onClose = if (current is PendingRequest.Questions) ({ actions.onAnswer(null) }) else null)
-        RequestBody(current, state.answers, inputs.of(current), actions, wide)
+            onClose = if (current is PendingRequest.Questions) ({ actions.onAnswer(current.id, null) }) else null)
+        RequestBody(current, state.answers, inputs.of(current), actions, wide, state.connecting)
     }
     BoxWithConstraints(modifier.fillMaxWidth()) {
         val wide = maxWidth >= WideBreakpoint
@@ -188,6 +193,7 @@ private fun PendingRequest.tone(): Color = when (this) {
 private fun PendingRequest.icon(): ImageVector = when (this) {
     is PendingRequest.Approval -> Lucide.ShieldAlert
     is PendingRequest.Takeover -> Lucide.Hand
+    is PendingRequest.Connect -> Lucide.Plug
     else -> Lucide.MessageCircleQuestionMark
 }
 
@@ -196,6 +202,7 @@ private fun PendingRequest.title(): String = when (this) {
         else "Allow ${event.identity?.localId ?: event.toolCallName}?"
     is PendingRequest.Questions -> asked.title ?: "Questions for you"
     is PendingRequest.Takeover -> "Your turn"
+    is PendingRequest.Connect -> "Connect ${asked.server}"
     is PendingRequest.External -> ""
 }
 
@@ -203,6 +210,7 @@ private fun PendingRequest.detail(): String? = when (this) {
     // The card shows the preview itself, so only why it asks stays here.
     is PendingRequest.Approval -> event.preview.let { p -> if (p == null) event.reason else event.reason?.removeSuffix(p.text())?.trim()?.ifEmpty { null } }
     is PendingRequest.Takeover -> reason ?: asked.title
+    is PendingRequest.Connect -> asked.site?.let { "Signs in at $it" }
     else -> null
 }
 
@@ -229,12 +237,51 @@ private fun RequestHeader(request: PendingRequest, count: Int, from: String? = n
 }
 
 @Composable
-private fun RequestBody(request: PendingRequest, drafts: Map<InteractionId, Map<String, List<String>>>, input: RequestInput, actions: ChatActions, wide: Boolean) {
+private fun RequestBody(request: PendingRequest, drafts: Map<InteractionId, Map<String, List<String>>>, input: RequestInput, actions: ChatActions, wide: Boolean,
+    connecting: Map<InteractionId, ConnectState> = emptyMap()) {
     when (request) {
+        is PendingRequest.Connect -> ConnectBody(request.asked, connecting[request.asked.id], wide, actions)
         is PendingRequest.Approval -> ApprovalBody(request.event, input, wide) { actions.onDecision(request.id, it) }
         is PendingRequest.Questions -> QuestionsBody(request.asked, drafts, input, wide, actions)
         is PendingRequest.Takeover -> TakeoverBody(request.asked, input, wide, actions)
         is PendingRequest.External -> Unit
+    }
+}
+
+/** Signs in to an MCP server with the app's own browser sign-in, which comes back by itself; pasting is the fallback. */
+@Composable
+private fun ConnectBody(asked: PendingInteraction.Connect, state: ConnectState?, wide: Boolean, actions: ChatActions) {
+    val uri = LocalUriHandler.current
+    val paste = rememberTextFieldState()
+    val url = when (state) { is ConnectState.SigningIn -> state.url; is ConnectState.AwaitingPaste -> state.url; is ConnectState.Failed -> state.url; null -> null }
+    Column(verticalArrangement = Arrangement.spacedBy(Spacing.space10)) {
+        when (state) {
+            null -> Text(asked.reason ?: "Sign in so I can use ${asked.server}'s tools. It opens in a browser and comes back here.",
+                style = TextStyles.secondary, color = color(mutedColor))
+            is ConnectState.SigningIn -> Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.space10)) {
+                Spinner(); Text("Finish signing in to ${asked.server} in the browser…", Modifier.weight(1f), style = TextStyles.secondary, color = color(mutedColor))
+            }
+            is ConnectState.AwaitingPaste -> {
+                Text("The browser didn't come back. Copy the address of the page it ended on and paste it here.", style = TextStyles.secondary, color = color(mutedColor))
+                Input(paste, "Address the browser ended on")
+            }
+            is ConnectState.Failed -> Text(state.message, style = TextStyles.secondary, color = color(destructiveColor))
+        }
+        Actions(wide,
+            primary = {
+                when (state) {
+                    null, is ConnectState.Failed -> Button(onClick = { actions.onConnect(asked) }, modifier = it, style = ButtonStyle.Primary) {
+                        Icon(Lucide.ExternalLink, Modifier.size(15.dp)); Spacer(Modifier.width(Spacing.space6)); Text(if (state == null) "Sign in" else "Try again")
+                    }
+                    is ConnectState.AwaitingPaste -> Button(onClick = { actions.onCompleteConnect(asked, paste.text.toString()) }, modifier = it,
+                        enabled = paste.text.isNotBlank(), style = ButtonStyle.Primary) { Text("Finish sign-in") }
+                    is ConnectState.SigningIn -> Button(onClick = { runCatching { uri.openUri(state.url) } }, modifier = it, style = ButtonStyle.Outlined) { Text("Open the page again") }
+                }
+            },
+            others = {
+                if (state is ConnectState.AwaitingPaste && url != null) Button(onClick = { runCatching { uri.openUri(url) } }, modifier = it, style = ButtonStyle.Ghost) { Text("Open the page again") }
+                Button(onClick = { actions.onSkipConnect(asked) }, modifier = it, style = ButtonStyle.Ghost, contentColor = color(mutedColor)) { Text("Not now") }
+            })
     }
 }
 
@@ -354,7 +401,7 @@ private fun QuestionsBody(asked: PendingInteraction.Questions, drafts: Map<Inter
         }
         Actions(wide,
             primary = {
-                Button(onClick = { if (last) actions.onAnswer(answers) else input.step = step + 1 }, modifier = it, enabled = if (last) asked.questions.all(::ready) else ready(asked.questions[step]), style = ButtonStyle.Primary) {
+                Button(onClick = { if (last) actions.onAnswer(asked.id, answers) else input.step = step + 1 }, modifier = it, enabled = if (last) asked.questions.all(::ready) else ready(asked.questions[step]), style = ButtonStyle.Primary) {
                     Text(if (asked.questions.isEmpty()) "Check again" else if (last) "Send" else "Next")
                 }
             },
@@ -365,7 +412,7 @@ private fun QuestionsBody(asked: PendingInteraction.Questions, drafts: Map<Inter
                     val skipped = answers + (current.id to emptyList())
                     Button(onClick = {
                         actions.onEditAnswer(asked.id, current.id, emptyList())
-                        if (last) actions.onAnswer(skipped) else input.step = step + 1
+                        if (last) actions.onAnswer(asked.id, skipped) else input.step = step + 1
                     }, modifier = it, enabled = !last || asked.questions.all { q -> q == current || ready(q) }, style = ButtonStyle.Ghost, contentColor = color(mutedColor)) { Text("Skip question") }
                 }
             })
@@ -378,11 +425,11 @@ private fun TakeoverBody(asked: PendingInteraction.Questions, input: RequestInpu
         Text("Do this step yourself in Live view, then hand back there. Sending a note or skipping doesn't hand it back.", style = TextStyles.caption, color = color(mutedColor))
         Actions(wide,
             primary = { Button(onClick = { asked.screen?.let { actions.onScreen(it, asked.title) } ?: actions.onWatch() }, modifier = it, style = ButtonStyle.Primary) { Text("Open Live view") } },
-            others = { Button(onClick = { actions.onAnswer(null) }, modifier = it, style = ButtonStyle.Ghost, contentColor = color(mutedColor)) { Text("Skip") } })
+            others = { Button(onClick = { actions.onAnswer(asked.id, null) }, modifier = it, style = ButtonStyle.Ghost, contentColor = color(mutedColor)) { Text("Skip") } })
         val question = asked.questions.firstOrNull()
         val text = input.note.text.toString()
         Input(input.note, "Add a note for the agent", capitalize = true, trailing = {
-            Button(onClick = { actions.onAnswer(mapOf((question?.id ?: "note") to listOfNotNull(text.takeIf(String::isNotBlank)))) }, enabled = question?.required != true || text.isNotBlank(),
+            Button(onClick = { actions.onAnswer(asked.id, mapOf((question?.id ?: "note") to listOfNotNull(text.takeIf(String::isNotBlank)))) }, enabled = question?.required != true || text.isNotBlank(),
                 style = ButtonStyle.Ghost, contentColor = color(accentColor)) { Text("Send") }
         })
     }

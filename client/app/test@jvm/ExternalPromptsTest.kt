@@ -40,13 +40,13 @@ class ExternalPromptsTest {
                 vm.shown()
                 assertIs<PendingInteraction.HarnessApproval>(vm.state.first { it.pending.isNotEmpty() }.pending.single())
                 val request = PendingInteraction.Questions(InteractionId("q"), ToolCallId("t"), "Details", listOf(Question("when", "When?", QuestionKind.Text, default = listOf("Tomorrow"))))
-                script.event(Api.Update, SessionUpdate(AgentId("wren"), SessionId("s1"), SessionChange.Event(AgentEvent.InteractionRequested(request))))
+                script.event(Api.Update, SessionUpdate(AgentId("wren"), SessionId("s1"), SessionChange.Item(AgentEvent.InteractionRequested(request))))
                 assertEquals(listOf("open", "q").map(::InteractionId), vm.state.first { it.pending.size == 2 }.pending.map { it.id })
                 script.acceptAnswer = false
                 vm.answerExternal(urlApproval, approvalAnswer("accept"))
                 assertTrue(vm.state.first { it.errors.isNotEmpty() }.errors.last().contains("Already answered"))
                 assertEquals(2, vm.state.value.pending.size)
-                script.event(Api.Update, SessionUpdate(AgentId("wren"), SessionId("s1"), SessionChange.Event(AgentEvent.InteractionResolved(InteractionId("open")))))
+                script.event(Api.Update, SessionUpdate(AgentId("wren"), SessionId("s1"), SessionChange.Item(AgentEvent.InteractionResolved(InteractionId("open")))))
                 assertEquals(InteractionId("q"), vm.state.first { it.pending.size == 1 }.pending.single().id)
                 assertEquals(0, script.snapshotReads)
             } finally { clearAndJoin() }
@@ -142,12 +142,28 @@ class ExternalPromptsTest {
         owner.sessions.view(AgentId("wren"), SessionId("s1")).join()
         owner.sessions.state.first { it.sessions[SessionId("s1")]?.loaded == true }
         script.event(Api.SessionChanged, SessionInfo(SessionId("s1"), AgentId("wren"), "Test", SessionStatus.Running))
-        script.event(Api.Update, SessionUpdate(AgentId("wren"), SessionId("s1"), SessionChange.Event(AgentEvent.ExecutionPhaseChanged(ExecutionPhase.Lost))))
+        script.event(Api.Update, SessionUpdate(AgentId("wren"), SessionId("s1"), SessionChange.Item(AgentEvent.ExecutionPhaseChanged(ExecutionPhase.Lost))))
         script.event(Api.SessionChanged, SessionInfo(SessionId("s1"), AgentId("wren"), "Test", SessionStatus.Idle))
         owner.sessions.state.first { it.sessions[SessionId("s1")]?.live?.executionPhase == ExecutionPhase.Lost }
-        script.event(Api.Update, SessionUpdate(AgentId("wren"), SessionId("s1"), SessionChange.Event(AgentEvent.RunFinished(RunId("lost")))))
-        script.event(Api.Update, SessionUpdate(AgentId("wren"), SessionId("s1"), SessionChange.Event(AgentEvent.InteractionRequested(urlApproval))))
+        script.event(Api.Update, SessionUpdate(AgentId("wren"), SessionId("s1"), SessionChange.Item(AgentEvent.RunFinished(RunId("lost")))))
+        script.event(Api.Update, SessionUpdate(AgentId("wren"), SessionId("s1"), SessionChange.Item(AgentEvent.InteractionRequested(urlApproval))))
         owner.sessions.state.first { it.sessions[SessionId("s1")]?.live?.pending?.isNotEmpty() == true }
+        assertTrue(script.notices.none { it is Notice.RunFinished })
+    }
+
+    @Test fun cancelledTurnKeepsPartialReplyWithoutAnnouncingIt() = withServer(LiveState(executionPhase = ExecutionPhase.Running, running = true)) { owner, script ->
+        val agent = AgentId("wren")
+        val session = SessionId("s1")
+        owner.sessions.view(agent, session).join()
+        owner.sessions.state.first { it.sessions[session]?.loaded == true }
+        owner.sessions.view(agent, null).join()
+        val reply = SessionEntry.AssistantMessage("Partial reply", "partial")
+        script.event(Api.Update, SessionUpdate(agent, session, SessionChange.Entry(0, reply)))
+        script.event(Api.Update, SessionUpdate(agent, session, SessionChange.Item(AgentEvent.RunFinished(RunId("cancelled"), cancelled = true))))
+        script.event(Api.Update, SessionUpdate(agent, session, SessionChange.Item(AgentEvent.InteractionRequested(urlApproval))))
+        val state = owner.sessions.state.first { it.sessions[session]?.live?.pending?.isNotEmpty() == true }
+        assertEquals(listOf(reply), state.sessions.getValue(session).entries)
+        assertFalse(session in state.finished)
         assertTrue(script.notices.none { it is Notice.RunFinished })
     }
 
@@ -217,19 +233,19 @@ class ExternalPromptsTest {
                     }
                     snapshot = snapshot.copy(executionPhase = ExecutionPhase.Idle)
                     reply(request, Api.ResumeExecution, ExecutionSnapshot(SessionId("s1")))
-                    event(Api.Update, SessionUpdate(AgentId("wren"), SessionId("s1"), SessionChange.Live(snapshot)))
+                    event(Api.Update, SessionUpdate(AgentId("wren"), SessionId("s1"), SessionChange.Snapshot(SessionSnapshot(0, 0, emptyList(), snapshot))))
                 }
                 Api.CloseExecution.name -> {
                     actions += request.method
                     snapshot = snapshot.copy(executionPhase = ExecutionPhase.Lost)
                     reply(request, Api.CloseExecution, Unit)
-                    event(Api.Update, SessionUpdate(AgentId("wren"), SessionId("s1"), SessionChange.Live(snapshot)))
+                    event(Api.Update, SessionUpdate(AgentId("wren"), SessionId("s1"), SessionChange.Snapshot(SessionSnapshot(0, 0, emptyList(), snapshot))))
                 }
                 Api.Session.name -> reply(request, Api.Session, SessionInfo(SessionId("s1"), AgentId("wren"), "Slack"))
                 Api.Capabilities.name -> reply(request, Api.Capabilities, SessionCapabilities(0, ServerCapabilities("test", features = setOf(ServerFeature.Attachments)), attachments = mapOf("text/plain" to CapabilityState()), chat = if (snapshot.executionPhase == ExecutionPhase.Lost) CapabilityState.unavailable("Execution ended", "session_lost") else CapabilityState(), execution = ExecutionCapabilities(resume = true, supportedMimeTypes = setOf("text/plain"))))
-                Api.CatchUp.name -> {
-                    reply(request, Api.CatchUp, Unit)
-                    event(Api.Update, SessionUpdate(AgentId("wren"), SessionId("s1"), SessionChange.Window(0, emptyList(), snapshot)))
+                Api.Subscribe.name -> {
+                    reply(request, Api.Subscribe, Unit)
+                    event(Api.Update, SessionUpdate(AgentId("wren"), SessionId("s1"), SessionChange.Snapshot(SessionSnapshot(0, 0, emptyList(), snapshot))))
                 }
                 else -> frames.send(Frame.Response(request.id, false, error = WireError(WireErrorCode.Internal, "Unsupported in test: ${request.method}")))
             }

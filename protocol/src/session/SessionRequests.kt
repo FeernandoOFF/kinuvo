@@ -50,12 +50,12 @@ data class SessionsParams(val agentId: AgentId, val before: SessionId? = null, v
 data class SessionParams(val agentId: AgentId, val sessionId: SessionId)
 
 /**
- * Subscribes to a Session: the server sends, as [Api.Update]s, the entries from [after] on and then the live state,
- * followed by live updates until [Api.Unsubscribe]. With no [after], or more than [limit] entries behind, it sends
- * [SessionChange.Reset] and only the last [limit] entries; older ones load with [Api.History].
+ * Subscribes to a Session: the server sends a [SessionChange.Snapshot] as an [Api.Update], then frames until
+ * [Api.Unsubscribe]. The snapshot holds the entries from [after] on, or only the last [limit] when there is no [after]
+ * or more than [limit] entries are behind; older ones load with [Api.History].
  */
 @Serializable
-data class CatchUpParams(val agentId: AgentId, val sessionId: SessionId, val after: Int? = null, val limit: Int = 100)
+data class SubscribeParams(val agentId: AgentId, val sessionId: SessionId, val after: Int? = null, val limit: Int = 100)
 
 @Serializable
 data class UnsubscribeParams(val sessionId: SessionId)

@@ -46,7 +46,7 @@ class AgentDefaultsTest {
         vm.shown()
         vm.state.first { it.data != null }
         val waiting = QueuedMessage("queued", "waiting")
-        script.event(Api.Update, SessionUpdate(AgentId("agent"), SessionId("session"), SessionChange.Live(LiveState(running = true, queued = listOf(waiting)))))
+        script.event(Api.Update, SessionUpdate(AgentId("agent"), SessionId("session"), SessionChange.Snapshot(SessionSnapshot(0, 0, emptyList(), LiveState(running = true, queued = listOf(waiting))))))
         vm.state.first { it.running && it.queued.size == 1 }
         vm.send("blocked turn")
         assertTrue(script.deliveries.isEmpty)
@@ -58,7 +58,7 @@ class AgentDefaultsTest {
         vm.state.first { !it.sending }
         vm.cancelQueued("queued")
         assertEquals("queued", script.cancellations.receive().id)
-        script.event(Api.Update, SessionUpdate(AgentId("agent"), SessionId("session"), SessionChange.Event(AgentEvent.QueueChanged(emptyList()))))
+        script.event(Api.Update, SessionUpdate(AgentId("agent"), SessionId("session"), SessionChange.Item(AgentEvent.QueueChanged(emptyList()))))
         vm.state.first { it.queued.isEmpty() }
     }
 
@@ -282,7 +282,7 @@ class AgentDefaultsTest {
                     reviews.send(ProtocolJson.decodeFromJsonElement(Api.ReviewReflection.params, request.params))
                     reply(request, Api.ReviewReflection, Unit)
                 }
-                Api.CatchUp.name -> reply(request, Api.CatchUp, Unit)
+                Api.Subscribe.name -> reply(request, Api.Subscribe, Unit)
                 else -> frames.send(Frame.Response(request.id, false, error = WireError(WireErrorCode.Internal, "Unsupported in test: ${request.method}")))
             }
         }
