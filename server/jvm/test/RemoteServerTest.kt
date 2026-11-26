@@ -121,4 +121,58 @@ class RemoteServerTest {
             waitFor { it.phase == ExecutionPhase.Lost }
         } finally { clients.forEach { it.close() }; local.stop(); source.stop(); dir.deleteRecursively() }
     }
+
+    private fun sourceHost(dir: java.io.File) = JvmServerHost(JvmAgentRuntime(home = Path(dir.resolve("source").path), providers = ModelProviders.of(CodexProvider(CodexAuth(PrivateFile(Path(dir.path, "none.json"))))), modelFactory = { scriptedModel { _, _ -> flowOf(StreamFrame.TextDelta("remote native reply"), StreamFrame.End()) } }))
+
+    private suspend fun resumeFixture(revoke: Boolean) {
+        val dir = temporaryDirectories.create("kinuvo-remote-resume-test").toFile()
+        val source = sourceHost(dir)
+        var local = JvmServerHost(JvmAgentRuntime(home = Path(dir.resolve("local").path)))
+        val clients = mutableListOf<KinuvoClient>()
+        try {
+            val sourcePort = source.start("127.0.0.1", 0, schedule = false)
+            var localPort = local.start("127.0.0.1", 0, schedule = false)
+            val origin = KinuvoClient("ws://127.0.0.1:$sourcePort/ws", "manager", pairingCode = source.auth.pairing(false, true)!!.code).also { clients.add(it); it.connect() }
+            var destination = KinuvoClient("ws://127.0.0.1:$localPort/ws", "manager", pairingCode = local.auth.pairing(false, true)!!.code).also { clients.add(it); it.connect() }
+            val managerToken = requireNotNull(destination.lastConnect).token
+            val token = origin.call(Api.GrantExecution, ExposureGrant("link", setOf(AgentId("default"))))
+            destination.call(Api.SaveRemoteLink, SaveRemoteLink("source", "ws://127.0.0.1:$sourcePort/ws", token))
+            destination.call(Api.SaveHarnessConnection, HarnessConnection("remote", "Source", ExecutionConnection.Remote("source")))
+            destination.call(Api.RegisterExternalAgent, AgentRegistration(AgentId("alias"), "Alias", "remote", remoteAgentId = "default"))
+            val id = destination.call(Api.CreateSession, AgentRef(AgentId("alias"))).id
+            destination.call(Api.Send, SendParams(AgentId("alias"), id, "first"))
+            awaitCondition("the first reply") { destination.call(Api.ExecutionSnapshot, ExecutionRef(id.value)).let { it.phase == ExecutionPhase.Idle && it.messages.any { m -> m.text == "remote native reply" } } }
+            val sourceSession = requireNotNull(destination.call(Api.ExecutionSnapshot, ExecutionRef(id.value)).externalSessionId)
+            suspend fun sourceSessions() = run { origin.call(Api.Sessions, SessionsParams(AgentId("default"))).sessions.size }
+            val before = sourceSessions()
+            destination.close()
+            local.stop()
+            local = JvmServerHost(JvmAgentRuntime(home = Path(dir.resolve("local").path)))
+            localPort = local.start("127.0.0.1", 0, schedule = false)
+            destination = KinuvoClient("ws://127.0.0.1:$localPort/ws", "manager", token = managerToken).also { clients.add(it); it.connect() }
+            val lost = destination.call(Api.ExecutionSnapshot, ExecutionRef(id.value))
+            assertEquals(ExecutionPhase.Lost, lost.phase)
+            assertEquals(sourceSession, lost.externalSessionId)
+            if (revoke) {
+                origin.call(Api.RevokeExecution, ExecutionRef("link"))
+                assertFails { destination.call(Api.ResumeExecution, ExecutionRef(id.value)) }
+                assertEquals(ExecutionPhase.Lost, destination.call(Api.ExecutionSnapshot, ExecutionRef(id.value)).phase)
+                return
+            }
+            destination.call(Api.ResumeExecution, ExecutionRef(id.value))
+            assertEquals(before, sourceSessions())
+            assertEquals(sourceSession, destination.call(Api.ExecutionSnapshot, ExecutionRef(id.value)).externalSessionId)
+            destination.call(Api.Send, SendParams(AgentId("alias"), id, "second"))
+            awaitCondition("the second reply") { destination.call(Api.History, HistoryParams(AgentId("alias"), id, 100)).map { it.entry }.filterIsInstance<SessionEntry.AssistantMessage>().size == 2 }
+            val history = destination.call(Api.History, HistoryParams(AgentId("alias"), id, 100)).map { it.entry }
+            assertEquals(listOf("first", "second"), history.filterIsInstance<SessionEntry.UserMessage>().map { it.text })
+            assertEquals(listOf("remote native reply", "remote native reply"), history.filterIsInstance<SessionEntry.AssistantMessage>().map { it.text })
+            delay(600)
+            assertEquals(2, destination.call(Api.History, HistoryParams(AgentId("alias"), id, 100)).map { it.entry }.filterIsInstance<SessionEntry.AssistantMessage>().size)
+        } finally { clients.forEach { it.close() }; local.stop(); source.stop(); dir.deleteRecursively() }
+    }
+
+    @Test fun linkedSessionResumesAfterRestart() = runBlocking { resumeFixture(revoke = false) }
+
+    @Test fun revokedLinkFailsResumeCleanly() = runBlocking { resumeFixture(revoke = true) }
 }

@@ -79,16 +79,24 @@ class RemoteExecutionFactory(
 
     override suspend fun open(config: HarnessConnection, registration: AgentRegistration, state: ExecutionState, broker: ExecutionBroker, scope: CoroutineScope): ExecutionSession {
         val remote = config.connection as ExecutionConnection.Remote
-        val client = connect(remote.serverId)
+        val client = try { connect(remote.serverId) } catch (e: AuthException) { readiness(config.id, false, "access_revoked"); throw e }
         try {
             val agentId = requireNotNull(registration.remoteAgentId)
-            val created = client.call(Api.RemoteExecution, RemoteExecutionCall(AgentId(agentId), action = "create"))
-            val snapshot = requireNotNull(created.snapshot)
+            val previous = state.snapshot().externalSessionId
+            val snapshot = if (previous == null) requireNotNull(client.call(Api.RemoteExecution, RemoteExecutionCall(AgentId(agentId), action = "create")).snapshot)
+            else try {
+                requireNotNull(client.call(Api.RemoteExecution, RemoteExecutionCall(AgentId(agentId), SessionId(previous), "snapshot")).snapshot)
+            } catch (e: KinuvoException) {
+                if (e is KinuvoException.Forbidden || e is KinuvoException.NotFound) readiness(config.id, false, "access_revoked")
+                throw IllegalStateException("The source Server no longer grants this Session", e)
+            }
             val sessionId = snapshot.sessionId
+            if (previous != null) check(snapshot.phase == ExecutionPhase.Idle && snapshot.pending.isEmpty()) { "The source Session is still working; resume when it is idle" }
             state.reference(sessionId.value)
             val sink = state.boundSink()
             val commands = Mutex()
             val committed = mutableMapOf<String, ExecutionMessage>()
+            if (previous != null) snapshot.messages.forEach { committed[it.id] = it }
             var pending = emptyList<PendingInteraction>()
             var activeTurn = false
             var submission = 0L
@@ -170,7 +178,7 @@ class RemoteExecutionFactory(
                 }
             }
             return object : ExecutionSession {
-                override val capabilities = ExecutionCapabilities(cancel = true, questions = true, approvals = true)
+                override val capabilities = ExecutionCapabilities(resume = true, cancel = true, questions = true, approvals = true)
                 override suspend fun prompt(input: ExecutionInput): ExecutionAcceptance = commands.withLock {
                     require(input.attachments.isEmpty()) { "Remote attachments are unsupported" }
                     submission++
