@@ -24,6 +24,8 @@ import androidx.compose.ui.input.pointer.util.VelocityTracker
 import androidx.compose.ui.input.pointer.util.addPointerInputChange
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
@@ -85,6 +87,13 @@ fun Reveal(
             previousOpen = open
         }
         if (!dragging && destination != if (open) widthPx else 0f) settle(open)
+    }
+
+    // The keyboard can't follow the screen aside, so it goes as soon as the drawer starts to show.
+    val focus = LocalFocusManager.current
+    val keyboard = LocalSoftwareKeyboardController.current
+    LaunchedEffect(Unit) {
+        snapshotFlow { x > 0f }.collect { if (it) { focus.clearFocus(); keyboard?.hide() } }
     }
 
     val current by rememberUpdatedState(open)

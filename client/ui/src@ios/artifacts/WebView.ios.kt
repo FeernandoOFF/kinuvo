@@ -1,5 +1,6 @@
 package kinuvo.ui.artifacts
 
+import kinuvo.ui.design.keepNativeTouches
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
@@ -42,7 +43,7 @@ internal actual fun WebView(html: String, modifier: Modifier, onMessage: ((Strin
                 }
             }
         },
-        modifier = modifier,
+        modifier = modifier.keepNativeTouches(),
         update = { channel?.send = { message -> it.evaluateJavaScript(pageDelivery(message), null) }
             if (loaded[0] != html) { loaded[0] = html; it.loadHTMLString(html, baseURL = null) } },
         onRelease = { channel?.send = {}
