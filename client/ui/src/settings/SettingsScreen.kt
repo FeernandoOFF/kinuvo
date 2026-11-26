@@ -144,6 +144,7 @@ fun SettingsScreen(
             onEditShare = settings::editShare,
             onShareAgents = { settings.share() },
             onRevokeShare = { settings.revokeShare(it) },
+            onInviteShare = { settings.inviteShare(it) },
             onLoadGrants = { settings.loadGrants() },
         ),
         sidebar,
@@ -248,6 +249,7 @@ class SettingsActions(
     val onEditShare: ((ShareForm) -> ShareForm) -> Unit = {},
     val onShareAgents: () -> Unit = {},
     val onRevokeShare: (String) -> Unit = {},
+    val onInviteShare: (String) -> Unit = {},
     val onLoadGrants: () -> Unit = {},
 )
 
