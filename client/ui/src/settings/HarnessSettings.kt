@@ -107,7 +107,7 @@ private fun HarnessList(p: Pane) {
 private fun HarnessDetail(c: HarnessConnectionStatus, p: Pane) {
     val h = p.ui.state.harnesses
     val server = p.ui.serverName
-    val agents = h.catalog?.agents.orEmpty().filter { it.connectionId == c.config.id }
+    val agents = h.catalog?.agents.orEmpty().filter { it.connectionId == c.config.id && !it.archived }
     val r = readiness(c, server)
     DetailPane(p.back, c.config.name, error = p.ui.error,
         trailing = { if (c.kind == ExecutionKind.Acp) HeaderButton(Lucide.Pencil, "Edit", { p.go(p.ui.route.copy(editing = true)) }) }) {
@@ -220,11 +220,14 @@ private fun LinkPane(p: Pane) {
             FieldRow("Name", "What this Server calls it, e.g. Studio. Its Agents' rows say they run there.") {
                 Input(draftField(AgentId("link"), "name", form.name) { v -> p.actions.onEditLink { it.copy(name = v) } }, "Studio", capitalize = true)
             }
-            FieldRow("Address", "The other Server's http(s) address.") {
+            FieldRow("Address", "The other Server's http(s) address, or its any-network invite.") {
                 Input(draftField(AgentId("link"), "url", form.url) { v -> p.actions.onEditLink { it.copy(url = v) } }, "https://studio.example.com")
             }
-            FieldRow("Link code") { Input(draftField(AgentId("link"), "token", form.token) { v -> p.actions.onEditLink { it.copy(token = v) } }, "From the other Server", secret = true) }
+            if (form.invite == null) FieldRow("Link code") { Input(draftField(AgentId("link"), "token", form.token) { v -> p.actions.onEditLink { it.copy(token = v) } }, "From the other Server", secret = true) }
         }
+        if (form.invite != null) Pill(if (p.ui.capabilities.canJoinLink) "Any-network invite: it carries the link code, and the Agents' messages stay encrypted."
+            else "${p.ui.serverName} can't link through an any-network invite. Use the other Server's address and link code.",
+            Modifier.fillMaxWidth(), tone = if (p.ui.capabilities.canJoinLink) Tone.Success else Tone.Warning, icon = if (p.ui.capabilities.canJoinLink) Lucide.ShieldCheck else Lucide.TriangleAlert)
         if (form.url.isNotBlank() || form.name.isNotBlank()) problems.forEach { Text(it, Modifier.padding(horizontal = Spacing.space6), style = TextStyles.caption, color = color(destructiveColor)) }
         if (form.cleartext) Pill("Not encrypted: the link code and Agents' messages cross the network in plain text. Use https:// or a VPN such as Tailscale where you can.",
             Modifier.fillMaxWidth(), tone = Tone.Warning, icon = Lucide.TriangleAlert)
@@ -242,7 +245,7 @@ private fun SharePane(p: Pane) {
         Text("Another Kinuvo Server can run the Agents you pick here, on ${p.ui.serverName}. It can't see or change anything else: no settings, other Agents or Sessions it didn't start.",
             Modifier.padding(horizontal = Spacing.space6), color = color(mutedColor), style = TextStyles.secondary)
         val token = form.token
-        if (token == null) {
+        if (form.id == null) {
             RowGroup {
                 FieldRow("For", "A name for this link code, e.g. the other Server's.") {
                     Input(draftField(AgentId("share"), "name", form.name) { v -> p.actions.onEditShare { it.copy(name = v) } }, "Studio", capitalize = true)
@@ -257,7 +260,7 @@ private fun SharePane(p: Pane) {
             }
             RowGroup { ActionRow("Make link code", Lucide.KeyRound, p.actions.onShareAgents, enabled = form.problems().isEmpty()) }
         } else RowGroup("Link code for ${form.name}") {
-            GroupBox {
+            if (token != null) GroupBox {
                 Text("Paste it into Link a Kinuvo Server on the other Server, with ${p.ui.serverName}'s address. It's shown only now.", style = TextStyles.secondary, color = color(mutedColor))
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.space8)) {
                     Text(token, Modifier.weight(1f), style = MonoStyle, maxLines = 2)
@@ -265,6 +268,7 @@ private fun SharePane(p: Pane) {
                 }
             }
             GroupRow("Shares", subtitle = agents.filter { it.id in form.agents }.joinToString { it.name })
+            form.id?.let { id -> AnyNetworkInvite(p, id) }
             ActionRow("Make a new code", Lucide.RefreshCw, p.actions.onShareAgents, subtitle = "The old code stops working")
             ConfirmRow("Stop sharing", Lucide.Ban, "Stop sharing with ${form.name}?", { form.id?.let(p.actions.onRevokeShare) }, "Stop",
                 detail = "Its Server can no longer run these Agents.")
@@ -275,11 +279,33 @@ private fun SharePane(p: Pane) {
             grants.forEach { g ->
                 var asking by remember { mutableStateOf(false) }
                 GroupRow(g.id, subtitle = g.agentIds.map { id -> p.ui.agents.firstOrNull { it.id == id }?.name ?: id }.joinToString(), icon = Lucide.Link, chevron = false) {
+                    if (p.ui.capabilities.canInviteLink) Button({ p.actions.onInviteShare(g.id) }, style = ButtonStyle.Ghost, buttonSize = ButtonSize.Small) { Text("Invite") }
                     Button({ asking = true }, style = ButtonStyle.Ghost, buttonSize = ButtonSize.Small, contentColor = color(destructiveColor)) { Text("Delete") }
                 }
                 ConfirmPopover(asking, "Delete the link code for ${g.id}?", "The Server using it can no longer run these Agents.", "Delete", true, { asking = false }) {
                     asking = false; p.actions.onRevokeShare(g.id)
                 }
+            }
+        }
+    }
+}
+
+/** The any-network invite for link code [id]: made on request while Tailcat sharing is on, copied to the other Server once. */
+@Composable
+private fun AnyNetworkInvite(p: Pane, id: String) {
+    val form = p.ui.state.share
+    val invite = form.invite
+    when {
+        !p.ui.capabilities.canInviteLink -> Text("Turn on Any network sharing to link from anywhere with one invite, no address needed.",
+            Modifier.padding(horizontal = Spacing.space6), style = TextStyles.caption, color = color(mutedColor))
+        invite == null -> ActionRow(if (form.inviting) "Making invite…" else "Make any-network invite", Lucide.Globe, { p.actions.onInviteShare(id) },
+            subtitle = "Links from any network, without an address", enabled = !form.inviting)
+        else -> GroupBox {
+            Text("Paste it into Link a Kinuvo Server's address on the other Server. It links one Server, until ${invite.expiresAt.take(16).replace('T', ' ')} UTC.",
+                style = TextStyles.secondary, color = color(mutedColor))
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.space8)) {
+                Text(invite.link, Modifier.weight(1f), style = MonoStyle, maxLines = 2)
+                CopyButton(invite.link)
             }
         }
     }

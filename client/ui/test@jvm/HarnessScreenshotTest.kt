@@ -81,9 +81,6 @@ class HarnessScreenshotTest {
                 it.copy(state = it.state.copy(share = ShareForm("Studio", setOf(AgentId("main"), AgentId("builder")), "0f9c2e7a1b4d4e8f9a6b3c2d1e0f9a8b7c6d5e4f", "studio"), grants = listOf(ExposureGrant("studio", setOf(AgentId("main"), AgentId("builder"))))))
             }, SettingsActions(), sidebar = false) }
         }
-        val overview = SettingsUi(SettingsState(Route.Settings(AgentId("reviewer"), SettingsSection.Overview), AgentConfig(details(reviewer)), harnesses = harnesses), agents,
-            capabilities = capabilities, serverName = server)
-        render("harness-settings-overview-acp-phone", 390, 844) { theme { SettingsContent(overview, SettingsActions(), sidebar = false) } }
     }
 
     @Test fun renderNewAgent() {

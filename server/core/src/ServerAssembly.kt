@@ -92,7 +92,7 @@ internal class ServerAssembly(
     private val routines = RoutineService(harness, admin, sessions) { hub.scheduling }
     val browserAccess = BrowserAccess(harness, executions, admin)
     val voice = VoiceService(harness, hub::changedCapabilities)
-    val execution: ExecutionService = ExecutionService(harness, admin, executions, external, dispatch, executionManagement, installedFactory, remoteFactory, remoteLinks, remoteGateway, name, { hub.capabilities }, { hub.sequence }) { catalog, agents ->
+    val execution: ExecutionService = ExecutionService(harness, admin, executions, external, dispatch, executionManagement, installedFactory, remoteFactory, remoteLinks, RemoteInvites(remoteLinks, auth), remoteGateway, name, { hub.capabilities }, { hub.sequence }) { catalog, agents ->
         hub.broadcast(Api.ExecutionCatalogChanged, catalog)
         hub.broadcast(Api.AgentsChanged, agents)
         hub.changedCapabilities()

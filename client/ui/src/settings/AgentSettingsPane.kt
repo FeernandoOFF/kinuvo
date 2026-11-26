@@ -159,43 +159,7 @@ private fun AgentForm(d: AgentDetails, p: Pane, section: SettingsSection) {
                     }
                 }
             }
-            else -> {
-                FormField("Name", "The title of IDENTITY.md.") { Input(name, "Kinuvo", capitalize = true) }
-                FormField("Identity (IDENTITY.md)", "Who the agent is: name and personality.") { TextArea(identity, lines = 4) }
-                FormField("Soul (SOUL.md)", "The principles, tone and rules it follows.") { TextArea(soul, lines = 6) }
-                DetailGroup("Model") {
-                    DetailRow("Provider") {
-                        Picker(catalog.providers.map { it.id }, provider,
-                            { id -> catalog.providers.firstOrNull { it.id == id }?.name ?: id }, { id ->
-                                provider = id
-                                catalog.providers.firstOrNull { it.id == id }?.chatModels?.let { m -> m.firstOrNull { it.state.actionable } ?: m.firstOrNull() }?.let {
-                                    model.setTextAndPlaceCursorAtEnd(it.id)
-                                    reasoning = it.reasoningFor(reasoning)
-                                }
-                            })
-                    }
-                    if (!group?.chatModels.isNullOrEmpty()) DetailRow("Model") {
-                        Picker(group.chatModels.map { it.id } + listOf(model.value()).filter { it.isNotEmpty() && it !in group.chatModels.map { m -> m.id } }, model.value(),
-                            { id -> group.chatModels.firstOrNull { it.id == id }?.let { if (it.state.actionable) it.name else "${it.name} (${if (it.state.reasonCode == "not-downloaded") "not downloaded" else "unavailable"})" } ?: id }, { id ->
-                                model.setTextAndPlaceCursorAtEnd(id)
-                                group.chatModels.firstOrNull { it.id == id }?.let { reasoning = it.reasoningFor(reasoning) }
-                            })
-                    }
-                    DetailRow("Model ID") { Input(model, "Custom model ID") }
-                    val levels = selected?.reasoning ?: (REASONING + s.reasoning).distinct()
-                    DetailRow("Reasoning") {
-                        if (levels.isEmpty()) Text("Not supported", color = color(mutedColor))
-                        else Picker(levels, validReasoning, { it }, { reasoning = it })
-                    }
-                    group?.warning?.let { Text(it, color = color(mutedColor)) }
-                    catalog.warning?.let { Text(it, color = color(mutedColor)) }
-                    ActionButton(com.composables.icons.lucide.Lucide.RefreshCw, "Refresh models", p.actions.onRefreshModels)
-                }
-                if (p.ui.agents.size > 1) DetailGroup("Delete") {
-                    Text("Deletes the agent with its sessions, Memory, Skills and Routines.", color = color(mutedColor))
-                    DeleteButton("agent", d.info.id, p.actions.onDeleteAgent)
-                }
-            }
+            else -> {}
         }
     }
 }

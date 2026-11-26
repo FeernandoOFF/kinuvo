@@ -286,6 +286,10 @@ object Api {
     val ExecutionChanged = EventType("execution.changed", kinuvo.protocol.execution.ExecutionSnapshot.serializer())
     val SaveRemoteLink = Method("execution.remote.save", kinuvo.protocol.execution.SaveRemoteLink.serializer(), Unit.serializer())
     val GrantExecution = Method("execution.exposure.grant", ExposureGrant.serializer(), String.serializer())
+    /** A private-tunnel invite for the link code [ExecutionRef.id]; fails when the tunnel is off. */
+    val InviteExecution = Method("execution.exposure.invite", ExecutionRef.serializer(), ExposureInvite.serializer())
+    /** Links a Server by the private-tunnel invite its Share Agents showed. */
+    val JoinRemote = Method("execution.remote.join", JoinRemoteLink.serializer(), Unit.serializer())
     val ExecutionGrants = Method("execution.exposure.list", Unit.serializer(), ListSerializer(ExposureGrant.serializer()))
     val RevokeExecution = Method("execution.exposure.revoke", ExecutionRef.serializer(), Unit.serializer())
     val RemoteExecution = Method("execution.remote.call", RemoteExecutionCall.serializer(), RemoteExecutionResult.serializer())

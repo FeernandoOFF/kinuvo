@@ -15,6 +15,8 @@ internal fun RouteBuilder.executionRoutes() {
     handle(Api.GrantExecution) { server.execution.grant(it) }
     handle(Api.ExecutionGrants) { server.execution.grants() }
     handle(Api.RevokeExecution) { server.execution.revoke(it.id) }
+    handle(Api.InviteExecution) { server.execution.invite(it.id) }
+    handle(Api.JoinRemote) { server.execution.joinRemote(it) }
     handle(Api.SaveRemoteLink) { server.execution.saveRemoteLink(it) }
     handle(Api.DiscoverRemote) { server.execution.discoverRemote(it.id) }
     linked(Api.RemoteExecution) { caller.remoteExecution(it) }

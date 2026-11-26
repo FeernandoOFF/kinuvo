@@ -210,12 +210,6 @@ class SettingsViewModel(
 
     fun createAgent(params: CreateAgentParams, onCreated: (String) -> Unit) = attempt { onCreated(config.createAgent(params).id.value) }
 
-    fun deleteAgent(onDeleted: () -> Unit) = attempt {
-        if (requireNotNull(state.value.config.details) { "Wait for the Agent to load before removing it" }.info.external) config.connection.harnesses.unregister(agentId.value)
-        else config.deleteAgent(agentId)
-        onDeleted()
-    }
-
     fun reloadRoutines() = routinesRepo.load(agentId)
 
     fun setEnabled(routineId: String, enabled: Boolean) = attempt { routinesRepo.update(agentId, routineId, RoutineSpec(enabled = enabled)) }
@@ -393,7 +387,8 @@ class SettingsViewModel(
         val connection = form.connection(state.value.harnesses.connections.orEmpty())
         editLink { it.copy(linking = true) }
         try {
-            config.connection.harnesses.link(connection, requireNotNull(form.address), form.token.trim())
+            val harnesses = config.connection.harnesses
+            form.invite?.let { harnesses.join(connection, it) } ?: harnesses.link(connection, requireNotNull(form.address), form.token.trim())
             state.update { it.copy(link = LinkForm(), saved = true) }
             onLinked(connection.id)
         } finally {
@@ -408,8 +403,20 @@ class SettingsViewModel(
         val form = state.value.share
         val id = form.id ?: uniqueId(form.name, state.value.grants.orEmpty().map { it.id }, "share")
         val token = config.connection.harnesses.share(id, form.agents)
-        editShare { it.copy(id = id, token = token) }
+        editShare { it.copy(id = id, token = token, invite = null) }
         loadGrants()
+    }
+
+    /** Makes a private-tunnel invite for the link code [id], shown in the share form; it fails while Tailcat sharing is off. */
+    fun inviteShare(id: String) = attempt {
+        val own = state.value.share.id == id
+        val grant = state.value.grants?.firstOrNull { it.id == id }
+        if (!own) editShare { ShareForm(name = id, agents = grant?.agentIds.orEmpty(), id = id) }
+        editShare { it.copy(inviting = true) }
+        try {
+            val invite = config.connection.harnesses.invite(id)
+            editShare { if (it.id == id) it.copy(invite = invite) else it }
+        } finally { editShare { it.copy(inviting = false) } }
     }
 
     fun loadGrants() = attempt { config.connection.harnesses.grants().let { g -> state.update { it.copy(grants = g) } } }

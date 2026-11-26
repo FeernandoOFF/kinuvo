@@ -386,12 +386,6 @@ class ScreenshotTest {
             }
         }
         render("chat-empty", 1200, 700) { KinuvoTheme(dark = true) { ChatContent(state.copy(items = emptyList(), running = false, selected = null, info = null), ConnectionState.Connected("x"), usage, ChatActions()) } }
-        render("agent-long-name", 1400, 900) { KinuvoTheme(dark = true) { AgentContent(settingsAt(Route.Settings(AgentId("main"))).copy(agents = listOf(AgentInfo(AgentId("main"), "House Agent for the Family", "host"))), {}) } }
-        render("agent-long-name-phone", 390, 1300) { KinuvoTheme(dark = true) { AgentContent(settingsAt(Route.Settings(AgentId("main"))).copy(agents = listOf(AgentInfo(AgentId("main"), "House Agent for the Family", "host"))), {}) } }
-        render("agent-wide", 1400, 900) { KinuvoTheme(dark = true) { AgentContent(settingsAt(Route.Settings(AgentId("main"))), {}) } }
-        render("agent-empty-light", 1400, 900) { KinuvoTheme(dark = false) { AgentContent(settingsAt(Route.Settings(AgentId("main"))).let { it.copy(state = it.state.copy(routines = emptyList())) }, {}) } }
-        render("agent-phone", 390, 1300) { KinuvoTheme(dark = true) { AgentContent(settingsAt(Route.Settings(AgentId("main"))), {}, onBack = {}) } }
-        render("settings-overview", 1600, 900) { KinuvoTheme(dark = true) { SettingsContent(settingsAt(Route.Settings(AgentId("main"), SettingsSection.Overview)), SettingsActions()) } }
         render("settings-wide", 1280, 860) { KinuvoTheme(dark = false) { SettingsContent(settings, SettingsActions()) } }
         for ((name, restricted, error) in listOf(
             Triple("restricted", true, null),
@@ -580,7 +574,6 @@ class ScreenshotTest {
                 }
             }
         }
-        render("agent-embedded", 1400, 900) { KinuvoTheme(dark = true) { AgentContent(settingsAt(Route.Settings(AgentId("main"))).copy(capabilities = embedded), {}) } }
         render("shell-phone", 390, 844) {
             KinuvoTheme(dark = true) {
                 kinuvo.ui.design.Reveal(true, {}, behind = { Shell(shellState, ShellActions(), ShellChrome(androidx.compose.runtime.mutableStateOf(true)), Modifier.fillMaxSize(), fill = true) }) {
@@ -688,7 +681,7 @@ class ScreenshotTest {
                 Box(Modifier.weight(1f)) { HomeContent(home, HomeActions(), wide = true) }
             } }
         }
-        val settingsRoute = Route.Settings(AgentId("echo"), SettingsSection.Overview)
+        val settingsRoute = Route.Settings(AgentId("echo"), SettingsSection.Routines)
         val settingsUi = SettingsUi(SettingsState(settingsRoute, AgentConfig(details), routines = planned.filter { it.agentId.value == "echo" }), owners, at, capabilities = capabilities)
         render("owner-rail-settings-desktop", 1440, 900) {
             theme { Row(Modifier.fillMaxSize()) {

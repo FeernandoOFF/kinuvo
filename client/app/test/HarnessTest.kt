@@ -6,6 +6,7 @@ import kinuvo.app.session.*
 
 import kinuvo.protocol.agent.*
 import kinuvo.protocol.capability.*
+import kinuvo.protocol.device.Links
 import kinuvo.protocol.execution.*
 import kotlinx.serialization.json.*
 import kotlin.test.Test
@@ -150,6 +151,15 @@ class HarnessTest {
     }
 
     @Test fun sharingPicksAgentsExplicitlyAndNeverRelaysRemoteOnes() {
+        val invite = "kinuvo1:" + "a".repeat(40)
+        for (pasted in listOf(invite, Links.tailcatLink(invite))) {
+            val joining = LinkForm("Studio", pasted)
+            assertEquals(invite, joining.invite)
+            assertEquals(emptyList(), joining.problems(emptyList()))
+            assertFalse(joining.cleartext)
+        }
+        assertNull(LinkForm("Studio", "studio.example.com", "code").invite)
+        assertEquals(listOf("Name is required"), LinkForm("", invite).problems(emptyList()))
         assertEquals(listOf("Say who it's for, e.g. the other Server's name", "Pick at least one Agent"), ShareForm().problems())
         val remote = AgentInfo(AgentId("ada"), "Ada", "external", executionKind = ExecutionKind.Remote, connectionId = "studio")
         assertEquals(listOf("main", "reviewer"), shareable(listOf(AgentInfo(AgentId("main"), "Kinuvo", "none"), acpAgent, remote)).map { it.id.value })

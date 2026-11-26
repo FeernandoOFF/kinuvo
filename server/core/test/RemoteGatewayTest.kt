@@ -105,6 +105,24 @@ class RemoteGatewayTest {
         assertEquals(RespondParams(SessionId("session"), InteractionId("request"), InteractionAnswer.Harness(JsonNull)), received)
     }
 
+    @Test fun tunnelLinksKeepTheirSecretPrivateAndGrantsKeepTheirPhone() {
+        var saved = RemoteSecrets()
+        val links = RemoteLinks(persist = { saved = it })
+        val link = links.saveTunnel("studio", "tunnel-secret", "code")
+        assertTrue(link.url.startsWith("tailcat:"))
+        assertEquals("tunnel-secret", RemoteLinks(saved).tunnel("studio"))
+        assertEquals(link, RemoteLinks(saved).link("studio"))
+        links.save(SaveRemoteLink("studio", "ws://127.0.0.1:9999/ws", "code"))
+        assertNull(links.tunnel("studio"))
+
+        links.grant(ExposureGrant("friend", setOf(AgentId("agent"))))
+        links.bind("friend", "nodekey:phone")
+        assertEquals("nodekey:phone", RemoteLinks(saved).grant("friend")!!.phone)
+        assertEquals(setOf("nodekey:phone"), links.phones())
+        links.grant(ExposureGrant("friend", setOf(AgentId("agent"))))
+        assertNull(links.grant("friend")!!.phone)
+    }
+
     @Test fun secretsNeverEnterCatalog() {
         var saved = RemoteSecrets()
         val links = RemoteLinks(persist = { saved = it })

@@ -263,10 +263,12 @@ fun KinuvoApp(app: AppViewModel = koinViewModel(), initialRoute: Route? = null, 
             val homePage = { section: SettingsSection ->
                 (agent?.takeIf { !it.external } ?: appState.agents.firstOrNull { !it.external })?.let { guardLeave { history.switchTo(Route.Settings(it.id, section)) } }
             }
-            // Home shows no Side panel, so its Agent settings open in Settings.
+            // Agent settings live in the Side panel (bottom sheet on phones); wide screens without it open the Agent's chat first.
             val inspect = { id: AgentId ->
-                if (inspector == null || !compact && top is Route.Home) openSettings(Route.Settings(id), true)
-                else { inspector.inspect(id); panel.open(PanelTab.AgentSettings) }
+                if (inspector != null) {
+                    if (!compact && top !is Route.Chat) { app.showAgent(id); history.open(Route.Chat(id)) }
+                    inspector.inspect(id); panel.open(PanelTab.AgentSettings)
+                }
             }
             // Phones slide the screens aside to reveal the shell; anything picked there covers it again.
             fun cover(action: () -> Unit) = { homeEdits.leave { action(); shell.revealed = false } }
@@ -412,7 +414,7 @@ fun KinuvoApp(app: AppViewModel = koinViewModel(), initialRoute: Route? = null, 
                             key(route, homeEdits.revision) {
                                 CompositionLocalProvider(LocalSettingsEdits provides homeEdits, LocalWorkflows provides workflows) {
                                     SettingsScreen(app, settings, onNavigate = openSettings, onBack = back,
-                                        onOpenSession = { next -> homeEdits.leave { history.open(next) } })
+                                        onOpenSession = { next -> homeEdits.leave { history.open(next) } }, onAgentSettings = inspect)
                                 }
                             }
                         }
@@ -555,7 +557,12 @@ fun KinuvoApp(app: AppViewModel = koinViewModel(), initialRoute: Route? = null, 
                 onSection = { id, section -> inspectorPages.add(Route.Settings(id, section)) },
                 section = inspectorSection,
                 onSectionBack = if (inspectorPages.isEmpty()) null else ({ inspectorEdits.leave { inspectorPages.removeLastOrNull(); Unit } }),
-                onCloseRequest = { if (inspecting?.dirty == true) inspector?.close() else inspectorEdits.leave { inspector?.close() } })
+                onCloseRequest = { if (inspecting?.dirty == true) inspector?.close() else inspectorEdits.leave { inspector?.close() } },
+                onDeleted = { id ->
+                    inspectorPages.clear()
+                    panel.close(PanelTab.AgentSettings)
+                    if ((top as? Route.Chat)?.agentId == id) history.switchTo(Route.Home)
+                })
             val closeTab = { tab: PanelTab ->
                 when {
                     tab == PanelTab.AgentSettings -> inspectorHost.onCloseRequest?.invoke() ?: Unit

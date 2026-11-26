@@ -30,6 +30,21 @@ object Links {
         return "kinuvo://pair?tailcat=${encode(invite)}"
     }
 
+    /** Opens the app ready to link the Server that showed [invite], a private-tunnel invite from its Share Agents. */
+    fun tailcatLink(invite: String): String {
+        require(isTailcatInvite(invite)) { "Invalid Tailcat invite" }
+        return "kinuvo://link?tailcat=${encode(invite)}"
+    }
+
+    /** The invite in a `kinuvo://link?tailcat=` link or a bare invite; null when [text] is neither. */
+    fun parseTailcatLink(text: String): String? {
+        val url = text.trim()
+        if (isTailcatInvite(url)) return url
+        if (!url.startsWith("kinuvo://link?")) return null
+        val query = url.substringAfter('?').split('&').associate { it.substringBefore('=') to decode(it.substringAfter('=', "")) }
+        return query["tailcat"]?.takeIf(::isTailcatInvite)
+    }
+
     /** Opens the web app served by [baseUrl] ready to pair; the code stays in the fragment, so it never reaches the Server. */
     fun webPair(baseUrl: String, code: String) = "${baseUrl.removeSuffix("/")}/#pair=${encode(code)}"
 

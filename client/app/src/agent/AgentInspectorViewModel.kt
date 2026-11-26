@@ -167,6 +167,17 @@ class AgentInspectorViewModel(private val config: ConfigRepository) : ViewModel(
         return close()
     }
 
+    /** Deletes the inspected Agent with its Sessions, Memory, Skills and Routines, or unregisters an external one, then [onDeleted]. */
+    fun delete(onDeleted: (AgentId) -> Unit) {
+        val details = state.value.details ?: return
+        state.update { it.copy(saving = true, errors = emptyList()) }
+        viewModelScope.launch {
+            catching { config.connection.run { if (details.info.external) harnesses.unregister(details.info.id.value) else config.deleteAgent(details.info.id) } }
+                .onSuccess { reset(); onDeleted(details.info.id) }
+                .onFailure { e -> state.update { it.copy(saving = false, errors = listOf(e.userMessage)) } }
+        }
+    }
+
     fun push(page: InspectorPage) = state.update { if (it.page == page) it else it.copy(pages = it.pages + page) }
 
     fun edit(change: (AgentDraft) -> AgentDraft) = state.update { s -> s.copy(draft = s.draft?.let(change), saved = false) }

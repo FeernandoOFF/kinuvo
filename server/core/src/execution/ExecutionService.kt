@@ -35,6 +35,7 @@ class ExecutionService internal constructor(
     private val factory: ExecutionFactory,
     private val remote: RemoteHarness?,
     private val remoteLinks: RemoteLinks,
+    private val invites: RemoteInvites,
     private val gateway: RemoteGateway,
     private val serverName: String,
     private val capabilities: () -> ServerCapabilities,
@@ -88,12 +89,47 @@ class ExecutionService internal constructor(
 
     suspend fun grant(grant: ExposureGrant): String {
         require(grant.agentIds.all { id -> if (registry.registration(id) != null) registry.configured(id).connection !is ExecutionConnection.Remote else harness.store.agents().any { it.id == id } }) { "Only installed source execution Agents may be exposed" }
-        return remoteLinks.grant(grant)
+        val phone = remoteLinks.grant(grant.id)?.phone
+        return remoteLinks.grant(grant).also { invites.forget(grant.id, phone) }
     }
 
     fun grants() = remoteLinks.grants()
 
-    fun revoke(id: String) = remoteLinks.revoke(id)
+    fun revoke(id: String) {
+        val phone = remoteLinks.grant(id)?.phone
+        remoteLinks.revoke(id)
+        invites.forget(id, phone)
+    }
+
+    /** Whether this Server can make private-tunnel invites now. */
+    val tunnelInvites get() = invites.available
+
+    /** Whether this Server can link another through a private-tunnel invite. */
+    val tunnelJoin get() = remote?.tunnelSupported == true
+
+    /** A private-tunnel invite for the link code [id], which one Server can use to link this one without an address. */
+    context(_: Raise<ExecutionError>)
+    fun invite(id: String): ExposureInvite {
+        if (remoteLinks.grant(id)?.phone != null) raise(ExecutionError.AlreadyLinked)
+        if (!invites.available) raise(ExecutionError.TunnelOff)
+        return invites.invite(id) ?: raise(ExecutionError.TunnelOff)
+    }
+
+    /** A tunnel connection learns who it is once it authenticates with a link code. */
+    fun linkedConnected(token: String, peer: String?) = invites.connected(token, peer)
+
+    context(_: Raise<ExecutionError>)
+    suspend fun joinRemote(join: JoinRemoteLink) {
+        val remote = remote ?: raise(ExecutionError.NoRemoteServers)
+        if (!remote.tunnelSupported) raise(ExecutionError.TunnelUnsupported)
+        suspend fun ensureFree() {
+            val connections = registry.catalog().connections.filter { (it.config.connection as? ExecutionConnection.Remote)?.serverId == join.id }
+            if (connections.any { external.inUse(it.config.id) }) raise(ExecutionError.ConnectionInUse)
+        }
+        management.withLock { ensureFree() }
+        val tunnel = remote.join(join.invite, serverName)
+        management.withLock { ensureFree(); remoteLinks.saveTunnel(join.id, tunnel.link, tunnel.token) }
+    }
 
     context(_: Raise<ExecutionError>)
     suspend fun saveRemoteLink(link: SaveRemoteLink) = management.withLock {
@@ -109,9 +145,14 @@ class ExecutionService internal constructor(
     suspend fun remoteExecution(token: String, call: RemoteExecutionCall) = gateway.call(token, call)
 
     context(_: Raise<ExecutionError>)
-    suspend fun saveConnection(config: HarnessConnection) = management.withLock {
-        if (external.inUse(config.id)) raise(ExecutionError.ConnectionInUse)
-        registry.save(config).also { catalogChanged() }
+    suspend fun saveConnection(config: HarnessConnection): HarnessConnectionStatus {
+        val saved = management.withLock {
+            if (external.inUse(config.id)) raise(ExecutionError.ConnectionInUse)
+            registry.save(config).also { catalogChanged() }
+        }
+        if (config.connection !is ExecutionConnection.Remote) return saved
+        val probe = checkHarness(config)
+        return saved.copy(readiness = probe.readiness)
     }
 
     context(_: Raise<ExecutionError>)

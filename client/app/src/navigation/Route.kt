@@ -86,8 +86,6 @@ val Route.home get() = this == Route.Home || this is Route.Task || this == Route
 
 @Serializable
 enum class SettingsSection(val title: String, val server: Boolean = false) {
-    /** The Agent's own page: who it is, opening its other sections. */
-    Overview("Overview"),
     /** Name, Identity, Soul and model; also where a new Agent is created. */
     Agent("Personality"), Workspace("Workspace"), Tools("Tools"), Routines("Routines"), Skills("Skills"), Mcp("MCP servers"), DeviceTools("Tools on this device"), LocalVoice("Voice", server = true),
     /** Server-wide, the same whichever Agent is picked. */
@@ -100,11 +98,11 @@ enum class SettingsSection(val title: String, val server: Boolean = false) {
     /** Third-party notices, listed under About rather than Device or Server. */
     Licenses("Open source licenses");
 
-    /** One Agent's, opened from its [Overview] rather than listed in Settings. */
-    val agent get() = !server && this != DeviceTools && this != LocalVoice && this != Overview && this != Licenses
+    /** One Agent's, opened from its settings in the Side panel rather than listed in Settings. */
+    val agent get() = !server && this != DeviceTools && this != LocalVoice && this != Licenses
 
-    /** Listed under Device or Server; the Agents list opens the [Overview]. */
-    val listed get() = !agent && this != Overview && this != Licenses
+    /** Listed under Device or Server; the Agents list opens each Agent's settings. */
+    val listed get() = !agent && this != Licenses
 
     /** The Server feature this section manages, if any. */
     val feature get() = when (this) {

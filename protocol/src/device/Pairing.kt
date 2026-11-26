@@ -11,9 +11,9 @@ data class PairingParams(val refresh: Boolean = false, val management: Boolean =
 @Serializable
 data class PairingCode(val code: String, val expiresAt: String, val port: Int, val addresses: List<String> = emptyList(), val publicUrl: String? = null, val management: Boolean = false, val tailcatInvite: String? = null)
 
-/** What a Server's private tunnel hands a phone while it pairs: the one-time pairing code to use over the tunnel. */
+/** What a Server's private tunnel hands a phone while it pairs: the one-time pairing code to use over the tunnel, or, for a linked Server, the [link] code that runs the Agents shared with it. */
 @Serializable
-data class TailcatPayload(val code: String)
+data class TailcatPayload(val code: String = "", val link: String? = null)
 
 /** A Device paired with the Server; [current] is the one asking, [push] whether it receives Notifications as pushes. Times are ISO-8601. */
 @Serializable

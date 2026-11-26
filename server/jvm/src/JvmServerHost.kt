@@ -8,6 +8,8 @@ import kotlinx.coroutines.*
 import kinuvo.server.execution.ExecutionStorage
 import kinuvo.server.execution.remoteLinks
 import kinuvo.server.execution.serverToolAgent
+import kinuvo.client.TailcatForwarder
+import kinuvo.client.UnsupportedTailcatForwarder
 import kinuvo.server.plugin.TailcatServing
 import kinuvo.server.plugin.TailcatTunnel
 import kotlinx.io.files.Path
@@ -24,14 +26,14 @@ import kinuvo.server.NetworkListener
 import kinuvo.server.NetworkSecurity
 import kinuvo.server.ServerRuntime
 
-class JvmServerHost(val harness: JvmAgentRuntime, val auth: DeviceAuth = DeviceAuth(Path(harness.files.home, "server-devices.json")), private val name: String = machineName(), val network: NetworkSecurity = NetworkSecurity(), security: ConnectionSecurity = ConnectionSecurity(), private val tailcat: TailcatServing? = null) {
+class JvmServerHost(val harness: JvmAgentRuntime, val auth: DeviceAuth = DeviceAuth(Path(harness.files.home, "server-devices.json")), private val name: String = machineName(), val network: NetworkSecurity = NetworkSecurity(), security: ConnectionSecurity = ConnectionSecurity(), private val tailcat: TailcatServing? = null, forwarder: TailcatForwarder = UnsupportedTailcatForwarder) {
     private val mcpAccess = McpAccess()
     private val mcpListener = McpListener(mcpAccess)
     private val executionStorage = ExecutionStorage(harness.files.home)
     private val activity = ProcessActivity("Serving a live voice call")
     private val links = remoteLinks(harness.files.home)
     val runtime: ServerRuntime = ServerRuntime(harness, auth, serverRoutes(), name,
-        remoteLinks = links, remoteHarness = { RemoteExecutionFactory(links::link, harness.serverId, it) }, security = security, prepareAttachment = ::prepareAttachment, keepAwake = activity::hold,
+        remoteLinks = links, remoteHarness = { RemoteExecutionFactory(links::link, harness.serverId, it, forwarder, links::tunnel) }, security = security, prepareAttachment = ::prepareAttachment, keepAwake = activity::hold,
         executionRegistry = executionStorage.registry, executionFactory = McpExecutionFactory(AcpExecutionFactory(persistAttachment = ::persistExecutionAttachment, autoApprove = { registration, session, kind ->
             harness.composer.autoApproveHarness(registration.serverToolAgent(), session, kind)
         }), harness, mcpAccess, { mcpListener.url }), executionStorage = executionStorage)

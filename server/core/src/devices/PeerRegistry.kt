@@ -5,6 +5,7 @@ import kinuvo.protocol.device.PairedDeviceInfo
 import kinuvo.protocol.device.PairingCode
 import kinuvo.protocol.push.PushSubscription
 import kinuvo.protocol.device.ToolDevice
+import kinuvo.server.plugin.TailcatInvite
 
 interface PeerRegistry {
     val pairable: Boolean get() = false
@@ -25,6 +26,17 @@ interface PeerRegistry {
 
     /** Unpairs the Device with [id]; false when there's none. */
     fun revoke(id: String): Boolean = false
+
+    /** Whether the private tunnel is serving, so [tailcatInvite] can open pairing windows. */
+    val tailcatActive: Boolean get() = false
+    /** Opens a one-phone window on the tunnel whose reply carries [payload]; null when the tunnel is off. */
+    fun tailcatInvite(code: String, payload: String, ttlSeconds: Int, bound: Set<String>): TailcatInvite? = null
+    /** The phone that used the window opened for [code]. */
+    fun tailcatPhoneOf(code: String): String? = null
+    /** Unpairs [phone] from the tunnel, online or not. */
+    fun tailcatRevoke(phone: String) {}
+    /** Calls [listener] when the tunnel turns on or off. */
+    fun onTailcatChanged(listener: () -> Unit) {}
 
     /** Where paired Devices receive Notifications; empty when this Server can't push. */
     val pushable: Boolean get() = false

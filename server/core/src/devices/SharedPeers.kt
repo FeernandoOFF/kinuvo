@@ -19,6 +19,11 @@ class SharedPeers(private val local: PeerRegistry, private val network: PeerRegi
     override fun pairing(refresh: Boolean, management: Boolean) = network.pairing(refresh, management)
     override fun paired(token: String) = network.paired(token)
     override fun revoke(id: String) = network.revoke(id)
+    override val tailcatActive get() = network.tailcatActive
+    override fun tailcatInvite(code: String, payload: String, ttlSeconds: Int, bound: Set<String>) = network.tailcatInvite(code, payload, ttlSeconds, bound)
+    override fun tailcatPhoneOf(code: String) = network.tailcatPhoneOf(code)
+    override fun tailcatRevoke(phone: String) = network.tailcatRevoke(phone)
+    override fun onTailcatChanged(listener: () -> Unit) = network.onTailcatChanged(listener)
     override val pushable get() = network.pushable
     override fun setPush(token: String, subscription: PushSubscription?) = owner(token).setPush(token, subscription)
     override fun pushSubscriptions() = network.pushSubscriptions()

@@ -58,6 +58,8 @@ class InspectorHost(
     val section: (@Composable () -> Unit)? = null,
     val onSectionBack: (() -> Unit)? = null,
     val onCloseRequest: (() -> Unit)? = null,
+    /** After the Agent was deleted, e.g. to leave its chat. */
+    val onDeleted: (AgentId) -> Unit = {},
 )
 
 /** Width of the inspector beside the screens on wide layouts. */
@@ -74,11 +76,13 @@ class InspectorActions(
     val onResolve: (GuardChoice) -> Unit = {},
     /** Checks an external Agent's harness again. */
     val onCheck: () -> Unit = {},
+    val onDelete: () -> Unit = {},
 )
 
 private fun AgentInspectorViewModel.actions(host: InspectorHost) = InspectorActions(
     onBack = { back() }, onClose = { host.onCloseRequest?.invoke() ?: close() }, onEdit = ::edit, onSave = { save(host.agents) },
     onPush = ::push, onLoadModels = { loadModels(it) }, onResolve = { resolve(it, host.agents) }, onCheck = ::check,
+    onDelete = { delete(host.onDeleted) },
 )
 
 @Composable
@@ -205,11 +209,15 @@ private fun AgentPage(state: InspectorState, draft: AgentDraft, details: AgentDe
         NavRow(Lucide.NotebookPen, "User Notes", if (details.userNotes.isBlank()) "None yet" else "${details.userNotes.lines().count { it.isNotBlank() }} lines") { actions.onPush(InspectorPage.UserNotes) }
         if (host.capabilities.allows(SettingsSection.Skills)) NavRow(Lucide.BookOpen, "Skills", null) { host.onSection(agentId, SettingsSection.Skills) }
     }
-    if (host.capabilities.allows(SettingsSection.Workspace)) Group("Does") {
-        NavRow(Lucide.FolderOpen, "Workspace", null) { host.onSection(agentId, SettingsSection.Workspace) }
+    val workspace = host.capabilities.allows(SettingsSection.Workspace)
+    val tools = host.capabilities.allows(SettingsSection.Tools)
+    if (workspace || tools) Group("Does") {
+        if (tools) NavRow(Lucide.Wrench, "Tools", "${details.settings.tools.size} built-in") { host.onSection(agentId, SettingsSection.Tools) }
+        if (workspace) NavRow(Lucide.FolderOpen, "Workspace", null) { host.onSection(agentId, SettingsSection.Workspace) }
     }
     Text("These are ${agent.name}'s defaults for every Session. A Session's own model, reasoning and Risk tolerance are set from its composer.",
         style = TextStyles.caption, color = color(mutedColor))
+    if (host.agents.count { !it.external } > 1) DeleteAgent(agent, "Deletes ${agent.name} with its Sessions, Memory, Skills and Routines.", state.saving, actions)
 }
 
 /** An external Agent: its name and where it runs; its harness owns everything else, so Kinuvo's own settings are absent. */
@@ -258,6 +266,12 @@ private fun ExternalAgentPage(state: InspectorState, draft: AgentDraft, details:
             else "Instructions, Memory, Skills and tools are set in $harness on $machine.", Modifier.padding(Spacing.space4), style = TextStyles.secondary, color = color(mutedColor))
     }
     Text("Changes apply to ${agent.name}'s new Sessions.", style = TextStyles.caption, color = color(mutedColor))
+    DeleteAgent(agent, "Removes ${agent.name} from this Server. $harness and its own data are unaffected.", state.saving, actions)
+}
+
+@Composable
+private fun DeleteAgent(agent: AgentInfo, detail: String, busy: Boolean, actions: InspectorActions) = Group("Danger zone") {
+    ConfirmRow("Delete ${agent.name}", Lucide.Trash2, "Delete ${agent.name}?", actions.onDelete, "Delete", detail = detail, enabled = !busy)
 }
 
 /** The Agent's face, with the others a tap away on either side. */

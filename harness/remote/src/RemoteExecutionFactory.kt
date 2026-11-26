@@ -3,6 +3,13 @@ package kinuvo.harness.remote
 import kinuvo.harness.messageText
 import kinuvo.harness.*
 import kinuvo.client.KinuvoClient
+import kinuvo.client.SharedTailcatForwarder
+import kinuvo.client.TailcatForwarder
+import kinuvo.client.UnsupportedTailcatForwarder
+import kinuvo.client.tailcatConnection
+import kinuvo.protocol.device.Links
+import kinuvo.protocol.device.TailcatPayload
+import kotlinx.serialization.SerializationException
 import kinuvo.client.ConnectionState
 import kinuvo.protocol.*
 import kinuvo.protocol.approval.*
@@ -20,10 +27,33 @@ import kinuvo.client.KinuvoException
 import kinuvo.client.ProtocolMismatchException
 
 /** KMP adapter: a linked party receives no management credential or catalog secrets. */
-class RemoteExecutionFactory(private val link: (String) -> SaveRemoteLink, private val serverId: String, private val readiness: suspend (String, Boolean, String) -> Unit = { _, _, _ -> }) : RemoteHarness {
+class RemoteExecutionFactory(
+    private val link: (String) -> SaveRemoteLink,
+    private val serverId: String,
+    private val readiness: suspend (String, Boolean, String) -> Unit = { _, _, _ -> },
+    /** Reaches Servers linked by a private-tunnel invite; [tunnel] is the secret that reopens the tunnel to one. */
+    tunnels: TailcatForwarder = UnsupportedTailcatForwarder,
+    private val tunnel: (String) -> String? = { null },
+) : RemoteHarness {
+    private val forwards = SharedTailcatForwarder(tunnels)
+
+    override val tunnelSupported get() = forwards.supported
+
+    override suspend fun join(invite: String, device: String): RemoteTunnel {
+        val text = requireNotNull(Links.parseTailcatLink(invite)) { "That is not a Server link invite" }
+        check(forwards.supported) { "Linking through Tailcat is not supported on this platform yet" }
+        val paired = forwards.pair(text, device)
+        val payload = try { ProtocolJson.decodeFromString(TailcatPayload.serializer(), paired.payload) }
+        catch (e: SerializationException) { throw IllegalArgumentException("That invite is not from Share Agents on another Server", e) }
+        val token = requireNotNull(payload.link) { "That invite pairs a Device. Use Link a Kinuvo Server on the other Server's Share Agents" }
+        return RemoteTunnel(paired.link, token)
+    }
+
     private suspend fun connect(id: String): KinuvoClient {
         val link = link(id)
-        val client = KinuvoClient(link.url, "Kinuvo Server link", token = link.token, allowCleartext = true)
+        val secret = if (link.url.startsWith(TUNNEL_KEY_PREFIX)) requireNotNull(tunnel(id)) { "Tailcat link missing; link the Server again" } else null
+        val client = KinuvoClient(link.url, "Kinuvo Server link", token = link.token, allowCleartext = true,
+            connection = secret?.let { { tailcatConnection(it, forwards) } })
         try {
             val result = withTimeout(15_000) { client.connect() }
             require(result.capabilities.serverId != serverId) { "A Server cannot link to itself" }
@@ -49,16 +79,24 @@ class RemoteExecutionFactory(private val link: (String) -> SaveRemoteLink, priva
 
     override suspend fun open(config: HarnessConnection, registration: AgentRegistration, state: ExecutionState, broker: ExecutionBroker, scope: CoroutineScope): ExecutionSession {
         val remote = config.connection as ExecutionConnection.Remote
-        val client = connect(remote.serverId)
+        val client = try { connect(remote.serverId) } catch (e: AuthException) { readiness(config.id, false, "access_revoked"); throw e }
         try {
             val agentId = requireNotNull(registration.remoteAgentId)
-            val created = client.call(Api.RemoteExecution, RemoteExecutionCall(AgentId(agentId), action = "create"))
-            val snapshot = requireNotNull(created.snapshot)
+            val previous = state.snapshot().externalSessionId
+            val snapshot = if (previous == null) requireNotNull(client.call(Api.RemoteExecution, RemoteExecutionCall(AgentId(agentId), action = "create")).snapshot)
+            else try {
+                requireNotNull(client.call(Api.RemoteExecution, RemoteExecutionCall(AgentId(agentId), SessionId(previous), "snapshot")).snapshot)
+            } catch (e: KinuvoException) {
+                if (e is KinuvoException.Forbidden || e is KinuvoException.NotFound) readiness(config.id, false, "access_revoked")
+                throw IllegalStateException("The source Server no longer grants this Session", e)
+            }
             val sessionId = snapshot.sessionId
+            if (previous != null) check(snapshot.phase == ExecutionPhase.Idle && snapshot.pending.isEmpty()) { "The source Session is still working; resume when it is idle" }
             state.reference(sessionId.value)
             val sink = state.boundSink()
             val commands = Mutex()
             val committed = mutableMapOf<String, ExecutionMessage>()
+            if (previous != null) snapshot.messages.forEach { committed[it.id] = it }
             var pending = emptyList<PendingInteraction>()
             var activeTurn = false
             var submission = 0L
@@ -140,7 +178,7 @@ class RemoteExecutionFactory(private val link: (String) -> SaveRemoteLink, priva
                 }
             }
             return object : ExecutionSession {
-                override val capabilities = ExecutionCapabilities(cancel = true, questions = true, approvals = true)
+                override val capabilities = ExecutionCapabilities(resume = true, cancel = true, questions = true, approvals = true)
                 override suspend fun prompt(input: ExecutionInput): ExecutionAcceptance = commands.withLock {
                     require(input.attachments.isEmpty()) { "Remote attachments are unsupported" }
                     submission++
@@ -168,6 +206,8 @@ class RemoteExecutionFactory(private val link: (String) -> SaveRemoteLink, priva
         } catch (e: Throwable) { client.close(); throw e }
     }
 }
+
+private const val TUNNEL_KEY_PREFIX = "tailcat:"
 
 internal fun remoteEntries(messages: List<ExecutionMessage>, generation: String): List<SessionEntry> =
     messages.flatMap { m ->

@@ -3,6 +3,8 @@ package kinuvo.server.embedded
 import kinuvo.server.rpc.serverRoutes
 import kinuvo.harness.AgentConfig
 import kinuvo.harness.ExecutionFactory
+import kinuvo.client.TailcatForwarder
+import kinuvo.client.UnsupportedTailcatForwarder
 import kinuvo.server.plugin.ServerPlugin
 import kinuvo.server.plugin.exists
 import kinuvo.server.devices.*
@@ -58,7 +60,7 @@ class EmbeddedServerHost(val runtime: ServerRuntime, val token: String) {
          */
         suspend fun create(home: Path, providers: List<ModelProvider> = emptyList(), plugins: List<ServerPlugin> = emptyList(), modelSources: () -> List<ModelSource> = { emptyList() }, continuous: Boolean = false,
                            features: Set<ServerFeature> = setOf(ServerFeature.DeviceTools, ServerFeature.Computer),
-                           peers: (PeerRegistry) -> PeerRegistry = { it }, executionFactory: ExecutionFactory? = null): EmbeddedServerHost {
+                           peers: (PeerRegistry) -> PeerRegistry = { it }, executionFactory: ExecutionFactory? = null, forwarder: TailcatForwarder = UnsupportedTailcatForwarder): EmbeddedServerHost {
             val files = AgentFiles(home)
             val fresh = try { !files.config(AgentId("default")).exists() } catch (e: Throwable) {
                 ServerResources(plugins).close()
@@ -80,7 +82,7 @@ class EmbeddedServerHost(val runtime: ServerRuntime, val token: String) {
                 val executionStorage = ExecutionStorage(home)
                 val links = remoteLinks(home)
                 val runtime = ServerRuntime(harness, auth, serverRoutes(), "On this device", foregroundOnly = !continuous,
-                    remoteLinks = links, remoteHarness = { RemoteExecutionFactory(links::link, harness.serverId, it) }, executionRegistry = executionStorage.registry,
+                    remoteLinks = links, remoteHarness = { RemoteExecutionFactory(links::link, harness.serverId, it, forwarder, links::tunnel) }, executionRegistry = executionStorage.registry,
                     executionStorage = executionStorage, executionFactory = executionFactory)
                 runtime.start(schedule = continuous)
                 return EmbeddedServerHost(runtime, token)

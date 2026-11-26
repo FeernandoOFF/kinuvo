@@ -54,6 +54,8 @@ fun SettingsScreen(
     onBack: () -> Unit,
     onOpenSession: (Route.Chat) -> Unit,
     sidebar: Boolean = true,
+    /** Opens an Agent's settings in the Side panel or bottom sheet. */
+    onAgentSettings: (AgentId) -> Unit = {},
 ) {
     val appState by app.state.collectAsState()
     val state by settings.state.collectAsState()
@@ -87,10 +89,8 @@ fun SettingsScreen(
             onNavigate = onNavigate,
             onSaveAgent = settings::saveAgent,
             onRefreshModels = { settings.loadModels(true) },
-            onCreateAgent = { p -> settings.createAgent(p) { id -> show(Route.Settings(AgentId(id), SettingsSection.Overview)) } },
-            onDeleteAgent = {
-                settings.deleteAgent { appState.agents.firstOrNull { it.id != route.agentId }?.let { show(Route.Settings(it.id, SettingsSection.Overview)) } }
-            },
+            onCreateAgent = { p -> settings.createAgent(p) { id -> onAgentSettings(AgentId(id)) } },
+            onAgentSettings = onAgentSettings,
             onEnabled = settings::setEnabled,
             onApprovals = settings::setApprovals,
             onSaveRoutine = { id, spec -> settings.saveRoutine(id, spec) { saved -> show(route.copy(item = saved, editing = false)) } },
@@ -144,6 +144,7 @@ fun SettingsScreen(
             onEditShare = settings::editShare,
             onShareAgents = { settings.share() },
             onRevokeShare = { settings.revokeShare(it) },
+            onInviteShare = { settings.inviteShare(it) },
             onLoadGrants = { settings.loadGrants() },
         ),
         sidebar,
@@ -191,7 +192,7 @@ class SettingsActions(
     val onSaveAgent: (UpdateAgentParams) -> Unit = {},
     val onRefreshModels: () -> Unit = {},
     val onCreateAgent: (CreateAgentParams) -> Unit = {},
-    val onDeleteAgent: () -> Unit = {},
+    val onAgentSettings: (AgentId) -> Unit = {},
     val onEnabled: (String, Boolean) -> Unit = { _, _ -> },
     val onApprovals: (String, RoutineApprovals) -> Unit = { _, _ -> },
     /** Creates a Routine when the ID is null. */
@@ -248,6 +249,7 @@ class SettingsActions(
     val onEditShare: ((ShareForm) -> ShareForm) -> Unit = {},
     val onShareAgents: () -> Unit = {},
     val onRevokeShare: (String) -> Unit = {},
+    val onInviteShare: (String) -> Unit = {},
     val onLoadGrants: () -> Unit = {},
 )
 
@@ -307,21 +309,11 @@ private fun SettingsSections(ui: SettingsUi, selected: SettingsSection?, go: (Ro
         grouped + ("More" to rest)
     }.filter { it.second.isNotEmpty() }
     val open = { section: SettingsSection -> go(ui.route.copy(section = section, item = null, editing = false)) }
-    val openAgent = { agent: AgentInfo -> go(Route.Settings(agent.id, SettingsSection.Overview)) }
-    val agentSelected = { agent: AgentInfo -> selected == SettingsSection.Overview && ui.route.agentId == agent.id }
     val uri = LocalUriHandler.current
     val links = listOf(Triple("Privacy policy", Lucide.ShieldCheck, PRIVACY_URL), Triple("Support", Lucide.LifeBuoy, SUPPORT_URL))
     Column(Modifier.fillMaxSize()) {
         SettingsPageHeader("Settings")
         if (wide) Column(Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(start = Spacing.space8, end = Spacing.space8, bottom = Spacing.space8)) {
-            if (ui.agents.isNotEmpty()) {
-                SectionLabel("Agents")
-                ui.agents.forEach { agent ->
-                    ListRow(selected = agentSelected(agent), onClick = { openAgent(agent) }, leading = { AgentAvatar(agent, 18.dp) }) {
-                        Text(agent.name, Modifier.weight(1f), singleLine = true, overflow = TextOverflow.Ellipsis)
-                    }
-                }
-            }
             groups.forEach { (title, sections) ->
                 SectionLabel(title, Modifier.padding(top = Spacing.space12))
                 sections.forEach { section ->
@@ -343,9 +335,6 @@ private fun SettingsSections(ui: SettingsUi, selected: SettingsSection?, go: (Ro
                 Text(SettingsSection.Licenses.title, Modifier.weight(1f), singleLine = true)
             }
         } else Column(Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(Spacing.space16), verticalArrangement = Arrangement.spacedBy(Spacing.space20)) {
-            if (ui.agents.isNotEmpty()) RowGroup("Agents") {
-                ui.agents.forEach { agent -> GroupRow(agent.name, { openAgent(agent) }, leading = { AgentAvatar(agent, 22.dp) }) }
-            }
             groups.forEach { (title, sections) ->
                 RowGroup(title) {
                     sections.forEach { section ->
@@ -367,7 +356,6 @@ private const val SUPPORT_URL = "https://kinuvo.feernandooff.com/support/"
 
 internal fun SettingsSection.icon(): ImageVector = when (this) {
     SettingsSection.Connection -> Lucide.Server
-    SettingsSection.Overview -> Lucide.Bot
     SettingsSection.Agent -> Lucide.Sparkles
     SettingsSection.Workspace -> Lucide.FolderOpen
     SettingsSection.Tools -> Lucide.Wrench
@@ -388,7 +376,7 @@ internal fun SettingsSection.icon(): ImageVector = when (this) {
 }
 
 private fun SettingsSection.count(ui: SettingsUi): Int? = when (this) {
-    SettingsSection.Overview, SettingsSection.Agent, SettingsSection.Workspace, SettingsSection.Tools, SettingsSection.DeviceTools, SettingsSection.LocalVoice, SettingsSection.Licenses -> null
+    SettingsSection.Agent, SettingsSection.Workspace, SettingsSection.Tools, SettingsSection.DeviceTools, SettingsSection.LocalVoice, SettingsSection.Licenses -> null
     SettingsSection.Routines -> ui.state.routines?.count { it.enabled }
     SettingsSection.Skills -> ui.config.skills?.count { it.active }
     SettingsSection.Mcp -> ui.config.mcp?.count { it.active }
@@ -405,7 +393,6 @@ private fun SectionPane(
     if (section == SettingsSection.LocalVoice) return DetailPane(rootBack, "Voice") { ServerVoiceSettings() }
     if (section == SettingsSection.DeviceTools) return DeviceToolsSettingsPane(Pane(ui, actions, go, rootBack))
     if (section == SettingsSection.Licenses) return LicensesSettingsPane(route, go, rootBack, actions.onBack.takeIf { LocalInteractionMode.current == InteractionMode.Touch } ?: { go(route.copy(item = null)) })
-    if (section == SettingsSection.Overview) return AgentContent(ui, { actions.onNavigate(it, true) }, rootBack, actions.onDeleteAgent)
     if (ui.capabilities != null && !ui.available(section)) return DetailPane(rootBack, section.title) { Text(UNAVAILABLE, color = color(mutedColor)) }
     if (section == SettingsSection.Agent || section == SettingsSection.Workspace || section == SettingsSection.Tools) {
         val pane = Pane(ui, actions, go, rootBack)
@@ -458,7 +445,7 @@ private fun SectionPane(
 }
 
 private fun SettingsSection.noun() = when (this) {
-    SettingsSection.Overview, SettingsSection.Agent, SettingsSection.Workspace, SettingsSection.Tools -> "an agent"
+    SettingsSection.Agent, SettingsSection.Workspace, SettingsSection.Tools -> "an agent"
     SettingsSection.Routines -> "a routine"
     SettingsSection.Skills -> "a skill"
     SettingsSection.Mcp -> "an MCP server"
@@ -483,3 +470,5 @@ fun relative(at: Long, now: Long): String {
     }
     return if (at < now) "$text ago" else "in $text"
 }
+
+private const val UNAVAILABLE = "Not available on this Server"

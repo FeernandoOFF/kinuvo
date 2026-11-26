@@ -47,7 +47,9 @@ class DeviceAuth(private val file: Path, private val now: () -> Instant = { Cloc
     private var window: TailcatWindow? = null
     /** Unpairs a phone from the private tunnel when its Device is revoked while no tunnel is serving. */
     @Volatile var offlineTailcatRevoke: (String) -> Unit = {}
-    val tailcatActive get() = tailcatLock.withLock { tunnel != null }
+    override val tailcatActive get() = tailcatLock.withLock { tunnel != null }
+    @Volatile private var tailcatListener: () -> Unit = {}
+    override fun onTailcatChanged(listener: () -> Unit) { tailcatListener = listener }
     var publicUrl: String? = null
     var learnedUrl: () -> String? = { null }
     @Volatile override var pairable = true
@@ -102,10 +104,25 @@ class DeviceAuth(private val file: Path, private val now: () -> Instant = { Cloc
     }
 
     /** Serves pairing through [tunnel] from now on, or stops when null; the caller closes the tunnel it passed earlier. */
-    fun tailcat(tunnel: TailcatTunnel?) = tailcatLock.withLock {
-        window?.invite?.let { runCatching { it.close() } }
-        window = null
-        this.tunnel = tunnel
+    fun tailcat(tunnel: TailcatTunnel?) {
+        tailcatLock.withLock {
+            window?.invite?.let { runCatching { it.close() } }
+            window = null
+            this.tunnel = tunnel
+        }
+        tailcatListener()
+    }
+
+    override fun tailcatInvite(code: String, payload: String, ttlSeconds: Int, bound: Set<String>): TailcatInvite? {
+        val phones = lock.withLock { devices().mapNotNull { it.tailcatPhone } }.toSet() + bound
+        return tailcatLock.withLock { tunnel?.invite(code, payload, ttlSeconds, phones) }
+    }
+
+    override fun tailcatPhoneOf(code: String): String? = tailcatLock.withLock { tunnel?.phoneOf(code) }
+
+    override fun tailcatRevoke(phone: String) = tailcatLock.withLock {
+        try { tunnel?.revoke(phone) ?: offlineTailcatRevoke(phone) }
+        catch (e: Exception) { log.warn { "Could not revoke a Tailcat phone: ${e.message}" } }
     }
 
     internal fun tailcatPeer(port: Int): String? = tailcatLock.withLock { tunnel?.peerAt(port) }
@@ -139,10 +156,7 @@ class DeviceAuth(private val file: Path, private val now: () -> Instant = { Cloc
             save(kept)
             devices.first { it.id == id }.tailcatPhone
         }
-        if (phone != null) tailcatLock.withLock {
-            try { tunnel?.revoke(phone) ?: offlineTailcatRevoke(phone) }
-            catch (e: Exception) { log.warn { "Could not revoke a Tailcat phone: ${e.message}" } }
-        }
+        if (phone != null) tailcatRevoke(phone)
         return true
     }
 

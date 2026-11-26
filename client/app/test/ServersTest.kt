@@ -120,6 +120,17 @@ class ServersTest {
         assertTrue(servers.all.isEmpty())
     }
 
+    @Test fun aServerLinkInviteIsRefusedWherePairingADevice() = runBlocking {
+        val prefs = MemoryPreferences()
+        val servers = Servers(prefs, credentials = prefs.credentials, tailcat = object : TailcatForwarder by forwarder {
+            override suspend fun pair(invite: String, device: String) = TailcatPairing("link", """{"link":"secret-code"}""", "Mac")
+        })
+        val error = assertFailsWith<IllegalStateException> { servers.pairTailcat(invite, "Phone") }
+        assertTrue(error.message!!.contains("Link a Kinuvo Server"))
+        assertFalse(error.toString().contains("secret-code"))
+        assertTrue(servers.all.isEmpty())
+    }
+
     @Test fun tailcatPairingIsAnAdditionalChoice() {
         val info = pairingInfo("tailcat:opaque", PairingCode("123456", "2026-10-10T04:00:00Z", 8787, tailcatInvite = invite))
         assertEquals(Links.tailcatPair(invite), info.tailcatLink)
