@@ -107,7 +107,7 @@ data class OnboardingState(
 
     /** A shared Agent's ID here when it's already been added from this linked Server. */
     fun added(remoteId: String, registrations: List<AgentRegistration>) =
-        (harness as? HarnessChoice.Remote)?.let { h -> registrations.firstOrNull { it.connectionId == h.connectionId && it.remoteAgentId == remoteId }?.id }
+        (harness as? HarnessChoice.Remote)?.let { h -> registrations.firstOrNull { !it.archived && it.connectionId == h.connectionId && it.remoteAgentId == remoteId }?.id }
 
     val connection get() = when (val h = harness) {
         is HarnessChoice.Acp -> connections?.firstOrNull { it.config.id == h.connectionId }
