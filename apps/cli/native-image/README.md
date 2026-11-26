@@ -23,7 +23,7 @@ To refresh metadata, unpack the jar and run GraalVM Java with
 `--enable-native-access=ALL-UNNAMED`,
 `-agentlib:native-image-agent=config-output-dir=<new-directory>` and
 `-cp 'build/native-image/flat/BOOT-INF/classes:build/native-image/flat/BOOT-INF/lib/*:build/native-image/flat'`.
-Use `kinuvo.cli.MainKt --help` and `serve --port 8799`; set `KINUVO_HOME` to a
+Use `kinuvo.cli.MainKt --help` and `serve --port 8798`; set `KINUVO_HOME` to a
 fresh disposable directory with `config.yaml` containing:
 
 ```yaml
@@ -36,8 +36,78 @@ Stop the Server before merging each trace with `native-image-configure generate
 --input-dir=... --input-dir=... --output-dir=...`. Do not concurrently write to
 the same metadata directory. Do not request Reminders or Calendar access.
 
-The committed metadata records only the exercised paths described below. Keep
-tracing homes, tokens and binary artifacts out of Git.
+The committed trace metadata covers the exercised paths described below.
+`SerializationFeature` complements it by scanning the image classpath without
+initializing application classes. It registers Kotlin serialization factories,
+companions (including named companions), generated serializer singletons, objects,
+enums, declared class/field queries and constructors. This follows the reflection
+lookups in kotlinx.serialization 1.11.0's JVM `PlatformKt` rather than maintaining
+a list of individual model classes. A Feature adapts to dependency changes; a
+static conditional metadata list would need regenerating whenever those change.
+Keep tracing homes, tokens and binary artifacts out of Git.
+
+## Runtime serialization and Browser checks (November 26, 2026)
+
+The earlier trace exercised Chat Completions, leaving Responses API subclasses
+without Kotlin serialization reflection metadata. `JsonContentPolymorphicSerializer`
+then failed to find the serializer for `Item.InputMessage` at runtime. The Feature
+covers this category across dependencies, not just the reported OpenAI class.
+The input includes generated serializers for Anthropic, Ollama, ACP, MCP, CDP and
+Kinuvo protocol types. Google and OpenRouter client DTOs are absent from this
+particular jar; the same scan will cover their serializers if they are bundled.
+Ktor Kotlinx content negotiation uses the same serializer lookup. This does not
+establish live-provider or every-protocol-method compatibility.
+
+The Browser timeout has a separate native-only cause: GraalVM CE 25.0.2 leaves
+HTTP URL handlers disabled unless requested. `BrowserRuntime` polls Chrome's
+DevTools endpoint with `HttpURLConnection`, catches connection exceptions and
+keeps waiting. During the reproduced timeout Chrome's DevTools endpoint returned
+HTTP 200 to an independent client. A minimal native diagnostic exposed
+`MalformedURLException: Accessing a URL protocol that was not enabled` for HTTP.
+The build now includes `--enable-url-protocols=http,https`. Chrome updater stderr
+was incidental; Browser plugin code did not need changing.
+
+Resource metadata includes the macOS arm64 Tailcat library so the binary can
+start Tailcat without checkout prebuilt files. It excludes the `web` directory
+resource while retaining its files, allowing Ktor to serve `index.html` at `/`
+instead of GraalVM's synthetic directory listing. Verification compares each
+web response with the input jar's bytes, requires Tailcat's active log, fails on
+unexpected check results, and runs commands from the disposable home outside
+the checkout.
+
+`NativeCli --serialization-probe` checks runtime serializer resolution for
+InputMessage, Anthropic, Ollama, ACP, MCP and BrowserOwner, then encodes a Responses
+request containing an input message. `--responses-probe <base-url>` executes Koog's
+real streaming Responses client against the verification stub. `--browser-probe`
+opens an isolated headless Chrome tab through BrowserRuntime, CDP and captures a
+frame, then closes the runtime and its Chrome process.
+
+Set `KINUVO_JAR` to an existing portable jar to run verification without copying
+or rebuilding it. JBR probes use the flat classpath and Java probe classes written
+by the native build; run them before deleting those intermediates.
+`PROBES_ONLY=1` runs just the three regression probes. The full runner uses port
+8798 and fresh temporary homes. It never needs Calendar or Reminders access.
+
+JBR 25.0.2 and the corrected native image each passed all 294 recorded checks
+sequentially with compilation stopped. The three regression probes passed,
+including a nonempty Browser capture; all 181 web responses matched the input
+jar's bytes. The existing CLI/ACP/MCP matrix and Tailcat/Computer startup passed.
+The three direct SPA routes retain their expected 404s. Commands ran from fresh
+temporary homes outside the checkout on port 8798, with the input jar reused
+read-only. Every started Server, ACP client, local stub and Chrome process stopped.
+Run verification without overlapping image compilation: management connections
+can time out under compiler load. Live providers, phone integration, voice and
+other operating systems were not exercised by these regression checks.
+
+The corrected image is 263,561,464 bytes, up 66,986,176 bytes (34.08%) from the
+196,575,288-byte traced image. Broad serializer retention trades size for coverage
+of untraced model and protocol subclasses; embedding Tailcat adds about 18 MB.
+Build time was 3m 58s with the same
+8 GB heap/four-worker caps; peak RSS was 5.32 GB. The image contains 88.72 MB code,
+172.29 MB heap and 371 resources; 16,420 types are registered for reflection.
+The Feature identifies 9,119 serialization-related types. Generated serializers
+that cannot load fail the build; other unavailable optional classpath entries
+are counted (65 for this input).
 
 ## Current-source verification (November 26, 2026)
 

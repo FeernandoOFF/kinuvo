@@ -1773,9 +1773,6 @@
       "glob": "server-voice/MacOS/KinuvoVoiceInference"
     },
     {
-      "glob": "web"
-    },
-    {
       "glob": "web/agents"
     },
     {
@@ -2348,6 +2345,9 @@
     {
       "module": "java.base",
       "glob": "sun/net/idn/uidna.spp"
+    },
+    {
+      "glob": "natives/macos-arm64/libKinuvoTailcat.dylib"
     }
   ],
   "foreign": {

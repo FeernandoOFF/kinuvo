@@ -1,5 +1,5 @@
 import os,sys,subprocess,tempfile,pathlib,time,json,re,urllib.request,signal
-root=pathlib.Path.cwd(); mode=sys.argv[1]; base=pathlib.Path(tempfile.mkdtemp(prefix='kinuvo-'+mode+'-')); (base/'config.yaml').write_text('tasks:\n  provider: local\n')
+root=pathlib.Path.cwd(); jar=pathlib.Path(os.environ.get('KINUVO_JAR',root/'dist/kinuvo.jar')); mode=sys.argv[1]; base=pathlib.Path(tempfile.mkdtemp(prefix='kinuvo-'+mode+'-')); (base/'config.yaml').write_text('tasks:\n  provider: local\n')
 import threading,http.server
 class Stub(http.server.BaseHTTPRequestHandler):
  def do_GET(self):
@@ -7,6 +7,14 @@ class Stub(http.server.BaseHTTPRequestHandler):
  def do_POST(self):
   request=json.loads(self.rfile.read(int(self.headers['Content-Length'])))
   (base/'model-request.json').write_text(json.dumps(request))
+  if self.path.endswith('/responses'):
+   assert request.get('stream') and request['input']
+   (base/'responses-request.json').write_text(json.dumps(request))
+   self.send_response(200);self.send_header('Content-Type','text/event-stream');self.end_headers()
+   response={'id':'resp_stub','object':'response','created_at':1,'model':'stub','output':[],'status':'completed','parallel_tool_calls':False,'tools':[],'text':{'format':{'type':'text'}}}
+   events=[{'type':'response.output_text.delta','item_id':'msg_stub','output_index':0,'content_index':0,'delta':'SPIKE_RESPONSES_REPLY','sequence_number':0}, {'type':'response.completed','sequence_number':1,'response':response}]
+   for event in events:self.wfile.write(('event: '+event['type']+'\ndata: '+json.dumps(event)+'\n\n').encode())
+   return
   self.send_response(200)
   if request.get('stream'):
    self.send_header('Content-Type','text/event-stream');self.end_headers()
@@ -26,13 +34,16 @@ jbr=os.environ.get('JBR_HOME','')
 def prefix():
  if mode=='trace':
   d=base/('trace-'+str(len(traces))); traces.append(str(d))
-  return [graal+'/bin/java','--enable-native-access=ALL-UNNAMED','-agentlib:native-image-agent=config-output-dir='+str(d),'-jar',str(root/'dist/kinuvo.jar')]
- if mode=='jvm': return [jbr+'/bin/java','-jar',str(root/'dist/kinuvo.jar')]
- return [sys.argv[2]]
+  return [graal+'/bin/java','--enable-native-access=ALL-UNNAMED','-agentlib:native-image-agent=config-output-dir='+str(d),'-jar',str(jar)]
+ if mode=='jvm': return [jbr+'/bin/java','-jar',str(jar)]
+ return [str(pathlib.Path(sys.argv[2]).resolve())]
 def run(args,input=None,timeout=30):
  start=time.monotonic()
  try:
-  p=subprocess.run(prefix()+args,env=env,input=input,text=True,capture_output=True,timeout=timeout)
+  command=prefix()
+  if args[0] in ['--serialization-probe','--browser-probe','--responses-probe'] and mode in ['jvm','trace']:
+   command=[jbr+'/bin/java','-cp',str(root/'build/native-image/probe')+':'+str(root/'build/native-image/flat/BOOT-INF/classes')+':'+str(root/'build/native-image/flat/BOOT-INF/lib/*')+':'+str(root/'build/native-image/flat'),'NativeCli']
+  p=subprocess.run(command+args,env=env,cwd=base,input=input,text=True,capture_output=True,timeout=timeout)
   out=p.stdout+p.stderr; rc=p.returncode
   if "but isn't reachable" in out or 'Error:' in out:rc=1
  except subprocess.TimeoutExpired as e: out='TIMEOUT';rc=124
@@ -44,11 +55,11 @@ def stop(p):
  except subprocess.TimeoutExpired:p.kill();p.wait()
 def serve(extra=[]):
  log=open(base/('serve'+str(len(results))+'.log'),'w')
- p=subprocess.Popen(prefix()+['serve','--port','8799']+extra,env=env,stdout=log,stderr=log)
- start=time.monotonic()
+ p=subprocess.Popen(prefix()+['serve','--port','8798']+extra,env=env,cwd=base,stdout=log,stderr=log)
+ start=time.monotonic();ready=False
  for _ in range(120):
   try:
-   urllib.request.urlopen('http://127.0.0.1:8799/',timeout=1); break
+   urllib.request.urlopen('http://127.0.0.1:8798/',timeout=1);ready=True; break
   except Exception:
    if p.poll()!=None:break
    time.sleep(.5)
@@ -57,8 +68,15 @@ def serve(extra=[]):
   while time.monotonic()<deadline and p.poll() is None:
    if 'Tailcat is active' in pathlib.Path(log.name).read_text():break
    time.sleep(.5)
- results.append(dict(command='serve '+' '.join(extra),rc=p.poll(),seconds=round(time.monotonic()-start,3),output=str(log.name)+' rss_kib='+subprocess.run(['ps','-o','rss=','-p',str(p.pid)],capture_output=True,text=True).stdout.strip()))
+ healthy=ready and p.poll() is None and ('--tailcat' not in extra or 'Tailcat is active' in pathlib.Path(log.name).read_text())
+ results.append(dict(command='serve '+' '.join(extra),rc=0 if healthy else 1,seconds=round(time.monotonic()-start,3),output=str(log.name)+' rss_kib='+subprocess.run(['ps','-o','rss=','-p',str(p.pid)],capture_output=True,text=True).stdout.strip()))
  return p
+run(['--serialization-probe'])
+run(['--responses-probe','http://127.0.0.1:'+str(stub.server_port)])
+# Chrome uses only this disposable home's profile and is terminated by the probe.
+run(['--browser-probe'],timeout=75)
+if os.getenv('PROBES_ONLY'):
+ stub.shutdown();print(base,flush=True);sys.exit(0 if all(r['rc']==0 for r in results) else 1)
 # Every actual command/subcommand help, including commands never executed.
 groups={'agents':'list show create set delete','routines':'list show create edit pause resume run remove runs','skills':'list show create install remove','mcp':'list add remove test login logout','knowledge':'search show changes undo','tasks':'list lists add assign status','secrets':'status connect disconnect browse refresh','devices':'list revoke','service':'install uninstall restart status logs'}
 if not os.getenv('SKIP_HELP'):
@@ -71,13 +89,15 @@ server=serve()
 try:
  # Fetch every packaged web asset as well as direct index references.
  import zipfile
- with zipfile.ZipFile(root/'dist/kinuvo.jar') as z:
-  assets=[n[4:] for n in z.namelist() if n.startswith('web/') and not n.endswith('/')]
+ with zipfile.ZipFile(jar) as z:
+  assets={n[4:]:z.read(n) for n in z.namelist() if n.startswith('web/') and not n.endswith('/')}
  for path in ['',*assets,'agents','settings','sessions']:
   start=time.monotonic()
   try:
-   with urllib.request.urlopen('http://127.0.0.1:8799/'+path,timeout=10) as r:data=r.read();rc=r.status
+   with urllib.request.urlopen('http://127.0.0.1:8798/'+path,timeout=10) as r:data=r.read();rc=r.status
   except Exception as e:rc=str(e);data=b''
+  expected=assets.get('index.html' if path=='' else path)
+  if expected is not None and data!=expected:rc=1
   results.append(dict(command='GET /'+path,rc=rc,seconds=round(time.monotonic()-start,3),output=str(len(data))+' bytes'))
  for a in [['agents','list'],['agents','create','spike','--clone','default'],['agents','set','spike','name','Trace Agent'],['agents','show','spike']]:run(a)
  for shared in [[],['--shared']]:
@@ -105,7 +125,7 @@ for line in sys.stdin:
  for a in [['secrets','status'],['secrets','browse'],['notify','spike'],['pair'],['pair','--manage'],['devices','list'],['service','status']]:run(a)
  run(['agents','set','spike','model','stub'])
  import selectors
- acp=subprocess.Popen(prefix()+['acp','--agent','spike'],env=env,stdin=subprocess.PIPE,stdout=subprocess.PIPE,stderr=open(base/'acp.stderr','w'),text=True,bufsize=1)
+ acp=subprocess.Popen(prefix()+['acp','--agent','spike'],env=env,cwd=base,stdin=subprocess.PIPE,stdout=subprocess.PIPE,stderr=open(base/'acp.stderr','w'),text=True,bufsize=1)
  import queue
  inbox=queue.Queue()
  def read_acp():
@@ -148,3 +168,7 @@ if mode=='trace':(base/'traces.json').write_text(json.dumps(traces))
 print(base,flush=True)
 
 stub.shutdown()
+expected_missing={'GET /agents','GET /settings','GET /sessions'}
+failed=[r for r in results if r['rc'] not in (0,200) and not (r['command'] in expected_missing and r['rc']=='HTTP Error 404: Not Found')]
+if failed:print('Failed checks: '+', '.join(r['command'] for r in failed),file=sys.stderr)
+sys.exit(1 if failed else 0)
