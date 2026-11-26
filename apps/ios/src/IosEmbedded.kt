@@ -148,7 +148,7 @@ internal class IosEmbeddedServer(private val model: AppleLanguageModel, private 
             }
             val embedded = embeddedPlugins(home, ModelProviders.of(AppleProvider(model)), listOf(ApplePlugin(apple)))
             EmbeddedServerHost.create(home, plugins = embedded.plugins, modelSources = embedded.modelSources,
-                features = setOf(ServerFeature.Attachments, ServerFeature.DeviceTools, ServerFeature.Computer), peers = { SharedPeers(it, auth) }).also { host ->
+                features = setOf(ServerFeature.Attachments, ServerFeature.DeviceTools, ServerFeature.Computer), peers = { SharedPeers(it, auth) }, forwarder = Tailcat).also { host ->
                 server = host
                 localHost = host
                 activity = MainScope().launch { host.runtime.runActivity.collect { backgroundRuns?.update(it.runs, it.steps) } }

@@ -122,8 +122,11 @@ class Servers(
         require(Links.isTailcatInvite(invite)) { "Invalid Tailcat invite" }
         check(tailcat.supported) { "Tailcat connections are not supported on this platform yet" }
         val paired = tailcat.pair(invite, device)
-        val code = try { ProtocolJson.decodeFromString(TailcatPayload.serializer(), paired.payload).code }
+        val payload = try { ProtocolJson.decodeFromString(TailcatPayload.serializer(), paired.payload) }
         catch (e: SerializationException) { throw IllegalStateException("The Server did not send a pairing code", e) }
+        check(payload.link == null) { "That invite links a Server. Paste it under Settings > Harnesses > Link a Kinuvo Server" }
+        val code = payload.code
+        check(code.isNotEmpty()) { "The Server did not send a pairing code" }
         return TailcatPaired(Server.Remote("tailcat:${Uuid.random()}", name = name, transport = RemoteTransport.Tailcat, tailcatLink = paired.link), code)
     }
 

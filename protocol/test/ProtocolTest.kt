@@ -10,6 +10,7 @@ import kinuvo.protocol.capability.ServerCapabilities
 import kinuvo.protocol.device.ChatLink
 import kinuvo.protocol.device.Links
 import kinuvo.protocol.device.PairLink
+import kinuvo.protocol.device.TailcatPayload
 import kinuvo.protocol.device.Platform
 import kinuvo.protocol.knowledge.KnowledgeSettings
 import kinuvo.protocol.reflection.ReflectionResult
@@ -33,6 +34,7 @@ import kinuvo.protocol.session.RunId
 import kinuvo.protocol.session.ToolCallId
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
 import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
@@ -147,6 +149,29 @@ class ProtocolTest {
         assertEquals(null, Links.parsePair("kinuvo://pair?server=x&code=12;rm"))
         assertEquals(null, Links.parsePair("http://10.0.0.2:8787/"))
         assertEquals(null, Links.parsePair("kinuvo://chat/kai"))
+    }
+
+    @Test
+    fun serverLinkInvitesAreBareOrLinks() {
+        val invite = "kinuvo1:" + "aB3_-".repeat(8)
+        assertEquals("kinuvo://link?tailcat=${invite.replace(":", "%3A")}", Links.tailcatLink(invite))
+        assertEquals(invite, Links.parseTailcatLink(Links.tailcatLink(invite)))
+        assertEquals(invite, Links.parseTailcatLink("  $invite\n"))
+        assertEquals(null, Links.parseTailcatLink("kinuvo://link?tailcat=nope"))
+        assertEquals(null, Links.parseTailcatLink("kinuvo://link?server=x"))
+        assertEquals(null, Links.parseTailcatLink("https://example.com/ws"))
+        assertEquals(null, Links.parseTailcatLink(Links.tailcatPair(invite)))
+        assertFailsWith<IllegalArgumentException> { Links.tailcatLink("nope") }
+        assertEquals(null, Links.parsePair(Links.tailcatLink(invite)))
+    }
+
+    @Test
+    fun tailcatPayloadsKeepDeviceInvitesCompatible() {
+        assertEquals(TailcatPayload("123456"), ProtocolJson.decodeFromString(TailcatPayload.serializer(), """{"code":"123456"}"""))
+        assertEquals("""{"code":"123456"}""", ProtocolJson.encodeToString(TailcatPayload.serializer(), TailcatPayload("123456")))
+        val link = ProtocolJson.encodeToString(TailcatPayload.serializer(), TailcatPayload(link = "secret"))
+        assertEquals("secret", ProtocolJson.decodeFromString(TailcatPayload.serializer(), link).link)
+        assertEquals("", ProtocolJson.decodeFromString(TailcatPayload.serializer(), link).code)
     }
 
     @Test

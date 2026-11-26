@@ -1,5 +1,7 @@
 package kinuvo.server.jvm
 
+import kinuvo.client.TailcatForwarder
+import kinuvo.client.UnsupportedTailcatForwarder
 import kinuvo.server.plugin.TailcatServing
 import io.github.oshai.kotlinlogging.KotlinLogging
 import kinuvo.server.NetworkSecurity
@@ -40,7 +42,7 @@ internal fun coolifyOrigin(value: String?): String? = value?.split(',')?.firstNo
 internal fun publicUrl(option: String?, env: (String) -> String? = ::env): String? = option?.trim()?.takeIf { it.isNotEmpty() } ?: env("KINUVO_PUBLIC_URL")
 
 /** Runs the Server until cancelled; [extend] adds to it once it listens and is closed when it stops. */
-suspend fun serve(options: ServeOptions, tailcat: TailcatServing? = null, extend: suspend (server: JvmServerHost, host: String, port: Int) -> AutoCloseable? = { _, _, _ -> null }) {
+suspend fun serve(options: ServeOptions, tailcat: TailcatServing? = null, forwarder: TailcatForwarder = UnsupportedTailcatForwarder, extend: suspend (server: JvmServerHost, host: String, port: Int) -> AutoCloseable? = { _, _, _ -> null }) {
     require(!options.tailscale || options.publicUrl == null) { "Use --tailscale or --public-url, not both" }
     val route = if (options.tailscale) {
         Tailscale.requireLoopback(options.host)
@@ -50,7 +52,7 @@ suspend fun serve(options: ServeOptions, tailcat: TailcatServing? = null, extend
     val behindProxy = options.behindProxy || env("KINUVO_BEHIND_PROXY")?.lowercase() in listOf("1", "true")
     val trusted = (options.trustedProxy?.trim()?.takeIf { it.isNotEmpty() } ?: env("KINUVO_TRUSTED_PROXIES"))?.split(',')?.map(String::trim)?.toSet()
     val network = NetworkSecurity(route?.url ?: publicUrl(options.publicUrl), trusted, behindProxy, if (behindProxy) coolifyOrigin(env("COOLIFY_URL")) else null)
-    val server = JvmServerHost(JvmAgentRuntime(), network = network, tailcat = tailcat)
+    val server = JvmServerHost(JvmAgentRuntime(), network = network, tailcat = tailcat, forwarder = forwarder)
     var extension: AutoCloseable? = null
     var ready = false
     val shutdown = Thread { try { server.stop() } finally { extension?.close() } }

@@ -3,6 +3,13 @@ package kinuvo.harness.remote
 import kinuvo.harness.messageText
 import kinuvo.harness.*
 import kinuvo.client.KinuvoClient
+import kinuvo.client.SharedTailcatForwarder
+import kinuvo.client.TailcatForwarder
+import kinuvo.client.UnsupportedTailcatForwarder
+import kinuvo.client.tailcatConnection
+import kinuvo.protocol.device.Links
+import kinuvo.protocol.device.TailcatPayload
+import kotlinx.serialization.SerializationException
 import kinuvo.client.ConnectionState
 import kinuvo.protocol.*
 import kinuvo.protocol.approval.*
@@ -20,10 +27,33 @@ import kinuvo.client.KinuvoException
 import kinuvo.client.ProtocolMismatchException
 
 /** KMP adapter: a linked party receives no management credential or catalog secrets. */
-class RemoteExecutionFactory(private val link: (String) -> SaveRemoteLink, private val serverId: String, private val readiness: suspend (String, Boolean, String) -> Unit = { _, _, _ -> }) : RemoteHarness {
+class RemoteExecutionFactory(
+    private val link: (String) -> SaveRemoteLink,
+    private val serverId: String,
+    private val readiness: suspend (String, Boolean, String) -> Unit = { _, _, _ -> },
+    /** Reaches Servers linked by a private-tunnel invite; [tunnel] is the secret that reopens the tunnel to one. */
+    tunnels: TailcatForwarder = UnsupportedTailcatForwarder,
+    private val tunnel: (String) -> String? = { null },
+) : RemoteHarness {
+    private val forwards = SharedTailcatForwarder(tunnels)
+
+    override val tunnelSupported get() = forwards.supported
+
+    override suspend fun join(invite: String, device: String): RemoteTunnel {
+        val text = requireNotNull(Links.parseTailcatLink(invite)) { "That is not a Server link invite" }
+        check(forwards.supported) { "Linking through Tailcat is not supported on this platform yet" }
+        val paired = forwards.pair(text, device)
+        val payload = try { ProtocolJson.decodeFromString(TailcatPayload.serializer(), paired.payload) }
+        catch (e: SerializationException) { throw IllegalArgumentException("That invite is not from Share Agents on another Server", e) }
+        val token = requireNotNull(payload.link) { "That invite pairs a Device. Use Link a Kinuvo Server on the other Server's Share Agents" }
+        return RemoteTunnel(paired.link, token)
+    }
+
     private suspend fun connect(id: String): KinuvoClient {
         val link = link(id)
-        val client = KinuvoClient(link.url, "Kinuvo Server link", token = link.token, allowCleartext = true)
+        val secret = if (link.url.startsWith(TUNNEL_KEY_PREFIX)) requireNotNull(tunnel(id)) { "Tailcat link missing; link the Server again" } else null
+        val client = KinuvoClient(link.url, "Kinuvo Server link", token = link.token, allowCleartext = true,
+            connection = secret?.let { { tailcatConnection(it, forwards) } })
         try {
             val result = withTimeout(15_000) { client.connect() }
             require(result.capabilities.serverId != serverId) { "A Server cannot link to itself" }
@@ -168,6 +198,8 @@ class RemoteExecutionFactory(private val link: (String) -> SaveRemoteLink, priva
         } catch (e: Throwable) { client.close(); throw e }
     }
 }
+
+private const val TUNNEL_KEY_PREFIX = "tailcat:"
 
 internal fun remoteEntries(messages: List<ExecutionMessage>, generation: String): List<SessionEntry> =
     messages.flatMap { m ->

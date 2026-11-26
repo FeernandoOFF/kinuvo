@@ -77,6 +77,16 @@ data class ExecutionProbe(val readiness: ExecutionReadiness, val title: String? 
 data class SaveRemoteLink(val id: String, val url: String, val token: String)
 @Serializable
 data class ExposureGrant(val id: String, val agentIds: Set<AgentId>)
+/** A secret private-tunnel invite for a link code: [invite] is the bare text, [link] the `kinuvo://link` form of it. [expiresAt] is ISO-8601. */
+@Serializable
+data class ExposureInvite(val invite: String, val link: String, val expiresAt: String) {
+    override fun toString() = "ExposureInvite(expiresAt=$expiresAt)"
+}
+/** Links the Server that showed [invite] (a private-tunnel invite from its Share Agents) as [id]; no address or link code is needed. */
+@Serializable
+data class JoinRemoteLink(val id: String, val invite: String) {
+    override fun toString() = "JoinRemoteLink(id=$id)"
+}
 @Serializable
 data class RemoteExecutionCall(val agentId: AgentId? = null, val sessionId: SessionId? = null, val action: String = "list", val text: String? = null, val requestId: InteractionId? = null, val answer: InteractionAnswer? = null, val surfaceAction: SurfaceAction? = null)
 @Serializable

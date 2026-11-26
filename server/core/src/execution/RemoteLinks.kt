@@ -11,13 +11,20 @@ import kotlin.uuid.Uuid
 
 /** Private Server storage. Never serialize this value into a public catalog or event. */
 @Serializable
-data class RemoteSecrets(val links: List<SaveRemoteLink> = emptyList(), val grants: List<StoredExposure> = emptyList(), val sessions: List<ExposedSession> = emptyList())
+data class RemoteSecrets(val links: List<SaveRemoteLink> = emptyList(), val tunnels: List<RemoteTunnel> = emptyList(), val grants: List<StoredExposure> = emptyList(), val sessions: List<ExposedSession> = emptyList())
 
 @Serializable
 data class ExposedSession(val token: String, val agentId: AgentId, val sessionId: SessionId)
 
+/** The secret that reopens the private tunnel to the Server linked as [id]; its address in [SaveRemoteLink.url] is only an opaque key. */
 @Serializable
-data class StoredExposure(val id: String, val token: String, val agentIds: Set<AgentId>)
+data class RemoteTunnel(val id: String, val link: String)
+
+/** [phone] is the tunnel phone key that linked through this grant's invite, once it has connected. */
+@Serializable
+data class StoredExposure(val id: String, val token: String, val agentIds: Set<AgentId>, val phone: String? = null)
+
+const val TUNNEL_PREFIX = "tailcat:"
 
 class RemoteLinks(initial: RemoteSecrets = RemoteSecrets(), private val persist: (RemoteSecrets) -> Unit = {}) {
     private val lock = Lock()
@@ -27,10 +34,20 @@ class RemoteLinks(initial: RemoteSecrets = RemoteSecrets(), private val persist:
     fun save(link: SaveRemoteLink) = lock.withLock {
         require(link.id.isNotBlank() && link.token.isNotBlank())
         requireSecureTransport(link.url, allowCleartext = true)
-        val next = secrets.copy(links = secrets.links.filterNot { it.id == link.id } + link)
+        val next = secrets.copy(links = secrets.links.filterNot { it.id == link.id } + link, tunnels = secrets.tunnels.filterNot { it.id == link.id })
         persist(next)
         secrets = next
     }
+    /** Links the Server reached through the tunnel secret [tunnel] by its exposure [token]; the key stays private to this Server. */
+    fun saveTunnel(id: String, tunnel: String, token: String): SaveRemoteLink = lock.withLock {
+        require(id.isNotBlank() && token.isNotBlank() && tunnel.isNotBlank())
+        val link = SaveRemoteLink(id, "$TUNNEL_PREFIX${Uuid.random()}", token)
+        val next = secrets.copy(links = secrets.links.filterNot { it.id == id } + link, tunnels = secrets.tunnels.filterNot { it.id == id } + RemoteTunnel(id, tunnel))
+        persist(next)
+        secrets = next
+        link
+    }
+    fun tunnel(id: String): String? = lock.withLock { secrets.tunnels.firstOrNull { it.id == id }?.link }
     fun grant(grant: ExposureGrant): String = lock.withLock {
         require(grant.id.isNotBlank() && grant.agentIds.isNotEmpty())
         val token = Uuid.random().toString() + Uuid.random().toString()
@@ -39,6 +56,14 @@ class RemoteLinks(initial: RemoteSecrets = RemoteSecrets(), private val persist:
         secrets = next
         token
     }
+    fun grant(id: String): StoredExposure? = lock.withLock { secrets.grants.firstOrNull { it.id == id } }
+    fun grantOf(token: String): StoredExposure? = lock.withLock { secrets.grants.firstOrNull { it.token == token } }
+    fun bind(id: String, phone: String) = lock.withLock {
+        val next = secrets.copy(grants = secrets.grants.map { if (it.id == id) it.copy(phone = phone) else it })
+        persist(next)
+        secrets = next
+    }
+    fun phones(): Set<String> = lock.withLock { secrets.grants.mapNotNull { it.phone }.toSet() }
     fun grants(): List<ExposureGrant> = lock.withLock { secrets.grants.map { ExposureGrant(it.id, it.agentIds) } }
     fun revoke(id: String) = lock.withLock {
         val next = secrets.copy(grants = secrets.grants.filterNot { it.id == id })

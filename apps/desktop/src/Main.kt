@@ -82,7 +82,7 @@ private object HarnessEmbeddedServer : EmbeddedServer {
     private var token: String? = null
 
     private suspend fun started(): JvmServerHost = mutex.withLock {
-        server ?: JvmServerHost(JvmAgentRuntime(), tailcat = Tailcat).also { s ->
+        server ?: JvmServerHost(JvmAgentRuntime(), tailcat = Tailcat, forwarder = Tailcat).also { s ->
             port = s.start("0.0.0.0", System.getenv("KINUVO_EMBEDDED_PORT")?.toInt()?.let(::listOf) ?: JvmServerHost.EMBEDDED_PORTS)
             s.advertise()
             Runtime.getRuntime().addShutdownHook(Thread { s.stop() })

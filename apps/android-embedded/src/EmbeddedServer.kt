@@ -106,7 +106,7 @@ internal class AndroidEmbeddedServer(private val context: Context) : EmbeddedSer
             val linux = prootLinux(context)?.also { linux -> setup.launch { runCatching { linux.ensure() } } }
             val embedded = embeddedPlugins(home, browser + listOfNotNull(linux?.let { prootExecPlugin(it, AgentFiles(home)) }))
             EmbeddedServerHost.create(home, plugins = embedded.plugins, modelSources = embedded.modelSources, continuous = true, features = BUILT_IN_FEATURES, peers = { SharedPeers(it, auth) },
-                executionFactory = linux?.let { AcpExecutionFactory(launcher = prootAcpLauncher(it)) })
+                executionFactory = linux?.let { AcpExecutionFactory(launcher = prootAcpLauncher(it)) }, forwarder = Tailcat)
                 .also {
                     server = it
                     sharingHost.restore()

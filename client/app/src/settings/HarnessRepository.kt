@@ -82,11 +82,26 @@ class HarnessRepository(internal val connection: ConnectedServer) : ServerBound 
         return agents
     }
 
+    /**
+     * Links the Server that showed a private-tunnel [invite] from its Share Agents: no address or link code, since the tunnel
+     * carries both. Like [link], nothing is saved to the catalog if it can't be reached.
+     */
+    suspend fun join(config: HarnessConnection, invite: String): List<AgentInfo> {
+        val linkId = (config.connection as ExecutionConnection.Remote).serverId
+        connection.call { it.call(Api.JoinRemote, JoinRemoteLink(linkId, invite)) }
+        val agents = discover(linkId)
+        save(config)
+        return agents
+    }
+
     /** The Agents the linked Server [linkId] shares with this one. */
     suspend fun discover(linkId: String) = connection.call { it.call(Api.DiscoverRemote, ExecutionRef(linkId)) }.agents
 
     /** A link code another Server uses to run [agentIds]; making one again under [id] revokes the old one. */
     suspend fun share(id: String, agentIds: Set<AgentId>) = connection.call { it.call(Api.GrantExecution, ExposureGrant(id, agentIds)) }
+
+    /** A private-tunnel invite another Server pastes to link this one through the link code [id]; fails when Tailcat sharing is off. */
+    suspend fun invite(id: String) = connection.call { it.call(Api.InviteExecution, ExecutionRef(id)) }
 
     suspend fun revoke(id: String) = connection.call { it.call(Api.RevokeExecution, ExecutionRef(id)) }
 

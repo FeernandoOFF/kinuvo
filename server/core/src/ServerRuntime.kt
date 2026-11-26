@@ -108,7 +108,7 @@ class ServerRuntime(
     private var closed = false
     private val lifecycle = Mutex()
 
-    val capabilities: ServerCapabilities get() = ServerCapabilities(harness.serverId, harness.features + setOf(ServerFeature.Screens, ServerFeature.SessionInbox) + (if (auth.pairable) setOf(ServerFeature.Pairing) else emptySet()) + (if (assembly.devicePush != null) setOf(ServerFeature.Push) else emptySet()),
+    val capabilities: ServerCapabilities get() = ServerCapabilities(harness.serverId, harness.features + setOf(ServerFeature.Screens, ServerFeature.SessionInbox) + (if (auth.pairable) setOf(ServerFeature.Pairing) else emptySet()) + (if (assembly.execution.tunnelInvites) setOf(ServerFeature.LinkInvite) else emptySet()) + (if (assembly.execution.tunnelJoin) setOf(ServerFeature.LinkJoin) else emptySet()) + (if (assembly.devicePush != null) setOf(ServerFeature.Push) else emptySet()),
         if (foregroundOnly) ExecutionLifetime.Foreground else ExecutionLifetime.Continuous,
         if (scheduling) WakeSupport.Scheduled else WakeSupport.None, integrations = (harness.integrations + (if (executionFactory != null) mapOf(Integration.Harness to setOf("acp", "remote")) else mapOf(Integration.Harness to setOf("remote")))).mapKeys { it.key.name }, platform = harness.platform, voice = assembly.voice.providers.setup)
     /** Runs going and the events they've produced; a foreground-only host keeps them alive while it can. */
@@ -129,6 +129,7 @@ class ServerRuntime(
 
     private fun changedCapabilities() = broadcast(Api.CapabilitiesChanged, Unit)
     init {
+        auth.onTailcatChanged(::changedCapabilities)
         if (foregroundOnly) harness.log.onChange { info ->
             if (info.status == SessionStatus.Waiting && unwatched()) scope.launch { if (!connecting(info.id)) assembly.dispatch.stop(info.id) }
         }
@@ -492,6 +493,7 @@ class ServerRuntime(
                         val token = (if (client.linked) supplied else auth.authenticate(p.device, supplied, if (connection.credential == null) p.pairingCode else null, tailcatPeer))
                             ?: raise(if (p.token != null) ConnectError.Unpaired else ConnectError.InvalidPairing)
                         client.token = token
+                        if (client.linked) assembly.execution.linkedConnected(token, tailcatPeer)
                         if (!client.linked && p.registerDeviceTools) client.recordTools(p.deviceTools)
                         if (!client.linked && auth.management(token)) p.timeZone?.let { zone -> runCatching { harness.timeZone = TimeZone.of(zone) } }
                         ConnectResult(token, name, harness.usage.value, capabilities, !client.linked && auth.management(token), version, client.deviceId)

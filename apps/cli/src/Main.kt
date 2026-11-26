@@ -74,7 +74,7 @@ private class Login : CoreSuspendingCliktCommand("login") {
 private suspend fun serve(host: String, port: Int, publicUrl: String? = null, trustedProxy: String? = null, computer: Boolean = false, tailscale: Boolean = false, tailscalePort: Int = 443, behindProxy: Boolean = false, tailcat: Boolean = false) {
     Diagnostics(kinuvoHome(), jvmAppInfo(currentPlatform.displayName)).install("cli")
     serveErrors {
-        serve(ServeOptions(host, port, publicUrl, trustedProxy, tailscale, tailscalePort, behindProxy, tailcat), Tailcat) { server, bind, bound ->
+        serve(ServeOptions(host, port, publicUrl, trustedProxy, tailscale, tailscalePort, behindProxy, tailcat), Tailcat, Tailcat) { server, bind, bound ->
             if (!computer) return@serve null
             CliComputer(server, bind, bound).also {
                 it.connect()

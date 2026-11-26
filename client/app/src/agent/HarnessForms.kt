@@ -5,6 +5,7 @@ import kinuvo.app.connection.*
 import kinuvo.protocol.*
 import kinuvo.protocol.agent.*
 import kinuvo.protocol.capability.*
+import kinuvo.protocol.device.Links
 import kinuvo.protocol.execution.*
 /** An external Agent's instructions, Memory, Skills and tools belong to its harness, not Kinuvo. */
 val AgentInfo.external get() = executionKind != ExecutionKind.Native
@@ -184,17 +185,21 @@ fun cwdProblem(cwd: String): String? = when {
  * Harnesses › Share Agents made. The code is kept privately by this Server and never shown again.
  */
 data class LinkForm(val name: String = "", val url: String = "", val token: String = "", val linking: Boolean = false) {
+    /** The private-tunnel invite pasted into the address (bare or as a `kinuvo://link` link); it needs no address or link code. */
+    val invite get() = Links.parseTailcatLink(url)
+
     /** The address as the Server connects to it, or null when it isn't one. */
     val address get() = runCatching { normalizeUrl(url, allowCleartext = true) }.getOrNull()
 
     /** Whether the link code would cross a public network unencrypted. */
-    val cleartext get() = address?.let { it.startsWith("ws://") && !privateNetworkHost(it.substringAfter("://").substringBefore('/').let { a -> if (a.startsWith('[')) a.substringBefore(']') + "]" else a.substringBefore(':') }) } == true
+    val cleartext get() = invite == null && address?.let { it.startsWith("ws://") && !privateNetworkHost(it.substringAfter("://").substringBefore('/').let { a -> if (a.startsWith('[')) a.substringBefore(']') + "]" else a.substringBefore(':') }) } == true
 
     fun problems(connections: List<HarnessConnectionStatus>): List<String> = buildList {
         val trimmed = name.trim()
         if (trimmed.isEmpty()) add("Name is required")
         else if (trimmed.length > AgentDraft.MaxName) add("Name is at most ${AgentDraft.MaxName} characters")
         else if (connections.any { it.config.name.trim().equals(trimmed, ignoreCase = true) }) add("Another harness is called $trimmed")
+        if (invite != null) return@buildList
         if (url.isBlank()) add("Address is required")
         else if (address == null) add("Use the other Server's http(s) address")
         if (token.isBlank()) add("Link code is required")
@@ -207,12 +212,16 @@ data class LinkForm(val name: String = "", val url: String = "", val token: Stri
 }
 
 /** Agents this Server shares with another one, as one link code; [token] is shown once, after it's made. */
-data class ShareForm(val name: String = "", val agents: Set<AgentId> = emptySet(), val token: String? = null, val id: String? = null) {
+data class ShareForm(val name: String = "", val agents: Set<AgentId> = emptySet(), val token: String? = null, val id: String? = null, val invite: ExposureInvite? = null, val inviting: Boolean = false) {
     fun problems(): List<String> = buildList {
         if (name.isBlank()) add("Say who it's for, e.g. the other Server's name")
         if (agents.isEmpty()) add("Pick at least one Agent")
     }
 }
+
+/** Whether the Server can make private-tunnel invites now (Tailcat sharing is on), and whether it can link Servers through one. */
+val ServerCapabilities?.canInviteLink get() = supports(ServerFeature.LinkInvite)
+val ServerCapabilities?.canJoinLink get() = supports(ServerFeature.LinkJoin)
 
 /** Agents another Server may run from this one: Kinuvo's own and ACP agents, never ones this Server runs from elsewhere. */
 fun shareable(agents: List<AgentInfo>) = agents.filter { it.executionKind != ExecutionKind.Remote }
