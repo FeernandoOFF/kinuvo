@@ -142,7 +142,10 @@ package_cli() {
   fi
   runtime "$app/runtime" --include-locales en
   rm -rf "$app/runtime/lib/fonts"
-  if [ "$os" = windows ]; then
+  if [ "$os" = macos ]; then
+    cp "$(scripts/build-mac-apple.sh)" "$app/lib/libKinuvoApple.dylib"
+    cp "$(scripts/build-mac-cli-launcher.sh)" "$app/bin/kinuvo"
+  elif [ "$os" = windows ]; then
     printf '@echo off\r\n"%%~dp0..\\runtime\\bin\\java.exe" %%KINUVO_JAVA_OPTS%% -jar "%%~dp0..\\lib\\kinuvo.jar" %%*\r\n' > "$app/bin/kinuvo.cmd"
   else
     cat > "$app/bin/kinuvo" <<'EOF'

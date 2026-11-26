@@ -13,7 +13,7 @@ One Swift core, `AppleEventKit`, serves both platforms behind a single JSON call
 
 - **macOS.** The core and a `@_cdecl` wrapper build into `libKinuvoApple.dylib` (`scripts/build-mac-apple.sh`), which the desktop app bundles and the JVM loads in-process with the foreign function API, as for speech. In-process, the app holds the privacy permissions (Reminders and Calendars usage strings in its `Info.plist`, the calendars entitlement for hardened runtime), so a prompt names Kinuvo rather than a helper tool.
 - **iPhone.** The same Swift file compiles into the app, which hands an `AppleSystem` to the embedded Server's plugin list.
-- **Elsewhere.** A Server run with the `kinuvo` command, as a service, or on another system has no app bundle or no library. The core checks the host bundle for the usage strings first, since requesting access without them would end the process, and then every call answers `unavailable` with "Apple Reminders and Calendar need the Kinuvo desktop app on macOS or the iPhone app".
+- **CLI and elsewhere.** The packaged macOS `kinuvo` command embeds the usage strings in a native launcher and loads the JVM in-process, with the Apple library beside its jar. Terminal launches attribute permission to the terminal app; launchd attributes it to `kinuvo`. Hosts without the usage strings or library still answer `unavailable` before requesting access.
 
 Reads are Low Risk, creating and updating Medium, deleting an event High. A call on an undetermined permission requests access; the Task provider's authorize call and each framework's status are available to clients.
 
