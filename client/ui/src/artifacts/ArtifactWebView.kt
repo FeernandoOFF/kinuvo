@@ -11,6 +11,7 @@ import com.composables.ui.theme.ColorScheme
 import com.composables.ui.theme.LocalColorScheme
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import kinuvo.protocol.artifact.ArtifactFiles
 import kotlinx.serialization.json.JsonPrimitive
 import kinuvo.ui.design.ESCAPE_RELAY
 
@@ -35,30 +36,45 @@ internal expect fun WebView(html: String, modifier: Modifier = Modifier, onMessa
 /** Whether [WebView] can pass a message from the page, which visual editing needs. */
 internal expect val visualEditing: Boolean
 
+/** The files of an Artifact folder: [files] lists them and [read] fetches one by path. */
+internal class BundleSource(val files: ArtifactFiles, val read: suspend (String) -> ByteArray?)
+
 /**
  * [html] with scripts but no network requests of its own: only https scripts, styles, fonts and images load. [fade] fades its top edge in from that colour.
  * With [deck], a reveal.js deck in the page is shared through it; only where the web view can pass the page's messages on.
  * With an [artifact] id the page runs at an origin of its own where the platform has one, with real Web Storage; otherwise in a sandboxed frame.
+ * With a [bundle] that origin also serves the rest of the folder, fetched when a page asks, with [html] its entry page.
  */
 @Composable
-internal fun HtmlView(html: String, modifier: Modifier = Modifier, fade: Color? = null, deck: DeckControls? = null, artifact: String? = null) = key(artifact) {
+internal fun HtmlView(html: String, modifier: Modifier = Modifier, fade: Color? = null, deck: DeckControls? = null, artifact: String? = null, bundle: BundleSource? = null) = key(artifact) {
     val sync = deck != null && visualEditing
     val dark = LocalColorScheme.current == ColorScheme.Dark
     val channel = remember { PageChannel() }
     val receive by rememberUpdatedState(deck?.onMessage)
     LaunchedEffect(deck, channel) { if (sync) deck?.commands?.collect { channel.send(it) } }
     val native = LocalNativeViews.current
-    val site = remember(artifact, html, dark, sync, native) { artifact?.takeIf { native && originId(it) }?.let { ArtifactSite.page(it, originPage(html, dark, sync)) } }
+    val read by rememberUpdatedState(bundle?.read)
+    val site = remember(artifact, html, dark, sync, native, bundle?.files) {
+        artifact?.takeIf { native && originId(it) }?.let { id ->
+            val page = originPage(html, dark, sync)
+            if (bundle == null) ArtifactSite.page(id, page) else ArtifactSite.folder(id, bundle.files, page) { path -> read?.invoke(path) }
+        }
+    }
     val origin = rememberArtifactOrigin(site)
     val url = origin?.url
     val page = remember(url, html, fade, dark, sync) { if (url != null) originDocument(url, fade, sync) else artifactDocument(html, fade, dark, sync) }
     WebView(page, modifier, if (sync) { text -> receive?.invoke(text) } else null, if (sync) channel else null, editing = false, origin = origin)
 }
 
-/** The Content-Security-Policy an Artifact page is held to: [script] sources, [remote] sources for styles, images and fonts, and [frames] it may embed. */
-internal fun artifactPolicy(script: String = ARTIFACT_SCRIPTS, remote: String = " https:", frames: String = "") = "default-src 'none'; " +
-    "script-src $script; style-src 'unsafe-inline'$remote; img-src data: blob:$remote; " +
-    "font-src data:$remote; media-src data: blob:;${if (frames.isEmpty()) "" else " frame-src $frames;"} form-action 'none'; base-uri 'none'"
+/**
+ * The Content-Security-Policy an Artifact page is held to: [script] sources, [remote] sources for styles, images and fonts, and [frames] it may embed.
+ * A page at an origin of its own ([own]) may also load and fetch the files of its own folder, `'self'`, which reaches no other host.
+ */
+internal fun artifactPolicy(script: String = ARTIFACT_SCRIPTS, remote: String = " https:", frames: String = "", own: Boolean = false): String {
+    val self = if (own) " 'self'" else ""
+    return "default-src 'none'; script-src $script${if (own) " 'self' 'wasm-unsafe-eval'" else ""}; style-src 'unsafe-inline'$self$remote; img-src$self data: blob:$remote; " +
+        "font-src$self data:$remote; media-src$self data: blob:;${if (own) " connect-src 'self';" else ""}${if (frames.isEmpty()) "" else " frame-src $frames;"} form-action 'none'; base-uri 'none'"
+}
 
 private const val ARTIFACT_SCRIPTS = "'unsafe-inline' 'unsafe-eval' https:"
 
@@ -69,7 +85,7 @@ private const val ARTIFACT_SCRIPTS = "'unsafe-inline' 'unsafe-eval' https:"
  * With [origin] the page is served from an origin of its own, which has the Web Storage [STORAGE_SHIM] stands in for.
  */
 internal fun sandboxed(html: String, script: String = ARTIFACT_SCRIPTS, remote: String = " https:", dark: Boolean? = null, frames: String = "", deck: Boolean = false, origin: Boolean = false) =
-    "<!doctype html><html><head><meta data-kinuvo-editor charset=\"utf-8\"><meta data-kinuvo-editor http-equiv=\"Content-Security-Policy\" content=\"${artifactPolicy(script, remote, frames)}\">${dark?.let(::themeHint).orEmpty()}${if ("'unsafe-inline'" in script) "<script data-kinuvo-editor>$ESCAPE_RELAY$HISTORY_SHIM${if (origin) "" else STORAGE_SHIM}${if (deck) DECK_ADAPTER else ""}</script>" else ""}</head>${html.replace(EDITOR_POLICY, "")}"
+    "<!doctype html><html><head><meta data-kinuvo-editor charset=\"utf-8\"><meta data-kinuvo-editor http-equiv=\"Content-Security-Policy\" content=\"${artifactPolicy(script, remote, frames, origin)}\">${dark?.let(::themeHint).orEmpty()}${if ("'unsafe-inline'" in script) "<script data-kinuvo-editor>$ESCAPE_RELAY$HISTORY_SHIM${if (origin) "" else STORAGE_SHIM}${if (deck) DECK_ADAPTER else ""}</script>" else ""}</head>${html.replace(EDITOR_POLICY, "")}"
 
 /** Opaque frames have the app's base URL, so history calls with a URL (reveal.js `hash: true`) throw; they keep the state and drop the URL instead. */
 private const val HISTORY_SHIM = "['pushState','replaceState'].forEach(function(n){var f=history[n].bind(history);history[n]=function(s,t,u){try{return f(s,t,u)}catch(e){return f(s,t)}}});"

@@ -11,10 +11,14 @@ import androidx.compose.ui.viewinterop.UIKitInteropInteractionMode
 import androidx.compose.ui.viewinterop.UIKitInteropProperties
 import androidx.compose.ui.viewinterop.UIKitView
 import kotlinx.cinterop.ExperimentalForeignApi
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.MainScope
+import kotlinx.coroutines.launch
 import platform.CoreGraphics.CGRectMake
 import platform.Foundation.HTTPMethod
 import platform.Foundation.NSError
 import platform.Foundation.NSHTTPURLResponse
+import platform.Foundation.NSURL
 import platform.Foundation.NSURLErrorBadURL
 import platform.Foundation.NSURLErrorDomain
 import platform.UIKit.UIApplication
@@ -37,21 +41,35 @@ private class Serving {
 }
 
 private class SiteHandler(val serving: Serving) : NSObject(), WKURLSchemeHandlerProtocol {
+    private val scope = MainScope()
+    private val running = HashMap<WKURLSchemeTaskProtocol, Job>()
+
     @ObjCSignatureOverride
     override fun webView(webView: WKWebView, startURLSchemeTask: WKURLSchemeTaskProtocol) {
         val request = startURLSchemeTask.request
         val url = request.URL
         val origin = serving.origin
         if (url == null || origin == null) return startURLSchemeTask.didFailWithError(NSError.errorWithDomain(NSURLErrorDomain, NSURLErrorBadURL, null))
-        val r = if (request.HTTPMethod == "GET") origin.respond(url.absoluteString.orEmpty()) else OriginResponse(405, "text/plain", emptyMap(), byteArrayOf())
+        if (request.HTTPMethod != "GET") return deliver(startURLSchemeTask, url, OriginResponse(405, "text/plain", emptyMap(), byteArrayOf()))
+        // A task must not be answered once WebKit stopped it, so a stop cancels the fetch behind it.
+        running[startURLSchemeTask] = scope.launch {
+            val r = origin.serve(url.absoluteString.orEmpty())
+            running.remove(startURLSchemeTask)
+            deliver(startURLSchemeTask, url, r)
+        }
+    }
+
+    private fun deliver(task: WKURLSchemeTaskProtocol, url: NSURL, r: OriginResponse) {
         val headers = r.headers + ("Content-Type" to r.contentType) + ("Content-Length" to r.body.size.toString())
-        startURLSchemeTask.didReceiveResponse(NSHTTPURLResponse(url, r.status.toLong(), "HTTP/1.1", buildMap<Any?, Any?> { putAll(headers) }))
-        startURLSchemeTask.didReceiveData(AudioBytes.toData(r.body))
-        startURLSchemeTask.didFinish()
+        task.didReceiveResponse(NSHTTPURLResponse(url, r.status.toLong(), "HTTP/1.1", buildMap<Any?, Any?> { putAll(headers) }))
+        task.didReceiveData(AudioBytes.toData(r.body))
+        task.didFinish()
     }
 
     @ObjCSignatureOverride
-    override fun webView(webView: WKWebView, stopURLSchemeTask: WKURLSchemeTaskProtocol) = Unit
+    override fun webView(webView: WKWebView, stopURLSchemeTask: WKURLSchemeTaskProtocol) {
+        running.remove(stopURLSchemeTask)?.cancel()
+    }
 }
 
 /** Keeps the page at the origin: anything else is cancelled, and a link the user taps opens in the browser. */

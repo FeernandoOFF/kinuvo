@@ -71,6 +71,8 @@ class ArtifactsActions(
     val onCancel: () -> Unit = {},
     val onKeepMine: () -> Unit = {},
     val onSaveDesign: (String) -> Unit = {},
+    /** Reads one file of an Artifact folder, by Artifact id and path. */
+    val onReadFile: suspend (String, String) -> ByteArray? = { _, _ -> null },
     /** In the Side panel: its header closes the tab and expands it to the Artifacts page. */
     val onClose: (() -> Unit)? = null,
     val onExpand: (() -> Unit)? = null,
@@ -185,7 +187,10 @@ private fun ArtifactPane(state: ArtifactsState, agents: List<AgentInfo>, now: Lo
                     wide -> Modifier.align(Alignment.TopStart).fillMaxHeight().padding(end = RemoteWidth)
                     else -> Modifier.align(Alignment.TopStart).fillMaxWidth().fillMaxHeight(RemotePageShare)
                 }
-                HtmlView(data.info.page(data.content), page, fade = if (hiding) null else color(backgroundColor), deck = deck, artifact = data.info.id)
+                HtmlView(
+                    data.info.page(data.content), page, fade = if (hiding) null else color(backgroundColor), deck = deck, artifact = data.info.id,
+                    bundle = state.files?.takeIf { data.info.bundle && it.id == data.info.id }?.let { files -> BundleSource(files) { path -> actions.onReadFile(files.id, path) } },
+                )
                 if (remoting && shownDeck != null && deck != null) {
                     if (wide) Row(Modifier.align(Alignment.TopEnd).fillMaxHeight()) {
                         VerticalSeparator()
@@ -314,7 +319,7 @@ private fun ArtifactMenu(data: ArtifactData, agents: List<AgentInfo>, now: Long,
                 }
                 HorizontalSeparator()
                 if (actions.onExpand == null) MenuAction(if (full) Lucide.Minimize2 else Lucide.Maximize2, if (full) "Exit full screen" else "Full screen") { open = false; actions.onFullScreen(!full) }
-                if (browser != null && info.web) MenuAction(Lucide.ExternalLink, "Open in browser") { open = false; browser(browserDocument(info.page(data.content), dark)) }
+                if (browser != null && info.web && !info.bundle) MenuAction(Lucide.ExternalLink, "Open in browser") { open = false; browser(browserDocument(info.page(data.content), dark)) }
                 MenuAction(Lucide.Copy, "Copy source") { open = false; clipboard.setText(AnnotatedString(data.content)) }
                 HorizontalSeparator()
                 MenuAction(Lucide.Trash2, "Delete", destructive = true) { open = false; asking = true }

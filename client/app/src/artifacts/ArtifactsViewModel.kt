@@ -21,6 +21,7 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.CancellationException
+import kotlin.io.encoding.Base64
 
 /** The open Artifact's source being edited; [base] is its [ArtifactInfo.updated] when editing began. */
 data class ArtifactDraft(val text: String, val base: Long)
@@ -41,6 +42,8 @@ data class ArtifactsState(
     val saving: Boolean = false,
     /** The reveal.js deck in the open Artifact's page, once its adapter reported; null for any other page. */
     val deck: DeckStatus? = null,
+    /** The files of the open Artifact when it is a folder ([ArtifactInfo.bundle]). */
+    val files: ArtifactFiles? = null,
 ) {
     /** The open Artifact changed since editing began. */
     val stale get() = draft != null && open != null && open.info.updated != draft.base
@@ -172,9 +175,29 @@ class ArtifactsViewModel(route: Route.Artifacts, private val owner: ConnectedSer
                 val all = client.call(Api.Artifacts, Unit)
                 val id = state.value.route.artifact
                 val open = id?.takeIf { all.any { a -> a.id == it } }?.let { client.call(Api.Artifact, ArtifactRef(it)) }
-                state.update { it.copy(all = all, open = open, missing = id != null && open == null, draft = it.draft.takeIf { _ -> open?.info?.id == it.open?.info?.id }, deck = it.deck.takeIf { open != null }) }
+                val files = open?.takeIf { it.info.bundle }?.let { client.call(Api.ArtifactFileList, ArtifactRef(it.info.id)) }
+                state.update { it.copy(all = all, open = open, files = files, missing = id != null && open == null, draft = it.draft.takeIf { _ -> open?.info?.id == it.open?.info?.id }, deck = it.deck.takeIf { open != null }) }
             }
         }
+    }
+
+    /** The whole of [path] in the Artifact folder [id], read in chunks; null when the Server has no such file. */
+    suspend fun readFile(id: String, path: String): ByteArray? = owner.run {
+        val parts = mutableListOf<ByteArray>()
+        var offset = 0L
+        try {
+            do {
+                val chunk = client.call(Api.ArtifactFileRead, ArtifactFileRef(id, path, offset))
+                val bytes = Base64.decode(chunk.data)
+                parts += bytes
+                offset += bytes.size
+            } while (bytes.isNotEmpty() && offset < chunk.size)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (_: Exception) {
+            return@run null
+        }
+        ByteArray(offset.toInt()).also { out -> var at = 0; parts.forEach { it.copyInto(out, at); at += it.size } }
     }
 
     private suspend fun attempt(block: suspend () -> Unit) {

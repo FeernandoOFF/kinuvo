@@ -18,6 +18,7 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.viewinterop.AndroidView
 import java.io.ByteArrayInputStream
+import kotlinx.coroutines.runBlocking
 import kotlin.concurrent.Volatile
 
 internal actual val visualEditing = true
@@ -45,7 +46,7 @@ private class Serving {
 private class OriginClient(val serving: Serving) : WebViewClient() {
     override fun shouldInterceptRequest(view: AndroidWebView, request: WebResourceRequest): WebResourceResponse? {
         val origin = serving.origin?.takeIf { it.owns(request.url.toString()) } ?: return null
-        val r = if (request.method == "GET") origin.respond(request.url.toString()) else null
+        val r = if (request.method == "GET") runBlocking { origin.serve(request.url.toString()) } else null
         return if (r == null) WebResourceResponse("text/plain", "utf-8", 405, "Method Not Allowed", emptyMap(), ByteArrayInputStream(byteArrayOf()))
         else WebResourceResponse(r.mime, if ("charset" in r.contentType) "utf-8" else null, r.status, REASONS[r.status] ?: "Error", r.headers, ByteArrayInputStream(r.body))
     }

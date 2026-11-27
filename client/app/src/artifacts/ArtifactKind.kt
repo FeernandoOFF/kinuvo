@@ -15,9 +15,9 @@ val ArtifactInfo.isDesign get() = type == "design"
 /** Has a rendered view beside its source: web pages and Markdown. */
 val ArtifactInfo.previewable get() = web || type == "md"
 
-/** What an editor offers: [visual] editing is html only; narrow editors show the preview as its own tab. */
+/** What an editor offers: [visual] editing is for single html files, as it would drop what a folder's page loads; narrow editors show the preview as its own tab. */
 fun ArtifactInfo.editorTabs(wide: Boolean, visual: Boolean) = buildList {
-    if (visual && type == "html") add(EditorTab.Visual)
+    if (visual && type == "html" && !bundle) add(EditorTab.Visual)
     add(EditorTab.Source)
     if (previewable && !wide) add(EditorTab.Preview)
 }

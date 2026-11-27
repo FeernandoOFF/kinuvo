@@ -1,5 +1,7 @@
 package kinuvo.ui
 
+import kinuvo.protocol.artifact.ArtifactFile
+import kinuvo.protocol.artifact.ArtifactFiles
 import kinuvo.ui.artifacts.*
 import java.io.ByteArrayOutputStream
 import java.net.InetAddress
@@ -29,7 +31,7 @@ class ArtifactLoopbackTest {
             val response = get(origin, "/index.html?v=1")
             assertTrue(response.startsWith("HTTP/1.1 200 OK\r\n"), response)
             assertTrue("Content-Type: text/html; charset=utf-8\r\n" in response)
-            assertTrue("Content-Security-Policy: ${artifactPolicy()}\r\n" in response)
+            assertTrue("Content-Security-Policy: ${artifactPolicy(own = true)}\r\n" in response)
             assertTrue("X-Content-Type-Options: nosniff\r\n" in response)
             assertTrue(response.endsWith("\r\n\r\n<p>home</p>"))
             assertTrue(get(origin, "/missing.js").startsWith("HTTP/1.1 404"))
@@ -64,6 +66,28 @@ class ArtifactLoopbackTest {
         } finally {
             ArtifactLoopback.close(a)
             ArtifactLoopback.close(b)
+        }
+    }
+
+    @Test
+    fun aFolderServesItsFilesFetchedOnDemandWithTheirTypes() {
+        val wasm = byteArrayOf(0, 0x61, 0x73, 0x6d, 1, 0, 0, 0)
+        val asked = mutableListOf<String>()
+        val listing = ArtifactFiles("app-0001", "index.html", listOf(ArtifactFile("index.html", 3, "text/html", "a"), ArtifactFile("pkg/m.wasm", 8, "application/wasm", "b")))
+        val origin = ArtifactLoopback.open(ArtifactSite.folder("app-0001", listing, "<p>app</p>") { path -> asked += path; wasm })
+        try {
+            val page = get(origin, "/")
+            assertTrue(page.startsWith("HTTP/1.1 200 OK\r\n") && page.endsWith("\r\n\r\n<p>app</p>"), page)
+            assertEquals(emptyList(), asked)
+            val response = get(origin, "/pkg/m.wasm")
+            assertTrue(response.startsWith("HTTP/1.1 200 OK\r\n"), response)
+            assertTrue("Content-Type: application/wasm\r\n" in response && "Content-Length: 8\r\n" in response)
+            assertTrue("Content-Security-Policy" !in response)
+            assertEquals(listOf("pkg/m.wasm"), asked)
+            assertTrue(get(origin, "/pkg/other.wasm").startsWith("HTTP/1.1 404"))
+            assertTrue(get(origin, "/pkg/../../x").startsWith("HTTP/1.1 403"))
+        } finally {
+            ArtifactLoopback.close(origin)
         }
     }
 

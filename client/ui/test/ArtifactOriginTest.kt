@@ -1,7 +1,10 @@
 package kinuvo.ui
 
 import androidx.compose.ui.graphics.Color
+import kinuvo.protocol.artifact.ArtifactFile
+import kinuvo.protocol.artifact.ArtifactFiles
 import kinuvo.ui.artifacts.*
+import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNotEquals
@@ -10,9 +13,9 @@ import kotlin.test.assertTrue
 
 class ArtifactOriginTest {
     private val files = mapOf(
-        INDEX to ArtifactFile("text/html", "<p>home</p>".encodeToByteArray()),
-        "app.js" to ArtifactFile("text/javascript", "run()".encodeToByteArray()),
-        "img/a b.png" to ArtifactFile("image/png", byteArrayOf(1, 2, 3)),
+        INDEX to SiteFile("text/html", "<p>home</p>".encodeToByteArray()),
+        "app.js" to SiteFile("text/javascript", "run()".encodeToByteArray()),
+        "img/a b.png" to SiteFile("image/png", byteArrayOf(1, 2, 3)),
     )
     private val origin = ArtifactOrigin("https://notes-1a2b.invalid", ArtifactSite("notes-1a2b", files))
 
@@ -57,10 +60,11 @@ class ArtifactOriginTest {
     @Test
     fun documentsCarryThePolicyAsAHeaderAndTheOthersDoNot() {
         val html = artifactHeaders("text/html")
-        assertEquals(artifactPolicy(), html["Content-Security-Policy"])
+        assertEquals(artifactPolicy(own = true), html["Content-Security-Policy"])
         assertTrue("default-src 'none'" in html.getValue("Content-Security-Policy"))
-        assertTrue("connect-src" !in html.getValue("Content-Security-Policy") && "frame-src" !in html.getValue("Content-Security-Policy"))
-        assertTrue("script-src 'unsafe-inline' 'unsafe-eval' https:;" in html.getValue("Content-Security-Policy"))
+        assertTrue("frame-src" !in html.getValue("Content-Security-Policy"))
+        assertTrue("script-src 'unsafe-inline' 'unsafe-eval' https: 'self' 'wasm-unsafe-eval';" in html.getValue("Content-Security-Policy"))
+        assertTrue("connect-src 'self';" in html.getValue("Content-Security-Policy"))
         for (type in listOf("text/javascript", "application/wasm", "image/png")) assertNull(artifactHeaders(type)["Content-Security-Policy"])
         for (headers in listOf(html, artifactHeaders("image/png"))) {
             assertEquals("nosniff", headers["X-Content-Type-Options"])
@@ -73,8 +77,21 @@ class ArtifactOriginTest {
 
     @Test
     fun theMetaPolicyAndTheHeaderPolicyAreOne() {
-        assertTrue(originPage("<p>x</p>", dark = false, deck = false).contains("content=\"${artifactPolicy()}\""))
+        assertTrue(originPage("<p>x</p>", dark = false, deck = false).contains("content=\"${artifactPolicy(own = true)}\""))
         assertTrue(sandboxed("<p>x</p>").contains("content=\"${artifactPolicy()}\""))
+    }
+
+    @Test
+    fun onlyAnOriginMayLoadAndFetchItsOwnFiles() {
+        val own = artifactPolicy(own = true)
+        val opaque = artifactPolicy()
+        assertTrue("connect-src" !in opaque && "'self'" !in opaque && "wasm-unsafe-eval" !in opaque)
+        for (directive in listOf("script-src", "style-src", "img-src", "font-src", "media-src", "connect-src")) {
+            assertTrue(own.substringAfter("$directive ").substringBefore(';').contains("'self'"), directive)
+        }
+        assertTrue("connect-src 'self';" in own && "connect-src https" !in own && "default-src 'none'" in own)
+        assertTrue("form-action 'none'" in own && "base-uri 'none'" in own && "frame-src" !in own)
+        assertTrue("object-src" !in own)
     }
 
     @Test
@@ -83,6 +100,8 @@ class ArtifactOriginTest {
         assertEquals("text/javascript", mimeOf("a.MJS"))
         assertEquals("font/woff2", mimeOf("f.woff2"))
         assertEquals("application/octet-stream", mimeOf("data.bin"))
+        assertEquals("application/vnd.sqlite3", mimeOf("app.sqlite"))
+        assertEquals("application/octet-stream", mimeOf("tool.exe"))
         assertEquals("application/octet-stream", mimeOf("noextension"))
     }
 
@@ -123,5 +142,61 @@ class ArtifactOriginTest {
         assertTrue(page.endsWith("</head><script>localStorage.x=1</script>"))
         assertTrue(!originPage("<p>x</p>", dark = false, deck = false).contains("Reveal.getIndices"))
         assertTrue(sandboxed("<p>x</p>").contains("['localStorage','sessionStorage']"))
+    }
+
+    private val listing = ArtifactFiles(
+        "app", "main.html",
+        listOf(ArtifactFile("main.html", 5, "text/html", "h0"), ArtifactFile("wasm/m.wasm", 8, "application/wasm", "h1"), ArtifactFile("data/a b.json", 2, "application/json", "h2")),
+    )
+
+    @Test
+    fun aFolderFetchesFilesWhenAPageFirstAsksAndKeepsThem() = runTest {
+        val asked = mutableListOf<String>()
+        val folder = ArtifactOrigin("https://app.invalid", ArtifactSite.folder("app", listing, "<p>entry</p>") { path -> asked += path; if (path == "data/a b.json") "{}".encodeToByteArray() else byteArrayOf(0, 0x61, 0x73, 0x6d) })
+        assertEquals("https://app.invalid/main.html?v=${folder.site.version}", folder.url)
+        assertEquals("<p>entry</p>", folder.serve("https://app.invalid/main.html").body.decodeToString())
+        assertEquals("<p>entry</p>", folder.serve("https://app.invalid/").body.decodeToString())
+        assertEquals(emptyList(), asked)
+
+        val wasm = folder.serve("https://app.invalid/wasm/m.wasm?x=1")
+        assertEquals(200, wasm.status)
+        assertEquals("application/wasm", wasm.contentType)
+        assertEquals(listOf<Byte>(0, 0x61, 0x73, 0x6d), wasm.body.toList())
+        assertEquals("nosniff", wasm.headers["X-Content-Type-Options"])
+        assertNull(wasm.headers["Content-Security-Policy"])
+        folder.serve("https://app.invalid/wasm/m.wasm")
+        assertEquals("{}", folder.serve("https://app.invalid/data/a%20b.json").body.decodeToString())
+        assertEquals(listOf("wasm/m.wasm", "data/a b.json"), asked)
+
+        assertEquals(404, folder.serve("https://app.invalid/unlisted.js").status)
+        assertEquals(403, folder.serve("https://app.invalid/../wasm/m.wasm").status)
+        assertEquals(403, folder.serve("https://other.invalid/wasm/m.wasm").status)
+        assertEquals(404, folder.respond("https://app.invalid/data/a%20b.json").status)
+        assertEquals(listOf("wasm/m.wasm", "data/a b.json"), asked)
+    }
+
+    @Test
+    fun aFileTheServerCannotGiveIsABadGatewayAndAChangedHashIsFetchedAgain() = runTest {
+        var reply: ByteArray? = null
+        var calls = 0
+        val folder = ArtifactOrigin("https://app.invalid", ArtifactSite.folder("app", listing, "<p/>") { calls++; reply })
+        assertEquals(502, folder.serve("https://app.invalid/wasm/m.wasm").status)
+        reply = byteArrayOf(1)
+        assertEquals(listOf<Byte>(1), folder.serve("https://app.invalid/wasm/m.wasm").body.toList())
+        reply = byteArrayOf(2)
+        assertEquals(listOf<Byte>(1), folder.serve("https://app.invalid/wasm/m.wasm").body.toList())
+        folder.site = ArtifactSite.folder("app", listing.copy(files = listing.files.map { if (it.path == "wasm/m.wasm") it.copy(hash = "h9") else it }), "<p/>") { calls++; reply }
+        assertEquals(listOf<Byte>(2), folder.serve("https://app.invalid/wasm/m.wasm").body.toList())
+        assertEquals(3, calls)
+    }
+
+    @Test
+    fun aFoldersVersionTracksItsHashesAndPathsAreEncodedForUrls() {
+        val a = ArtifactSite.folder("app", listing, "<p/>") { null }
+        assertEquals(a.version, ArtifactSite.folder("app", listing, "<p/>") { null }.version)
+        assertNotEquals(a.version, ArtifactSite.folder("app", listing.copy(files = listing.files.map { it.copy(hash = "x") }), "<p/>") { null }.version)
+        assertEquals("a%20b/%C3%A9%3F%23.js", encodePath("a b/é?#.js"))
+        assertEquals("img/a-b_c.v1~.png", encodePath("img/a-b_c.v1~.png"))
+        assertEquals("a b/é?#.js", pathOf(encodePath("a b/é?#.js")))
     }
 }
