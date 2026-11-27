@@ -83,5 +83,29 @@ class PackageNativesTest(unittest.TestCase):
         with zipfile.ZipFile(io.BytesIO(natives.prune(original.getvalue(), 'macos', 'arm64', on_demand=True))) as jar:
             self.assertEqual(jar.namelist(), ['Engine.class'])
 
+    def test_portable_only_removes_on_demand_natives(self):
+        payload = io.BytesIO()
+        with zipfile.ZipFile(payload, 'w') as jar:
+            for name in ['Engine.class', 'META-INF/LICENSE', 'META-INF/UPSTREAM.SF',
+                         'darwin-aarch64/engine.so', 'windows-x86_64/engine.dll',
+                         'linux-aarch64/engine.so', 'darwin-aarch64/engine.dylib']:
+                jar.writestr(name, b'payload')
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / 'app.jar'
+            other = 'BOOT-INF/lib/other.jar'
+            engine = 'BOOT-INF/lib/litertlm-jvm-0.19.0.jar'
+            native = 'BOOT-INF/classes/natives/linux-x64/libKinuvoTailcat.so'
+            with zipfile.ZipFile(path, 'w') as jar:
+                jar.writestr(other, payload.getvalue())
+                jar.writestr(engine, payload.getvalue())
+                jar.writestr(native, b'native')
+            natives.package(path, on_demand_only=True)
+            with zipfile.ZipFile(path) as jar:
+                self.assertEqual(jar.read(other), payload.getvalue())
+                self.assertEqual(jar.read(native), b'native')
+                self.assertEqual(jar.getinfo(engine).compress_type, zipfile.ZIP_STORED)
+                with zipfile.ZipFile(io.BytesIO(jar.read(engine))) as nested:
+                    self.assertEqual(set(nested.namelist()), {'Engine.class', 'META-INF/LICENSE'})
+
 
 unittest.main()

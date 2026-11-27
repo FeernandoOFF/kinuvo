@@ -113,6 +113,7 @@ package_jar() {
   else
     bundle_voice "$dist/kinuvo.jar"
   fi
+  python3 scripts/package-natives.py "$dist/kinuvo.jar" --on-demand-only
   allow_native_access "$dist/kinuvo.jar"
 }
 
