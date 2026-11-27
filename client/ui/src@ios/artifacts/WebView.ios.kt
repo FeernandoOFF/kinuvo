@@ -24,7 +24,7 @@ private class EditHandler(val onMessage: () -> ((String) -> Unit)?) : NSObject()
 
 @OptIn(ExperimentalForeignApi::class)
 @Composable
-internal actual fun WebView(html: String, modifier: Modifier, onMessage: ((String) -> Unit)?, channel: PageChannel?) {
+internal actual fun WebView(html: String, modifier: Modifier, onMessage: ((String) -> Unit)?, channel: PageChannel?, editing: Boolean) {
     val current by rememberUpdatedState(onMessage)
     val loaded = remember { arrayOf<String?>(null) }
     UIKitView(
@@ -34,7 +34,7 @@ internal actual fun WebView(html: String, modifier: Modifier, onMessage: ((Strin
                 if (onMessage != null) userContentController.addScriptMessageHandler(EditHandler { current }, "kinuvo")
             }).also {
                 // The page handles its own panning and zooming.
-                if (onMessage != null) it.scrollView.apply {
+                if (editing) it.scrollView.apply {
                     scrollEnabled = false
                     bounces = false
                     minimumZoomScale = 1.0
@@ -49,6 +49,6 @@ internal actual fun WebView(html: String, modifier: Modifier, onMessage: ((Strin
         onRelease = { channel?.send = {}
             if (onMessage != null) it.configuration.userContentController.removeScriptMessageHandlerForName("kinuvo") },
         // Cooperative mode delays touches, which keeps WebKit from focusing editable text.
-        properties = UIKitInteropProperties(interactionMode = if (onMessage != null) UIKitInteropInteractionMode.NonCooperative else UIKitInteropInteractionMode.Cooperative()),
+        properties = UIKitInteropProperties(interactionMode = if (editing) UIKitInteropInteractionMode.NonCooperative else UIKitInteropInteractionMode.Cooperative()),
     )
 }

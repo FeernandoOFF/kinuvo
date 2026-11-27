@@ -1,6 +1,10 @@
 package kinuvo.ui.artifacts
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.staticCompositionLocalOf
 import com.composables.ui.theme.ColorScheme
 import com.composables.ui.theme.LocalColorScheme
@@ -19,17 +23,28 @@ internal class PageChannel {
 
 internal fun pageDelivery(message: String) = "window.kinuvoReceive&&window.kinuvoReceive(${JsonPrimitive(message)});"
 
-/** The platform's own web view showing [html]; one file per platform, so the engine can change in one place. [channel] reaches the page from the app. */
+/**
+ * The platform's own web view showing [html]; one file per platform, so the engine can change in one place. [channel] reaches the page from
+ * the app. With [editing] the view leaves panning, zooming and focus to the page, as the editors want; a page that only reports keeps them.
+ */
 @Composable
-internal expect fun WebView(html: String, modifier: Modifier = Modifier, onMessage: ((String) -> Unit)? = null, channel: PageChannel? = null)
+internal expect fun WebView(html: String, modifier: Modifier = Modifier, onMessage: ((String) -> Unit)? = null, channel: PageChannel? = null, editing: Boolean = onMessage != null)
 
 /** Whether [WebView] can pass a message from the page, which visual editing needs. */
 internal expect val visualEditing: Boolean
 
-/** [html] with scripts but no network requests of its own: only https scripts, styles, fonts and images load. [fade] fades its top edge in from that colour. */
+/**
+ * [html] with scripts but no network requests of its own: only https scripts, styles, fonts and images load. [fade] fades its top edge in from that colour.
+ * With [deck], a reveal.js deck in the page is shared through it; only where the web view can pass the page's messages on.
+ */
 @Composable
-internal fun HtmlView(html: String, modifier: Modifier = Modifier, fade: Color? = null) =
-    WebView(artifactDocument(html, fade, LocalColorScheme.current == ColorScheme.Dark), modifier)
+internal fun HtmlView(html: String, modifier: Modifier = Modifier, fade: Color? = null, deck: DeckControls? = null) {
+    val sync = deck != null && visualEditing
+    val channel = remember { PageChannel() }
+    val receive by rememberUpdatedState(deck?.onMessage)
+    LaunchedEffect(deck, channel) { if (sync) deck?.commands?.collect { channel.send(it) } }
+    WebView(artifactDocument(html, fade, LocalColorScheme.current == ColorScheme.Dark, sync), modifier, if (sync) { text -> receive?.invoke(text) } else null, if (sync) channel else null, editing = false)
+}
 
 private fun csp(script: String, remote: String, frames: String) = "<meta data-kinuvo-editor http-equiv=\"Content-Security-Policy\" content=\"default-src 'none'; " +
     "script-src $script; style-src 'unsafe-inline'$remote; img-src data: blob:$remote; " +
@@ -42,8 +57,8 @@ private const val ARTIFACT_SCRIPTS = "'unsafe-inline' 'unsafe-eval' https:"
  * nothing in it (comments, attributes) can move the policy, and it can only add stricter ones. Visual editing drops these
  * marked tags when it saves. [remote] lists the sources styles, images and fonts may also load from; empty blocks the network entirely.
  */
-internal fun sandboxed(html: String, script: String = ARTIFACT_SCRIPTS, remote: String = " https:", dark: Boolean? = null, frames: String = "") =
-    "<!doctype html><html><head><meta data-kinuvo-editor charset=\"utf-8\">${csp(script, remote, frames)}${dark?.let(::themeHint).orEmpty()}${if ("'unsafe-inline'" in script) "<script data-kinuvo-editor>$ESCAPE_RELAY$HISTORY_SHIM$STORAGE_SHIM</script>" else ""}</head>${html.replace(EDITOR_POLICY, "")}"
+internal fun sandboxed(html: String, script: String = ARTIFACT_SCRIPTS, remote: String = " https:", dark: Boolean? = null, frames: String = "", deck: Boolean = false) =
+    "<!doctype html><html><head><meta data-kinuvo-editor charset=\"utf-8\">${csp(script, remote, frames)}${dark?.let(::themeHint).orEmpty()}${if ("'unsafe-inline'" in script) "<script data-kinuvo-editor>$ESCAPE_RELAY$HISTORY_SHIM$STORAGE_SHIM${if (deck) DECK_ADAPTER else ""}</script>" else ""}</head>${html.replace(EDITOR_POLICY, "")}"
 
 /** Frames have an opaque origin but the app's base URL, so history calls with a URL (reveal.js `hash: true`) throw; they keep the state and drop the URL instead. */
 private const val HISTORY_SHIM = "['pushState','replaceState'].forEach(function(n){var f=history[n].bind(history);history[n]=function(s,t,u){try{return f(s,t,u)}catch(e){return f(s,t)}}});"
@@ -63,7 +78,8 @@ private val EDITOR_POLICY = Regex("<meta http-equiv=\"Content-Security-Policy\" 
 /** The artifact as its own page for the system browser, where it may frame itself, as reveal.js speaker notes do. */
 internal fun browserDocument(html: String, dark: Boolean) = sandboxed(html, dark = dark, frames = "'self' file: blob: data:")
 
-internal fun artifactDocument(html: String, fade: Color? = null, dark: Boolean? = null) = framed(sandboxed(html, dark = dark), fade?.let(::topFade).orEmpty())
+internal fun artifactDocument(html: String, fade: Color? = null, dark: Boolean? = null, deck: Boolean = false) =
+    framed(sandboxed(html, dark = dark, deck = deck), fade?.let(::topFade).orEmpty() + if (deck) deckWrapper() else "")
 
 /** The app's theme for the page: `data-theme` on its root and its `color-scheme`, which pages style with `:root[data-theme=dark]`. */
 internal fun themeHint(dark: Boolean): String {

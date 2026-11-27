@@ -20,7 +20,7 @@ private class EditBridge(val onMessage: () -> ((String) -> Unit)?) {
 }
 
 @Composable
-internal actual fun WebView(html: String, modifier: Modifier, onMessage: ((String) -> Unit)?, channel: PageChannel?) {
+internal actual fun WebView(html: String, modifier: Modifier, onMessage: ((String) -> Unit)?, channel: PageChannel?, editing: Boolean) {
     val current by rememberUpdatedState(onMessage)
     val loaded = remember { arrayOf<String?>(null) }
     AndroidView(
@@ -28,7 +28,7 @@ internal actual fun WebView(html: String, modifier: Modifier, onMessage: ((Strin
         android.webkit.WebView(context).apply {
             // Without a size of its own the page's viewport height starts at zero, and a frame sized in vh stays that tall.
             layoutParams = LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT)
-            // Every frame sees it; only the visual editor sets onMessage, and its policy runs no artifact scripts.
+            // Every frame sees it, so a page's own script can call it; what it may send is checked where the messages are handled.
             if (onMessage != null) addJavascriptInterface(EditBridge { current }, "Kinuvo")
             settings.javaScriptEnabled = true
             settings.setSupportZoom(false)
