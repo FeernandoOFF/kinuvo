@@ -241,6 +241,10 @@ object Api {
     /** Every Artifact, newest first. */
     val Artifacts = Method("artifacts.list", Unit.serializer(), ListSerializer(ArtifactInfo.serializer()))
     val Artifact = Method("artifact.get", ArtifactRef.serializer(), ArtifactData.serializer())
+    /** The files of an Artifact kept as a folder; one `index.html` for any other. */
+    val ArtifactFileList = Method("artifact.files", ArtifactRef.serializer(), ArtifactFiles.serializer())
+    /** Up to a chunk of one file of an Artifact; ask again from the next offset for the rest. */
+    val ArtifactFileRead = Method("artifact.file", ArtifactFileRef.serializer(), ArtifactFileChunk.serializer())
     val SaveArtifact = Method("artifact.save", ArtifactSave.serializer(), ArtifactInfo.serializer())
     val DeleteArtifact = Method("artifact.delete", ArtifactRef.serializer(), Unit.serializer())
     /** Starts sending this connection the state of an Artifact page, and returns the latest. */

@@ -3,7 +3,9 @@ package kinuvo.server.plugin
 import kotlinx.io.buffered
 import kotlinx.io.files.Path
 import kotlinx.io.files.SystemFileSystem
+import kotlinx.io.readByteArray
 import kotlinx.io.readString
+import kotlinx.io.write
 import kotlinx.io.writeString
 import kotlin.random.Random
 
@@ -14,6 +16,17 @@ fun Path.isDirectory() = SystemFileSystem.metadataOrNull(this)?.isDirectory == t
 fun Path.isFile() = SystemFileSystem.metadataOrNull(this)?.isRegularFile == true
 
 fun Path.readText(): String = SystemFileSystem.source(this).buffered().use { it.readString() }
+
+fun Path.readBytes(): ByteArray = SystemFileSystem.source(this).buffered().use { it.readByteArray() }
+
+/** Up to [length] bytes from [offset]; fewer at the end of the file, none past it. */
+fun Path.readBytes(offset: Long, length: Int): ByteArray {
+    val left = ((size() ?: 0) - offset).coerceIn(0, length.toLong()).toInt()
+    if (left == 0) return ByteArray(0)
+    return SystemFileSystem.source(this).buffered().use { it.skip(offset); it.readByteArray(left) }
+}
+
+fun Path.size(): Long? = SystemFileSystem.metadataOrNull(this)?.takeIf { it.isRegularFile }?.size
 
 fun Path.readTextOrNull(): String? = if (isFile()) readText() else null
 
@@ -28,13 +41,15 @@ fun Path.appendText(text: String) {
 }
 
 /** Replaces [file] in one step, so readers never see it half-written. With [private], only the owner can read it. */
-fun writeAtomically(file: Path, text: String, private: Boolean = false) {
+fun writeAtomically(file: Path, text: String, private: Boolean = false) = writeAtomically(file, text.encodeToByteArray(), private)
+
+fun writeAtomically(file: Path, bytes: ByteArray, private: Boolean = false) {
     val dir = requireNotNull(file.parent) { "No parent folder for $file" }
     dir.createDirectories()
     val tmp = Path(dir, ".${file.name}.${Random.nextLong().toULong().toString(16)}.tmp")
     try {
         if (private) createPrivateFile(tmp)
-        SystemFileSystem.sink(tmp).buffered().use { it.writeString(text) }
+        SystemFileSystem.sink(tmp).buffered().use { it.write(bytes) }
         SystemFileSystem.atomicMove(tmp, file)
     } finally {
         SystemFileSystem.delete(tmp, mustExist = false)

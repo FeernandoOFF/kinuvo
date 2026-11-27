@@ -16,6 +16,8 @@ data class ArtifactInfo(
     val sessionId: SessionId? = null,
     val created: Long,
     val updated: Long,
+    /** Kept as a folder of files, see [ArtifactFiles], with [ArtifactData.content] the entry page. */
+    val bundle: Boolean = false,
 )
 
 @Serializable
