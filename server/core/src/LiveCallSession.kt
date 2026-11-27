@@ -10,6 +10,7 @@ import kinuvo.server.plugin.AgentProgress
 import kinuvo.server.plugin.LiveCall
 import kinuvo.server.plugin.LiveCallEvent
 import kinuvo.server.plugin.LiveCallException
+import kinuvo.server.plugin.ReplyKind
 import kinuvo.server.plugin.voiceText
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
@@ -56,15 +57,13 @@ internal class LiveCallSession(
         log.info { "Live call $id starting" }
         job = scope.launch {
             val awake = keepAwake()
-            val startedAt = Clock.System.now().toEpochMilliseconds()
-            val elapsed = TimeSource.Monotonic.markNow()
-            val turns = mutableListOf<VoiceTurn>()
+            val transcript = Transcript(id, record)
             var error: String? = null
             try {
                 try { withTimeout(attachTimeoutMillis) { attached.await() } }
                 catch (e: TimeoutCancellationException) { throw LiveCallException("The call never connected.") }
                 coroutineScope {
-                    try { call.run { handle(it, turns, this@coroutineScope) } }
+                    try { call.run { handle(it, transcript, this@coroutineScope) } }
                     finally { currentCoroutineContext().cancelChildren() }
                 }
                 error = failure
@@ -74,7 +73,7 @@ internal class LiveCallSession(
             finally {
                 try { awake.close() } finally {
                     try {
-                        if (turns.isNotEmpty()) withContext(NonCancellable) { record(SessionEntry.VoiceCall(id, turns.toList(), startedAt, elapsed.elapsedNow().inWholeMilliseconds)) }
+                        withContext(NonCancellable) { transcript.save() }
                     } catch (e: Exception) {
                         log.warn(e) { "Live call $id transcript could not be saved" }
                         if (error == null) error = "The call transcript couldn't be saved."
@@ -88,28 +87,38 @@ internal class LiveCallSession(
         }
     }
 
-    private suspend fun handle(event: LiveCallEvent, turns: MutableList<VoiceTurn>, tasks: CoroutineScope) {
+    private suspend fun handle(event: LiveCallEvent, transcript: Transcript, tasks: CoroutineScope) {
         when (event) {
             LiveCallEvent.Ready, LiveCallEvent.Listening -> phase(LiveCallPhase.Listening)
             LiveCallEvent.Speaking -> phase(LiveCallPhase.Speaking)
             is LiveCallEvent.Transcript -> {
-                if (event.final && event.text.isNotBlank()) turns += VoiceTurn(event.user, event.text)
+                if (event.final && event.text.isNotBlank()) transcript.add(VoiceTurn(event.user, event.text))
                 send(LiveCallUpdate.Transcript(id, event.item, event.text, event.user, event.final))
             }
             is LiveCallEvent.Delegation -> {
                 phase(LiveCallPhase.Thinking)
-                tasks.launch {
-                    val answer = try { askAgent(event.task) { reply(event.id, it.voiceText()) } }
-                    catch (e: CancellationException) { throw e }
-                    catch (e: Exception) { "The task failed: ${e.message}" }
-                    reply(event.id, answer)
-                }
+                try { transcript.save() } catch (e: CancellationException) { throw e } catch (e: Exception) { log.warn(e) { "Live call $id transcript could not be saved yet" } }
+                tasks.launch { delegate(event) }
             }
         }
     }
 
-    private suspend fun reply(delegation: String, text: String) {
-        try { call.reply(delegation, text) }
+    /**
+     * Runs the Agent on [event]'s task. Its run belongs to the Server, so it carries on if the call ends; only this wait stops.
+     * Only what the user must act on (approvals, questions) reaches the model before the answer; other progress would be read out.
+     */
+    private suspend fun delegate(event: LiveCallEvent.Delegation) {
+        val answer = try {
+            askAgent(event.task) { if (it is AgentProgress.ApprovalRequested || it is AgentProgress.Question) reply(event.id, it.voiceText(), ReplyKind.Prompt) }
+        }
+        catch (e: CancellationException) { throw e }
+        catch (e: Exception) { "The task failed: ${e.message}" }
+        reply(event.id, answer, ReplyKind.Final)
+    }
+
+    private suspend fun reply(delegation: String, text: String, kind: ReplyKind) {
+        if (!active) return
+        try { call.reply(delegation, text, kind) }
         catch (e: CancellationException) { throw e }
         catch (e: Exception) { log.warn(e) { "Live call $id could not receive a reply" } }
     }
@@ -155,5 +164,27 @@ internal class LiveCallSession(
         try { block() }
         catch (e: CancellationException) { throw e }
         catch (e: Exception) { log.warn(e) { "Live call $id could not be controlled" } }
+    }
+}
+
+
+/** The call's turns, saved to the Session in parts: each delegation saves what was said before it, so the Session reads in the order things happened. */
+private class Transcript(private val callId: String, private val record: suspend (SessionEntry.VoiceCall) -> Unit) {
+    private val turns = mutableListOf<VoiceTurn>()
+    private val clock = TimeSource.Monotonic.markNow()
+    private var from = Clock.System.now().toEpochMilliseconds()
+    private var offset = 0L
+    private var part = 0
+
+    fun add(turn: VoiceTurn) { turns += turn }
+
+    suspend fun save() {
+        if (turns.isEmpty()) return
+        val now = clock.elapsedNow().inWholeMilliseconds
+        record(SessionEntry.VoiceCall(if (part == 0) callId else "$callId-$part", turns.toList(), from, now - offset))
+        turns.clear()
+        from += now - offset
+        offset = now
+        part++
     }
 }

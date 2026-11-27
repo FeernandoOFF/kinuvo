@@ -27,12 +27,20 @@ internal fun contextAppendChunks(text: String): List<String> {
 
 internal const val UNREACHABLE = "Couldn't reach ChatGPT. Check the Server's connection."
 internal const val SIGN_IN = "Sign in to ChatGPT again in Settings → Model providers."
+internal const val NEEDS_DEVICE_CODE = "Live voice needs ChatGPT signed in with a device code. Sign in that way in Settings → Model providers."
+internal const val DEVICE_CODE_REASON = "Live voice needs ChatGPT signed in with a device code. Signing in that way replaces Continue with ChatGPT; chat keeps working."
+internal const val ACCESS_REJECTED = "rejected_by_access_enforcement"
+
+private fun errorOf(body: String) = runCatching { Json.parseToJsonElement(body).jsonObject["error"]?.jsonObject }.getOrNull()
+
+/** Whether ChatGPT rejected the token's kind, which refreshing it won't change. */
+internal fun accessRejected(body: String) = errorOf(body)?.string("type") == ACCESS_REJECTED
 
 /** What a Device sees when creating the call fails with [status] and [body]. */
 internal fun callFailure(status: Int, body: String, now: Instant = Clock.System.now()): String {
-    val error = runCatching { Json.parseToJsonElement(body).jsonObject["error"]?.jsonObject }.getOrNull()
+    val error = errorOf(body)
     return when (status) {
-        401, 403 -> SIGN_IN
+        401, 403 -> if (accessRejected(body)) NEEDS_DEVICE_CODE else SIGN_IN
         429 -> if (error?.string("type") == "usage_limit_reached") {
             val seconds = error["resets_in_seconds"]?.jsonPrimitive?.longOrNull
                 ?: error["resets_at"]?.jsonPrimitive?.longOrNull?.let { it - now.epochSeconds }

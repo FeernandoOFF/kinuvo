@@ -7,6 +7,5 @@ data class ConnectionSecurity(
     val validationIntervalMillis: Long = 30_000,
     val concurrentRequests: Int = MAX_CONCURRENT_REQUESTS,
     val messagesPerMinute: Int = 600,
-    val liveVoiceInputsPerMinute: Int = 6000,
     val screenAcksPerMinute: Int = 15_000,
 )

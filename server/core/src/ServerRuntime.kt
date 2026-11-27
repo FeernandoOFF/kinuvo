@@ -36,7 +36,6 @@ import kinuvo.protocol.surface.*
 import kinuvo.protocol.tool.ToolNames
 import kinuvo.protocol.usage.*
 import kinuvo.protocol.voice.*
-import kotlin.concurrent.atomics.AtomicInt
 import kotlin.concurrent.atomics.AtomicLong
 import kotlin.concurrent.atomics.ExperimentalAtomicApi
 import kotlin.concurrent.atomics.decrementAndFetch
@@ -51,7 +50,6 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withLock
 import kotlinx.datetime.TimeZone
-import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.contentOrNull
 import kinuvo.protocol.agui.AgUiEvent
@@ -92,7 +90,7 @@ class ServerRuntime(
         override fun <T> broadcast(type: EventType<T>, payload: T) = this@ServerRuntime.broadcast(type, payload)
         override fun changedCapabilities() = this@ServerRuntime.changedCapabilities()
         override suspend fun notifyVoice(sessionId: SessionId, text: String) {
-            clients.block { it.toList() }.filter { it.voiceSessionId == sessionId }.forEach { it.liveVoice?.notify(text); it.liveCall?.notify(text) }
+            clients.block { it.toList() }.filter { it.voiceSessionId == sessionId }.forEach { it.liveCall?.notify(text) }
         }
     }
     private val assembly = ServerAssembly(harness, auth, name, scope, hub, executionRegistry, executionFactory, nativeFactory, executionStorage, remoteLinks, remoteHarness, prepareAttachment)
@@ -102,7 +100,7 @@ class ServerRuntime(
     private val external = assembly.external
     private val services = assembly.services
     suspend fun persistExecutionAttachment(state: ExecutionState, data: AttachmentData): Attachment = assembly.persistExecutionAttachment(state, data)
-    private val voiceCalls = LiveVoiceBridge(harness, assembly.voice, executions, assembly.execution, assembly.admin, assembly.dispatch, runs, keepAwake)
+    private val voiceCalls = LiveCallBridge(harness, assembly.voice, executions, assembly.execution, assembly.admin, assembly.dispatch, runs, keepAwake)
     private var scheduling = false
     private var started = false
     private var closed = false
@@ -203,13 +201,11 @@ class ServerRuntime(
         override val subscriber: SessionLog.Subscriber get() = this
         override val management get() = authenticated(auth::management)
         override val surfaceCatalogs get() = harness.uiCatalogs.forRun(this)
-        var liveVoice: LiveVoiceSession? = null
         var liveCall: LiveCallSession? = null
         var voiceSessionId: SessionId? = null
         var callScope: CoroutineScope = scope
         override val browser = connection.credential != null
         val outbox = Channel<Frame>(OUTBOX_SIZE)
-        val liveAudio = AtomicInt(0)
         val screenFrames = ScreenFrameLane()
         override val screens = Screens(harness.computers, { harness.browser }, { owner -> throwing<ServerError, Unit> { assembly.browserAccess.validate(owner) } }, scope, { requireNotNull(deviceId) }, assembly.screenBudget,
             screenFrames::offer, { screenFrames.remove(it.subscription); offer(frame(Api.ScreenStatus, it)) })
@@ -329,17 +325,9 @@ class ServerRuntime(
         override fun unwatchScreen(id: String) = screenFrames.remove(id)
 
         context(_: Raise<VoiceError>, _: Raise<AgentError>)
-        override suspend fun startLiveVoice(params: LiveVoiceParams): LiveVoiceCall {
-            if (liveVoice?.active == true || liveCall?.active == true) raise(VoiceError.CallActive)
-            return voiceCalls.start(params, callScope, ::offerLiveVoice) { voiceSessionId = params.sessionId; liveVoice = it }
-        }
-
-        override fun endLiveVoice(callId: String) { if (liveVoice?.id == callId) liveVoice?.close() }
-
-        context(_: Raise<VoiceError>, _: Raise<AgentError>)
         override suspend fun startLiveCall(params: LiveCallParams): LiveCallAnswer {
-            if (liveVoice?.active == true || liveCall?.active == true) raise(VoiceError.CallActive)
-            return voiceCalls.startCall(params, callScope, { offer(frame(Api.LiveCallUpdate, it)) }) { voiceSessionId = params.sessionId; liveCall = it }
+            if (liveCall?.active == true) raise(VoiceError.CallActive)
+            return voiceCalls.start(params, callScope, { offer(frame(Api.LiveCallUpdate, it)) }) { voiceSessionId = params.sessionId; liveCall = it }
         }
 
         override suspend fun liveCallPeer(params: LivePeerParams) { call(params.callId)?.peer(params.state) }
@@ -402,20 +390,6 @@ class ServerRuntime(
             return false
         }
 
-        /**
-         * Live audio shares the outbox to stay in order with the call's other events, but only up to
-         * [LIVE_AUDIO_FRAMES]; past that it is dropped rather than closing the connection.
-         */
-        fun offerLiveVoice(output: LiveVoiceOutput): Delivery {
-            if (output !is LiveVoiceOutput.Audio) return if (offer(frame(Api.LiveVoiceOutput, output))) Delivery.Queued else Delivery.Closed
-            if (!valid()) { if (closeAfterResponse == null) disconnect(); return Delivery.Closed }
-            if (liveAudio.incrementAndFetch() > LIVE_AUDIO_FRAMES) { liveAudio.decrementAndFetch(); return Delivery.Dropped }
-            val sent = outbox.trySend(frame(Api.LiveVoiceOutput, output))
-            if (sent.isSuccess) return Delivery.Queued
-            liveAudio.decrementAndFetch()
-            return if (sent.isClosed) Delivery.Closed else Delivery.Dropped
-        }
-
         fun disconnect() {
             screenFrames.close()
             deviceId?.let { id -> scope.launch { screens.close(id) } }
@@ -454,7 +428,6 @@ class ServerRuntime(
         }
         var window = TimeSource.Monotonic.markNow()
         var messages = 0
-        var voiceInputs = 0
         var screenAcks = 0
         val writer = requests.launch { try { while (isActive) {
             val next = client.outbox.tryReceive().getOrNull()?.let { false to it } ?: select<Pair<Boolean, Frame?>> {
@@ -464,7 +437,6 @@ class ServerRuntime(
                 }
             }
             val frame = next.second ?: if (next.first) break else continue
-            if (frame is Frame.Event && frame.event == Api.LiveVoiceOutput.name && frame.payload.jsonObject["type"]?.jsonPrimitive?.content == "audio") client.liveAudio.decrementAndFetch()
             if (!client.valid() && (frame !is Frame.Response || frame.id != client.closeAfterResponse)) {
                 if (client.closeAfterResponse != null) { continue }
                 client.disconnect(); break
@@ -477,13 +449,7 @@ class ServerRuntime(
         var authed = false
         try {
             connection.incoming.collect { decoded ->
-                if (window.elapsedNow().inWholeMilliseconds >= 60_000) { window = TimeSource.Monotonic.markNow(); messages = 0; screenAcks = 0; voiceInputs = 0 }
-                if (decoded is Frame.Event && decoded.event == Api.LiveVoiceInput.name) {
-                    if (!authed || !client.valid() || client.linked || ++voiceInputs > security.liveVoiceInputsPerMinute) { client.disconnect(); return@collect }
-                    try { client.liveVoice?.accept(ProtocolJson.decodeFromJsonElement(Api.LiveVoiceInput.payload, decoded.payload)) }
-                    catch (_: IllegalArgumentException) { client.disconnect() }
-                    return@collect
-                }
+                if (window.elapsedNow().inWholeMilliseconds >= 60_000) { window = TimeSource.Monotonic.markNow(); messages = 0; screenAcks = 0 }
                 if (authed && client.valid() && client.closeAfterResponse == null && decoded is Frame.Request && decoded.method == Api.ScreenAck.name) {
                     if (++screenAcks > security.screenAcksPerMinute) { client.disconnect(); return@collect }
                     val response = handle(decoded, client)
@@ -546,7 +512,6 @@ class ServerRuntime(
                 }
             }
         } finally {
-            client.liveVoice?.close()
             client.liveCall?.close()
             clients.remove(client)
             client.detachTools()
@@ -582,6 +547,5 @@ class ServerRuntime(
 
         private const val OUTBOX_SIZE = 1024
         // Five seconds of 40 ms packets, leaving most of the outbox to other events.
-        private const val LIVE_AUDIO_FRAMES = 125
     }
 }

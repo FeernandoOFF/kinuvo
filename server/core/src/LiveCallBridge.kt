@@ -17,8 +17,8 @@ import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withTimeout
 
-/** Runs a live voice call for a connection: the call talks, and hands the Agent's work to its Session. */
-internal class LiveVoiceBridge(
+/** Starts a live call for a connection: the call talks, and hands the Agent's work to its Session. */
+internal class LiveCallBridge(
     private val harness: AgentRuntime,
     private val voice: VoiceService,
     private val executions: ExecutionRegistry,
@@ -28,17 +28,9 @@ internal class LiveVoiceBridge(
     private val runs: Runs,
     private val keepAwake: () -> AutoCloseable,
 ) {
+    /** The provider creates the call from the Device's offer, and the session runs once the Device attaches. */
     context(_: Raise<VoiceError>, _: Raise<AgentError>)
-    suspend fun start(p: LiveVoiceParams, scope: CoroutineScope, output: (LiveVoiceOutput) -> Delivery, attach: (LiveVoiceSession) -> Unit): LiveVoiceCall {
-        val provider = voice.providers.speechToSpeech ?: raise(VoiceError.NoLiveVoice)
-        val (registration, context) = prepare(p.agentId, p.sessionId)
-        return LiveVoiceSession(provider, scope, context, output, askAgent(p.agentId, p.sessionId, registration),
-            record = { entry -> harness.store.append(p.agentId, p.sessionId, entry) }, keepAwake = keepAwake).also(attach).start()
-    }
-
-    /** Starts a call the Device holds: the provider creates it from the Device's offer, and the session runs once the Device attaches. */
-    context(_: Raise<VoiceError>, _: Raise<AgentError>)
-    suspend fun startCall(p: LiveCallParams, scope: CoroutineScope, emit: (LiveCallUpdate) -> Boolean, attach: (LiveCallSession) -> Unit): LiveCallAnswer {
+    suspend fun start(p: LiveCallParams, scope: CoroutineScope, emit: (LiveCallUpdate) -> Boolean, attach: (LiveCallSession) -> Unit): LiveCallAnswer {
         val provider = voice.providers.liveCalls ?: raise(VoiceError.NoLiveVoice)
         require(p.offerSdp.isNotBlank() && p.offerSdp.length <= MAX_SDP_CHARS) { "Invalid call offer" }
         val (registration, context) = prepare(p.agentId, p.sessionId)

@@ -24,6 +24,7 @@ import dev.onvoid.webrtc.media.audio.AudioTrackSource
 import kinuvo.app.session.LiveCallException
 import kinuvo.app.session.LiveCallLevels
 import kinuvo.app.session.LiveCallPeer
+import kinuvo.app.session.advancedTo
 import kinuvo.protocol.voice.LivePeerState
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
@@ -175,15 +176,13 @@ class JvmLiveCallPeer(private val audio: () -> PeerAudio = ::deviceAudio) : Live
         override fun onIceCandidate(candidate: RTCIceCandidate) {}
         override fun onIceGatheringChange(state: RTCIceGatheringState) { if (state == RTCIceGatheringState.COMPLETE) gathered.complete(Unit) }
         override fun onConnectionChange(state: RTCPeerConnectionState) {
-            this@JvmLiveCallPeer.state.update { current ->
-                if (current == LivePeerState.Failed || current == LivePeerState.Closed) current
-                else when (state) {
-                    RTCPeerConnectionState.CONNECTED -> LivePeerState.Connected
-                    RTCPeerConnectionState.FAILED -> LivePeerState.Failed
-                    RTCPeerConnectionState.CLOSED -> LivePeerState.Closed
-                    else -> LivePeerState.Connecting
-                }
+            val next = when (state) {
+                RTCPeerConnectionState.CONNECTED -> LivePeerState.Connected
+                RTCPeerConnectionState.FAILED -> LivePeerState.Failed
+                RTCPeerConnectionState.CLOSED -> LivePeerState.Closed
+                else -> LivePeerState.Connecting
             }
+            this@JvmLiveCallPeer.state.update { it.advancedTo(next) }
         }
     }
 

@@ -18,12 +18,16 @@ class VoiceService internal constructor(private val harness: AgentRuntime, priva
     /** A selected downloaded model takes precedence over configured OpenAI-compatible providers. */
     val providers get() = downloaded?.providers.let { local ->
         VoiceProviders(local?.transcriber ?: harness.voice.transcriber, harness.voice.processor, local?.synthesizer ?: harness.voice.synthesizer,
-            harness.voice.speechToSpeech.takeIf { harness.liveVoiceEnabled }, harness.voice.liveCalls.takeIf { harness.liveVoiceEnabled })
+            harness.voice.liveCalls.takeIf { harness.liveVoiceEnabled })
     }
 
-    fun liveSettings() = LiveVoiceSettings(harness.voice.speechToSpeech != null, harness.liveVoiceEnabled)
+    suspend fun liveSettings(): LiveVoiceSettings {
+        val provider = harness.voice.liveCalls
+        val fix = provider?.unavailable()
+        return LiveVoiceSettings(provider != null && fix == null, harness.liveVoiceEnabled, fix?.let { LiveUnavailable(it.reason, it.signInProvider) })
+    }
 
-    fun saveLive(enabled: Boolean): LiveVoiceSettings {
+    suspend fun saveLive(enabled: Boolean): LiveVoiceSettings {
         harness.liveVoiceEnabled = enabled
         changed()
         return liveSettings()

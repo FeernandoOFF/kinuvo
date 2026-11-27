@@ -6,6 +6,9 @@ import kotlinx.coroutines.flow.StateFlow
 /** Microphone and speaker loudness in 0..1. */
 data class LiveCallLevels(val input: Float = 0f, val output: Float = 0f)
 
+/** [next] unless this state is final, as Failed and Closed are. */
+fun LivePeerState.advancedTo(next: LivePeerState) = if (this == LivePeerState.Failed || this == LivePeerState.Closed) this else next
+
 /** Why a [LiveCallPeer] can't carry a call; [message] is fit to show the user. */
 class LiveCallException(message: String, cause: Throwable? = null) : Exception(message, cause)
 

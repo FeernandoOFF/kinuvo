@@ -56,12 +56,6 @@ class LiveCallsTest {
         assertEquals(VoiceChatState(), screen.state.value)
     }
 
-    @Test fun pcmLevelsAreNormalized() {
-        assertEquals(0f, pcmLevel(byteArrayOf(0, 0)))
-        assertEquals(0.5f, pcmLevel(byteArrayOf(0, 64)))
-        assertEquals(1f, pcmLevel(byteArrayOf(0, -128)))
-    }
-
     @Test fun oneCallSurvivesDestinationAndSwitchesSessions() = runTest {
         val calls = LiveCalls(backgroundScope)
         val first = Chat()

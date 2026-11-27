@@ -18,7 +18,7 @@ class EchoCancellerTest {
         }
         if (process.waitFor() != 0) return
         val reply = pcm(file)
-        val canceller = echoCanceller()
+        val canceller = callProcessing()
         val stream = AudioProcessingStreamConfig(24_000, 1)
         val frame = 480
         val delay = frame * 4

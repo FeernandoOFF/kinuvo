@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import kinuvo.app.connection.ConnectedServer
 import kinuvo.app.connection.catching
 import kinuvo.protocol.*
+import kinuvo.protocol.model.ProviderRef
 import kinuvo.protocol.voice.*
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
@@ -19,7 +20,7 @@ class ServerVoiceViewModel(private val server: ConnectedServer) : ViewModel() {
         try {
             val s = server.call { it.call(Api.VoiceModels, Unit) }
             val live = catching { server.call { it.call(Api.LiveVoiceSettings, Unit) } }.getOrDefault(LiveVoiceSettings())
-            state.value = LocalVoiceState(s.models, s.installed, s.transcription, s.synthesis, s.language, s.downloading, s.downloaded, error = s.error ?: actionError ?: if (!s.supported) "Downloaded voice is unavailable on this Server." else null, live = live)
+            state.value = LocalVoiceState(s.models, s.installed, s.transcription, s.synthesis, s.language, s.downloading, s.downloaded, error = s.error ?: actionError ?: if (!s.supported) "Downloaded voice is unavailable on this Server." else null, live = live, deviceCode = state.value.deviceCode.takeIf { live.unavailable != null })
         } catch (e: CancellationException) { throw e }
         catch (e: Exception) { state.update { it.copy(error = userMessage(e.message) ?: "Server voice unavailable") } }
     }
@@ -34,5 +35,9 @@ class ServerVoiceViewModel(private val server: ConnectedServer) : ViewModel() {
     fun remove(id: String) = action { server.call { it.call(Api.VoiceRemove, id) } }
     fun select(kind: VoiceModelKind, id: String?) = action { server.call { it.call(Api.VoiceSelect, VoiceSelection(kind, id)) } }
     fun language(value: String) = action { server.call { it.call(Api.VoiceLanguage, value) } }
+    fun signIn(provider: String) = action {
+        val code = server.call { it.call(Api.LoginProvider, ProviderRef(provider)) }
+        state.update { it.copy(deviceCode = code) }
+    }
     fun live(enabled: Boolean) = action { server.call { it.call(Api.SaveLiveVoice, enabled) } }
 }
