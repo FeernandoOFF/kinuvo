@@ -20,8 +20,7 @@ class FileAttachments(private val dir: Path) {
         require(p.base64.length <= (MAX_ATTACHMENT_BYTES + 2) / 3 * 4) { "Files must be 10 MB or smaller" }
         val bytes = Base64.decode(p.base64)
         require(bytes.isNotEmpty() && bytes.size <= MAX_ATTACHMENT_BYTES) { "Files must be between 1 byte and 10 MB" }
-        if (mime.startsWith("text/") || mime == "application/json") {
-            require(bytes.size <= 256 * 1024) { "Text files must be 256 KB or smaller" }
+        if (attachmentInput(mime) == "text") {
             bytes.decodeToString(throwOnInvalidSequence = true)
             require(0.toByte() !in bytes) { "This file isn't plain text" }
         }
@@ -45,7 +44,7 @@ class FileAttachments(private val dir: Path) {
         ?: error("Attachment is no longer available")
 
     fun bytes(a: Attachment): ByteArray {
-        require(get(a.id) == a) { "Attachment details don't match" }
+        require(get(a.id) == a.copy(path = null)) { "Attachment details don't match" }
         return SystemFileSystem.source(data(a.id)).buffered().use { it.readByteArray() }
     }
 

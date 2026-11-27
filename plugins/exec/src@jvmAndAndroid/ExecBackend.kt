@@ -110,12 +110,26 @@ abstract class ExecBackend(
         return bytes.decodeToString(throwOnInvalidSequence = true)
     }
 
-    suspend fun write(path: String, content: String) {
+    suspend fun write(path: String, content: String) = store(path, "cat", content, Duration.parse("30s"))
+
+    suspend fun writeBytes(path: String, bytes: ByteArray) =
+        store(path, "base64 -d", Base64.getEncoder().encodeToString(bytes), Duration.parse("120s"))
+
+    private suspend fun store(path: String, writer: String, stdin: String, timeout: Duration) {
         val p = resolve(path)
         val dir = p.substringBeforeLast('/', "")
         val mkdir = if (dir.isNotEmpty()) "mkdir -p -- ${shq(dir)} && " else ""
-        val r = execScript("${mkdir}cat > ${shq(p)}", roots.first(), content, Duration.parse("30s"))
+        val r = execScript("$mkdir$writer > ${shq(p)}", roots.first(), stdin, timeout)
         check(r.exitCode == 0) { r.output.ifBlank { "Cannot write $p" } }
+    }
+
+    /** Copies [bytes] to [ATTACHMENTS_DIR]/[name] in the first Workspace folder, first dropping staged files older than 30 days. */
+    suspend fun stage(name: String, bytes: ByteArray): String {
+        val dir = resolve(ATTACHMENTS_DIR)
+        val tidy = "umask 077; mkdir -p -- ${shq(dir)}; find ${shq(dir)} -type f ! -name .gitignore -mtime +30 -delete 2>/dev/null; " +
+            "[ -f ${shq("$dir/.gitignore")} ] || echo '*' > ${shq("$dir/.gitignore")}"
+        runCatching { execScript(tidy, roots.first(), null, Duration.parse("30s")) }
+        return resolve("$dir/$name").also { store(it, "umask 077; base64 -d", Base64.getEncoder().encodeToString(bytes), Duration.parse("120s")) }
     }
 
     /** Files under [path] (skipping .git, build and node_modules), optionally filtered by [glob] on relative paths. */
@@ -141,6 +155,8 @@ abstract class ExecBackend(
     }
 
     companion object {
+        const val ATTACHMENTS_DIR = ".kinuvo/attachments"
+
         fun shq(s: String) = "'" + s.replace("'", "'\\''") + "'"
     }
 }

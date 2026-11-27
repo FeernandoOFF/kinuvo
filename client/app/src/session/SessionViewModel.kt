@@ -591,6 +591,7 @@ class SessionViewModel(
         } ?: when {
             pending.any { it.attachment.size == 0 } -> "Empty files cannot be attached"
             pending.any { it.attachment.size > MAX_ATTACHMENT_BYTES } -> "Files must be 10 MB or smaller"
+            pending.any { attachmentInput(it.attachment.mimeType) == "text" && it.attachment.size > MAX_TEXT_ATTACHMENT_BYTES } && state.value.capabilities?.stagesLargeText != true -> "Text files must be 256 KB or smaller"
             all.sumOf { it.attachment.size } > MAX_ATTACHMENT_TOTAL_BYTES -> "Attachments must total 20 MB or less"
             else -> null
         }

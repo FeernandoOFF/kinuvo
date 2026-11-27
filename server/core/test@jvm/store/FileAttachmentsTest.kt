@@ -30,6 +30,16 @@ class FileAttachmentsTest {
     }
 
     @Test
+    fun acceptsLargeTextAndReadsItWithItsStagedPath() {
+        val home = temporaryDirectories.create("attachments").toFile()
+        try {
+            val store = FileAttachments(Path(home.path))
+            val a = store.upload(UploadAttachmentParams("deck.html", Base64.encode(ByteArray(MAX_TEXT_ATTACHMENT_BYTES + 1) { 65 })))
+            assertEquals(MAX_TEXT_ATTACHMENT_BYTES + 1, store.bytes(a.copy(path = "/ws/.kinuvo/attachments/x")).size)
+        } finally { home.deleteRecursively() }
+    }
+
+    @Test
     fun rejectsPathsForgedMetadataOversizeAndBinaryText() {
         val home = temporaryDirectories.create("attachments").toFile()
         try {
@@ -39,7 +49,6 @@ class FileAttachmentsTest {
             assertFailsWith<IllegalArgumentException> { store.get("../private") }
             assertFailsWith<IllegalArgumentException> { upload("program.exe") }
             assertFailsWith<IllegalArgumentException> { upload("binary.txt", byteArrayOf(0, 1)) }
-            assertFailsWith<IllegalArgumentException> { upload("large.txt", ByteArray(256 * 1024 + 1) { 65 }) }
             assertFailsWith<IllegalArgumentException> { upload("fake.pdf") }
             assertFailsWith<IllegalArgumentException> { store.upload(UploadAttachmentParams("large.pdf", "A".repeat((MAX_ATTACHMENT_BYTES + 2) / 3 * 4 + 4))) }
             val a = upload("note.md")
