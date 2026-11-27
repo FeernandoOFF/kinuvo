@@ -24,7 +24,11 @@ class ArtifactsTest {
     private var now = 1L
     private val artifacts = Artifacts(FileArtifacts(home.files.artifacts)) { now++ }
     private val workspace = mapOf("out/chart.html" to "<svg/>")
-    private val tool = ArtifactTool(home.agent, SessionId("s1"), artifacts) { workspace[it] ?: error("missing $it") }
+    private val tool = ArtifactTool(home.agent, SessionId("s1"), artifacts, object : WorkspaceFiles {
+        override suspend fun text(path: String) = workspace[path] ?: error("missing $path")
+        override suspend fun bytes(path: String, maxBytes: Int) = text(path).encodeToByteArray()
+        override suspend fun list(path: String, limit: Int) = emptyList<String>()
+    })
 
     private suspend fun call(vararg args: Pair<String, String>) = tool.execute(JsonObject(args.associate { (k, v) -> k to JsonPrimitive(v) }))
 

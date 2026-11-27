@@ -195,6 +195,12 @@ open class AgentRuntime(
     suspend fun readFile(agent: Agent, path: String): String =
         plugins.firstNotNullOfOrNull { it.readFile(agent, path) } ?: error("${agent.id} has no Workspace")
 
+    suspend fun readFileBytes(agent: Agent, path: String, maxBytes: Int): ByteArray =
+        plugins.firstNotNullOfOrNull { it.readFileBytes(agent, path, maxBytes) } ?: error("${agent.id} has no Workspace")
+
+    suspend fun listFiles(agent: Agent, path: String, limit: Int): List<String> =
+        plugins.firstNotNullOfOrNull { it.listFiles(agent, path, limit) } ?: error("${agent.id} has no Workspace")
+
     /** Stops everything the plugins run, e.g. before the process exits. */
     suspend fun close() { computers.close(); try { native.close() } finally { dependencies.resources.close() } }
 
