@@ -4,6 +4,7 @@ product: jvm/app
 
 dependencies:
   - ../../gateways/acp-agent
+  - ../../gateways/ag-ui
   - ../../server/jvm
   - ../../libs/diagnostics
   - ../../libs/tailcat

@@ -3,6 +3,7 @@ product: jvm/app
 
 dependencies:
   - ../server-testing
+  - ../../gateways/ag-ui
 
 settings:
   jvm:

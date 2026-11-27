@@ -1,5 +1,6 @@
 package kinuvo.testing.fixture
 
+import kinuvo.gateways.agui.serveAgUi
 import kinuvo.protocol.Api
 import kinuvo.protocol.agent.AgentId
 import kinuvo.protocol.approval.Risk
@@ -10,6 +11,7 @@ import kinuvo.testing.server.Scenario
 import kinuvo.testing.server.TestServer
 import kinuvo.testing.server.showcase
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
@@ -74,7 +76,7 @@ private suspend fun seedWorkflows(server: TestServer) {
     client.close()
 }
 
-/** Usage: `fixture-server [scenario] [--port=N]`; the port defaults to `KINUVO_FIXTURE_PORT`, then 18081. */
+/** Usage: `fixture-server [scenario] [--port=N] [--agui=PORT] [--agui-allow-origin=ORIGIN]...`; `--agui` also serves Agent `e2e` to AG-UI clients (browser Origins need `--agui-allow-origin`); the port defaults to `KINUVO_FIXTURE_PORT`, then 18081. */
 fun main(args: Array<String>): Unit = runBlocking {
     val name = args.firstOrNull { !it.startsWith("--") } ?: "chat"
     val scenario = requireNotNull(SCENARIOS[name]) { "Unknown scenario '$name'; choose one of ${SCENARIOS.keys.joinToString()}" }
@@ -92,6 +94,11 @@ fun main(args: Array<String>): Unit = runBlocking {
     Runtime.getRuntime().addShutdownHook(Thread { server.close() })
     val url = server.listen(port)
     println("Fixture Server '$name' listening on $url")
+    args.firstOrNull { it.startsWith("--agui=") }?.substringAfter('=')?.toInt()?.let { aguiPort ->
+        val client = server.client(token = server.auth.sessionToken()).also { it.connect() }
+        launch { serveAgUi(client, AgentId("e2e"), "127.0.0.1", aguiPort, args.filter { it.startsWith("--agui-allow-origin=") }.map { it.substringAfter('=') }.toSet()) }
+        println("AG-UI gateway on http://127.0.0.1:$aguiPort/")
+    }
     var shown = ""
     while (true) {
         if (server.pairingCode != shown) { shown = server.pairingCode; println("Pairing code: $shown") }

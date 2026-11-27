@@ -1,0 +1,22 @@
+# Serves a Kinuvo Agent to AG-UI clients over HTTP and SSE. A client of a running Server, not a harness.
+product: jvm/lib
+
+dependencies:
+  - ../../client/sdk
+  - ../../protocol
+  - io.ktor:ktor-server-cio:3.6.0
+  - io.ktor:ktor-server-cors:3.6.0
+
+test-dependencies:
+  - ../../testing/server-testing
+  - com.networknt:json-schema-validator:1.5.6
+  - $kotlin.test
+
+settings:
+  jvm:
+    test:
+      systemProperties:
+        java.io.tmpdir: ../../build
+  kotlin:
+    compileIncrementally: true
+    serialization: json
