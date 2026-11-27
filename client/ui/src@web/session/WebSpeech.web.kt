@@ -33,12 +33,10 @@ private fun stopSource(source: JsAny): Unit = js("source.stop()")
 
 /**
  * The browser's voice: it holds Device-held live calls with [WebLiveCallPeer] and plays their cues with one audio context kept for the page's life. Dictation, reading
- * aloud and Server-held live voice stay unsupported.
+ * aloud stay unsupported.
  */
 internal class WebSpeech : SpeechEngine, LiveAudio {
     override val speaks = false
-    override val liveAudioSupported = false
-    override val echoes = false
     override val callPeerSupported = true
     private var context: JsAny? = null
     private var cue: JsAny? = null
@@ -61,12 +59,6 @@ internal class WebSpeech : SpeechEngine, LiveAudio {
         cue?.let { runCatching { stopSource(it) } }
         cue = null
     }
-
-    override fun startLive(sampleRate: Int, onAudio: (ByteArray) -> Unit, onError: (String) -> Unit) = onError(CALLS_ONLY)
-    override fun playLive(pcm: ByteArray) {}
-    override fun queuedMillis() = 0
-    override fun flushLive() {}
-    override fun stopLive() {}
 
     override fun authorize(completion: (String?) -> Unit) = completion(CALLS_ONLY)
     override fun listen(untilPause: Boolean, onPartial: (String) -> Unit, onFinal: (String) -> Unit, onError: (String) -> Unit) = onError(CALLS_ONLY)

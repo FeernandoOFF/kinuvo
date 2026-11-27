@@ -2,9 +2,14 @@ package kinuvo.server
 
 import ai.koog.prompt.streaming.StreamFrame
 import kinuvo.client.KinuvoClient
+import kinuvo.harness.*
+import kinuvo.server.execution.ExecutionRegistry
 import kinuvo.protocol.*
+import kinuvo.protocol.agent.*
+import kinuvo.protocol.approval.*
 import kinuvo.protocol.connection.*
 import kinuvo.protocol.device.*
+import kinuvo.protocol.execution.*
 import kinuvo.protocol.session.*
 import kinuvo.protocol.voice.*
 import kinuvo.server.devices.PeerRegistry
@@ -22,6 +27,7 @@ import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.test.runTest
+import kotlinx.serialization.builtins.serializer
 import kotlin.test.*
 
 class LiveCallRpcTest {
@@ -120,20 +126,77 @@ class LiveCallRpcTest {
 
             calls.call.events.send(LiveCallEvent.Transcript("t2", "Known reply", user = false))
             device.updates.receive()
-            device.call(Api.LiveCallPause, LiveVoiceRef(answer.callId))
+            device.call(Api.LiveCallPause, LiveCallRef(answer.callId))
             assertEquals("pause", calls.call.sent.receive())
             assertEquals(LiveCallUpdate.Phase(answer.callId, LiveCallPhase.Paused), device.updates.receive())
-            device.call(Api.LiveCallResume, LiveVoiceRef(answer.callId))
+            device.call(Api.LiveCallResume, LiveCallRef(answer.callId))
             assertEquals("resume", calls.call.sent.receive())
             assertEquals(LiveCallUpdate.Phase(answer.callId, LiveCallPhase.Listening), device.updates.receive())
 
-            device.call(Api.LiveCallEnd, LiveVoiceRef(answer.callId))
+            device.call(Api.LiveCallEnd, LiveCallRef(answer.callId))
             assertEquals("end", calls.call.sent.receive())
             assertEquals(LiveCallUpdate.Ended(answer.callId), device.updates.receive())
 
             val entries = fixture.transcripts.entries(fixture.agent.id, session.id)
             assertTrue(entries.filterIsInstance<SessionEntry.UserMessage>().single().voice)
             assertEquals(listOf(VoiceTurn(true, "what is up"), VoiceTurn(false, "Known reply")), entries.filterIsInstance<SessionEntry.VoiceCall>().single().turns)
+        }
+    }
+
+    @Test fun aCallDelegatesToAnExternalAgentThroughItsExecutionDispatch() = runTest {
+        val registry = ExecutionRegistry().also {
+            it.save(HarnessConnection("c", "ACP", ExecutionConnection.Acp(listOf("mock"))))
+            it.register(AgentRegistration(AgentId("external"), "Agent", "c", cwd = "/tmp"))
+        }
+        val factory = object : ExecutionFactory {
+            override suspend fun open(config: HarnessConnection, registration: AgentRegistration, state: ExecutionState, broker: ExecutionBroker, scope: CoroutineScope): ExecutionSession = object : ExecutionSession {
+                override val capabilities = ExecutionCapabilities()
+                override suspend fun prompt(input: ExecutionInput): ExecutionAcceptance {
+                    assertTrue(input.text.startsWith(liveVoiceInstructions))
+                    assertTrue(input.text.endsWith("\n\ntask"))
+                    scope.launch {
+                        delay(200)
+                        state.boundSink().commit(listOf(SessionEntry.AssistantMessage("external reply", "reply")))
+                        state.boundSink().publish(AgentEvent.ExecutionPhaseChanged(ExecutionPhase.Idle))
+                    }
+                    return ExecutionAcceptance("accepted")
+                }
+                override suspend fun cancel() {}
+                override suspend fun answer(requestId: InteractionId, answer: InteractionAnswer) {}
+            }
+        }
+        val calls = FakeCalls()
+        val fixture = RuntimeFixture(voice = VoiceProviders(liveCalls = calls))
+        fixture.settings.liveVoiceEnabled = true
+        val server = ServerRuntime(fixture.runtime(), peers(), serverRoutes(), executionRegistry = registry, executionFactory = factory)
+        val device = Device()
+        server.start()
+        val serving = launch { server.serve(device.connection) }
+        try {
+            device.call(Api.Connect, ConnectParams("test"))
+            val session = device.call(Api.CreateSession, AgentRef(AgentId("external")))
+            val answer = device.call(Api.LiveCallStart, LiveCallParams(AgentId("external"), session.id, "offer"))
+            device.call(Api.LiveCallPeer, LivePeerParams(answer.callId, LivePeerState.Connecting))
+            assertEquals("run", calls.call.sent.receive())
+            calls.call.events.send(LiveCallEvent.Delegation("d1", "task"))
+            assertEquals(LiveCallUpdate.Phase(answer.callId, LiveCallPhase.Thinking), device.updates.receive())
+            assertEquals("reply d1: external reply", calls.call.sent.receive())
+            calls.call.events.send(LiveCallEvent.Transcript("t1", "external reply", user = false))
+            device.updates.receive()
+            device.call(Api.LiveCallEnd, LiveCallRef(answer.callId))
+            assertEquals("end", calls.call.sent.receive())
+            assertEquals(LiveCallUpdate.Ended(answer.callId), device.updates.receive())
+            val entries = fixture.transcripts.entries(AgentId("external"), session.id)
+            assertTrue(entries.filterIsInstance<SessionEntry.UserMessage>().single().voice)
+            assertEquals("external reply", entries.filterIsInstance<SessionEntry.VoiceCall>().single().turns.single().text)
+        } finally { server.close(); serving.cancelAndJoin() }
+    }
+
+    @Test fun anOlderDevicesServerHeldLiveVoiceMethodsAreUnknownAndFailCleanly() = runTest {
+        withCall(FakeCalls()) { device, _, _ ->
+            val start = device.response(Method("voice.live.start", Unit.serializer(), Unit.serializer()), Unit)
+            assertFalse(start.ok)
+            assertTrue(device.call(Api.VoiceSetup, Unit).liveCalls)
         }
     }
 
@@ -180,8 +243,8 @@ class LiveCallRpcTest {
             val answer = device.call(Api.LiveCallStart, LiveCallParams(fixture.agent.id, session.id, "offer"))
             device.call(Api.LiveCallPeer, LivePeerParams(answer.callId, LivePeerState.Connected))
             assertEquals("run", calls.call.sent.receive())
-            device.call(Api.LiveCallPause, LiveVoiceRef("unknown"))
-            device.call(Api.LiveCallEnd, LiveVoiceRef("unknown"))
+            device.call(Api.LiveCallPause, LiveCallRef("unknown"))
+            device.call(Api.LiveCallEnd, LiveCallRef("unknown"))
             assertTrue(calls.call.sent.tryReceive().isFailure)
         }
     }

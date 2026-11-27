@@ -3,7 +3,7 @@ package kinuvo.server.plugin
 /**
  * A live audio conversation whose media connection (WebRTC) the Device holds, so the Server never carries audio. The
  * Server creates the call with the vendor using credentials the Device never sees, then controls it through a side
- * channel. One adapter per vendor protocol, like [SpeechToSpeech]. Agent work goes through [LiveCallEvent.Delegation].
+ * channel. One adapter per vendor protocol. Agent work goes through [LiveCallEvent.Delegation].
  */
 interface LiveCallProvider {
     /** Whether a call could start now, e.g. the owner is signed in. */
@@ -40,6 +40,18 @@ sealed interface LiveCallEvent {
     data class Delegation(val id: String, val task: String) : LiveCallEvent
     /** What has been said so far in turn [item]; the [final] transcript replaces the partial ones. */
     data class Transcript(val item: String, val text: String, val user: Boolean, val final: Boolean = true) : LiveCallEvent
+}
+
+/** What a conversation starts from: who the model speaks for, and the Session so far, oldest first. */
+class VoiceContext(val instructions: String, val history: List<VoiceMessage> = emptyList())
+
+data class VoiceMessage(val user: Boolean, val text: String)
+
+sealed interface AgentProgress {
+    data class ApprovalRequested(val tool: String, val summary: String) : AgentProgress
+    data class ApprovalResolved(val allowed: Boolean?) : AgentProgress
+    data class Question(val text: String) : AgentProgress
+    data class Text(val text: String) : AgentProgress
 }
 
 /** A call failure worded for the Device; the raw detail belongs in the Server log. */

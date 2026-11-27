@@ -11,8 +11,6 @@ import kinuvo.protocol.surface.UiCatalog
 import kinuvo.protocol.voice.LiveCallAnswer
 import kinuvo.protocol.voice.LiveCallParams
 import kinuvo.protocol.voice.LivePeerParams
-import kinuvo.protocol.voice.LiveVoiceCall
-import kinuvo.protocol.voice.LiveVoiceParams
 import kinuvo.server.screens.Screens
 
 /** The connection a request arrived on: its credential, subscriptions and per-connection state. */
@@ -38,9 +36,6 @@ interface Caller {
     context(_: Raise<DeviceError>)
     fun rotateToken(): String
     fun unwatchScreen(id: String)
-    context(_: Raise<VoiceError>, _: Raise<AgentError>)
-    suspend fun startLiveVoice(params: LiveVoiceParams): LiveVoiceCall
-    fun endLiveVoice(callId: String)
     context(_: Raise<VoiceError>, _: Raise<AgentError>)
     suspend fun startLiveCall(params: LiveCallParams): LiveCallAnswer
     suspend fun liveCallPeer(params: LivePeerParams)

@@ -15,12 +15,6 @@ dependencies:
 
 dependencies@jvm:
   - io.ktor:ktor-client-java:3.6.0
-  - io.ktor:ktor-client-webrtc:3.6.0
-  - dev.onvoid.webrtc:webrtc-java:0.20.0
-  - dev.onvoid.webrtc:webrtc-java:0.20.0:macos-aarch64
-  - dev.onvoid.webrtc:webrtc-java:0.20.0:macos-x86_64
-  - dev.onvoid.webrtc:webrtc-java:0.20.0:windows-x86_64
-  - dev.onvoid.webrtc:webrtc-java:0.20.0:linux-x86_64
 
 dependencies@android:
   - io.ktor:ktor-client-okhttp:3.6.0

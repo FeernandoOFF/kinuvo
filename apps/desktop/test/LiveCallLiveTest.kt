@@ -74,15 +74,9 @@ class LiveCallLiveTest {
                     val session = server.startSession(agent)
                     lateinit var peer: LiveCallPeer
                     val audio = object : LiveAudio {
-                        override val echoes = false
                         override val callPeerSupported = true
                         override fun createCallPeer() = JvmLiveCallPeer { PeerAudio(factory, microphone) {} }.also { peer = it }
                         override fun authorizeAudio(completion: (String?) -> Unit) = completion(null)
-                        override fun startLive(sampleRate: Int, onAudio: (ByteArray) -> Unit, onError: (String) -> Unit) {}
-                        override fun playLive(pcm: ByteArray) {}
-                        override fun queuedMillis() = 0
-                        override fun flushLive() {}
-                        override fun stopLive() {}
                     }
                     val chat = LiveCallVoiceChat(connected, audio) { agent to session.id }
                     chat.start()

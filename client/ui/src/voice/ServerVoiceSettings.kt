@@ -22,7 +22,7 @@ internal fun ServerVoiceSettings() {
         "Live voice",
         state.live.enabled,
         model::live,
-        subtitle = "Talk with the Server's speech-to-speech model through your ChatGPT subscription. Replaces the models below during Voice chat.",
+        subtitle = "Talk with ChatGPT's realtime voice model through your ChatGPT subscription. The call runs on this Device; the Server sets it up. Replaces the models below during Voice chat.",
     )
     if (state.live.available) {
         val uri = LocalUriHandler.current

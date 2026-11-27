@@ -34,15 +34,9 @@ class LiveCallVoiceChatTest {
     }
 
     private class Audio(val peer: FakePeer?, val supported: Boolean = true) : LiveAudio {
-        override val echoes = false
         override val callPeerSupported get() = supported
         override fun createCallPeer() = peer
         override fun authorizeAudio(completion: (String?) -> Unit) = completion(null)
-        override fun startLive(sampleRate: Int, onAudio: (ByteArray) -> Unit, onError: (String) -> Unit) {}
-        override fun playLive(pcm: ByteArray) {}
-        override fun queuedMillis() = 0
-        override fun flushLive() {}
-        override fun stopLive() {}
         val cues = mutableListOf<ByteArray>()
         override fun playCue(pcm: ByteArray, sampleRate: Int) { cues += pcm }
     }
@@ -319,18 +313,43 @@ class LiveCallVoiceChatTest {
     @Test fun deviceHeldCallsAreUsedOnlyWhenTheServerBrokersThem() = runTest {
         Dispatchers.setMain(StandardTestDispatcher(testScheduler))
         try {
-            suspend fun pick(setup: VoiceSetup, live: Boolean = true, held: Boolean = true): Triple<Int, Int, Int> {
-                val speech = RecordingChat(); val streamed = RecordingChat(); val brokered = RecordingChat()
-                val chat = PickedVoiceChat(speech, streamed.takeIf { live }, backgroundScope, brokered.takeIf { held }) { setup }
+            suspend fun pick(setup: VoiceSetup, held: Boolean = true): Pair<Int, Int> {
+                val speech = RecordingChat(); val brokered = RecordingChat()
+                val chat = PickedVoiceChat(speech, brokered.takeIf { held }, backgroundScope) { setup }
                 chat.start()
                 runCurrent()
-                return Triple(speech.starts, streamed.starts, brokered.starts)
+                return speech.starts to brokered.starts
             }
-            assertEquals(Triple(0, 0, 1), pick(VoiceSetup(liveCalls = true, speechToSpeech = true)))
-            assertEquals(Triple(0, 1, 0), pick(VoiceSetup(speechToSpeech = true)))
-            assertEquals(Triple(0, 1, 0), pick(VoiceSetup(liveCalls = true, speechToSpeech = true), held = false))
-            assertEquals(Triple(1, 0, 0), pick(VoiceSetup(liveCalls = true), live = false, held = false))
-            assertEquals(Triple(1, 0, 0), pick(VoiceSetup()))
+            assertEquals(0 to 1, pick(VoiceSetup(liveCalls = true)))
+            assertEquals(1 to 0, pick(VoiceSetup(liveCalls = true), held = false))
+            assertEquals(1 to 0, pick(VoiceSetup()))
+        } finally { Dispatchers.resetMain() }
+    }
+
+    @Test fun aServerOnlyOfferingTheRemovedServerHeldPathUsesDeviceSpeech() = runTest {
+        Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+        try {
+            val speech = RecordingChat(); val brokered = RecordingChat()
+            val setup = ProtocolJson.decodeFromString(VoiceSetup.serializer(), """{"transcriber":true,"speechToSpeech":true}""")
+            PickedVoiceChat(speech, brokered, backgroundScope) { setup }.start()
+            runCurrent()
+            assertEquals(1 to 0, speech.starts to brokered.starts)
+        } finally { Dispatchers.resetMain() }
+    }
+
+    @Test fun startingWhileTheServerIsAskedWhichCallToUseDoesNotStartDeviceSpeech() = runTest {
+        Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+        try {
+            val speech = RecordingChat(); val brokered = RecordingChat()
+            val selection = CompletableDeferred<Unit>()
+            val chat = PickedVoiceChat(speech, brokered, backgroundScope) { selection.await(); VoiceSetup(liveCalls = true) }
+            chat.start()
+            runCurrent()
+            chat.start()
+            assertEquals(0, speech.starts)
+            selection.complete(Unit)
+            runCurrent()
+            assertEquals(0 to 1, speech.starts to brokered.starts)
         } finally { Dispatchers.resetMain() }
     }
 }

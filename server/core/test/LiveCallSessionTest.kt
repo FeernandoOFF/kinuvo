@@ -76,4 +76,37 @@ class LiveCallSessionTest {
         runCurrent()
         assertFalse(session.active)
     }
+
+    @Test fun aFailureSavingTheTranscriptStillEndsTheCallWithAnError() = runTest {
+        val updates = mutableListOf<LiveCallUpdate>()
+        var released = false
+        val call = object : LiveCall {
+            override suspend fun run(onEvent: suspend (LiveCallEvent) -> Unit) { onEvent(LiveCallEvent.Transcript("u1", "hello", true)) }
+            override suspend fun reply(id: String, text: String) {}
+            override suspend fun notify(text: String) {}
+            override suspend fun pause() {}
+            override suspend fun resume() {}
+            override suspend fun end() {}
+        }
+        val session = LiveCallSession(call, this, { updates += it; true }, { _, _ -> "" }, { error("store unavailable") }, { AutoCloseable { released = true } })
+        session.start()
+        session.peer(LivePeerState.Connecting)
+        runCurrent()
+        assertTrue(released)
+        assertFalse(session.active)
+        assertEquals(LiveCallUpdate.Ended(session.id, "The call transcript couldn't be saved."), updates.last())
+        assertEquals(1, updates.count { it is LiveCallUpdate.Ended })
+    }
+
+    @Test fun theCallIsNoLongerActiveWhenItsEndIsAnnounced() = runTest {
+        var activeAtEnd: Boolean? = null
+        lateinit var session: LiveCallSession
+        session = LiveCallSession(Call(), this, { if (it is LiveCallUpdate.Ended) activeAtEnd = session.active; true }, { _, _ -> "" })
+        session.start()
+        session.peer(LivePeerState.Connecting)
+        runCurrent()
+        session.peer(LivePeerState.Closed)
+        runCurrent()
+        assertEquals(false, activeAtEnd)
+    }
 }

@@ -13,6 +13,7 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.merge
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kinuvo.protocol.Api
@@ -93,8 +94,8 @@ data class VoiceChatState(
 }
 
 /**
- * A voice conversation in the open Session. [SpeechVoiceChat] turns speech into messages and replies into speech; a
- * Server's speech-to-speech model would be another implementation behind the same controls.
+ * A voice conversation in the open Session. [SpeechVoiceChat] turns speech into messages and replies into speech;
+ * [LiveCallVoiceChat] holds a live call with the Server's model behind the same controls.
  */
 interface VoiceChat {
     val state: StateFlow<VoiceChatState>
@@ -121,22 +122,15 @@ interface VoiceChat {
 /** Resolves Server parts at each start; the Device owns capture, playback and unset system speech parts. */
 class VoiceViewModel(device: SpeechEngine, session: SessionViewModel, server: ConnectedServer? = null, calls: LiveCalls? = null) : ViewModel() {
     private val engine = if (server != null) ServerSpeech(device, server) else device
-    private val audio = (device as? LiveAudio)?.takeIf { server != null }
-    private val live = audio?.takeIf { it.liveAudioSupported }
-    private val held = audio?.takeIf { it.callPeerSupported }
+    private val audio = (device as? LiveAudio)?.takeIf { server != null && it.callPeerSupported }
     val chat: VoiceChat = PickedVoiceChat(
         SpeechVoiceChat(engine, session, viewModelScope),
-        live?.let { audio ->
-            joined(session, server, calls, { agent, id -> LiveVoiceChat(requireNotNull(server), audio) { agent to id } }) {
-                LiveVoiceChat(requireNotNull(server), audio, openSession = session::liveSession)
-            }
-        },
-        viewModelScope,
-        held = held?.let { audio ->
+        audio?.let { audio ->
             joined(session, server, calls, { agent, id -> LiveCallVoiceChat(requireNotNull(server), audio) { agent to id } }) {
                 LiveCallVoiceChat(requireNotNull(server), audio, session::liveSession)
             }
         },
+        viewModelScope,
     ) { server?.call { it.call(Api.VoiceSetup, Unit) } ?: VoiceSetup() }
 
     private fun joined(session: SessionViewModel, server: ConnectedServer?, calls: LiveCalls?, create: (AgentId, SessionId) -> VoiceChat, direct: () -> VoiceChat): VoiceChat {
@@ -154,6 +148,53 @@ class VoiceViewModel(device: SpeechEngine, session: SessionViewModel, server: Co
     }
 
     override fun onCleared() { if (!chat.state.value.live) chat.end() }
+}
+
+/** A Device-held [call] when the Server brokers them, else [speech]; decided at each start. */
+class PickedVoiceChat(
+    private val speech: VoiceChat,
+    private val call: VoiceChat?,
+    private val scope: CoroutineScope,
+    private val offered: suspend () -> VoiceSetup,
+) : VoiceChat {
+    private var active = speech
+    private var picking: Job? = null
+    override val state: StateFlow<VoiceChatState>
+        field = MutableStateFlow(VoiceChatState())
+
+    init {
+        scope.launch {
+            val chats = listOfNotNull(speech, call)
+            merge(*chats.map { chat -> chat.state.map { chat to it } }.toTypedArray()).collect { (chat, s) ->
+                if (chat !== speech && s.live && active.state.value.phase == VoicePhase.Off) active = chat
+                if (chat === active && picking?.isActive != true) state.value = s
+            }
+        }
+    }
+
+    override fun start() {
+        if (state.value.phase != VoicePhase.Off) return
+        if (call == null) return speech.also { active = it }.start()
+        state.value = VoiceChatState(VoicePhase.Starting, speaker = state.value.speaker)
+        picking = scope.launch {
+            val setup = catching { offered() }.getOrDefault(VoiceSetup())
+            active = if (setup.liveCalls) call else speech
+            active.speaker(state.value.speaker)
+            active.start()
+            state.value = active.state.value
+        }
+    }
+
+    override fun end() { picking?.cancel(); active.end(); state.value = active.state.value }
+    override fun pause() = active.pause()
+    override fun resume() = active.resume()
+    override fun hold() = active.hold()
+    override fun letGo() = active.letGo()
+    override fun interrupt() = active.interrupt()
+    override fun attention() = active.attention()
+    override fun speaker(on: Boolean) { speech.speaker(on); call?.speaker(on) }
+    override fun background() = active.background()
+    override fun foreground() = active.foreground()
 }
 
 /**
