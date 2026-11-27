@@ -3,7 +3,7 @@ title: "Device-held live calls"
 description: "The Device holds the WebRTC call to the realtime model; the Server only creates it and controls it over a sideband WebSocket."
 ---
 
-Status: Accepted
+Status: Accepted. The Server-held path described below as the previous design has been removed.
 
 ## Context
 
@@ -19,5 +19,6 @@ Live voice through the owner's ChatGPT subscription used a WebRTC call held by t
 ## Consequences
 
 - No audio crosses the Server, and Servers need no WebRTC library.
-- The Server-held path (`SpeechToSpeech`, `voice.live.*`) stays until Devices move to Device-held calls, then is removed.
+- The Server-held path is gone: `SpeechToSpeech`, `CodexRealtime`, the `voice.live.start`/`end` methods, the `voice.live.input`/`output` events and `VoiceSetup.speechToSpeech`. Only the owner's switch (`voice.live.settings`, `voice.live.save`) keeps its name, and `LiveVoiceSettings.available` now means the Server has a live call provider.
+- Compatibility follows [ADR 0037](0037-protocol-version-negotiation.md): additive and removed fields are not a version change. A Device ignores `speechToSpeech` from an older Server and uses speech-based Voice chat, as does a Device against a Server without `liveCalls`. A Server answers `voice.live.start` from an older Device with an unknown-method error, which the Device only sends when `speechToSpeech` was offered, so it does not.
 - Devices need a WebRTC stack on every platform.
