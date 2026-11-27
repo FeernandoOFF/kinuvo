@@ -27,6 +27,8 @@ Device streamed PCM over `voice.live.*`, is removed. A Device on a Server that h
 `liveCalls` and uses speech-based Voice chat; a Device that still sends `voice.live.start` gets an unknown-method
 error. The `voice.live.settings` and `voice.live.save` methods remain for the owner's on/off switch.
 
+Codex adapter calls need the Codex (device-code) ChatGPT sign-in: the browser "Continue with ChatGPT" token belongs to another OAuth app and the realtime backend rejects it (401 `rejected_by_access_enforcement`). `CodexAuth.signInKind()` reports which sign-in `tokens()` would use, without the network. While the browser sign-in is selected, `LiveCallProvider.available()` is false and `unavailable()` returns the reason and the provider whose device-code sign-in fixes it, which reaches Devices as `LiveVoiceSettings.unavailable` so Voice settings can offer that sign-in (`providers.login`); a call that is rejected anyway fails with the same advice.
+
 A failed call stays the active call: its voice state keeps `live` with `phase`
 Off and a readable `error` until `end()`, which clears it. The Server words
 realtime failures for the Device (usage limit and reset time, sign-in, network,
