@@ -47,6 +47,8 @@ interface Synthesizer {
 interface SpeechEngine : Transcriber, Synthesizer {
     /** Releases the microphone during Agent replies to avoid transcribing speaker output. */
     val halfDuplex: Boolean get() = false
+    /** Whether it transcribes and reads aloud; a Device that only holds live calls (the browser) says no. */
+    val speaks: Boolean get() = true
     /** Stops listening and speaking and releases the audio. */
     override fun stop()
 }
@@ -119,7 +121,9 @@ interface VoiceChat {
 /** Resolves Server parts at each start; the Device owns capture, playback and unset system speech parts. */
 class VoiceViewModel(device: SpeechEngine, session: SessionViewModel, server: ConnectedServer? = null, calls: LiveCalls? = null) : ViewModel() {
     private val engine = if (server != null) ServerSpeech(device, server) else device
-    private val live = (device as? LiveAudio)?.takeIf { it.liveAudioSupported && server != null }
+    private val audio = (device as? LiveAudio)?.takeIf { server != null }
+    private val live = audio?.takeIf { it.liveAudioSupported }
+    private val held = audio?.takeIf { it.callPeerSupported }
     val chat: VoiceChat = PickedVoiceChat(
         SpeechVoiceChat(engine, session, viewModelScope),
         live?.let { audio ->
@@ -128,7 +132,7 @@ class VoiceViewModel(device: SpeechEngine, session: SessionViewModel, server: Co
             }
         },
         viewModelScope,
-        held = live?.takeIf { it.callPeerSupported }?.let { audio ->
+        held = held?.let { audio ->
             joined(session, server, calls, { agent, id -> LiveCallVoiceChat(requireNotNull(server), audio) { agent to id } }) {
                 LiveCallVoiceChat(requireNotNull(server), audio, session::liveSession)
             }
