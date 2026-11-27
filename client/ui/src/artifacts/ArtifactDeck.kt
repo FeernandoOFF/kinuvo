@@ -19,6 +19,19 @@ import com.composables.ui.theme.*
 import kinuvo.app.artifacts.DeckStatus
 import kinuvo.ui.design.*
 import kotlinx.coroutines.flow.Flow
+import androidx.compose.foundation.clickable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.text.TextStyle
+import kotlinx.coroutines.delay
+import kotlinx.datetime.TimeZone
+import kotlinx.datetime.toLocalDateTime
+import kotlin.time.Clock
+import kotlin.time.TimeSource
 
 /** How the open page's reveal.js deck talks to the app: its [onMessage]s in, [commands] out, and [onStep] to move it. */
 class DeckControls(val onMessage: (String) -> Unit, val onStep: (Boolean) -> Unit, val commands: Flow<String>)
@@ -29,16 +42,13 @@ internal fun DeckRemote(deck: DeckStatus, onStep: (Boolean) -> Unit, modifier: M
     Column(modifier.background(color(backgroundColor)).padding(Spacing.space12), verticalArrangement = Arrangement.spacedBy(Spacing.space10)) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.space8)) {
             Text("Slide ${deck.number} of ${deck.total}", Modifier.weight(1f), fontWeight = FontWeight.SemiBold)
+            PresentTimer()
             Pill("Synced", tone = Tone.Success, icon = Lucide.Radio)
         }
         Box(Modifier.weight(1f).fillMaxWidth().clip(RoundedCornerShape(Radius.menu)).background(color(subtleColor))) {
-            SelectionContainer {
-                Text(
-                    deck.notes.ifEmpty { "No notes for this slide." },
-                    Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(Spacing.space12),
-                    style = TextStyles.callout,
-                    color = color(if (deck.notes.isEmpty()) mutedColor else onBackgroundColor),
-                )
+            if (deck.notes.isEmpty()) Text("No notes for this slide.", Modifier.padding(Spacing.space12), style = TextStyles.callout, color = color(mutedColor))
+            else SelectionContainer {
+                Markdown(deck.notes, Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(Spacing.space12), markdownTextStyle().copy(fontSize = TextStyles.callout.fontSize))
             }
         }
         Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(Spacing.space2)) {
@@ -61,5 +71,26 @@ internal fun DeckRemote(deck: DeckStatus, onStep: (Boolean) -> Unit, modifier: M
                 Icon(Lucide.ChevronRight, Modifier.size(20.dp), contentDescription = null)
             }
         }
+    }
+}
+
+/** Like reveal.js's speaker view: time since the panel opened, which a tap restarts, and the time of day. */
+@Composable
+private fun PresentTimer() {
+    var started by remember { mutableStateOf(TimeSource.Monotonic.markNow()) }
+    var now by remember { mutableStateOf(Clock.System.now()) }
+    LaunchedEffect(Unit) { while (true) { delay(1000 - now.toEpochMilliseconds() % 1000); now = Clock.System.now() } }
+    val elapsed = now.let { started.elapsedNow().inWholeSeconds }
+    val clock = now.toLocalDateTime(TimeZone.currentSystemDefault())
+    fun two(n: Long) = n.toString().padStart(2, '0')
+    val digits = TextStyle(fontFeatureSettings = "tnum")
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.space6)) {
+        Text(
+            (if (elapsed >= 3600) "${elapsed / 3600}:${two(elapsed / 60 % 60)}" else "${elapsed / 60}") + ":${two(elapsed % 60)}",
+            Modifier.clip(RoundedCornerShape(Radius.menu)).clickable(role = Role.Button, onClickLabel = "Restart the timer") { started = TimeSource.Monotonic.markNow() }
+                .padding(horizontal = Spacing.space4),
+            style = digits, fontWeight = FontWeight.SemiBold,
+        )
+        Text("${two(clock.hour.toLong())}:${two(clock.minute.toLong())}", style = TextStyles.caption.merge(digits), color = color(mutedColor))
     }
 }

@@ -24,7 +24,7 @@ import kotlin.test.Test
 /** The presenter panel, rendered to `build/screens/deck-remote-*.png`. */
 class DeckRemoteScreenshotTest {
     private val out = File("build/screens").apply { mkdirs() }
-    private val notes = "Open with the problem: the talk runs on one deck and two screens.\n\n• Mention the demo is live\n• Pause for questions after the second slide\n\n" + "Keep going about the sandbox and the Server. ".repeat(12)
+    private val notes = "Open with the problem: **the talk runs on one deck and two screens.**\n\n- Mention the demo is _live_\n- Pause for questions after the second slide\n\n" + "Keep going about the sandbox and the Server. ".repeat(12)
     private val deck = DeckStatus(DeckPosition(2, 0, null), 3, 14, notes, DeckSlide("Live demo", "Phone drives the desktop deck while notes follow along"))
 
     @Test fun renderDeckRemote() {

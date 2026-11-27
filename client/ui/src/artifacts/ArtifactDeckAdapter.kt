@@ -2,7 +2,7 @@ package kinuvo.ui.artifacts
 
 /**
  * Runs in the artifact's frame and does nothing unless the page has a reveal.js deck (`window.Reveal`, found once it is ready). It
- * reports the slide position, the current slide's speaker notes as text and the next slide to the app, and applies positions and
+ * reports the slide position, the current slide's speaker notes as Markdown and the next slide to the app, and applies positions and
  * steps the app sends. A position it applied is remembered, so reveal's events for it are not reported as changes. In a browser tab,
  * where the page is its own parent, it stays off, so the speaker view there is untouched.
  * Once it syncs, a phone-width deck leaves reveal's scroll view, whose fragments follow the scroll position rather than steps.
@@ -10,8 +10,18 @@ package kinuvo.ui.artifacts
 internal const val DECK_ADAPTER = """(function(){if(parent===window)return;
 var last=null,tries=0;
 function key(h,v,f){return h+","+(v||0)+","+(f==null?-1:f)}
-function plain(html){var d=document.createElement("div");d.innerHTML=String(html).replace(/<\/(p|li|h[1-6]|div|tr)>|<br\s*\/?>/gi,"$&\n");return d.textContent.replace(/\n{3,}/g,"\n\n").trim()}
-function notes(s){if(!s)return"";var n=s.getAttribute("data-notes");if(n)return n.trim();var a=s.querySelectorAll("aside.notes"),t=[];a.forEach(function(e){t.push(plain(e.innerHTML))});return t.join("\n\n")}
+function md(html){var d=document.createElement("div");d.innerHTML=String(html);
+function inl(n){return Array.prototype.map.call(n.childNodes,node).join("")}
+function wrap(m,t){t=t.trim();return t?m+t+m:""}
+function node(n){if(n.nodeType===3)return n.nodeValue.replace(/\s+/g," ");if(n.nodeType!==1)return"";var t=n.tagName.toLowerCase();
+if(t==="br")return"\\\n";if(t==="strong"||t==="b")return wrap("**",inl(n));if(t==="em"||t==="i")return wrap("_",inl(n));if(t==="code")return wrap("`",n.textContent);
+if(t==="a"){var h=n.getAttribute("href");return h?"["+inl(n).trim()+"]("+h+")":inl(n)}
+if(/^h[1-6]$/.test(t))return"\n\n"+"#".repeat(+t[1])+" "+inl(n).trim()+"\n\n";
+if(t==="ul"||t==="ol"){var i=0;return"\n\n"+Array.prototype.filter.call(n.children,function(c){return c.tagName==="LI"}).map(function(c){i++;return(t==="ol"?i+". ":"- ")+inl(c).trim()}).join("\n")+"\n\n"}
+if(t==="blockquote")return"\n\n"+inl(n).trim().split("\n").map(function(l){return"> "+l}).join("\n")+"\n\n";
+if(t==="p"||t==="div"||t==="li"||t==="tr")return"\n\n"+inl(n).trim()+"\n\n";return inl(n)}
+return inl(d).replace(/[ \t]+\n/g,"\n").replace(/\n{3,}/g,"\n\n").trim()}
+function notes(s){if(!s)return"";var n=s.getAttribute("data-notes");if(n)return n.trim();var a=s.querySelectorAll("aside.notes"),t=[];a.forEach(function(e){t.push(/<[a-z][\s\S]*>/i.test(e.innerHTML)?md(e.innerHTML):e.textContent.trim())});return t.join("\n\n")}
 function body(s){var c=s.cloneNode(true);c.querySelectorAll("aside.notes,section").forEach(function(e){e.remove()});return c}
 function summary(s){if(!s)return null;var c=body(s),h=c.querySelector("h1,h2,h3,h4,h5,h6"),title=h?h.textContent.trim():"";if(h)h.remove();
 var text=c.textContent.replace(/\s+/g," ").trim();return{title:title,text:text.slice(0,140)}}
