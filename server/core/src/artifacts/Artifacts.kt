@@ -10,7 +10,11 @@ import kinuvo.protocol.artifact.ArtifactFile
 import kinuvo.protocol.artifact.ArtifactFileChunk
 import kinuvo.protocol.artifact.ArtifactFiles
 import kinuvo.protocol.artifact.ArtifactInfo
+import kinuvo.protocol.artifact.ArtifactCapabilities
+import kinuvo.protocol.artifact.ArtifactGrantChange
 import kinuvo.protocol.artifact.ArtifactManifest
+import kinuvo.protocol.artifact.ArtifactNetwork
+import kinuvo.protocol.artifact.ArtifactPermissions
 import kinuvo.protocol.agent.AgentId
 import kinuvo.protocol.session.SessionId
 import kinuvo.protocol.artifact.Design
@@ -41,6 +45,12 @@ interface ArtifactRepository {
     suspend fun readFile(id: String, path: String, offset: Long = 0, length: Int = Int.MAX_VALUE): ByteArray?
     suspend fun writeFile(id: String, path: String, bytes: ByteArray)
     suspend fun deleteFile(id: String, path: String): Boolean
+
+    /** What the owner granted [id]; null when nothing. */
+    suspend fun grants(id: String): ArtifactGrantRecord?
+
+    /** Keeps [record] as [id]'s grants, or forgets them for null. */
+    suspend fun saveGrants(id: String, record: ArtifactGrantRecord?)
 }
 
 /** The Artifacts every Agent shares; saving one replaces its content. Reads take the lock too, so they never see half a save. */
@@ -143,6 +153,7 @@ class Artifacts(private val repo: ArtifactRepository, private val clock: () -> L
         if (!old.info.bundle && ArtifactBundle.INDEX !in files) repo.writeFile(id, ArtifactBundle.INDEX, old.content.encodeToByteArray())
         written.forEach { (path, bytes) -> repo.writeFile(id, path, bytes) }
         forget(id, written.keys)
+        if (ArtifactBundle.MANIFEST in written) prune(id)
         touched(old.info, agentId, sessionId)
     }
 
@@ -153,7 +164,51 @@ class Artifacts(private val repo: ArtifactRepository, private val clock: () -> L
         require(path != entryOf(id)) { "'$path' is the entry page; replace it instead" }
         check(repo.deleteFile(id, ArtifactBundle.safePath(path))) { "No file '$path' in '$id'" }
         forget(id, setOf(path))
+        if (path == ArtifactBundle.MANIFEST) prune(id)
         touched(old.info, agentId, sessionId)
+    }
+
+    /** What the manifest of [id] asks for, and what its owner allowed; an Artifact without a manifest asks for nothing. */
+    suspend fun permissions(id: String): ArtifactPermissions = lock.withLock { permissionsOf(find(id).info) }
+
+    /** Applies [change] to what the owner granted [id] on behalf of the Device [deviceId], and tells every Device. Only what the manifest asks for can be granted. */
+    suspend fun changeGrants(id: String, change: ArtifactGrantChange, deviceId: String?, deviceName: String?): ArtifactPermissions = lock.withLock {
+        val info = find(id).info
+        val requested = requestedOf(info)
+        val add = change.grant.cleaned()
+        require(add.network.all { it in requested.network }) { "The artifact doesn't ask for network access to ${add.network.first { it !in requested.network }}" }
+        require(!add.popups || requested.popups) { "The artifact doesn't ask for pop-ups" }
+        require(!add.storage || requested.storage) { "The artifact doesn't ask for storage" }
+        require(add.tools.all { it in requested.tools }) { "The artifact doesn't ask for the tool ${add.tools.first { it !in requested.tools }}" }
+        val start = when (change.all) {
+            true -> requested
+            false -> NONE
+            null -> repo.grants(id)?.granted ?: NONE
+        }
+        val granted = (start + add) - change.revoke.copy(network = change.revoke.network.map { ArtifactNetwork.origin(it) ?: it })
+        keepGrants(id, granted, deviceId, deviceName)
+        notify(ArtifactChange(id, info))
+        permissionsOf(info)
+    }
+
+    private suspend fun permissionsOf(info: ArtifactInfo): ArtifactPermissions {
+        val requested = requestedOf(info)
+        val record = repo.grants(info.id)
+        val granted = record?.granted ?: NONE
+        return ArtifactPermissions(info.id, requested, granted, effective(requested, granted), record?.at, record?.by, record?.byName)
+    }
+
+    private suspend fun requestedOf(info: ArtifactInfo): ArtifactCapabilities =
+        if (info.bundle) manifestOf(info.id)?.capabilities?.cleaned() ?: NONE else NONE
+
+    private suspend fun keepGrants(id: String, granted: ArtifactCapabilities, deviceId: String?, deviceName: String?) =
+        repo.saveGrants(id, if (granted == NONE) null else ArtifactGrantRecord(granted, clock(), deviceId, deviceName))
+
+    /** Drops grants the manifest no longer asks for, so asking again later needs a new grant. */
+    private suspend fun prune(id: String) {
+        val record = repo.grants(id) ?: return
+        val kept = effective(requestedOf(find(id).info), record.granted)
+        if (kept != record.granted) repo.saveGrants(id, if (kept == NONE) null else record.copy(granted = kept))
     }
 
     private suspend fun touched(info: ArtifactInfo, agentId: AgentId, sessionId: SessionId?): ArtifactInfo =
@@ -186,6 +241,8 @@ class Artifacts(private val repo: ArtifactRepository, private val clock: () -> L
         }
         ArtifactBundle.safePath(manifest.entry)
         require(manifest.entry.substringAfterLast('.').lowercase() in setOf("html", "htm")) { "The entry page must be an .html file" }
+        ArtifactNetwork.checked(manifest.capabilities.network)
+        require(manifest.capabilities.tools.size <= MAX_TOOLS && manifest.capabilities.tools.all { it.isNotBlank() && it.length <= 64 }) { "An artifact may ask for at most $MAX_TOOLS tools, each named in up to 64 characters" }
         return manifest
     }
 
@@ -219,6 +276,7 @@ class Artifacts(private val repo: ArtifactRepository, private val clock: () -> L
     suspend fun delete(id: String) = lock.withLock {
         check(repo.delete(id)) { "No artifact '$id'" }
         hashes.keys.removeAll { it.startsWith("$id/") }
+        repo.saveGrants(id, null)
         states.clear(id)
         notify(ArtifactChange(id))
     }
@@ -249,6 +307,7 @@ class Artifacts(private val repo: ArtifactRepository, private val clock: () -> L
         val TYPES = listOf("html", "svg", "md", "csv", "json", "txt", "design")
         private val json = Json { ignoreUnknownKeys = true }
         const val MAX_SIDE = 10_000
+        private const val MAX_TOOLS = 32
         const val MAX_CHARS = ARTIFACT_MAX_CHARS
         private const val OCTET = "application/octet-stream"
 

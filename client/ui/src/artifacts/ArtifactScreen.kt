@@ -50,7 +50,9 @@ import com.composables.ui.components.*
 import com.composables.ui.theme.*
 import kinuvo.ui.rememberOpenInBrowser
 import kinuvo.protocol.agent.AgentInfo
+import kinuvo.protocol.artifact.ArtifactCapabilities
 import kinuvo.protocol.artifact.ArtifactData
+import kinuvo.protocol.artifact.ArtifactPermissions
 import kinuvo.protocol.agent.AgentId
 import kinuvo.protocol.session.SessionId
 import kinuvo.ui.design.*
@@ -73,6 +75,10 @@ class ArtifactsActions(
     val onSaveDesign: (String) -> Unit = {},
     /** Reads one file of an Artifact folder, by Artifact id and path. */
     val onReadFile: suspend (String, String) -> ByteArray? = { _, _ -> null },
+    /** Grants everything the open Artifact asks for, or takes every grant back. */
+    val onAllowAll: (Boolean) -> Unit = {},
+    val onGrant: (ArtifactCapabilities) -> Unit = {},
+    val onRevoke: (ArtifactCapabilities) -> Unit = {},
     /** In the Side panel: its header closes the tab and expands it to the Artifacts page. */
     val onClose: (() -> Unit)? = null,
     val onExpand: (() -> Unit)? = null,
@@ -144,6 +150,7 @@ private fun ArtifactList(state: ArtifactsState, agents: List<AgentInfo>, now: Lo
 @Composable
 private fun ArtifactPane(state: ArtifactsState, agents: List<AgentInfo>, now: Long, actions: ArtifactsActions, back: (() -> Unit)?, deck: DeckControls?) {
     val data = state.open?.takeIf { it.info.id == state.route.artifact }
+    val permissions = state.permissions?.takeIf { it.id == data?.info?.id && it.asking }
     val editing = state.draft != null
     val leave = if (state.route.fullScreen && actions.onClose == null) ({ actions.onFullScreen(false) }) else null
     val focus = remember { androidx.compose.ui.focus.FocusRequester() }
@@ -190,6 +197,7 @@ private fun ArtifactPane(state: ArtifactsState, agents: List<AgentInfo>, now: Lo
                 HtmlView(
                     data.info.page(data.content), page, fade = if (hiding) null else color(backgroundColor), deck = deck, artifact = data.info.id,
                     bundle = state.files?.takeIf { data.info.bundle && it.id == data.info.id }?.let { files -> BundleSource(files) { path -> actions.onReadFile(files.id, path) } },
+                    access = ArtifactAccess.of(permissions?.effective),
                 )
                 if (remoting && shownDeck != null && deck != null) {
                     if (wide) Row(Modifier.align(Alignment.TopEnd).fillMaxHeight()) {
@@ -234,7 +242,7 @@ private fun ArtifactPane(state: ArtifactsState, agents: List<AgentInfo>, now: Lo
                     if (shownDeck != null) HeaderButton(Lucide.Presentation, if (remote) "Stop presenting" else "Present from this device", { remote = !remote }, selected = remote)
                     if (!data.info.isDesign) HeaderButton(Lucide.Pencil, "Edit", actions.onEdit)
                     data.info.sessionId?.let { s -> HeaderButton(Lucide.MessageSquare, "Open the chat", { actions.onOpenSession(data.info.agentId, s) }) }
-                    ArtifactMenu(data, agents, now, state.route.fullScreen, actions)
+                    ArtifactMenu(data, agents, now, state.route.fullScreen, actions, permissions, state.canGrant)
                 }
                 Icon(data?.info?.type?.icon() ?: Lucide.Shapes, Modifier.padding(start = Spacing.space6).size(16.dp), tint = color(mutedColor))
                 Text(data?.info?.title ?: "Artifact", Modifier.weight(1f).padding(start = Spacing.space4), singleLine = true, overflow = TextOverflow.Ellipsis)
@@ -261,7 +269,7 @@ private fun ArtifactPane(state: ArtifactsState, agents: List<AgentInfo>, now: Lo
                     if (shownDeck != null) FloatingToggle(Lucide.Presentation, if (remote) "Stop presenting" else "Present from this device", remote) { remote = !remote }
                     if (data.info.isDesign.not()) FloatingButton(Lucide.Pencil, "Edit", actions.onEdit)
                     data.info.sessionId?.let { s -> FloatingButton(Lucide.MessageSquare, "Open the chat", { actions.onOpenSession(data.info.agentId, s) }) }
-                    ArtifactMenu(data, agents, now, state.route.fullScreen, actions)
+                    ArtifactMenu(data, agents, now, state.route.fullScreen, actions, permissions, state.canGrant)
                 }
             }
         } } }
@@ -301,9 +309,10 @@ internal fun FloatingToggle(icon: ImageVector, label: String, active: Boolean, o
 
 @Suppress("DEPRECATION")
 @Composable
-private fun ArtifactMenu(data: ArtifactData, agents: List<AgentInfo>, now: Long, full: Boolean, actions: ArtifactsActions) {
+private fun ArtifactMenu(data: ArtifactData, agents: List<AgentInfo>, now: Long, full: Boolean, actions: ArtifactsActions, permissions: ArtifactPermissions?, canGrant: Boolean) {
     var open by remember { mutableStateOf(false) }
     var asking by remember { mutableStateOf(false) }
+    var permitting by remember { mutableStateOf(false) }
     val browser = rememberOpenInBrowser()
     val dark = LocalColorScheme.current == ColorScheme.Dark
     val clipboard = LocalClipboardManager.current
@@ -320,12 +329,21 @@ private fun ArtifactMenu(data: ArtifactData, agents: List<AgentInfo>, now: Long,
                 HorizontalSeparator()
                 if (actions.onExpand == null) MenuAction(if (full) Lucide.Minimize2 else Lucide.Maximize2, if (full) "Exit full screen" else "Full screen") { open = false; actions.onFullScreen(!full) }
                 if (browser != null && info.web && !info.bundle) MenuAction(Lucide.ExternalLink, "Open in browser") { open = false; browser(browserDocument(info.page(data.content), dark)) }
+                if (permissions != null) MenuAction(if (permissions.pending) Lucide.ShieldAlert else Lucide.ShieldCheck, if (permissions.pending) "Permissions (asked for)" else "Permissions") { open = false; permitting = true }
                 MenuAction(Lucide.Copy, "Copy source") { open = false; clipboard.setText(AnnotatedString(data.content)) }
                 HorizontalSeparator()
                 MenuAction(Lucide.Trash2, "Delete", destructive = true) { open = false; asking = true }
             }
         },
-    ) { FloatingButton(Lucide.Ellipsis, "More", { open = true }) }
+    ) {
+        Box {
+            FloatingButton(Lucide.Ellipsis, "More", { open = true })
+            if (permissions?.pending == true && canGrant) Box(Modifier.align(Alignment.TopEnd).padding(top = 6.dp, end = 6.dp).size(8.dp).background(color(accentColor), CircleShape))
+        }
+    }
+    if (permissions != null) Popover(permitting, { permitting = false }, "Permissions") {
+        ArtifactPermissionsPanel(permissions, canGrant, now, PermissionActions(actions.onAllowAll, actions.onGrant, actions.onRevoke))
+    }
     ConfirmPopover(asking, "Delete this artifact?", info.title, "Delete", true, { asking = false }) { asking = false; actions.onDelete(info.id) }
 }
 

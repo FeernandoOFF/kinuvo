@@ -8,6 +8,11 @@ internal fun RouteBuilder.artifactRoutes() {
     device(Api.Artifact) { server.artifacts.get(it.id) }
     device(Api.ArtifactFileList) { server.artifacts.files(it.id) }
     device(Api.ArtifactFileRead) { server.artifacts.readFile(it.id, it.path, it.offset, it.length) }
+    device(Api.ArtifactPermissionList) { server.artifacts.permissions(it.id) }
+    handle(Api.ChangeArtifactGrants) { change ->
+        val device = caller.deviceId
+        server.artifacts.changeGrants(change.id, change, device, caller.pairedDevices().firstOrNull { it.id == device }?.name)
+    }
     handle(Api.SaveArtifact) { server.artifacts.replace(it.id, it.content) }
     handle(Api.DeleteArtifact) { server.artifacts.delete(it.id) }
     // Ordered, so a presenter's quick taps reach the other Devices in the order they were made.

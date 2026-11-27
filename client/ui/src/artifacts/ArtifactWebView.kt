@@ -29,9 +29,10 @@ internal fun pageDelivery(message: String) = "window.kinuvoReceive&&window.kinuv
  * The platform's own web view showing [html]; one file per platform, so the engine can change in one place. [channel] reaches the page from
  * the app. With [editing] the view leaves panning, zooming and focus to the page, as the editors want; a page that only reports keeps them.
  * With an [origin], the view also serves its site and blocks navigation anywhere else, where [html] is the page that frames it.
+ * With [popups] the page may open windows: the Artifact's own pages in the app, other links in the browser.
  */
 @Composable
-internal expect fun WebView(html: String, modifier: Modifier = Modifier, onMessage: ((String) -> Unit)? = null, channel: PageChannel? = null, editing: Boolean = onMessage != null, origin: ArtifactOrigin? = null)
+internal expect fun WebView(html: String, modifier: Modifier = Modifier, onMessage: ((String) -> Unit)? = null, channel: PageChannel? = null, editing: Boolean = onMessage != null, origin: ArtifactOrigin? = null, popups: Boolean = false)
 
 /** Whether [WebView] can pass a message from the page, which visual editing needs. */
 internal expect val visualEditing: Boolean
@@ -44,9 +45,10 @@ internal class BundleSource(val files: ArtifactFiles, val read: suspend (String)
  * With [deck], a reveal.js deck in the page is shared through it; only where the web view can pass the page's messages on.
  * With an [artifact] id the page runs at an origin of its own where the platform has one, with real Web Storage; otherwise in a sandboxed frame.
  * With a [bundle] that origin also serves the rest of the folder, fetched when a page asks, with [html] its entry page.
+ * [access] is what the owner granted the page; changing it reloads the page under the new policy.
  */
 @Composable
-internal fun HtmlView(html: String, modifier: Modifier = Modifier, fade: Color? = null, deck: DeckControls? = null, artifact: String? = null, bundle: BundleSource? = null) = key(artifact) {
+internal fun HtmlView(html: String, modifier: Modifier = Modifier, fade: Color? = null, deck: DeckControls? = null, artifact: String? = null, bundle: BundleSource? = null, access: ArtifactAccess = ArtifactAccess.None) = key(artifact) {
     val sync = deck != null && visualEditing
     val dark = LocalColorScheme.current == ColorScheme.Dark
     val channel = remember { PageChannel() }
@@ -54,26 +56,32 @@ internal fun HtmlView(html: String, modifier: Modifier = Modifier, fade: Color? 
     LaunchedEffect(deck, channel) { if (sync) deck?.commands?.collect { channel.send(it) } }
     val native = LocalNativeViews.current
     val read by rememberUpdatedState(bundle?.read)
-    val site = remember(artifact, html, dark, sync, native, bundle?.files) {
+    val site = remember(artifact, html, dark, sync, native, bundle?.files, access) {
         artifact?.takeIf { native && originId(it) }?.let { id ->
-            val page = originPage(html, dark, sync)
-            if (bundle == null) ArtifactSite.page(id, page) else ArtifactSite.folder(id, bundle.files, page) { path -> read?.invoke(path) }
+            val page = originPage(html, dark, sync, access)
+            if (bundle == null) ArtifactSite.page(id, page, access) else ArtifactSite.folder(id, bundle.files, page, access) { path -> read?.invoke(path) }
         }
     }
     val origin = rememberArtifactOrigin(site)
     val url = origin?.url
-    val page = remember(url, html, fade, dark, sync) { if (url != null) originDocument(url, fade, sync) else artifactDocument(html, fade, dark, sync) }
-    WebView(page, modifier, if (sync) { text -> receive?.invoke(text) } else null, if (sync) channel else null, editing = false, origin = origin)
+    val page = remember(url, html, fade, dark, sync, access) { if (url != null) originDocument(url, fade, sync, access.popups) else artifactDocument(html, fade, dark, sync, access) }
+    WebView(page, modifier, if (sync) { text -> receive?.invoke(text) } else null, if (sync) channel else null, editing = false, origin = origin, popups = origin != null && access.popups)
 }
 
 /**
  * The Content-Security-Policy an Artifact page is held to: [script] sources, [remote] sources for styles, images and fonts, and [frames] it may embed.
  * A page at an origin of its own ([own]) may also load and fetch the files of its own folder, `'self'`, which reaches no other host.
+ * The origins [access] grants add to `connect-src`, which fetch, XHR, WebSocket and EventSource obey, and the https ones to `media-src`;
+ * styles, images, fonts and scripts already load from any https host, so nothing else widens. A window the page may open (popups) may embed
+ * the Artifact's own pages, as reveal.js's speaker view does with the deck, which is `'self'` and reaches no other host.
  */
-internal fun artifactPolicy(script: String = ARTIFACT_SCRIPTS, remote: String = " https:", frames: String = "", own: Boolean = false): String {
+internal fun artifactPolicy(script: String = ARTIFACT_SCRIPTS, remote: String = " https:", frames: String = "", own: Boolean = false, access: ArtifactAccess = ArtifactAccess.None): String {
     val self = if (own) " 'self'" else ""
+    val connect = (if (own) listOf("'self'") else emptyList()) + access.network
+    val media = access.https.joinToString("") { " $it" }
+    val framing = if (own && access.popups && "'self'" !in frames) "$frames 'self'".trim() else frames
     return "default-src 'none'; script-src $script${if (own) " 'self' 'wasm-unsafe-eval'" else ""}; style-src 'unsafe-inline'$self$remote; img-src$self data: blob:$remote; " +
-        "font-src$self data:$remote; media-src$self data: blob:;${if (own) " connect-src 'self';" else ""}${if (frames.isEmpty()) "" else " frame-src $frames;"} form-action 'none'; base-uri 'none'"
+        "font-src$self data:$remote; media-src$self data: blob:$media;${if (connect.isEmpty()) "" else " connect-src ${connect.joinToString(" ")};"}${if (framing.isEmpty()) "" else " frame-src $framing;"} form-action 'none'; base-uri 'none'"
 }
 
 private const val ARTIFACT_SCRIPTS = "'unsafe-inline' 'unsafe-eval' https:"
@@ -84,8 +92,8 @@ private const val ARTIFACT_SCRIPTS = "'unsafe-inline' 'unsafe-eval' https:"
  * marked tags when it saves. [remote] lists the sources styles, images and fonts may also load from; empty blocks the network entirely.
  * With [origin] the page is served from an origin of its own, which has the Web Storage [STORAGE_SHIM] stands in for.
  */
-internal fun sandboxed(html: String, script: String = ARTIFACT_SCRIPTS, remote: String = " https:", dark: Boolean? = null, frames: String = "", deck: Boolean = false, origin: Boolean = false) =
-    "<!doctype html><html><head><meta data-kinuvo-editor charset=\"utf-8\"><meta data-kinuvo-editor http-equiv=\"Content-Security-Policy\" content=\"${artifactPolicy(script, remote, frames, origin)}\">${dark?.let(::themeHint).orEmpty()}${if ("'unsafe-inline'" in script) "<script data-kinuvo-editor>$ESCAPE_RELAY$HISTORY_SHIM${if (origin) "" else STORAGE_SHIM}${if (deck) DECK_ADAPTER else ""}</script>" else ""}</head>${html.replace(EDITOR_POLICY, "")}"
+internal fun sandboxed(html: String, script: String = ARTIFACT_SCRIPTS, remote: String = " https:", dark: Boolean? = null, frames: String = "", deck: Boolean = false, origin: Boolean = false, access: ArtifactAccess = ArtifactAccess.None) =
+    "<!doctype html><html><head><meta data-kinuvo-editor charset=\"utf-8\"><meta data-kinuvo-editor http-equiv=\"Content-Security-Policy\" content=\"${artifactPolicy(script, remote, frames, origin, access)}\">${dark?.let(::themeHint).orEmpty()}${if ("'unsafe-inline'" in script) "<script data-kinuvo-editor>$ESCAPE_RELAY$HISTORY_SHIM${if (origin) "" else STORAGE_SHIM}${if (deck) DECK_ADAPTER else ""}</script>" else ""}</head>${html.replace(EDITOR_POLICY, "")}"
 
 /** Opaque frames have the app's base URL, so history calls with a URL (reveal.js `hash: true`) throw; they keep the state and drop the URL instead. */
 private const val HISTORY_SHIM = "['pushState','replaceState'].forEach(function(n){var f=history[n].bind(history);history[n]=function(s,t,u){try{return f(s,t,u)}catch(e){return f(s,t)}}});"
@@ -105,14 +113,14 @@ private val EDITOR_POLICY = Regex("<meta http-equiv=\"Content-Security-Policy\" 
 /** The artifact as its own page for the system browser, where it may frame itself, as reveal.js speaker notes do. */
 internal fun browserDocument(html: String, dark: Boolean) = sandboxed(html, dark = dark, frames = "'self' file: blob: data:")
 
-internal fun artifactDocument(html: String, fade: Color? = null, dark: Boolean? = null, deck: Boolean = false) =
-    framed(sandboxed(html, dark = dark, deck = deck), shellExtras(fade, deck))
+internal fun artifactDocument(html: String, fade: Color? = null, dark: Boolean? = null, deck: Boolean = false, access: ArtifactAccess = ArtifactAccess.None) =
+    framed(sandboxed(html, dark = dark, deck = deck, access = access), shellExtras(fade, deck))
 
 /** What [openOrigin] serves for an Artifact: its page under the same policy, in the document the frame at the origin loads. */
-internal fun originPage(html: String, dark: Boolean, deck: Boolean) = sandboxed(html, dark = dark, deck = deck, origin = true)
+internal fun originPage(html: String, dark: Boolean, deck: Boolean, access: ArtifactAccess = ArtifactAccess.None) = sandboxed(html, dark = dark, deck = deck, origin = true, access = access)
 
-/** The page that frames the Artifact served at [url]; it has no origin of the Artifact's, nor the app's. */
-internal fun originDocument(url: String, fade: Color? = null, deck: Boolean = false) = framedAt(url, shellExtras(fade, deck))
+/** The page that frames the Artifact served at [url]; it has no origin of the Artifact's, nor the app's. With [popups] the frame may open windows. */
+internal fun originDocument(url: String, fade: Color? = null, deck: Boolean = false, popups: Boolean = false) = framedAt(url, shellExtras(fade, deck), popups = popups)
 
 private fun shellExtras(fade: Color?, deck: Boolean) = fade?.let(::topFade).orEmpty() + if (deck) deckWrapper() else ""
 
@@ -135,8 +143,8 @@ internal fun framed(inner: String, extra: String = "", viewport: String = "width
     shell("srcdoc=\"${attr(inner)}\"", extra, viewport, sandbox)
 
 /** The frame loads [url] and keeps the origin it is served from, so its page has real storage; `allow-same-origin` is safe because nothing around the frame shares that origin. */
-internal fun framedAt(url: String, extra: String = "", viewport: String = "width=device-width,initial-scale=1") =
-    shell("src=\"${attr(url)}\"", extra, viewport, "allow-scripts allow-same-origin")
+internal fun framedAt(url: String, extra: String = "", viewport: String = "width=device-width,initial-scale=1", popups: Boolean = false) =
+    shell("src=\"${attr(url)}\"", extra, viewport, if (popups) "allow-scripts allow-same-origin allow-popups" else "allow-scripts allow-same-origin")
 
 private fun shell(source: String, extra: String, viewport: String, sandbox: String) =
     "<!doctype html><html><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"$viewport\"></head>" +

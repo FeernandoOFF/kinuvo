@@ -44,6 +44,10 @@ data class ArtifactsState(
     val deck: DeckStatus? = null,
     /** The files of the open Artifact when it is a folder ([ArtifactInfo.bundle]). */
     val files: ArtifactFiles? = null,
+    /** What the open folder asks for and was granted; null for any other Artifact, or on a Server that predates grants. */
+    val permissions: ArtifactPermissions? = null,
+    /** This Device may change grants, which needs management access. */
+    val canGrant: Boolean = false,
 ) {
     /** The open Artifact changed since editing began. */
     val stale get() = draft != null && open != null && open.info.updated != draft.base
@@ -125,6 +129,23 @@ class ArtifactsViewModel(route: Route.Artifacts, private val owner: ConnectedSer
         viewModelScope.launch { attempt { client.call(Api.DeleteArtifact, ArtifactRef(id)) } }
     }
 
+    /** Grants everything the open Artifact asks for, or takes every grant back. */
+    fun allowAll(on: Boolean) = changeGrants { ArtifactGrantChange(it, all = on) }
+
+    fun grant(capabilities: ArtifactCapabilities) = changeGrants { ArtifactGrantChange(it, grant = capabilities) }
+
+    fun revoke(capabilities: ArtifactCapabilities) = changeGrants { ArtifactGrantChange(it, revoke = capabilities) }
+
+    private fun changeGrants(change: (String) -> ArtifactGrantChange) {
+        val id = state.value.open?.info?.id ?: return
+        viewModelScope.launch {
+            attempt {
+                val permissions = client.call(Api.ChangeArtifactGrants, change(id))
+                state.update { if (it.open?.info?.id == id) it.copy(permissions = permissions, errors = emptyList()) else it }
+            }
+        }
+    }
+
     fun edit() = state.update { s -> s.open?.let { s.copy(draft = ArtifactDraft(it.content, it.info.updated), errors = emptyList()) } ?: s }
 
     fun change(text: String) = state.update { if (it.draft != null) it.copy(draft = it.draft.copy(text = text)) else it }
@@ -176,10 +197,15 @@ class ArtifactsViewModel(route: Route.Artifacts, private val owner: ConnectedSer
                 val id = state.value.route.artifact
                 val open = id?.takeIf { all.any { a -> a.id == it } }?.let { client.call(Api.Artifact, ArtifactRef(it)) }
                 val files = open?.takeIf { it.info.bundle }?.let { client.call(Api.ArtifactFileList, ArtifactRef(it.info.id)) }
-                state.update { it.copy(all = all, open = open, files = files, missing = id != null && open == null, draft = it.draft.takeIf { _ -> open?.info?.id == it.open?.info?.id }, deck = it.deck.takeIf { open != null }) }
+                val permissions = open?.takeIf { it.info.bundle }?.let { permissionsOf(it.info.id) }
+                state.update { it.copy(all = all, open = open, files = files, permissions = permissions, canGrant = client.lastConnect?.management == true, missing = id != null && open == null, draft = it.draft.takeIf { _ -> open?.info?.id == it.open?.info?.id }, deck = it.deck.takeIf { open != null }) }
             }
         }
     }
+
+    /** A Server that predates grants has no such method, and then nothing is asked for or enforced. */
+    private suspend fun permissionsOf(id: String): ArtifactPermissions? =
+        try { client.call(Api.ArtifactPermissionList, ArtifactRef(id)) } catch (e: CancellationException) { throw e } catch (_: Exception) { null }
 
     /** The whole of [path] in the Artifact folder [id], read in chunks; null when the Server has no such file. */
     suspend fun readFile(id: String, path: String): ByteArray? = owner.run {

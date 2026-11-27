@@ -12,6 +12,7 @@ import kinuvo.server.plugin.readTextOrNull
 import kinuvo.server.plugin.size
 import kinuvo.server.plugin.writeAtomically
 import kinuvo.protocol.artifact.ArtifactBundle
+import kinuvo.server.artifacts.ArtifactGrantRecord
 import kinuvo.server.artifacts.ArtifactRepository
 import kinuvo.protocol.artifact.ArtifactData
 import kinuvo.protocol.artifact.ArtifactInfo
@@ -21,7 +22,7 @@ import kotlinx.serialization.json.Json
 
 /**
  * `<id>.meta.json` with the details next to `<id>.<type>` with the content, in one folder; IDs have no dots, so names never clash.
- * A bundle keeps its files in a folder `<id>/` instead of `<id>.<type>`.
+ * A bundle keeps its files in a folder `<id>/` instead of `<id>.<type>`. What the owner granted it is `<id>.grants.json`.
  */
 class FileArtifacts(private val dir: Path) : ArtifactRepository {
     private val json = Json { ignoreUnknownKeys = true; prettyPrint = true }
@@ -86,6 +87,16 @@ class FileArtifacts(private val dir: Path) : ArtifactRepository {
         return true
     }
 
+    override suspend fun grants(id: String): ArtifactGrantRecord? =
+        grantsFile(id)?.readTextOrNull()?.let { runCatching { json.decodeFromString(ArtifactGrantRecord.serializer(), it) }.getOrNull() }
+
+    override suspend fun saveGrants(id: String, record: ArtifactGrantRecord?) {
+        val file = grantsFile(id) ?: return
+        if (record == null) SystemFileSystem.delete(file, mustExist = false) else writeAtomically(file, json.encodeToString(ArtifactGrantRecord.serializer(), record))
+    }
+
+    private fun grantsFile(id: String) = id.takeIf { ID.matches(it) }?.let { Path(dir, "$it$GRANTS") }
+
     private fun folder(id: String) = id.takeIf { ID.matches(it) }?.let { Path(dir, it) }
 
     /** Null for paths that leave the folder, by name or through a link. */
@@ -103,5 +114,6 @@ class FileArtifacts(private val dir: Path) : ArtifactRepository {
     private companion object {
         val ID = Regex("[a-z0-9][a-z0-9-]*")
         const val META = ".meta.json"
+        const val GRANTS = ".grants.json"
     }
 }

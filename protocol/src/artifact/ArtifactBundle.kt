@@ -18,7 +18,7 @@ data class ArtifactManifest(
     val capabilities: ArtifactCapabilities = ArtifactCapabilities(),
 )
 
-/** What an Artifact asks the owner to allow. Every one defaults to denied and none is enforced yet. */
+/** What an Artifact asks the owner to allow, or what they allowed. Every one defaults to denied; `tools` is kept for the host bridge and enforces nothing yet. */
 @Serializable
 data class ArtifactCapabilities(
     /** Origins the page may reach, e.g. `https://api.example.com`. */
