@@ -625,7 +625,7 @@ fun KinuvoApp(app: AppViewModel = koinViewModel(), initialRoute: Route? = null, 
                 val sheet = compact && (inspecting?.open == true || settingsPages.isNotEmpty())
                 val blurEnabled = backdropBlurEnabled()
                 val blur by animateDpAsState(if (blurEnabled && (shell.quickChat || popovers.active || sheet)) 16.dp else 0.dp)
-                val edgeToEdge = top == Route.NewAgent || top == Route.Connect
+                val edgeToEdge = top == Route.NewAgent || top == Route.Connect || (top as? Route.Artifacts)?.fullScreen == true
                 val screenInsets = if (!edgeToEdge) WindowInsets.safeDrawing else WindowInsets(0)
                 val guardSemantics = if (inspecting?.guard != null || inspectorEdits.pending != null || homeEdits.pending != null) Modifier.clearAndSetSemantics {} else Modifier
                 val sheetSemantics = if (inspecting?.open == true || settingsPages.isNotEmpty()) Modifier.clearAndSetSemantics {} else Modifier

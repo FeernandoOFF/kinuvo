@@ -26,9 +26,22 @@ struct KinuvoApp: App {
             Group {
                 if ProcessInfo.processInfo.arguments.contains("--native-shell") {
                     NativeShell()
-                } else { KinuvoView().ignoresSafeArea() }
+                } else { ComposeApp() }
             }.task { CallActivityController.shared.start() }.onOpenURL { DeepLinksKt.openLink(url: $0.absoluteString) }
         }
+    }
+}
+
+private struct ComposeApp: View {
+    @State private var barsHidden = false
+    @State private var observation: StateObservation?
+
+    var body: some View {
+        KinuvoView().ignoresSafeArea()
+            .statusBarHidden(barsHidden)
+            .persistentSystemOverlays(barsHidden ? .hidden : .automatic)
+            .onAppear { observation = SystemBars_iosKt.observeSystemBarsHidden { barsHidden = $0.boolValue } }
+            .onDisappear { observation?.cancel(); observation = nil }
     }
 }
 
