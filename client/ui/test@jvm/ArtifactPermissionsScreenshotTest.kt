@@ -20,7 +20,6 @@ import kinuvo.protocol.artifact.ArtifactCapabilities
 import kinuvo.protocol.artifact.ArtifactPermissions
 import kinuvo.ui.artifacts.ArtifactPermissionsPanel
 import kinuvo.ui.artifacts.PermissionActions
-import kinuvo.ui.artifacts.permissionsTitle
 import kinuvo.ui.design.KinuvoTheme
 import kinuvo.ui.design.Spacing
 import kinuvo.ui.design.TextStyles
@@ -59,7 +58,7 @@ class ArtifactPermissionsScreenshotTest {
     @Composable
     private fun sheet(permissions: ArtifactPermissions, canGrant: Boolean) {
         Column(Modifier.fillMaxSize().background(color(backgroundColor)).padding(Spacing.space16)) {
-            Text(permissionsTitle(permissions), Modifier.padding(bottom = Spacing.space12), style = TextStyles.title, fontWeight = FontWeight.SemiBold)
+            Text("Permissions", Modifier.padding(bottom = Spacing.space12), style = TextStyles.title, fontWeight = FontWeight.SemiBold)
             ArtifactPermissionsPanel(permissions, canGrant, now, PermissionActions())
         }
     }

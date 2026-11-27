@@ -341,7 +341,7 @@ private fun ArtifactMenu(data: ArtifactData, agents: List<AgentInfo>, now: Long,
             if (permissions?.pending == true && canGrant) Box(Modifier.align(Alignment.TopEnd).padding(top = 6.dp, end = 6.dp).size(8.dp).background(color(accentColor), CircleShape))
         }
     }
-    if (permissions != null) Popover(permitting, { permitting = false }, permissionsTitle(permissions)) {
+    if (permissions != null) Popover(permitting, { permitting = false }, "Permissions") {
         ArtifactPermissionsPanel(permissions, canGrant, now, PermissionActions(actions.onAllowAll, actions.onGrant, actions.onRevoke))
     }
     ConfirmPopover(asking, "Delete this artifact?", info.title, "Delete", true, { asking = false }) { asking = false; actions.onDelete(info.id) }

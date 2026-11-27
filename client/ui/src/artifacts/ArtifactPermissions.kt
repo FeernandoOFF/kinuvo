@@ -76,6 +76,3 @@ internal fun networkNote(origin: String): String {
     val subdomains = if ("://*." in origin) ", any subdomain" else ""
     return if (origin.startsWith("wss://")) "Keep a live connection open (WebSocket)$subdomains." else "Send and receive data$subdomains."
 }
-
-/** The sheet's title, which says when something asked for is still waiting for an answer. */
-internal fun permissionsTitle(permissions: ArtifactPermissions) = if (permissions.pending) "Permissions requested" else "Permissions"
