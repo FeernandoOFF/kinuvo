@@ -17,12 +17,17 @@ class VoiceService internal constructor(private val harness: AgentRuntime, priva
 
     /** A selected downloaded model takes precedence over configured OpenAI-compatible providers. */
     val providers get() = downloaded?.providers.let { local ->
-        VoiceProviders(local?.transcriber ?: harness.voice.transcriber, harness.voice.processor, local?.synthesizer ?: harness.voice.synthesizer, harness.voice.speechToSpeech.takeIf { harness.liveVoiceEnabled })
+        VoiceProviders(local?.transcriber ?: harness.voice.transcriber, harness.voice.processor, local?.synthesizer ?: harness.voice.synthesizer,
+            harness.voice.liveCalls.takeIf { harness.liveVoiceEnabled })
     }
 
-    fun liveSettings() = LiveVoiceSettings(harness.voice.speechToSpeech != null, harness.liveVoiceEnabled)
+    suspend fun liveSettings(): LiveVoiceSettings {
+        val provider = harness.voice.liveCalls
+        val fix = provider?.unavailable()
+        return LiveVoiceSettings(provider != null && fix == null, harness.liveVoiceEnabled, fix?.let { LiveUnavailable(it.reason, it.signInProvider) })
+    }
 
-    fun saveLive(enabled: Boolean): LiveVoiceSettings {
+    suspend fun saveLive(enabled: Boolean): LiveVoiceSettings {
         harness.liveVoiceEnabled = enabled
         changed()
         return liveSettings()
@@ -30,7 +35,8 @@ class VoiceService internal constructor(private val harness: AgentRuntime, priva
 
     suspend fun models(): VoiceModelsState = downloaded?.state() ?: VoiceModelsState()
 
-    fun setup() = providers.setup
+    /** Live calls count only while their provider can start one, e.g. while the owner is signed in. */
+    suspend fun setup() = providers.setup.let { if (it.liveCalls && providers.liveCalls?.available() != true) it.copy(liveCalls = false) else it }
 
     context(_: Raise<VoiceError>)
     suspend fun download(id: String) = local().download(id)

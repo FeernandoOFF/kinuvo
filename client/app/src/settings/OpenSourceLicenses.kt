@@ -46,7 +46,7 @@ val openSourceLicenses = listOf(
     OpenSourceLicense("QuickJS-KT", "https://github.com/dokar3/quickjs-kt", "Apache-2.0", "dokar3", maven = listOf("io.github.dokar3:")),
     OpenSourceLicense("QuickJS", "https://bellard.org/quickjs/", "MIT", "Fabrice Bellard and Charlie Gordon"),
     OpenSourceLicense("webrtc-java", "https://github.com/devopvoid/webrtc-java", "Apache-2.0", "Alex Andres", maven = listOf("dev.onvoid.webrtc:")),
-    OpenSourceLicense("WebRTC", "https://webrtc.org", "BSD-3-Clause", "The WebRTC project authors"),
+    OpenSourceLicense("WebRTC", "https://webrtc.org", "BSD-3-Clause", "The WebRTC project authors", maven = listOf("io.getstream:stream-webrtc-android")),
     OpenSourceLicense("Nucleus", "https://github.com/NucleusFramework/Nucleus", "MIT", "Elie Gambache", maven = listOf("dev.nucleusframework:nucleus.")),
     OpenSourceLicense("ComposeNativeWebview", "https://github.com/NucleusFramework/ComposeNativeWebview", "Apache-2.0", "Elie Gambache", maven = listOf("dev.nucleusframework:composewebview")),
     OpenSourceLicense("ComposeNativeTray", "https://github.com/NucleusFramework/ComposeNativeTray", "MIT", "Elie Gambache", maven = listOf("dev.nucleusframework:composenativetray")),

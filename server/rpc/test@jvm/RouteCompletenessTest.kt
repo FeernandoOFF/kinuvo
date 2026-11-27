@@ -29,7 +29,7 @@ class RouteCompletenessTest {
 
     @Test fun orderedMethodsAreExactlyTheConnectionStateOnes() {
         val routes = serverRoutes()
-        val expected = setOf(Api.LiveVoiceStart, Api.LiveVoiceEnd, Api.Subscribe, Api.Unsubscribe, Api.Send, Api.CancelQueued, Api.Stop, Api.Presence, Api.DeviceTools, Api.SurfaceCatalogs, Api.RevokeDevice, Api.RotateToken).map { it.name }.toSet()
+        val expected = setOf(Api.LiveCallStart, Api.LiveCallPeer, Api.LiveCallPause, Api.LiveCallResume, Api.LiveCallEnd, Api.Subscribe, Api.Unsubscribe, Api.Send, Api.CancelQueued, Api.Stop, Api.Presence, Api.DeviceTools, Api.SurfaceCatalogs, Api.RevokeDevice, Api.RotateToken).map { it.name }.toSet()
         assertEquals(expected, routes.methods.filter { routes.ordered(it) }.toSet())
     }
 

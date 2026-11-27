@@ -53,6 +53,7 @@ interface ServerPlugin {
     val attachmentStager: AttachmentStager? get() = null
     val browser: BrowserService? get() = null
     val voice: ServerVoice? get() = null
+    val liveCalls: LiveCallProvider? get() = null
     /** Whether its tools go to the tool catalog once an Agent has too many to send each to the model, e.g. MCP servers'. */
     val catalogued: Boolean get() = false
     /** Options it adds to integrations its typed providers don't describe, e.g. the exec backends it can run. */
@@ -90,6 +91,7 @@ fun List<ServerPlugin>.checkPluginInstances() {
     checkSingleton("attachmentStager") { it.attachmentStager != null }
     checkSingleton("browser") { it.browser != null }
     checkSingleton("voice") { it.voice != null }
+    checkSingleton("liveCalls") { it.liveCalls != null }
 }
 
 /** The Server uses the first plugin offering a singleton capability, so a second one would be silently ignored. */
