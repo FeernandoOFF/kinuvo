@@ -45,6 +45,20 @@ class ArtifactLoopbackTest {
     }
 
     @Test
+    fun theGrantsOfAnArtifactWidenItsPolicyOnTheWire() {
+        val access = ArtifactAccess(listOf("https://api.example.com", "wss://api.example.com"))
+        val origin = ArtifactLoopback.open(ArtifactSite.page("notes-1a2b", "<p>home</p>", access))
+        try {
+            val policy = get(origin, "/index.html").lines().first { it.startsWith("Content-Security-Policy: ") }
+            assertTrue("connect-src 'self' https://api.example.com wss://api.example.com;" in policy, policy)
+            origin.site = ArtifactSite.page("notes-1a2b", "<p>home</p>")
+            assertTrue("connect-src 'self';" in get(origin, "/index.html"))
+        } finally {
+            ArtifactLoopback.close(origin)
+        }
+    }
+
+    @Test
     fun aRequestWithoutTheTokenOrTheRightHostGetsNothing() {
         val a = ArtifactLoopback.open(ArtifactSite.page("a", "<p>a</p>"))
         val b = ArtifactLoopback.open(ArtifactSite.page("b", "<p>b</p>"))

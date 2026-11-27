@@ -27,17 +27,19 @@ internal class ArtifactSite(
     val entry: String = INDEX,
     val remote: Map<String, RemoteFile> = emptyMap(),
     val fetch: suspend (String) -> ByteArray? = { null },
+    val access: ArtifactAccess = ArtifactAccess.None,
 ) {
-    val version = (files.entries.sortedBy { it.key }.fold(0) { h, (path, file) -> 31 * (31 * h + path.hashCode()) + file.bytes.contentHashCode() } +
+    val version = (31 * access.hashCode() + files.entries.sortedBy { it.key }.fold(0) { h, (path, file) -> 31 * (31 * h + path.hashCode()) + file.bytes.contentHashCode() } +
         remote.entries.sortedBy { it.key }.fold(0) { h, (path, file) -> 31 * (31 * h + path.hashCode()) + file.hash.hashCode() }).toUInt().toString(16)
 
     companion object {
-        fun page(id: String, html: String) = ArtifactSite(id, mapOf(INDEX to SiteFile(mimeOf(INDEX), html.encodeToByteArray())))
+        fun page(id: String, html: String, access: ArtifactAccess = ArtifactAccess.None) =
+            ArtifactSite(id, mapOf(INDEX to SiteFile(mimeOf(INDEX), html.encodeToByteArray())), access = access)
 
         /** The folder [listing] with its entry page [html]; every other file is fetched on demand. */
-        fun folder(id: String, listing: ArtifactFiles, html: String, fetch: suspend (String) -> ByteArray?) = ArtifactSite(
+        fun folder(id: String, listing: ArtifactFiles, html: String, access: ArtifactAccess = ArtifactAccess.None, fetch: suspend (String) -> ByteArray?) = ArtifactSite(
             id, mapOf(listing.entry to SiteFile(mimeOf(listing.entry), html.encodeToByteArray())), listing.entry,
-            listing.files.filter { it.path != listing.entry }.associate { it.path to RemoteFile(it.mime, it.hash) }, fetch,
+            listing.files.filter { it.path != listing.entry }.associate { it.path to RemoteFile(it.mime, it.hash) }, fetch, access,
         )
     }
 }
@@ -81,10 +83,10 @@ internal class ArtifactOrigin(val base: String, site: ArtifactSite) {
     private fun answer(path: String?, file: SiteFile?) = when {
         path == null -> refusal(403)
         file == null -> refusal(404)
-        else -> OriginResponse(200, file.mime, artifactHeaders(file.mime), file.bytes)
+        else -> OriginResponse(200, file.mime, artifactHeaders(file.mime, site.access), file.bytes)
     }
 
-    private fun refusal(status: Int) = OriginResponse(status, "text/plain", artifactHeaders("text/plain"), byteArrayOf())
+    private fun refusal(status: Int) = OriginResponse(status, "text/plain", artifactHeaders("text/plain", site.access), byteArrayOf())
 }
 
 private val ID = Regex("[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?")
@@ -129,12 +131,12 @@ internal fun encodePath(path: String) = path.split('/').joinToString("/") { segm
     }
 }
 
-/** Every response is sent with these; documents also carry the [artifactPolicy] that scripts and styles are held to. */
-internal fun artifactHeaders(mime: String): Map<String, String> = buildMap {
+/** Every response is sent with these; documents also carry the [artifactPolicy] that scripts and styles are held to, widened by what [access] grants. */
+internal fun artifactHeaders(mime: String, access: ArtifactAccess = ArtifactAccess.None): Map<String, String> = buildMap {
     put("X-Content-Type-Options", "nosniff")
     put("Referrer-Policy", "no-referrer")
     put("Cache-Control", "no-store")
-    if (mime == "text/html") put("Content-Security-Policy", artifactPolicy(own = true))
+    if (mime == "text/html") put("Content-Security-Policy", artifactPolicy(own = true, access = access))
 }
 
 /** The origin of one Artifact, opened where the platform's web view can serve one and null where it cannot; [closeOrigin] releases it. */

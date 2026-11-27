@@ -12,6 +12,9 @@ import org.w3c.dom.HTMLIFrameElement
 
 internal actual val visualEditing = false
 
+/** A frame here would open windows as browser tabs outside the app, so pages stay blocked. */
+internal actual val popupsSupported = false
+
 /** Frames the app serves itself share its origin, which an Artifact must never have, so pages here stay in a sandboxed `srcdoc` frame. */
 internal actual fun openOrigin(site: ArtifactSite): ArtifactOrigin? = null
 
@@ -20,7 +23,7 @@ internal actual fun closeOrigin(origin: ArtifactOrigin) = Unit
 /** The page in a sandboxed iframe over the canvas, like HTML Surfaces. */
 @OptIn(ExperimentalComposeUiApi::class)
 @Composable
-internal actual fun WebView(html: String, modifier: Modifier, onMessage: ((String) -> Unit)?, channel: PageChannel?, editing: Boolean, origin: ArtifactOrigin?) {
+internal actual fun WebView(html: String, modifier: Modifier, onMessage: ((String) -> Unit)?, channel: PageChannel?, editing: Boolean, origin: ArtifactOrigin?, popups: Boolean) {
     val frame = remember { (document.createElement("iframe") as HTMLIFrameElement).apply {
         setAttribute("sandbox", "allow-scripts")
         setAttribute("referrerpolicy", "no-referrer")
