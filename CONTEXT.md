@@ -134,7 +134,7 @@ Where an Agent's shell and file tools run: the host machine, a container, or a r
 _Avoid_: Sandbox, runtime, environment
 
 **Artifact**:
-A page, chart or document (HTML, SVG, Markdown, CSV, JSON, text or a Design) an Agent makes for the user, kept in `~/.kinuvo/artifacts` and shared by all Agents; only its latest content is kept. Opened from the chat or the Artifacts screen.
+A page, chart or document (HTML, SVG, Markdown, CSV, JSON, text or a Design) an Agent makes for the user, kept in `~/.kinuvo/artifacts` and shared by all Agents; only its latest content is kept. An HTML Artifact can be a folder of files (an entry page, assets, `.wasm`, a `manifest.json`). Opened from the chat or the Artifacts screen.
 _Avoid_: Attachment, canvas
 
 **Page state**:

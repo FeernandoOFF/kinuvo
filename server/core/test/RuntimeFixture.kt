@@ -101,6 +101,10 @@ internal class RuntimeFixture(plugins: List<ServerPlugin> = emptyList(), private
         override suspend fun get(id: String) = artifactData[id]
         override suspend fun save(info: ArtifactInfo, content: String) { artifactData[info.id] = ArtifactData(info, content) }
         override suspend fun delete(id: String) = artifactData.remove(id) != null
+        override suspend fun files(id: String) = emptyMap<String, Long>()
+        override suspend fun readFile(id: String, path: String, offset: Long, length: Int): ByteArray? = null
+        override suspend fun writeFile(id: String, path: String, bytes: ByteArray) = error("Not used")
+        override suspend fun deleteFile(id: String, path: String) = false
     }, clock = { 1000L })
     val knowledge = Knowledge({ error("No Knowledge source") }, object : KnowledgeChangeLog {
         override suspend fun add(change: KnowledgeChange) = error("Not used")

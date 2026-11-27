@@ -69,6 +69,20 @@ class HostBackendTest {
     }
 
     @Test
+    fun binaryFilesAndFoldersCanBeReadForArtifacts() = runTest {
+        val wasm = byteArrayOf(0, 0x61, 0x73, 0x6d, 1, 0, 0, 0, -1, -2, 10, 13)
+        File(root, "dist/pkg").mkdirs()
+        File(root, "dist/pkg/m.wasm").writeBytes(wasm)
+        File(root, "dist/index.html").writeText("<p/>")
+        assertEquals(wasm.toList(), backend.readBytes("dist/pkg/m.wasm", 1_000).toList())
+        assertTrue("larger" in assertFailsWith<IllegalStateException> { backend.readBytes("dist/pkg/m.wasm", 4) }.message!!)
+        Files.createSymbolicLink(File(root, "hosts").toPath(), File("/etc/hosts").toPath())
+        assertTrue("outside" in assertFailsWith<IllegalStateException> { backend.readBytes("hosts", 1_000_000) }.message!!)
+        assertEquals(listOf("index.html", "pkg/m.wasm"), backend.list("dist", null, 100))
+        assertEquals(emptyList(), backend.list("dist/index.html", null, 100))
+    }
+
+    @Test
     fun fileToolsRoundTripAndStayInWorkspace() = runTest {
         call("write_file", "path" to "a/b.txt", "content" to "one\ntwo 'quoted'\nthree")
         assertEquals("2\ttwo 'quoted'", call("read_file", "path" to "a/b.txt", "offset" to 2, "limit" to 1).lines().first())

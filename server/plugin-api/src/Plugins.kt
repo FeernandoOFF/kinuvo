@@ -68,6 +68,12 @@ interface ServerPlugin {
     /** A file from the Agent's Workspace, e.g. to copy into an Artifact; null when the plugin has no Workspace for it. */
     suspend fun readFile(agent: Agent, path: String): String? = null
 
+    /** A file from the Agent's Workspace as bytes, at most [maxBytes]; null when the plugin has no Workspace for it. */
+    suspend fun readFileBytes(agent: Agent, path: String, maxBytes: Int): ByteArray? = null
+
+    /** The files under [path] in the Agent's Workspace, relative to it; empty when it is a file or has none, null when the plugin has no Workspace for it. */
+    suspend fun listFiles(agent: Agent, path: String, limit: Int): List<String>? = null
+
     /** Stops what the plugin runs for an Agent, e.g. after its settings changed or before it's deleted. */
     suspend fun release(agentId: AgentId) {}
 

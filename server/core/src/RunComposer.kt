@@ -48,6 +48,7 @@ import kinuvo.server.tools.select
 import kinuvo.protocol.model.ModelTier
 import kotlinx.serialization.json.*
 import kinuvo.server.artifacts.ArtifactTool
+import kinuvo.server.artifacts.WorkspaceFiles
 import kinuvo.server.tools.AskUserTool
 import kinuvo.server.tools.MemoryTool
 import kinuvo.server.plugin.Tool
@@ -410,7 +411,11 @@ class RunComposer internal constructor(
             ToolNames.WORKFLOWS -> harness.workflows?.let { WorkflowTool(it, agent.id, sessionId) }
             ToolNames.SCHEDULE -> ScheduleTool(agent, routines, { timeZone }, sessionId, routine?.routine)
             ToolNames.ASK_USER -> AskUserTool(routine != null).takeIf { routine?.routine?.approvals != RoutineApprovals.Deny }
-            ToolNames.ARTIFACT -> ArtifactTool(agent, sessionId, artifacts) { readFile(agent, it) }
+            ToolNames.ARTIFACT -> ArtifactTool(agent, sessionId, artifacts, object : WorkspaceFiles {
+                override suspend fun text(path: String) = readFile(agent, path)
+                override suspend fun bytes(path: String, maxBytes: Int) = harness.readFileBytes(agent, path, maxBytes)
+                override suspend fun list(path: String, limit: Int) = harness.listFiles(agent, path, limit)
+            })
             else -> null
         }
     } + if (ToolNames.SKILLS in agent.config.tools) skillTools(agent) else emptyList() } + listOfNotNull(routine?.let(::RoutineReportTool))

@@ -16,6 +16,12 @@ class ArtifactKindTest {
         assertEquals(listOf(EditorTab.Source), info("csv").editorTabs(wide = false, visual = true))
     }
 
+    @Test fun aFolderEditsItsEntryPageAsSourceOnly() {
+        val folder = info("html").copy(bundle = true)
+        assertEquals(listOf(EditorTab.Source, EditorTab.Preview), folder.editorTabs(wide = false, visual = true))
+        assertEquals(listOf(EditorTab.Source), folder.editorTabs(wide = true, visual = true))
+    }
+
     @Test fun onlySvgIsWrappedAsAPage() {
         assertEquals("<html><body style=\"margin:0\"><svg/></body></html>", info("svg").page("<svg/>"))
         assertEquals("<p>a</p>", info("html").page("<p>a</p>"))

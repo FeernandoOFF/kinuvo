@@ -91,6 +91,10 @@ class ExecPlugin(
 
     override suspend fun readFile(agent: Agent, path: String): String? = backend(agent)?.read(path, ARTIFACT_MAX_CHARS, whole = true)
 
+    override suspend fun readFileBytes(agent: Agent, path: String, maxBytes: Int): ByteArray? = backend(agent)?.readBytes(path, maxBytes)
+
+    override suspend fun listFiles(agent: Agent, path: String, limit: Int): List<String>? = backend(agent)?.list(path, null, limit)
+
     override suspend fun release(agentId: AgentId) {
         lock.withLock { states.remove(agentId); backends.remove(agentId) }?.close()
     }

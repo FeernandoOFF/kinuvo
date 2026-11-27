@@ -96,18 +96,30 @@ abstract class ExecBackend(
      * failing when it's larger, instead of the start and end of a long one.
      */
     suspend fun read(path: String, maxBytes: Int = 2_000_000, whole: Boolean = false): String {
+        if (whole) return readBytes(path, maxBytes).decodeToString(throwOnInvalidSequence = true)
         val p = resolve(path)
-        val real = roots.joinToString(" ") { "\"$(readlink -f ${shq(it)})\"" }
-        // Encode whole reads so the display collector cannot change line endings or clip file content silently.
-        val read = if (whole) "head -c ${maxBytes + 1} -- \"\$p\" | base64" else "head -c $maxBytes -- \"\$p\""
-        val script = "set -o pipefail; p=$(readlink -f ${shq(p)}) || exit 1; ok=; for r in $real; do case \"\$p\" in \"\$r\"|\"\$r\"/*) ok=1;; esac; done; " +
-            "[ -n \"\$ok\" ] || { echo ${shq(p)}' links outside the workspace'; exit 1; }; $read"
-        val r = execScript(script, roots.first(), null, Duration.parse("30s"), if (whole) 2 * maxBytes + 16 else 30_000)
+        val script = "set -o pipefail; ${insideWorkspace(p)}head -c $maxBytes -- \"\$p\""
+        val r = execScript(script, roots.first(), null, Duration.parse("30s"), 30_000)
         check(r.exitCode == 0) { r.output.ifBlank { "Cannot read $p" } }
-        if (!whole) return r.output
+        return r.output
+    }
+
+    /** The whole of [path], failing when it's larger than [maxBytes], with the same refusal of links out of the Workspace as [read]. */
+    suspend fun readBytes(path: String, maxBytes: Int): ByteArray {
+        val p = resolve(path)
+        // Encoded, so the display collector cannot change line endings or clip file content silently.
+        val script = "set -o pipefail; ${insideWorkspace(p)}head -c ${maxBytes + 1} -- \"\$p\" | base64"
+        val r = execScript(script, roots.first(), null, Duration.parse("30s"), 2 * maxBytes + 16)
+        check(r.exitCode == 0) { r.output.ifBlank { "Cannot read $p" } }
         val bytes = Base64.getDecoder().decode(r.output.filterNot { it == '\n' || it == '\r' })
         check(bytes.size <= maxBytes) { "$p is larger than $maxBytes bytes" }
-        return bytes.decodeToString(throwOnInvalidSequence = true)
+        return bytes
+    }
+
+    private fun insideWorkspace(p: String): String {
+        val real = roots.joinToString(" ") { "\"$(readlink -f ${shq(it)})\"" }
+        return "p=$(readlink -f ${shq(p)}) || exit 1; ok=; for r in $real; do case \"\$p\" in \"\$r\"|\"\$r\"/*) ok=1;; esac; done; " +
+            "[ -n \"\$ok\" ] || { echo ${shq(p)}' links outside the workspace'; exit 1; }; "
     }
 
     suspend fun write(path: String, content: String) = store(path, "cat", content, Duration.parse("30s"))

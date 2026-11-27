@@ -15,6 +15,7 @@ import kinuvo.protocol.session.SessionId
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.test.*
 import kotlinx.serialization.json.*
@@ -104,6 +105,63 @@ class ArtifactsViewModelTest {
             vm.saveDesign("x"); runCurrent()
             assertTrue(vm.state.value.errors.isNotEmpty())
             assertEquals("""{"artboards":[]}""", vm.state.value.open?.content)
+        } finally { store.clear(); server.close(); client.close(); Dispatchers.resetMain() }
+    }
+
+    @Test fun aFolderListsItsFilesAndReadsOneInChunks() = runTest {
+        Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+        val frames = Channel<Frame>(Channel.UNLIMITED)
+        val info = ArtifactInfo("a1", "App", "html", AgentId("main"), SessionId("s1"), 1, 1, bundle = true)
+        val wasm = ByteArray(2500) { it.toByte() }
+        val asked = mutableListOf<Long>()
+        val transport = object : FrameConnection {
+            override val incoming = frames.receiveAsFlow()
+            override suspend fun send(frame: Frame) {
+                val request = frame as Frame.Request
+                val payload = when (request.method) {
+                    "connect" -> ProtocolJson.encodeToJsonElement(ConnectResult("token", "Server", capabilities = ServerCapabilities("server"), management = true))
+                    Api.Presence.name -> buildJsonObject {}
+                    Api.Artifacts.name -> ProtocolJson.encodeToJsonElement(listOf(info))
+                    Api.Artifact.name -> ProtocolJson.encodeToJsonElement(ArtifactData(info, "<p/>"))
+                    Api.ArtifactFileList.name -> ProtocolJson.encodeToJsonElement(ArtifactFiles("a1", "index.html", listOf(ArtifactFile("index.html", 4, "text/html", "h"), ArtifactFile("m.wasm", wasm.size.toLong(), "application/wasm", "w"))))
+                    Api.ArtifactFileRead.name -> {
+                        val read = ProtocolJson.decodeFromJsonElement<ArtifactFileRef>(request.params)
+                        if (read.path != "m.wasm") { frames.send(Frame.Response(request.id, false, error = WireError(WireErrorCode.Internal, "No file"))); return }
+                        asked += read.offset
+                        val part = wasm.copyOfRange(read.offset.toInt(), minOf(wasm.size, read.offset.toInt() + 1000))
+                        ProtocolJson.encodeToJsonElement(ArtifactFileChunk("m.wasm", read.offset, wasm.size.toLong(), "application/wasm", kotlin.io.encoding.Base64.encode(part)))
+                    }
+                    else -> { frames.send(Frame.Response(request.id, false, error = WireError(WireErrorCode.Internal, "Unused in test"))); return }
+                }
+                frames.send(Frame.Response(request.id, true, payload))
+            }
+            override suspend fun close() { frames.close() }
+        }
+        val client = KinuvoClient("local:test", "test", connection = { transport }, dispatcher = StandardTestDispatcher(testScheduler))
+        val reader = object : DeviceReader {
+            override val kinds = emptyList<String>()
+            override fun authorize(kind: String, completion: (String?) -> Unit) = completion(null)
+            override fun read(requestJson: String, completion: (String) -> Unit) {}
+        }
+        val server = ConnectedServer(Notifications(emptyList()), DeviceAccess(MemoryPreferences(), reader))
+        val store = ViewModelStore()
+        try {
+            client.connect(); server.open(client, "local:test"); server.config.attach(client)
+            val vm = ArtifactsViewModel(Route.Artifacts("a1"), server)
+            store.put("artifacts", vm)
+            runCurrent()
+            assertEquals(listOf("index.html", "m.wasm"), vm.state.value.files?.files?.map { it.path })
+
+            var read: ByteArray? = null
+            val job = launch { read = vm.readFile("a1", "m.wasm") }
+            runCurrent(); job.join()
+            assertEquals(wasm.toList(), read?.toList())
+            assertEquals(listOf(0L, 1000L, 2000L), asked)
+
+            var missing: ByteArray? = byteArrayOf(1)
+            launch { missing = vm.readFile("a1", "nope.js") }
+            runCurrent()
+            assertNull(missing)
         } finally { store.clear(); server.close(); client.close(); Dispatchers.resetMain() }
     }
 }

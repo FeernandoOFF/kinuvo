@@ -6,6 +6,8 @@ import kinuvo.protocol.artifact.ArtifactState
 internal fun RouteBuilder.artifactRoutes() {
     device(Api.Artifacts) { server.artifacts.list() }
     device(Api.Artifact) { server.artifacts.get(it.id) }
+    device(Api.ArtifactFileList) { server.artifacts.files(it.id) }
+    device(Api.ArtifactFileRead) { server.artifacts.readFile(it.id, it.path, it.offset, it.length) }
     handle(Api.SaveArtifact) { server.artifacts.replace(it.id, it.content) }
     handle(Api.DeleteArtifact) { server.artifacts.delete(it.id) }
     // Ordered, so a presenter's quick taps reach the other Devices in the order they were made.

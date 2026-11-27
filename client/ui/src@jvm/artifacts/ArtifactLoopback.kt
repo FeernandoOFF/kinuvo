@@ -1,5 +1,6 @@
 package kinuvo.ui.artifacts
 
+import kotlinx.coroutines.runBlocking
 import java.io.ByteArrayOutputStream
 import java.io.InputStream
 import java.net.InetAddress
@@ -49,7 +50,7 @@ internal object ArtifactLoopback {
             host != "127.0.0.1:$port" -> OriginResponse(421, "text/plain", emptyMap(), byteArrayOf())
             method != "GET" && method != "HEAD" -> OriginResponse(405, "text/plain", emptyMap(), byteArrayOf())
             !target.startsWith("/") -> OriginResponse(400, "text/plain", emptyMap(), byteArrayOf())
-            else -> origin.respond("http://127.0.0.1:$port$target")
+            else -> runBlocking { origin.serve("http://127.0.0.1:$port$target") }
         }
         val out = connection.getOutputStream()
         val head = buildString {
@@ -63,7 +64,7 @@ internal object ArtifactLoopback {
         out.flush()
     }
 
-    private val REASONS = mapOf(200 to "OK", 400 to "Bad Request", 403 to "Forbidden", 404 to "Not Found", 405 to "Method Not Allowed", 421 to "Misdirected Request")
+    private val REASONS = mapOf(200 to "OK", 400 to "Bad Request", 403 to "Forbidden", 404 to "Not Found", 405 to "Method Not Allowed", 421 to "Misdirected Request", 502 to "Bad Gateway")
 
     /** The request line and headers, up to a limit; null when the request is not whole by then. */
     private fun readHead(input: InputStream): String? {
