@@ -247,6 +247,10 @@ object Api {
     val ArtifactFileRead = Method("artifact.file", ArtifactFileRef.serializer(), ArtifactFileChunk.serializer())
     val SaveArtifact = Method("artifact.save", ArtifactSave.serializer(), ArtifactInfo.serializer())
     val DeleteArtifact = Method("artifact.delete", ArtifactRef.serializer(), Unit.serializer())
+    /** What an Artifact asks for, what its owner allowed, and what applies. Any Device may read it, as every Device enforces it. */
+    val ArtifactPermissionList = Method("artifact.permissions", ArtifactRef.serializer(), ArtifactPermissions.serializer())
+    /** Grants or revokes an Artifact's capabilities; management Devices only. Every Device then gets [ArtifactChanged]. */
+    val ChangeArtifactGrants = Method("artifact.grants.change", ArtifactGrantChange.serializer(), ArtifactPermissions.serializer())
     /** Starts sending this connection the state of an Artifact page, and returns the latest. */
     val WatchArtifactState = Method("artifact.state.watch", ArtifactRef.serializer(), ArtifactState.serializer())
     val UnwatchArtifactState = Method("artifact.state.unwatch", ArtifactRef.serializer(), Unit.serializer())

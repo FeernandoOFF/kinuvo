@@ -46,8 +46,11 @@ class ArtifactTool(
             "and give body an explicit background; slide decks (e.g. reveal.js) keep speaker notes in <aside class=notes>, which the user sees from Open in browser. " +
             "create returns its id; update replaces its content (only the latest is kept). " +
             "An HTML artifact can be a folder: file_write adds files at relative paths (index.html is the entry page; app.js, img/a.png, module.wasm, data.json, fonts, .sqlite) " +
-            "and pages load them with relative URLs, never /absolute paths, and may fetch() only their own files. An optional manifest.json is " +
+            "and pages load them with relative URLs, never /absolute paths, and may fetch() only their own files and origins the user allows. An optional manifest.json is " +
             "{\"entry\":\"index.html\",\"title\":\"...\",\"capabilities\":{\"network\":[],\"popups\":false,\"storage\":false,\"tools\":[]}}. " +
+            "capabilities only ask: everything is denied until the user allows it in the artifact's Permissions, and you cannot grant anything. " +
+            "network lists exact origins the page may fetch or open sockets to, https://host[:port] or wss://host[:port] (a socket.io server needs both), with * only as a leading *.host label; " +
+            "popups lets window.open open a window (reveal.js speaker view); say in your reply what you asked for and why. " +
             "Prefer from_path (a workspace file, or a whole folder such as a build's dist) and file_edit over writing large files in content: " +
             "regenerating them takes minutes. Limits: ${ArtifactBundle.MAX_FILE_BYTES / 1_000_000} MB a file, ${ArtifactBundle.MAX_BUNDLE_BYTES / 1_000_000} MB and ${ArtifactBundle.MAX_FILES} files in all. " +
             "Artifacts are shared by all agents; list and read find earlier ones.",
