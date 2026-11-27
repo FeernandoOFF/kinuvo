@@ -33,6 +33,13 @@ internal fun VoiceSettingsContent(
     onSelect: (VoiceModelKind, String?) -> Unit,
     onLanguage: (String) -> Unit,
 ) {
+    if (!state.downloadsSupported) {
+        Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(Spacing.space12)) {
+            VoiceText("Downloaded models aren't available on this Server.", muted = true, size = 13)
+            state.error?.let { ErrorMessage(it) }
+        }
+        return
+    }
     Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(Spacing.space26)) {
         VoiceModelGroup("Dictation model", VoiceModelKind.Transcription, state, onDownload, onCancel, onRemove, onSelect)
         VoiceSection("Language") {

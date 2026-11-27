@@ -17,6 +17,7 @@ data class LocalVoiceState(
     val downloaded: Long = 0,
     val removing: String? = null,
     val error: String? = null,
+    val downloadsSupported: Boolean = true,
     val live: LiveVoiceSettings = LiveVoiceSettings(),
     val deviceCode: DeviceCode? = null,
 )

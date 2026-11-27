@@ -52,6 +52,24 @@ class VoiceSettingsScreenshotTest {
             }
         }
     }
+    @Test fun voiceSettingsShowNoteWhenDownloadsUnsupported() = javax.swing.SwingUtilities.invokeAndWait {
+        for (dark in listOf(true, false)) ImageComposeScene(780 * 2, 400 * 2, Density(2f), content = {
+            KinuvoTheme(dark = dark) {
+                Column(Modifier.fillMaxSize().background(color(backgroundColor)).padding(24.dp)) {
+                    VoiceSettingsContent(LocalVoiceState(downloadsSupported = false), {}, {}, {}, { _, _ -> }, {})
+                }
+            }
+        }).use { scene ->
+            repeat(12) { scene.render(it * 100_000_000L) }
+            val texts = scene.semanticsOwners.flatMap { text(it.rootSemanticsNode) }
+            assertTrue("Downloaded models aren't available on this Server." in texts)
+            assertTrue("Dictation model" !in texts)
+            assertTrue("Language" !in texts)
+            File("build/screens").apply { mkdirs() }.resolve("voice-settings-unsupported-${if (dark) "dark" else "light"}.png")
+                .writeBytes(scene.render(2_000_000_000L).encodeToData(EncodedImageFormat.PNG)!!.bytes)
+        }
+    }
+
     @Test fun liveVoiceNeedingADeviceCodeSignInRendersItsReasonThenTheCode() = javax.swing.SwingUtilities.invokeAndWait {
         val unavailable = LiveUnavailable("Live voice needs ChatGPT signed in with a device code. Signing in that way replaces Continue with ChatGPT; chat keeps working.", "codex")
         for (dark in listOf(true, false)) for (code in listOf(null, DeviceCode("https://auth.openai.com/codex/device", "ABCD-1234", 0))) {

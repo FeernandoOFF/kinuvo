@@ -39,6 +39,10 @@ internal fun ServerVoiceSettings() {
         val uri = LocalUriHandler.current
         ActionRow("About live calls", Lucide.ExternalLink, { runCatching { uri.openUri(LiveCallsGuide) } })
     }
+    if (!state.downloadsSupported) {
+        VoiceSettingsContent(state, model::download, model::cancel, model::remove, model::select, model::language)
+        return
+    }
     if (state.models.isEmpty()) {
         state.error?.let { LoadFailure(it, onAction = model::retry) } ?: Spinner()
         return
