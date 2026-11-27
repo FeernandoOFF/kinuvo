@@ -23,7 +23,7 @@ class CodexProvider(override val auth: CodexAuth = CodexAuth(), private val atta
     private val executor = lazy { koogExecutor(codexLLMClient(auth, _usage)) }
     private val discovery = lazy { codexHttpClient(auth::tokens, _usage) }
     private val liveHttp = lazy { codexLiveHttpClient() }
-    private val live = lazy { CodexLiveCalls(auth, liveHttp.value) }
+    private val live = lazy { CodexLiveCalls(auth, liveHttp.value, id) }
 
     val promptExecutor get() = executor.value
     override val images: ImageGeneration get() = CodexImages(discovery.value)

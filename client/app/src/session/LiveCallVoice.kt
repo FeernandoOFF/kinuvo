@@ -14,7 +14,7 @@ import kinuvo.protocol.voice.LiveCallPhase
 import kinuvo.protocol.voice.LiveCallUpdate
 import kinuvo.protocol.voice.LivePeerParams
 import kinuvo.protocol.voice.LivePeerState
-import kinuvo.protocol.voice.LiveVoiceRef
+import kinuvo.protocol.voice.LiveCallRef
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.cancelChildren
@@ -30,6 +30,21 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withTimeoutOrNull
+
+/** What a Device provides a live call besides its [LiveCallPeer]: microphone permission, cues and system call controls. Callbacks may arrive on any thread. */
+interface LiveAudio {
+    fun onEndRequested(end: () -> Unit) {}
+    fun onInputMuteChanged(changed: (Boolean) -> Unit) {}
+    fun setInputMuted(muted: Boolean) {}
+    fun authorizeAudio(completion: (String?) -> Unit)
+    /** Replaces a short standalone cue without waiting for playback. */
+    fun playCue(pcm: ByteArray, sampleRate: Int) {}
+    fun stopCue() {}
+    /** Whether this Device can hold a call itself, with [createCallPeer]. */
+    val callPeerSupported: Boolean get() = false
+    /** A WebRTC peer for a call the Device holds. */
+    fun createCallPeer(): LiveCallPeer? = null
+}
 
 /**
  * Voice chat where the Device holds the call: [LiveCallPeer] carries the microphone and speaker to the Server's model
@@ -153,7 +168,7 @@ class LiveCallVoiceChat(
         if (local != null) {
             if (id != null && client?.state?.value is ConnectionState.Connected) {
                 server.scope.launch {
-                    try { withTimeoutOrNull(END_TIMEOUT_MILLIS) { catching { client.call(Api.LiveCallEnd, LiveVoiceRef(id)) } } }
+                    try { withTimeoutOrNull(END_TIMEOUT_MILLIS) { catching { client.call(Api.LiveCallEnd, LiveCallRef(id)) } } }
                     finally { local.close() }
                 }
             } else local.close()
@@ -231,10 +246,10 @@ class LiveCallVoiceChat(
         if (ownsAudio) audio.stopCue()
     }
 
-    private fun control(method: Method<LiveVoiceRef, Unit>) {
+    private fun control(method: Method<LiveCallRef, Unit>) {
         val id = callId ?: return
         val client = connection ?: return
-        server.scope.launch { catching { client.call(method, LiveVoiceRef(id)) } }
+        server.scope.launch { catching { client.call(method, LiveCallRef(id)) } }
     }
 
     private companion object {
