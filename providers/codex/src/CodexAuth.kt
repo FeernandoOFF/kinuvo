@@ -68,8 +68,10 @@ class CodexAuth(
         ProviderAccount(true, claims(idToken)?.get("email")?.jsonPrimitive?.content)
     }
 
+    /** Signs out of the sign-in in use; a browser sign-in leaves a separately stored Codex login, e.g. the Codex CLI's, alone. */
     override suspend fun logout() = mutex.withLock {
-        if (browserStore !== store) store.delete()
+        val browser = signIn.credentials()?.get("selected") == JsonPrimitive(true)
+        if (!browser && browserStore !== store) store.delete()
         signIn.logout()
     }
 
