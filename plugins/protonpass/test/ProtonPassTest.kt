@@ -30,10 +30,10 @@ class ProtonPassTest {
             """
             #!/bin/bash
             S="${'$'}PROTON_PASS_SESSION_DIR/session"
-            need() { [ -f "${'$'}S" ] || { echo "Error: Unauthorized" >&2; exit 1; }; }
+            need() { [ -f "${'$'}S" ] && [ "${'$'}PROTON_PASS_KEY_PROVIDER" = fs ] || { echo "Error: Unauthorized" >&2; exit 1; }; }
             case "${'$'}1 ${'$'}2" in
               "--version "*) echo "Proton Pass CLI 2.3.3" ;;
-              "login "*) [ "${'$'}PROTON_PASS_PERSONAL_ACCESS_TOKEN" = good ] || { echo "Error: Invalid token" >&2; exit 1; }; mkdir -p "${'$'}PROTON_PASS_SESSION_DIR"; touch "${'$'}S" ;;
+              "login "*) [ "${'$'}PROTON_PASS_KEY_PROVIDER" = fs ] || { echo "Error: keychain access needed" >&2; exit 1; }; [ "${'$'}PROTON_PASS_PERSONAL_ACCESS_TOKEN" = good ] || { echo "Error: Invalid token" >&2; exit 1; }; mkdir -p "${'$'}PROTON_PASS_SESSION_DIR"; touch "${'$'}S" ;;
               "logout "*) rm -f "${'$'}S" ;;
               "info "*) need; echo "- Agent: kinuvo" ;;
               "vault list") need; echo '{"vaults":[{"name":"Kinuvo","vault_id":"v","share_id":"s"}]}' ;;

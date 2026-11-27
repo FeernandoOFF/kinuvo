@@ -115,7 +115,11 @@ class ProtonPass internal constructor(home: File, env: () -> Map<String, String>
         return if (check) output.value("pass-cli") else if (output.ok) output.out else ""
     }
 
-    private fun base() = mapOf("PROTON_PASS_SESSION_DIR" to sessionDir.path)
+    /**
+     * Kinuvo's own session keeps its local key in that folder, not the keychain: pass-cli stores a keychain item per
+     * session, so every sign-in asked again for keychain access, which a Server's background calls can't answer.
+     */
+    private fun base() = mapOf("PROTON_PASS_SESSION_DIR" to sessionDir.path, "PROTON_PASS_KEY_PROVIDER" to "fs")
 
     private fun json(text: String) = Json.parseToJsonElement(text).jsonObject
 
