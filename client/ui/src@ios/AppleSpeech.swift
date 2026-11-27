@@ -27,16 +27,39 @@ final class AppleSpeech: NSObject, SpeechEngine, VoiceAudio, LiveAudio {
     private var liveStarting = false
     private var livePending = [KotlinByteArray]()
     private var liveRate = 24000
-    func startLive(sampleRate: Int32, onAudio: @escaping (KotlinByteArray) -> Void, onError: @escaping (String) -> Void) {
-        releaseDeviceAudio()
-        liveGeneration += 1
-        let epoch = liveGeneration
+    private func observeInputMute(_ epoch: Int) {
         if let inputMuteObserver { NotificationCenter.default.removeObserver(inputMuteObserver) }
         inputMuteObserver = NotificationCenter.default.addObserver(forName: AVAudioApplication.inputMuteStateChangeNotification, object: nil, queue: .main) { [weak self] notification in
             guard let self, self.liveGeneration == epoch,
                   let muted = notification.userInfo?[AVAudioApplication.muteStateKey] as? Bool else { return }
             self.inputMuteChanged(KotlinBoolean(bool: muted))
         }
+    }
+    var callPeerSupported: Bool { true }
+    func createCallPeer() -> LiveCallPeer? {
+        liveGeneration += 1
+        let epoch = liveGeneration
+        observeInputMute(epoch)
+        liveAudio.holdSession(true)
+        let peer = AppleLiveCallPeer(prepare: { [self] ready in
+            releaseDeviceAudio()
+            serverAudio.release(ready)
+        }, finished: { [weak self] in DispatchQueue.main.async { self?.endCall(epoch) } })
+        return NativeLiveCallPeerKt.liveCallPeer(native: peer)
+    }
+    private func endCall(_ epoch: Int) {
+        guard liveGeneration == epoch else { return }
+        liveGeneration += 1
+        if let inputMuteObserver { NotificationCenter.default.removeObserver(inputMuteObserver) }
+        inputMuteObserver = nil
+        setInputMuted(muted: false)
+        liveAudio.holdSession(false)
+    }
+    func startLive(sampleRate: Int32, onAudio: @escaping (KotlinByteArray) -> Void, onError: @escaping (String) -> Void) {
+        releaseDeviceAudio()
+        liveGeneration += 1
+        let epoch = liveGeneration
+        observeInputMute(epoch)
         liveStarting = true
         livePending.removeAll()
         liveRate = Int(sampleRate)
@@ -749,6 +772,15 @@ final class AppleLiveAudio {
     private var cue: AVAudioPlayer?
     private var cueGeneration = 0
     private var cueSession = false
+    /** A call peer owns the audio session, so cues only play through it. */
+    private var external = false
+
+    func holdSession(_ held: Bool) {
+        queue.async { [self] in
+            external = held
+            if held { cueSession = false }
+        }
+    }
 
     func playCue(_ pcm: KotlinByteArray, _ sampleRate: Int) {
         let samples = AudioBytes.shared.toData(bytes: pcm)
@@ -756,7 +788,7 @@ final class AppleLiveAudio {
             stopCueOnQueue()
             do {
                 let session = AVAudioSession.sharedInstance()
-                if engine == nil {
+                if engine == nil, !external {
                     try session.setCategory(.playAndRecord, mode: .default, options: [.defaultToSpeaker, .allowBluetooth, .allowBluetoothA2DP])
                     try session.setActive(true)
                     cueSession = true
@@ -784,7 +816,7 @@ final class AppleLiveAudio {
     private func stopCueOnQueue() {
         cueGeneration += 1
         cue?.stop(); cue = nil
-        if cueSession, engine == nil { try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation) }
+        if cueSession, engine == nil, !external { try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation) }
         cueSession = false
     }
 

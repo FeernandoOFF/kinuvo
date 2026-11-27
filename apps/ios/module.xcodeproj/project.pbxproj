@@ -19,6 +19,8 @@
 		C0DE70500000000000000006 /* NotificationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0DE70500000000000000007 /* NotificationService.swift */; };
 		C0DE70500000000000000011 /* KinuvoNotifications.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = C0DE70500000000000000010 /* KinuvoNotifications.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		C0DE70500000000000000030 /* KinuvoTailcat.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = C0DE70500000000000000033 /* KinuvoTailcat.xcframework */; };
+		A8E591E0DDAD4A838B177301 /* ../../client/ui/src@ios/AppleLiveCallPeer.swift in Sources */ = {isa = PBXBuildFile; fileRef = A8E591E0DDAD4A838B177302 /* ../../client/ui/src@ios/AppleLiveCallPeer.swift */; };
+		C0DE70500000000000000040 /* StreamWebRTC in Frameworks */ = {isa = PBXBuildFile; productRef = C0DE70500000000000000043 /* StreamWebRTC */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -54,6 +56,7 @@
 		A8E591E0DDAD4A838B177104 /* ../../client/ui/src@ios/AppleFolderAccess.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "../../client/ui/src@ios/AppleFolderAccess.swift"; sourceTree = SOURCE_ROOT; };
 		B7C0DE51A9F04E2E9A3C2202 /* ../../client/ui/src@ios/AppleQrScanner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "../../client/ui/src@ios/AppleQrScanner.swift"; sourceTree = SOURCE_ROOT; };
 		A8E591E0DDAD4A838B177202 /* ../../plugins/apple-frameworks/native/AppleEventKit.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "../../plugins/apple-frameworks/native/AppleEventKit.swift"; sourceTree = SOURCE_ROOT; };
+		A8E591E0DDAD4A838B177302 /* ../../client/ui/src@ios/AppleLiveCallPeer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "../../client/ui/src@ios/AppleLiveCallPeer.swift"; sourceTree = SOURCE_ROOT; };
 		A8E591E0DDAD4A838B17700A /* ../../client/ui/src@ios/AppleSpeech.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "../../client/ui/src@ios/AppleSpeech.swift"; sourceTree = SOURCE_ROOT; };
 		C0DE70500000000000000033 /* KinuvoTailcat.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; path = ../../libs/tailcat/prebuilt/KinuvoTailcat.xcframework; sourceTree = SOURCE_ROOT; };
 		C0DE70500000000000000002 /* ../../client/ui/src@ios/ApplePush.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "../../client/ui/src@ios/ApplePush.swift"; sourceTree = SOURCE_ROOT; };
@@ -84,6 +87,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				C0DE70500000000000000030 /* KinuvoTailcat.xcframework in Frameworks */,
+				C0DE70500000000000000040 /* StreamWebRTC in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -111,6 +115,7 @@
 				A8E591E0DDAD4A838B177104 /* ../../client/ui/src@ios/AppleFolderAccess.swift */,
 				B7C0DE51A9F04E2E9A3C2202 /* ../../client/ui/src@ios/AppleQrScanner.swift */,
 				A8E591E0DDAD4A838B17700A /* ../../client/ui/src@ios/AppleSpeech.swift */,
+				A8E591E0DDAD4A838B177302 /* ../../client/ui/src@ios/AppleLiveCallPeer.swift */,
 				A8E591E0DDAD4A838B177202 /* ../../plugins/apple-frameworks/native/AppleEventKit.swift */,
 			);
 			sourceTree = "<group>";
@@ -159,6 +164,9 @@
 				29FA6339BB8DB2E19C54C879 /* src */,
 			);
 			name = app;
+			packageProductDependencies = (
+				C0DE70500000000000000043 /* StreamWebRTC */,
+			);
 			productName = app;
 			productReference = 29FA6B51CBB0E5CA09FB0275 /* Kinuvo.app */;
 			productType = "com.apple.product-type.application";
@@ -196,6 +204,9 @@
 				en,
 			);
 			mainGroup = 29FA697D41AC883FC5322BDF;
+			packageReferences = (
+				C0DE70500000000000000042 /* XCRemoteSwiftPackageReference "stream-video-swift-webrtc" */,
+			);
 			productRefGroup = 29FA6D261A4ADE9AE71720B6 /* Products */;
 			projectDirPath = "";
 			projectRoot = "";
@@ -267,6 +278,7 @@
 				A8E591E0DDAD4A838B177103 /* ../../client/ui/src@ios/AppleFolderAccess.swift in Sources */,
 				B7C0DE51A9F04E2E9A3C2201 /* ../../client/ui/src@ios/AppleQrScanner.swift in Sources */,
 				A8E591E0DDAD4A838B177009 /* ../../client/ui/src@ios/AppleSpeech.swift in Sources */,
+				A8E591E0DDAD4A838B177301 /* ../../client/ui/src@ios/AppleLiveCallPeer.swift in Sources */,
 				A8E591E0DDAD4A838B177201 /* ../../plugins/apple-frameworks/native/AppleEventKit.swift in Sources */,
 				C0DE70500000000000000001 /* ../../client/ui/src@ios/ApplePush.swift in Sources */,
 				C0DE70500000000000000003 /* PushKeys.swift in Sources */,
@@ -480,6 +492,25 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		C0DE70500000000000000042 /* XCRemoteSwiftPackageReference "stream-video-swift-webrtc" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/GetStream/stream-video-swift-webrtc";
+			requirement = {
+				kind = exactVersion;
+				version = 156.0.7;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		C0DE70500000000000000043 /* StreamWebRTC */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = C0DE70500000000000000042 /* XCRemoteSwiftPackageReference "stream-video-swift-webrtc" */;
+			productName = StreamWebRTC;
+		};
+/* End XCSwiftPackageProductDependency section */
 		CA1150000000000000000010 = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; path = KinuvoCalls.appex; sourceTree = BUILT_PRODUCTS_DIR;};
 		CA1150000000000000000007 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = liveactivity/CallWidget.swift; sourceTree = SOURCE_ROOT;};
 		CA1150000000000000000004 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = src/CallActivity.swift; sourceTree = SOURCE_ROOT;};
