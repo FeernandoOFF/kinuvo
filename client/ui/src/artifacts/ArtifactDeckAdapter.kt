@@ -5,6 +5,7 @@ package kinuvo.ui.artifacts
  * reports the slide position, the current slide's speaker notes as text and the next slide to the app, and applies positions and
  * steps the app sends. A position it applied is remembered, so reveal's events for it are not reported as changes. In a browser tab,
  * where the page is its own parent, it stays off, so the speaker view there is untouched.
+ * Once it syncs, a phone-width deck leaves reveal's scroll view, whose fragments follow the scroll position rather than steps.
  */
 internal const val DECK_ADAPTER = """(function(){if(parent===window)return;
 var last=null,tries=0;
@@ -17,8 +18,10 @@ var text=c.textContent.replace(/\s+/g," ").trim();return{title:title,text:text.s
 function slides(){var r=[];Reveal.getHorizontalSlides().forEach(function(s){var v=s.querySelectorAll(":scope > section");if(v.length)v.forEach(function(x){r.push(x)});else r.push(s)});return r}
 function report(ready){var i=Reveal.getIndices(),k=key(i.h,i.v,i.f),all=slides(),cur=Reveal.getCurrentSlide(),at=all.indexOf(cur),changed=!ready&&k!==last;last=k;
 parent.postMessage({kinuvo:"deck",h:i.h,v:i.v||0,f:i.f==null?null:i.f,n:at+1,total:all.length,notes:notes(cur).slice(0,20000),next:summary(all[at+1]),ready:!!ready,changed:changed},"*")}
+function slideMode(){if(typeof Reveal.isScrollView==="function"&&Reveal.isScrollView())Reveal.configure({scrollActivationWidth:0})}
 function start(){["slidechanged","fragmentshown","fragmenthidden"].forEach(function(e){Reveal.on(e,function(){report(false)})});
 addEventListener("message",function(e){var d=e.data;if(e.source!==parent||!d)return;
+if(d.kinuvo==="deck-apply"||d.kinuvo==="deck-step")slideMode();
 if(d.kinuvo==="deck-apply"){var f=d.f==null?undefined:d.f;last=key(d.h,d.v,f);var i=Reveal.getIndices();if(key(i.h,i.v,i.f)!==last)Reveal.slide(d.h,d.v||0,f)}
 else if(d.kinuvo==="deck-step"){if(d.forward)Reveal.next();else Reveal.prev()}});
 report(true)}
