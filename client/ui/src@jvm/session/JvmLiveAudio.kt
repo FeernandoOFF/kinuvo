@@ -4,6 +4,7 @@ import dev.onvoid.webrtc.media.audio.AudioProcessing
 import dev.onvoid.webrtc.media.audio.AudioProcessingConfig
 import dev.onvoid.webrtc.media.audio.AudioProcessingStreamConfig
 import kinuvo.app.session.LiveAudio
+import kinuvo.app.session.LiveCallPeer
 import java.util.concurrent.LinkedBlockingQueue
 import javax.sound.sampled.AudioFormat
 import javax.sound.sampled.AudioSystem
@@ -30,6 +31,7 @@ internal class JvmLiveAudio(
             }
         }.getOrNull()
     },
+    private val callPeer: () -> LiveCallPeer = ::JvmLiveCallPeer,
 ) : LiveAudio {
     private class Chunk(val pcm: ByteArray, val generation: Long)
     private class Session(val bytesPerMilli: Int) {
@@ -46,6 +48,8 @@ internal class JvmLiveAudio(
     @Volatile private var session: Session? = null
     override val echoes get() = session?.canceller == null
     override fun authorizeAudio(completion: (String?) -> Unit) = completion(null)
+    override val callPeerSupported get() = true
+    override fun createCallPeer(): LiveCallPeer = callPeer()
 
     private val cueLock = Any()
     private var cue: SourceDataLine? = null

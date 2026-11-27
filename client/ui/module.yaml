@@ -41,6 +41,9 @@ dependencies@jvm:
   - io.github.vinceglb:filekit-dialogs:0.17.1
   - dev.onvoid.webrtc:webrtc-java:0.20.0
   - dev.onvoid.webrtc:webrtc-java:0.20.0:macos-aarch64
+  - dev.onvoid.webrtc:webrtc-java:0.20.0:macos-x86_64
+  - dev.onvoid.webrtc:webrtc-java:0.20.0:windows-x86_64
+  - dev.onvoid.webrtc:webrtc-java:0.20.0:linux-x86_64
 
 dependencies@android:
   - androidx.webkit:webkit:1.15.0
