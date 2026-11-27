@@ -7,9 +7,9 @@ Voice chat lets you talk with an Agent in a Session, with a transcript saved the
 
 ## Live voice
 
-Live voice is an opt-in speech-to-speech mode for Voice chat, using ChatGPT's realtime voice model through the owner's ChatGPT/Codex subscription. Sign in to Codex on the Server, then enable **Live voice** under **Settings → Server → Voice**. The setting appears only when the Server can offer it: a JVM Server on macOS (Apple silicon or Intel), Windows x64 or Linux x64 with Codex signed in and its Live voice library available. Linux arm64 is not supported. Devices on iOS, Android and desktop can join through that Server.
+Live voice is a speech-to-speech mode for Voice chat, using ChatGPT's realtime voice model through the owner's ChatGPT/Codex subscription. Sign in to ChatGPT on the Server with a device code (**Settings → Model providers → Sign in**); the browser's **Continue with ChatGPT** can't start live calls, and **Settings → Server → Voice** offers the device-code sign-in when the Server was signed in that way. Then enable **Live voice** under **Settings → Server → Voice**; it is on by default. Every kind of Server offers it, including the one inside the phone app. Devices on iOS, Android, desktop and the web hold the call themselves: the Server sets it up with your subscription, which never reaches the Device.
 
-Start a Voice call from the Session's voice controls. Audio streams continuously from the Device through the Server to OpenAI during the call. Calls count against the ChatGPT plan's usage limits; the call screen shows readable errors, including a reached usage limit and its reset time when available.
+Start a Voice call from the Session's voice controls. Audio goes straight from the Device to OpenAI during the call; it doesn't pass through the Server. Calls count against the ChatGPT plan's usage limits; the call screen shows readable errors, including a reached usage limit and its reset time when available.
 
 The voice model hands tasks to the Session's Agent, including External Agents. These run as ordinary Session messages labelled **By voice**, with Approvals shown in a sheet over the call. When the call ends, its transcript is saved in the Session as one collapsible **Voice call** block.
 
@@ -19,7 +19,7 @@ Calls keep running in the background. Minimize a call to a strip at the top of t
 
 ## Transcription and synthesis
 
-Without Live voice, Voice chat turns what you say into messages and reads the Agent's replies aloud. Use the Session's voice controls to start, pause, resume or end it.
+A Server or Device that can't hold live calls uses this mode: Voice chat turns what you say into messages and reads the Agent's replies aloud. Use the Session's voice controls to start, pause, resume or end it.
 
 Voice chat and Dictation use speech parts provided by the selected Server, with Device system speech for parts left unset.
 

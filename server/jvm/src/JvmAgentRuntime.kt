@@ -13,9 +13,6 @@ import kinuvo.server.store.*
 import kotlinx.coroutines.runBlocking
 import kotlinx.io.files.Path
 import kinuvo.protocol.device.currentPlatform
-import kinuvo.providers.codex.CodexAuth
-import kinuvo.providers.codex.CodexRealtime
-import kinuvo.server.plugin.VoiceProviders
 import kinuvo.server.providers.ModelProviders
 
 class JvmAgentRuntime private constructor(home: Path, installed: Installed, modelFactory: ((AgentConfig) -> AgentModel)?) : AgentRuntime(
@@ -26,13 +23,13 @@ class JvmAgentRuntime private constructor(home: Path, installed: Installed, mode
     val files = AgentFiles(home)
     constructor(home: Path = kinuvoHome(), store: Store? = null, providers: ModelProviders<ModelSource>? = null,
         modelFactory: ((AgentConfig) -> AgentModel)? = null, clock: () -> Long = System::currentTimeMillis,
-        plugins: List<ServerPlugin>? = null, secretProviders: List<SecretProvider>? = null, codexAuth: CodexAuth = CodexAuth(),
-    ) : this(home, install(home, store, providers, plugins, secretProviders, clock, codexAuth), modelFactory)
+        plugins: List<ServerPlugin>? = null, secretProviders: List<SecretProvider>? = null,
+    ) : this(home, install(home, store, providers, plugins, secretProviders, clock), modelFactory)
 
     private class Installed(val dependencies: RuntimeDependencies, val sources: () -> List<ModelSource>)
 
     private companion object {
-        private fun install(home: Path, store: Store?, providers: ModelProviders<ModelSource>?, plugins: List<ServerPlugin>?, secretProviders: List<SecretProvider>?, clock: () -> Long, auth: CodexAuth): Installed = runBlocking {
+        private fun install(home: Path, store: Store?, providers: ModelProviders<ModelSource>?, plugins: List<ServerPlugin>?, secretProviders: List<SecretProvider>?, clock: () -> Long): Installed = runBlocking {
             val files = AgentFiles(home)
             val secrets = Secrets(secretProviders ?: jvmSecretProviders(files))
             val owned = mutableListOf<ServerPlugin>()
@@ -44,12 +41,7 @@ class JvmAgentRuntime private constructor(home: Path, installed: Installed, mode
                 throw e
             }
             ServerInstallation.assemble(files, store, selected, modelSources = sources,
-                secrets = secrets, userHome = Path(System.getProperty("user.home")), clock = clock).also { dependencies ->
-                    if (auth.account().signedIn && CodexRealtime.available()) {
-                        val voice = dependencies.voice
-                        dependencies.voice = VoiceProviders(voice.transcriber, voice.processor, voice.synthesizer, CodexRealtime(auth), voice.liveCalls)
-                    }
-                }.let { Installed(it, sources) }
+                secrets = secrets, userHome = Path(System.getProperty("user.home")), clock = clock).let { Installed(it, sources) }
         }
     }
 }
