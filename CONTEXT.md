@@ -137,6 +137,9 @@ _Avoid_: Sandbox, runtime, environment
 A page, chart or document (HTML, SVG, Markdown, CSV, JSON, text or a Design) an Agent makes for the user, kept in `~/.kinuvo/artifacts` and shared by all Agents; only its latest content is kept. Opened from the chat or the Artifacts screen.
 _Avoid_: Attachment, canvas
 
+**Page state**:
+A small JSON value the Server keeps in memory for an HTML Artifact and shares between the Devices showing it, so a reveal.js deck can be driven from a phone. Forgotten when the Server restarts or the Artifact is deleted.
+
 **Design**:
 An Artifact of type `design`: a row of Artboards on a pan and zoom canvas, kept as JSON. Artboards can be opened full screen or presented one by one.
 

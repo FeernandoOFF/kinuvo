@@ -163,4 +163,19 @@ class ArtifactTest {
         assertTrue(js.endsWith("\");"))
         assertEquals("design-apply", Json.parseToJsonElement(Json.parseToJsonElement("\"" + js.substringAfter("(\"").substringBeforeLast("\")")+ "\"").jsonPrimitive.content).jsonObject["kinuvo"]?.jsonPrimitive?.content)
     }
+
+    @Test
+    fun theDeckAdapterRunsOnlyInTheViewedPageWithItsOwnWrapper() {
+        val viewed = artifactDocument("<p>x</p>", deck = true)
+        assertTrue(frame(viewed).contains("if(parent===window)return;"))
+        assertTrue(frame(viewed).indexOf("Reveal.getIndices") in 0 until frame(viewed).indexOf("</head>"))
+        assertTrue(viewed.contains("window.kinuvoReceive=function(m)"))
+        assertTrue(viewed.contains("d.kinuvo===\"deck\"?JSON.stringify(d)"))
+        assertTrue(viewed.contains("sandbox=\"allow-scripts\""))
+        assertTrue(!viewed.contains("allow-same-origin"))
+        for (page in listOf(artifactDocument("<p>x</p>"), browserDocument("<p>x</p>", dark = false), visualDocument("<p>x</p>", nonce = "abc"))) {
+            assertTrue(!page.contains("Reveal.getIndices") && !page.contains("deck-apply"))
+        }
+        assertTrue(!artifactDocument("<p>x</p>").contains("kinuvoReceive"))
+    }
 }
