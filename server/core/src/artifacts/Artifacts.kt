@@ -105,7 +105,7 @@ class Artifacts(private val repo: ArtifactRepository, private val clock: () -> L
             return@withLock ArtifactFiles(id, path, listOf(ArtifactFile(path, bytes.size.toLong(), ArtifactBundle.mimeOf(path) ?: OCTET, hashOf(bytes))))
         }
         val manifest = manifestOf(id)
-        val files = repo.files(id).toSortedMap().map { (path, size) -> ArtifactFile(path, size, ArtifactBundle.mimeOf(path) ?: OCTET, hash(id, path, size)) }
+        val files = repo.files(id).entries.sortedBy { it.key }.map { (path, size) -> ArtifactFile(path, size, ArtifactBundle.mimeOf(path) ?: OCTET, hash(id, path, size)) }
         ArtifactFiles(id, manifest?.entry ?: ArtifactBundle.INDEX, files, manifest)
     }
 
