@@ -164,4 +164,71 @@ class ArtifactsViewModelTest {
             assertNull(missing)
         } finally { store.clear(); server.close(); client.close(); Dispatchers.resetMain() }
     }
+
+    @Test fun aFolderShowsWhatItAsksForAndGrantsAreSentToTheServer() = runTest {
+        Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+        val frames = Channel<Frame>(Channel.UNLIMITED)
+        val info = ArtifactInfo("a1", "App", "html", AgentId("main"), SessionId("s1"), 1, 1, bundle = true)
+        val asks = ArtifactCapabilities(network = listOf("https://api.example.com"), popups = true)
+        var permissions = ArtifactPermissions("a1", asks)
+        var predatesGrants = false
+        val changes = mutableListOf<ArtifactGrantChange>()
+        val transport = object : FrameConnection {
+            override val incoming = frames.receiveAsFlow()
+            override suspend fun send(frame: Frame) {
+                val request = frame as Frame.Request
+                val payload = when (request.method) {
+                    "connect" -> ProtocolJson.encodeToJsonElement(ConnectResult("token", "Server", capabilities = ServerCapabilities("server"), management = true))
+                    Api.Presence.name -> buildJsonObject {}
+                    Api.Artifacts.name -> ProtocolJson.encodeToJsonElement(listOf(info))
+                    Api.Artifact.name -> ProtocolJson.encodeToJsonElement(ArtifactData(info, "<p/>"))
+                    Api.ArtifactFileList.name -> ProtocolJson.encodeToJsonElement(ArtifactFiles("a1", "index.html", listOf(ArtifactFile("index.html", 4, "text/html", "h"))))
+                    Api.ArtifactPermissionList.name -> {
+                        if (predatesGrants) { frames.send(Frame.Response(request.id, false, error = WireError(WireErrorCode.Internal, "Unknown method"))); return }
+                        ProtocolJson.encodeToJsonElement(permissions)
+                    }
+                    Api.ChangeArtifactGrants.name -> {
+                        val change = ProtocolJson.decodeFromJsonElement<ArtifactGrantChange>(request.params)
+                        changes += change
+                        permissions = permissions.copy(granted = asks, effective = asks)
+                        ProtocolJson.encodeToJsonElement(permissions)
+                    }
+                    else -> { frames.send(Frame.Response(request.id, false, error = WireError(WireErrorCode.Internal, "Unused in test"))); return }
+                }
+                frames.send(Frame.Response(request.id, true, payload))
+            }
+            override suspend fun close() { frames.close() }
+        }
+        val client = KinuvoClient("local:test", "test", connection = { transport }, dispatcher = StandardTestDispatcher(testScheduler))
+        val reader = object : DeviceReader {
+            override val kinds = emptyList<String>()
+            override fun authorize(kind: String, completion: (String?) -> Unit) = completion(null)
+            override fun read(requestJson: String, completion: (String) -> Unit) {}
+        }
+        val server = ConnectedServer(Notifications(emptyList()), DeviceAccess(MemoryPreferences(), reader))
+        val store = ViewModelStore()
+        try {
+            client.connect(); server.open(client, "local:test"); server.config.attach(client)
+            val vm = ArtifactsViewModel(Route.Artifacts("a1"), server)
+            store.put("artifacts", vm)
+            runCurrent()
+            assertEquals(asks, vm.state.value.permissions?.requested)
+            assertTrue(vm.state.value.permissions?.pending == true)
+            assertTrue(vm.state.value.canGrant)
+
+            vm.allowAll(true); runCurrent()
+            assertEquals(ArtifactGrantChange("a1", all = true), changes.single())
+            assertTrue(vm.state.value.permissions?.everything == true)
+
+            vm.revoke(ArtifactCapabilities(popups = true)); vm.grant(ArtifactCapabilities(network = listOf("https://api.example.com"))); runCurrent()
+            assertEquals(listOf(ArtifactGrantChange("a1", revoke = ArtifactCapabilities(popups = true)), ArtifactGrantChange("a1", grant = ArtifactCapabilities(network = listOf("https://api.example.com")))), changes.drop(1))
+
+            predatesGrants = true
+            frames.send(Frame.Event(Api.ArtifactChanged.name, ProtocolJson.encodeToJsonElement(ArtifactChange("a1", info)), 1))
+            runCurrent()
+            assertNull(vm.state.value.permissions)
+            assertEquals(listOf("index.html"), vm.state.value.files?.files?.map { it.path })
+            assertTrue(vm.state.value.errors.isEmpty())
+        } finally { store.clear(); server.close(); client.close(); Dispatchers.resetMain() }
+    }
 }
