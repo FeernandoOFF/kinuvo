@@ -23,6 +23,7 @@ import kinuvo.server.plugin.LiveCallException
 import kinuvo.server.plugin.LiveCallProvider
 import kinuvo.server.plugin.LiveCallUnavailable
 import kinuvo.server.plugin.LiveCallStart
+import kinuvo.server.plugin.ReplyKind
 import kinuvo.server.plugin.VoiceContext
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
@@ -218,8 +219,9 @@ internal class CodexLiveCall(
     }
 
     /** Progress is commentary, which the model may mention. An answer is speakable, so it waits for a turn in progress to end: context appended mid-turn is not spoken afterwards. */
-    override suspend fun reply(id: String, text: String, final: Boolean) {
-        if (!final) return append(text) { delegationContext(id, it, COMMENTARY) }
+    override suspend fun reply(id: String, text: String, kind: ReplyKind) {
+        if (kind == ReplyKind.Progress) return append(text) { delegationContext(id, it, COMMENTARY) }
+        if (kind == ReplyKind.Prompt) return append(text) { delegationContext(id, it, SPEAKABLE) }
         gate.withLock {
             val active = scope
             if (open.isEmpty() || active == null) deliver(id, text)

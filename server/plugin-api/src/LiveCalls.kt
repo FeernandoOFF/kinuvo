@@ -22,12 +22,21 @@ data class LiveCallUnavailable(val reason: String, val signInProvider: String)
 /** [answerSdp] goes back to the Device; [call] is then run once the Device applies it. */
 class LiveCallStart(val answerSdp: String, val call: LiveCall)
 
+enum class ReplyKind {
+    /** Progress the model may mention. */
+    Progress,
+    /** What the user must hear while the task waits, e.g. an approval request or a question. */
+    Prompt,
+    /** The answer the model must tell the user. */
+    Final,
+}
+
 interface LiveCall {
     /** Attaches the side channel and runs until the call ends, passing its events to [onEvent]; throws [LiveCallException] when it fails. */
     suspend fun run(onEvent: suspend (LiveCallEvent) -> Unit)
 
-    /** Gives the model [text] about delegation [id]: the [final] answer, which it must tell the user, or progress it may mention. */
-    suspend fun reply(id: String, text: String, final: Boolean)
+    /** Gives the model [text] about delegation [id], as [kind] says. */
+    suspend fun reply(id: String, text: String, kind: ReplyKind)
 
     /** Tells the model something happened outside the call, which it tells the user. */
     suspend fun notify(text: String)

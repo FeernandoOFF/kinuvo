@@ -10,6 +10,7 @@ import kinuvo.server.plugin.AgentProgress
 import kinuvo.server.plugin.LiveCall
 import kinuvo.server.plugin.LiveCallEvent
 import kinuvo.server.plugin.LiveCallException
+import kinuvo.server.plugin.ReplyKind
 import kinuvo.server.plugin.voiceText
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
@@ -110,20 +111,20 @@ internal class LiveCallSession(
         val heartbeat = launch {
             while (true) {
                 delay(heartbeatMillis)
-                if (!reported.value) reply(event.id, "The Agent is still working on: ${event.task.take(80)}. If the user has been waiting, briefly tell them it is still in progress; don't invent details.", final = false)
+                if (!reported.value) reply(event.id, "The Agent is still working on: ${event.task.take(80)}. If the user has been waiting, briefly tell them it is still in progress; don't invent details.", ReplyKind.Progress)
                 reported.value = false
             }
         }
-        val answer = try { askAgent(event.task) { reported.value = true; reply(event.id, it.voiceText(), final = false) } }
+        val answer = try { askAgent(event.task) { reported.value = true; reply(event.id, it.voiceText(), if (it is AgentProgress.ApprovalRequested || it is AgentProgress.Question) ReplyKind.Prompt else ReplyKind.Progress) } }
         catch (e: CancellationException) { throw e }
         catch (e: Exception) { "The task failed: ${e.message}" }
         heartbeat.cancel()
-        reply(event.id, answer, final = true)
+        reply(event.id, answer, ReplyKind.Final)
     }
 
-    private suspend fun reply(delegation: String, text: String, final: Boolean) {
+    private suspend fun reply(delegation: String, text: String, kind: ReplyKind) {
         if (!active) return
-        try { call.reply(delegation, text, final) }
+        try { call.reply(delegation, text, kind) }
         catch (e: CancellationException) { throw e }
         catch (e: Exception) { log.warn(e) { "Live call $id could not receive a reply" } }
     }

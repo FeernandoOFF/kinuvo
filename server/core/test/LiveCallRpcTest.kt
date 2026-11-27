@@ -14,6 +14,7 @@ import kinuvo.protocol.session.*
 import kinuvo.protocol.voice.*
 import kinuvo.server.devices.PeerRegistry
 import kinuvo.server.plugin.LiveCall
+import kinuvo.server.plugin.ReplyKind
 import kinuvo.server.plugin.LiveCallEvent
 import kinuvo.server.plugin.LiveCallException
 import kinuvo.server.plugin.LiveCallProvider
@@ -52,7 +53,7 @@ class LiveCallRpcTest {
         val events = Channel<LiveCallEvent>(Channel.UNLIMITED)
         val sent = Channel<String>(Channel.UNLIMITED)
         override suspend fun run(onEvent: suspend (LiveCallEvent) -> Unit) { sent.send("run"); for (event in events) onEvent(event) }
-        override suspend fun reply(id: String, text: String, final: Boolean) { sent.send("reply $id${if (final) "" else " (progress)"}: $text") }
+        override suspend fun reply(id: String, text: String, kind: ReplyKind) { sent.send("reply $id${if (kind == ReplyKind.Final) "" else " (${kind.name.lowercase()})"}: $text") }
         override suspend fun notify(text: String) { sent.send("notify: $text") }
         override suspend fun pause() { sent.send("pause") }
         override suspend fun resume() { sent.send("resume") }

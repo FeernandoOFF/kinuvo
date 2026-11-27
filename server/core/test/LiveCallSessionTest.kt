@@ -6,6 +6,7 @@ import kinuvo.protocol.voice.LiveCallPhase
 import kinuvo.protocol.voice.LiveCallUpdate
 import kinuvo.protocol.voice.LivePeerState
 import kinuvo.server.plugin.AgentProgress
+import kinuvo.server.plugin.ReplyKind
 import kinuvo.server.plugin.LiveCall
 import kinuvo.server.plugin.LiveCallEvent
 import kinuvo.server.plugin.LiveCallException
@@ -30,7 +31,7 @@ class LiveCallSessionTest {
             failure?.let { throw it }
             finished.await()
         }
-        override suspend fun reply(id: String, text: String, final: Boolean) {}
+        override suspend fun reply(id: String, text: String, kind: ReplyKind) {}
         override suspend fun notify(text: String) {}
         override suspend fun pause() {}
         override suspend fun resume() {}
@@ -87,7 +88,7 @@ class LiveCallSessionTest {
         var released = false
         val call = object : LiveCall {
             override suspend fun run(onEvent: suspend (LiveCallEvent) -> Unit) { onEvent(LiveCallEvent.Transcript("u1", "hello", true)) }
-            override suspend fun reply(id: String, text: String, final: Boolean) {}
+            override suspend fun reply(id: String, text: String, kind: ReplyKind) {}
             override suspend fun notify(text: String) {}
             override suspend fun pause() {}
             override suspend fun resume() {}
@@ -117,9 +118,9 @@ class LiveCallSessionTest {
 
     private class Replies : LiveCall {
         val events = Channel<LiveCallEvent>(Channel.UNLIMITED)
-        val replies = mutableListOf<Triple<String, String, Boolean>>()
+        val replies = mutableListOf<Triple<String, String, ReplyKind>>()
         override suspend fun run(onEvent: suspend (LiveCallEvent) -> Unit) { for (event in events) onEvent(event) }
-        override suspend fun reply(id: String, text: String, final: Boolean) { replies += Triple(id, text, final) }
+        override suspend fun reply(id: String, text: String, kind: ReplyKind) { replies += Triple(id, text, kind) }
         override suspend fun notify(text: String) {}
         override suspend fun pause() {}
         override suspend fun resume() {}
@@ -133,7 +134,23 @@ class LiveCallSessionTest {
         session.peer(LivePeerState.Connecting)
         call.events.send(LiveCallEvent.Delegation("d1", "task"))
         runCurrent()
-        assertEquals(listOf(Triple("d1", "Agent progress (not the final result): half way", false), Triple("d1", "done", true)), call.replies)
+        assertEquals(listOf(Triple("d1", "Agent progress (not the final result): half way", ReplyKind.Progress), Triple("d1", "done", ReplyKind.Final)), call.replies)
+        session.end()
+        runCurrent()
+    }
+
+    @Test fun approvalsAndQuestionsAreSpoken() = runTest {
+        val call = Replies()
+        val session = LiveCallSession(call, this, { true }, { _, progress ->
+            progress(AgentProgress.ApprovalRequested("shell", "rm build"))
+            progress(AgentProgress.Question("Which file?"))
+            "done"
+        })
+        session.start()
+        session.peer(LivePeerState.Connecting)
+        call.events.send(LiveCallEvent.Delegation("d1", "task"))
+        runCurrent()
+        assertEquals(listOf(ReplyKind.Prompt, ReplyKind.Prompt, ReplyKind.Final), call.replies.map { it.third })
         session.end()
         runCurrent()
     }
@@ -152,17 +169,17 @@ class LiveCallSessionTest {
         advanceTimeBy(19_999)
         assertEquals(emptyList(), call.replies)
         advanceTimeBy(2)
-        assertEquals(listOf(Triple("d1", "The Agent is still working on: build the artifact. If the user has been waiting, briefly tell them it is still in progress; don't invent details.", false)), call.replies)
+        assertEquals(listOf(Triple("d1", "The Agent is still working on: build the artifact. If the user has been waiting, briefly tell them it is still in progress; don't invent details.", ReplyKind.Progress)), call.replies)
         advanceTimeBy(5_000)
         assertEquals(2, call.replies.size)
         advanceTimeBy(15_000)
         assertEquals(2, call.replies.size)
         advanceTimeBy(20_000)
         assertEquals(3, call.replies.size)
-        assertTrue(call.replies.none { it.third })
+        assertTrue(call.replies.none { it.third == ReplyKind.Final })
         finish.complete("ready")
         runCurrent()
-        assertEquals(Triple("d1", "ready", true), call.replies.last())
+        assertEquals(Triple("d1", "ready", ReplyKind.Final), call.replies.last())
         session.end()
         runCurrent()
     }

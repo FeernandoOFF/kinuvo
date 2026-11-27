@@ -8,6 +8,7 @@ import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
 import io.ktor.http.headersOf
 import kinuvo.server.plugin.Keychain
+import kinuvo.server.plugin.ReplyKind
 import kinuvo.server.plugin.LiveCallEvent
 import kinuvo.server.plugin.LiveCallException
 import kinuvo.server.plugin.LiveCallUnavailable
@@ -196,8 +197,8 @@ class CodexLiveCallsTest {
     @Test fun controlsAreSentOverTheSideband() = runTest {
         val fake = FakeSideband()
         val (call, job) = running(fake, mutableListOf())
-        call.reply("d1", "Checking the forecast", final = false)
-        call.reply("d1", "Sunny", final = true)
+        call.reply("d1", "Checking the forecast", ReplyKind.Progress)
+        call.reply("d1", "Sunny", ReplyKind.Final)
         call.notify("The build finished")
         call.pause()
         call.resume()
@@ -216,7 +217,7 @@ class CodexLiveCallsTest {
     @Test fun longRepliesAreSplitUnderTheContextLimit() = runTest {
         val fake = FakeSideband()
         val (call, job) = running(fake, mutableListOf())
-        call.reply("d1", "a".repeat(1200), final = true)
+        call.reply("d1", "a".repeat(1200), ReplyKind.Final)
         val texts = List(3) { Json.parseToJsonElement(fake.sent.receive()).jsonObject.getValue("content").jsonArray.single().jsonObject.getValue("text").jsonPrimitive.content }
         assertEquals(listOf(500, 500, 200), texts.map { it.length })
         fake.frames.send("""{"type":"session.closed"}""")
@@ -241,7 +242,7 @@ class CodexLiveCallsTest {
         val (call, job) = connected(fake)
         fake.frames.send("""{"type":"turn.created","turn":{"id":"t1","role":"assistant"}}""")
         runCurrent()
-        call.reply("d1", "Sunny", final = true)
+        call.reply("d1", "Sunny", ReplyKind.Final)
         runCurrent()
         assertEquals(emptyList(), fake.drain())
         fake.frames.send("""{"type":"turn.done","turn":{"id":"t1","role":"assistant","transcript":"Let me check"}}""")
@@ -258,8 +259,8 @@ class CodexLiveCallsTest {
         val (call, job) = connected(fake)
         fake.frames.send("""{"type":"turn.created","turn":{"id":"u1","role":"user"}}""")
         runCurrent()
-        call.reply("d1", "one", final = true)
-        call.reply("d2", "two", final = true)
+        call.reply("d1", "one", ReplyKind.Final)
+        call.reply("d2", "two", ReplyKind.Final)
         runCurrent()
         assertEquals(emptyList(), fake.drain())
         fake.frames.send("""{"type":"turn.done","turn":{"id":"u1","role":"user","transcript":"hm"}}""")
@@ -273,7 +274,7 @@ class CodexLiveCallsTest {
         val (call, job) = connected(fake)
         fake.frames.send("""{"type":"turn.created","turn":{"id":"t1","role":"assistant"}}""")
         runCurrent()
-        call.reply("d1", "Sunny", final = true)
+        call.reply("d1", "Sunny", ReplyKind.Final)
         advanceTimeBy(999)
         assertEquals(emptyList(), fake.drain())
         advanceTimeBy(2)
@@ -281,10 +282,23 @@ class CodexLiveCallsTest {
         fake.close(job)
     }
 
+    @Test fun approvalsAndQuestionsAreSpokenAtOnceWithoutANudge() = runTest {
+        val fake = FakeSideband()
+        val (call, job) = connected(fake)
+        fake.frames.send("""{"type":"turn.created","turn":{"id":"t1","role":"assistant"}}""")
+        runCurrent()
+        call.reply("d1", "Approve on screen", ReplyKind.Prompt)
+        runCurrent()
+        assertEquals(listOf("speakable"), fake.drain().map { it.channel() })
+        advanceTimeBy(60_000)
+        assertEquals(emptyList(), fake.drain())
+        fake.close(job)
+    }
+
     @Test fun aModelThatStaysSilentAfterTheAnswerIsNudgedOnce() = runTest {
         val fake = FakeSideband()
         val (call, job) = connected(fake)
-        call.reply("d1", "Sunny", final = true)
+        call.reply("d1", "Sunny", ReplyKind.Final)
         runCurrent()
         assertEquals(listOf("delegation.context.append"), fake.drain().map { it.getValue("type").jsonPrimitive.content })
         advanceTimeBy(499)
@@ -301,7 +315,7 @@ class CodexLiveCallsTest {
     @Test fun aModelThatSpeaksTheAnswerIsNotNudged() = runTest {
         val fake = FakeSideband()
         val (call, job) = connected(fake)
-        call.reply("d1", "Sunny", final = true)
+        call.reply("d1", "Sunny", ReplyKind.Final)
         runCurrent()
         fake.drain()
         advanceTimeBy(300)
@@ -317,7 +331,7 @@ class CodexLiveCallsTest {
         val (call, job) = connected(fake)
         fake.frames.send("""{"type":"turn.created","turn":{"id":"t1","role":"assistant"}}""")
         runCurrent()
-        call.reply("d1", "Still going", final = false)
+        call.reply("d1", "Still going", ReplyKind.Progress)
         runCurrent()
         assertEquals(listOf("commentary"), fake.drain().map { it.channel() })
         advanceTimeBy(60_000)
@@ -328,7 +342,7 @@ class CodexLiveCallsTest {
     @Test fun aLongAnswerGoesOutInOrderOnTheSpeakableChannel() = runTest {
         val fake = FakeSideband()
         val (call, job) = connected(fake)
-        call.reply("d1", "a".repeat(500) + "b".repeat(500) + "c", final = true)
+        call.reply("d1", "a".repeat(500) + "b".repeat(500) + "c", ReplyKind.Final)
         runCurrent()
         val chunks = fake.drain()
         assertEquals(listOf("a", "b", "c"), chunks.map { it.getValue("content").jsonArray.single().jsonObject.getValue("text").jsonPrimitive.content.first().toString() })
