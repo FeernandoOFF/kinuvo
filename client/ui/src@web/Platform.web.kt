@@ -3,11 +3,14 @@ package kinuvo.ui
 import kinuvo.app.connection.*
 import kinuvo.app.device.*
 
+import kinuvo.app.session.SpeechEngine
 import kinuvo.protocol.device.DeviceToolResult
 import kinuvo.protocol.device.DeviceToolStatus
 import kinuvo.protocol.mcp.McpRedirect
 import kinuvo.protocol.ProtocolJson
 import kinuvo.protocol.device.Links
+import kinuvo.ui.session.WebSpeech
+import kinuvo.ui.session.browserCanCall
 import kotlinx.browser.localStorage
 import kotlinx.browser.window
 import kotlinx.coroutines.awaitCancellation
@@ -54,6 +57,7 @@ internal actual val platformModule = module {
     single<Preferences> { LocalStorePreferences() }
     single<ClientCache> { deviceCache("") }
     single<OAuthBrowser> { TabBrowser() }
+    if (browserCanCall()) single<SpeechEngine> { WebSpeech() }
     single {
         Device(
             "Web browser",

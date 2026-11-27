@@ -81,7 +81,7 @@ class ServerVoiceTest {
     @Test fun serverOwnsSettingsAndOrdinaryDevicesOnlyGetInference() = runBlocking {
         val home = temporaryDirectories.create("server-voice-test").toFile()
         val codexAuth = CodexAuth(PrivateFile(Path(home.path, "codex-auth.json")))
-        val server = JvmServerHost(JvmAgentRuntime(Path(home.path), providers = ModelProviders.of(CodexProvider(codexAuth)), codexAuth = codexAuth))
+        val server = JvmServerHost(JvmAgentRuntime(Path(home.path), providers = ModelProviders.of(CodexProvider(codexAuth))))
         val port = server.start("127.0.0.1", 0, schedule = false)
         val address = "ws://127.0.0.1:$port/ws"
         val owner = KinuvoClient(address, "owner", token = server.auth.sessionToken())
