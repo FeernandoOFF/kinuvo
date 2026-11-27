@@ -89,6 +89,7 @@ final class AppleSpeech: NSObject, SpeechEngine, VoiceAudio, LiveAudio {
         liveAudio.stop()
     }
     var halfDuplex: Bool { true }
+    var speaks: Bool { true }
     func authorizeAudio(completion: @escaping (String?) -> Void) { serverAudio.authorize(completion) }
     func record(untilPause: Bool, onAudio: @escaping (KotlinByteArray) -> Void, onError: @escaping (String) -> Void) {
         releaseDeviceAudio()
