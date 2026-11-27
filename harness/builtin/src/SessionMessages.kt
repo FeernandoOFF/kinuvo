@@ -103,7 +103,8 @@ class SessionMessages(private val model: AgentModel, private val imageReferences
     private fun RequestMessagePartsBuilder.attach(list: List<Attachment>) = list.forEach { a ->
         val bytes = requireNotNull(model.attachments) { "This provider has no attachment storage" }(a)
         val content = AttachmentContent.Binary.Bytes(bytes)
-        if (kinuvo.protocol.session.attachmentInput(a.mimeType) == "text") text("\n\nFile: ${a.name}\n${bytes.decodeToString()}\n\n")
+        if (kinuvo.protocol.session.attachmentInput(a.mimeType) == "text") text(
+            if (a.path == null) "\n\nFile: ${a.name}\n${bytes.decodeToString()}\n\n" else stagedNote(a, bytes))
         else if (a.mimeType.startsWith("image/")) image(AttachmentSource.Image(content, a.mimeType.substringAfter('/'), a.mimeType, a.name))
         else file(AttachmentSource.File(content = content, format = a.name.substringAfterLast('.'), mimeType = a.mimeType, fileName = a.name))
     }
@@ -121,3 +122,11 @@ private fun activation(a: SessionEntry.Activation) = "Skill '${a.name}' is activ
 internal const val TOOL_FILES = "Files from the tool results above:"
 
 internal const val IMAGE_REFERENCES = "Image attachment IDs, for generate_image references:"
+
+internal const val PREVIEW_CHARS = 2_000
+
+internal fun stagedNote(a: Attachment, bytes: ByteArray): String {
+    val preview = bytes.decodeToString().take(PREVIEW_CHARS)
+    return "\n\nFile: ${a.name} (${a.size} bytes) is too large to include. It is saved at ${a.path}. " +
+        "Inspect it with shell tools (rg, head, sed -n, python) instead of reading it whole. Start of the file:\n$preview\n\n"
+}

@@ -112,7 +112,7 @@ fun ChatScreen(
     val speech = getKoin().getOrNull<SpeechEngine>()
     val voice = speech?.let { koinViewModel<VoiceViewModel> { parametersOf(it, session) }.chat }
     val liveCall by koinInject<LiveCalls>().state.collectAsState()
-    val dictation = speech?.let { koinViewModel<DictationViewModel> { parametersOf(it) } }
+    val dictation = speech?.takeIf { it.speaks }?.let { koinViewModel<DictationViewModel> { parametersOf(it) } }
     // The ViewModels outlive the screen, e.g. while Settings is open; the microphone doesn't.
     // A live call belongs to the app, not this screen, so it carries on after leaving.
     DisposableEffect(voice, dictation) { onDispose { if (voice?.state?.value?.live != true) voice?.end(); dictation?.stop() } }

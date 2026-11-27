@@ -16,6 +16,11 @@ fun interface ExecCheck {
     suspend fun check(agent: Agent, command: String?): ExecTestResult
 }
 
+/** Copies a file into an Agent's Workspace; null when the Agent has no exec. Returns the path the Agent sees. */
+fun interface AttachmentStager {
+    suspend fun stage(agent: Agent, name: String, bytes: ByteArray): String?
+}
+
 /**
  * A named part of the harness that an app chooses to include, e.g. exec, MCP or a task provider.
  * Native manifests describe typed contributions and per-run tool discovery without activating them.
@@ -45,8 +50,10 @@ interface ServerPlugin {
     val apps: McpApps? get() = null
     val mcp: McpManagement? get() = null
     val execCheck: ExecCheck? get() = null
+    val attachmentStager: AttachmentStager? get() = null
     val browser: BrowserService? get() = null
     val voice: ServerVoice? get() = null
+    val liveCalls: LiveCallProvider? get() = null
     /** Whether its tools go to the tool catalog once an Agent has too many to send each to the model, e.g. MCP servers'. */
     val catalogued: Boolean get() = false
     /** Options it adds to integrations its typed providers don't describe, e.g. the exec backends it can run. */
@@ -81,8 +88,10 @@ fun List<ServerPlugin>.checkPluginInstances() {
     checkSingleton("apps") { it.apps != null }
     checkSingleton("mcp") { it.mcp != null }
     checkSingleton("execCheck") { it.execCheck != null }
+    checkSingleton("attachmentStager") { it.attachmentStager != null }
     checkSingleton("browser") { it.browser != null }
     checkSingleton("voice") { it.voice != null }
+    checkSingleton("liveCalls") { it.liveCalls != null }
 }
 
 /** The Server uses the first plugin offering a singleton capability, so a second one would be silently ignored. */

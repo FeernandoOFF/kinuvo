@@ -15,6 +15,9 @@ import androidx.compose.ui.use
 import com.composables.ui.theme.backgroundColor
 import kinuvo.app.voice.*
 import kinuvo.ui.design.*
+import kinuvo.protocol.model.DeviceCode
+import kinuvo.protocol.voice.LiveUnavailable
+import kinuvo.ui.voice.LiveVoiceSignIn
 import kinuvo.ui.voice.VoiceSettingsContent
 import org.jetbrains.skia.EncodedImageFormat
 import java.io.File
@@ -64,6 +67,25 @@ class VoiceSettingsScreenshotTest {
             assertTrue("Language" !in texts)
             File("build/screens").apply { mkdirs() }.resolve("voice-settings-unsupported-${if (dark) "dark" else "light"}.png")
                 .writeBytes(scene.render(2_000_000_000L).encodeToData(EncodedImageFormat.PNG)!!.bytes)
+        }
+    }
+
+    @Test fun liveVoiceNeedingADeviceCodeSignInRendersItsReasonThenTheCode() = javax.swing.SwingUtilities.invokeAndWait {
+        val unavailable = LiveUnavailable("Live voice needs ChatGPT signed in with a device code. Signing in that way replaces Continue with ChatGPT; chat keeps working.", "codex")
+        for (dark in listOf(true, false)) for (code in listOf(null, DeviceCode("https://auth.openai.com/codex/device", "ABCD-1234", 0))) {
+            ImageComposeScene(780, 900, Density(2f), content = {
+                KinuvoTheme(dark = dark) {
+                    Column(Modifier.fillMaxSize().background(color(backgroundColor)).padding(24.dp)) { LiveVoiceSignIn(unavailable, code) {} }
+                }
+            }).use { scene ->
+                repeat(12) { scene.render(it * 100_000_000L) }
+                val texts = scene.semanticsOwners.flatMap { text(it.rootSemanticsNode) }
+                assertTrue(unavailable.reason in texts)
+                assertEquals(code == null, "Sign in with a device code" in texts)
+                assertEquals(code != null, "ABCD-1234" in texts)
+                File("build/screens").apply { mkdirs() }.resolve("voice-live-sign-in-${if (dark) "dark" else "light"}-${if (code == null) "prompt" else "code"}.png")
+                    .writeBytes(scene.render(2_000_000_000L).encodeToData(EncodedImageFormat.PNG)!!.bytes)
+            }
         }
     }
     private fun model(id: String, title: String, kind: VoiceModelKind, bytes: Long) = VoiceModel(id, title, kind,

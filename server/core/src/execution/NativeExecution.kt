@@ -198,14 +198,15 @@ class NativeExecution(
         require(p.text.isNotBlank() || p.attachments.isNotEmpty()) { "Add a message or attachment" }
         check(p.attachments.isEmpty() || ServerFeature.Attachments in capabilities().features) { "Attachments are not available on this Server" }
         require(p.attachments.size <= MAX_ATTACHMENTS && p.attachments.distinct().size == p.attachments.size) { "Attach up to 4 different files" }
-        val attachments = withContext(Dispatchers.Default) { p.attachments.map(harness.attachments::get) }
-        require(attachments.sumOf { it.size } <= MAX_ATTACHMENT_TOTAL_BYTES) { "Attachments must total 20 MB or less" }
+        val uploaded = withContext(Dispatchers.Default) { p.attachments.map(harness.attachments::get) }
+        require(uploaded.sumOf { it.size } <= MAX_ATTACHMENT_TOTAL_BYTES) { "Attachments must total 20 MB or less" }
         val sessionId = p.sessionId?.also { id ->
             if (harness.store.sessions(agent.id).none { it.id == id }) raise(SessionError.NotOfAgent(id, agent.id))
         } ?: harness.newSession(agent).id
         val effective = harness.composer.capabilities(agent, sessionId, null, capabilities())
         effective.chat.requireReady()
-        attachments.forEach { attachment -> effective.attachment(attachment.mimeType).requireReady() }
+        uploaded.forEach { attachment -> effective.attachment(attachment.mimeType).requireReady() }
+        val attachments = stageLargeText(agent, uploaded, effective.stagesLargeText)
         val (activation, message) = (if (ServerFeature.Skills in capabilities().features) harness.slashActivation(agent, p.text) else null) ?: (null to p.text)
         val kind = RunKind.Chat(activation, attachments, p.voice, discovery = p.discovery && !p.voice && p.action == null && p.delivery == SendDelivery.Turn, catalogs = catalogs, reports = toolReports(agent, sessionId, catalogs))
         return deliveryLock.withLock {
@@ -230,6 +231,14 @@ class NativeExecution(
                 }
             }
             SendResult(sessionId, id, message, activation)
+        }
+    }
+
+    private suspend fun stageLargeText(agent: Agent, list: List<Attachment>, allowed: Boolean): List<Attachment> = list.map { a ->
+        if (attachmentInput(a.mimeType) != "text" || a.size <= MAX_TEXT_ATTACHMENT_BYTES) a else {
+            val stager = harness.attachmentStager?.takeIf { allowed } ?: throw IllegalArgumentException(LARGE_TEXT_NEEDS_EXEC)
+            val bytes = withContext(Dispatchers.Default) { harness.attachments.bytes(a) }
+            a.copy(path = requireNotNull(stager.stage(agent, "${a.id}-${a.name}", bytes)) { LARGE_TEXT_NEEDS_EXEC })
         }
     }
 
@@ -269,3 +278,5 @@ class NativeExecution(
         }
     }
 }
+
+internal const val LARGE_TEXT_NEEDS_EXEC = "Large text files need an agent with exec and a model that can use tools (max 256 KB otherwise)"

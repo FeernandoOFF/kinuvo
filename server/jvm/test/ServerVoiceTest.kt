@@ -7,6 +7,8 @@ import kinuvo.testing.harness.awaitValue
 import kinuvo.testing.harness.awaitCondition
 import kinuvo.client.KinuvoClient
 import kinuvo.providers.codex.CodexAuth
+import kinuvo.providers.codex.CodexProvider
+import kinuvo.server.providers.ModelProviders
 import kinuvo.server.plugin.PrivateFile
 import kinuvo.plugins.voice.DownloadedVoice
 import kinuvo.protocol.*
@@ -78,7 +80,8 @@ class ServerVoiceTest {
 
     @Test fun serverOwnsSettingsAndOrdinaryDevicesOnlyGetInference() = runBlocking {
         val home = temporaryDirectories.create("server-voice-test").toFile()
-        val server = JvmServerHost(JvmAgentRuntime(Path(home.path), codexAuth = CodexAuth(PrivateFile(Path(home.path, "codex-auth.json")))))
+        val codexAuth = CodexAuth(PrivateFile(Path(home.path, "codex-auth.json")))
+        val server = JvmServerHost(JvmAgentRuntime(Path(home.path), providers = ModelProviders.of(CodexProvider(codexAuth))))
         val port = server.start("127.0.0.1", 0, schedule = false)
         val address = "ws://127.0.0.1:$port/ws"
         val owner = KinuvoClient(address, "owner", token = server.auth.sessionToken())

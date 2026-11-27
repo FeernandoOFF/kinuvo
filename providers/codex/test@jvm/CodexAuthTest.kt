@@ -79,6 +79,18 @@ class CodexAuthTest {
     }
 
     @Test
+    fun signInKindFollowsTheTokensThatWouldBeUsed() = runTest {
+        assertEquals(ChatGptSignInKind.SignedOut, auth().signInKind())
+        writeAuth(jwt(1.hours))
+        assertEquals(ChatGptSignInKind.Codex, auth().signInKind())
+        assertTrue(requests.isEmpty())
+        file.writeText("""{"tokens":{"id_token":"id","access_token":"a","refresh_token":"r","account_id":"acct"},"siwc":{"selected":true,"access_token":"siwc","refresh_token":"r"}}""")
+        assertEquals(ChatGptSignInKind.Browser, auth().signInKind())
+        file.writeText("""{"siwc":{"selected":false,"access_token":"siwc"}}""")
+        assertEquals(ChatGptSignInKind.SignedOut, auth().signInKind())
+    }
+
+    @Test
     fun forcedRefreshAndFailureLeavesFileUntouched() = runTest {
         writeAuth(jwt(1.hours))
         val before = file.readText()
@@ -105,6 +117,23 @@ class CodexAuthTest {
         assertFalse(file.readText().contains("secret-refresh"))
         assertFalse(file.readText().contains("secret-access"))
         assertTrue(file.readText().contains("oaiapp_saved"))
+    }
+
+    @Test
+    fun browserSignOutKeepsTheSeparateCodexLogin() = runTest {
+        writeAuth(jwt(1.hours))
+        val browser = File(temporaryDirectories.create("home").toFile(), "chatgpt-auth.json")
+        browser.writeText("""{"siwc":{"selected":true,"client_id":"oaiapp_x","subject":"s","access_token":"a","expires_at":${(Clock.System.now() + 1.hours).epochSeconds},"scope":"chatgpt.tokens.use.direct"}}""")
+        val auth = CodexAuth(store = PrivateFile(Path(file.path)), http = HttpClient(MockEngine { respond("", HttpStatusCode.NotFound) }),
+            browserStore = PrivateFile(Path(browser.path)))
+
+        auth.logout()
+
+        assertTrue(file.exists())
+        assertTrue(auth.account().signedIn)
+        assertEquals("acct", auth.tokens().accountId)
+        auth.logout()
+        assertFalse(file.exists())
     }
 
     @Test

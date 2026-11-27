@@ -1,20 +1,18 @@
 package kinuvo.protocol.voice
 
-import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
-import kinuvo.protocol.agent.AgentId
-import kinuvo.protocol.session.SessionId
 
 /**
  * Which parts of Voice chat the Server provides; the Device does the rest with its own recognizer and voice. Endpoints
- * and keys stay on the Server. [speechToSpeech] replaces the whole pipeline.
+ * and keys stay on the Server. [liveCalls] replaces the whole pipeline with a call the Device holds and the Server
+ * brokers.
  */
 @Serializable
 data class VoiceSetup(
     val transcriber: Boolean = false,
     val processor: Boolean = false,
     val synthesizer: Boolean = false,
-    val speechToSpeech: Boolean = false,
+    val liveCalls: Boolean = false,
 )
 
 @Serializable
@@ -54,45 +52,13 @@ data class SpeechAudio(val base64: String)
 @Serializable
 data class CancelVoiceParams(val requestId: String)
 
-/** Starts a live speech-to-speech call in a Session; the Server holds the call to the model. */
 @Serializable
-data class LiveVoiceParams(val agentId: AgentId, val sessionId: SessionId)
+data class LiveCallRef(val callId: String)
 
-/** Audio both ways is mono PCM16 at [sampleRate], base64 encoded. */
+/** Whether the Server offers live calls, and whether the owner turned them on; [unavailable] says why it can't offer them and what fixes it. */
 @Serializable
-data class LiveVoiceCall(val callId: String, val sampleRate: Int)
+data class LiveVoiceSettings(val available: Boolean = false, val enabled: Boolean = true, val unavailable: LiveUnavailable? = null)
 
+/** Why live calls can't start with the current sign-in; the Device can start a device-code sign-in for [signInProvider]. */
 @Serializable
-data class LiveVoiceRef(val callId: String)
-
-/** What the Device sends during a call, as events without replies: about 100 ms of microphone audio at a time. */
-@Serializable
-sealed interface LiveVoiceInput {
-    val callId: String
-    @Serializable @SerialName("audio") data class Audio(override val callId: String, val base64: String) : LiveVoiceInput
-    /** How much of reply [item] the user has heard. */
-    @Serializable @SerialName("played") data class Played(override val callId: String, val item: String, val millis: Int) : LiveVoiceInput
-    @Serializable @SerialName("interrupt") data class Interrupt(override val callId: String, val item: String, val millis: Int) : LiveVoiceInput
-    @Serializable @SerialName("pause") data class Pause(override val callId: String) : LiveVoiceInput
-    @Serializable @SerialName("resume") data class Resume(override val callId: String) : LiveVoiceInput
-}
-
-@Serializable
-sealed interface LiveVoiceOutput {
-    val callId: String
-    @Serializable @SerialName("ready") data class Ready(override val callId: String) : LiveVoiceOutput
-    @Serializable @SerialName("listening") data class Listening(override val callId: String) : LiveVoiceOutput
-    @Serializable @SerialName("thinking") data class Thinking(override val callId: String) : LiveVoiceOutput
-    @Serializable @SerialName("audio") data class Audio(override val callId: String, val item: String, val base64: String) : LiveVoiceOutput
-    /** What has been said so far in turn [item]; the [final] transcript replaces the partial ones. */
-    @Serializable @SerialName("transcript") data class Transcript(override val callId: String, val item: String, val text: String, val user: Boolean, val final: Boolean = true) : LiveVoiceOutput
-    @Serializable @SerialName("done") data class Done(override val callId: String, val item: String) : LiveVoiceOutput
-    /** The user started talking over a reply; drop what is still queued to play. */
-    @Serializable @SerialName("interrupted") data class Interrupted(override val callId: String) : LiveVoiceOutput
-    /** The call is over, with [error] when it failed. */
-    @Serializable @SerialName("ended") data class Ended(override val callId: String, val error: String? = null) : LiveVoiceOutput
-}
-
-/** Whether the Server can hold live speech-to-speech calls, and whether the owner turned them on. */
-@Serializable
-data class LiveVoiceSettings(val available: Boolean = false, val enabled: Boolean = true)
+data class LiveUnavailable(val reason: String, val signInProvider: String)

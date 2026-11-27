@@ -104,6 +104,8 @@ data class SessionCapabilities(
     val execution: ExecutionCapabilities? = null,
     val queue: Boolean = false,
     val steer: Boolean = false,
+    /** Whether text files over `MAX_TEXT_ATTACHMENT_BYTES` are accepted, because the Agent can stage them in its Workspace. */
+    val stagesLargeText: Boolean = false,
 ) {
     fun input(kind: String) = inputs[kind] ?: CapabilityState.unsupported("This model does not accept $kind input")
     fun attachment(mimeType: String): CapabilityState = when {

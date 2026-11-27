@@ -82,6 +82,33 @@ class SessionMessagesTest {
         assertEquals(listOf(screenshot), result.attachments)
     }
 
+    @Test
+    fun largeTextIsReplacedByItsPathAndAPreview() {
+        val big = "x".repeat(5_000)
+        val a = Attachment("1", "deck.html", "text/html", big.length, path = "/ws/.kinuvo/attachments/1-deck.html")
+        val model = scriptedModel { _, _ -> emptyFlow() }.copy(attachments = { big.encodeToByteArray() })
+        val text = SessionMessages(model).prompt("", listOf(SessionEntry.UserMessage("read", attachments = listOf(a))))
+            .messages.flatMap { it.parts }.filterIsInstance<MessagePart.Text>().joinToString { it.text }
+        assertTrue("/ws/.kinuvo/attachments/1-deck.html" in text && "rg" in text)
+        assertTrue(text.length < 2_500 && "x".repeat(2_000) in text && "x".repeat(2_001) !in text)
+    }
+
+    @Test
+    fun stagedTextCountsAsItsPreviewInTheEstimate() {
+        val staged = Attachment("1", "deck.html", "text/html", 1_000_000, path = "/ws/.kinuvo/attachments/1-deck.html")
+        assertTrue(listOf(SessionEntry.UserMessage("read", attachments = listOf(staged))).estimatedTokens("") < 1_000)
+        assertTrue(listOf(SessionEntry.UserMessage("read", attachments = listOf(staged.copy(path = null)))).estimatedTokens("") > 200_000)
+    }
+
+    @Test
+    fun smallTextStaysInline() {
+        val a = Attachment("1", "n.md", "text/markdown", 2)
+        val model = scriptedModel { _, _ -> emptyFlow() }.copy(attachments = { "hi".encodeToByteArray() })
+        val text = SessionMessages(model).prompt("", listOf(SessionEntry.UserMessage("read", attachments = listOf(a))))
+            .messages.flatMap { it.parts }.filterIsInstance<MessagePart.Text>().joinToString { it.text }
+        assertTrue("File: n.md\nhi" in text)
+    }
+
     private val messages = SessionMessages(scriptedModel { _, _ -> emptyFlow() })
 
     @Test

@@ -96,6 +96,7 @@ open class AgentRuntime(
         PROVIDED_FEATURES.filterKeys { dependencies.settings.integrations[it].orEmpty().isNotEmpty() }.values
     val mcp: McpManagement = dependencies.mcp
     val execCheck = dependencies.execCheck
+    val attachmentStager = dependencies.attachmentStager
     val devices = DeviceTools(log, { questions }, { timeZone })
     val computers = Computers(log) { questions }
     internal val plugins = (listOf(KnowledgePlugin(knowledge), TasksPlugin(tasks), devices, computers) + external).also { it.checkPluginInstances() }

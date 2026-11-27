@@ -12,6 +12,7 @@ import kinuvo.server.plugin.PluginStorage
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kinuvo.server.plugin.ExecCheck
+import kinuvo.server.plugin.AttachmentStager
 import kinuvo.protocol.capability.CapabilityState
 import kinuvo.protocol.agent.ExecTestResult
 import kinuvo.protocol.capability.ExecutionLocation
@@ -82,6 +83,8 @@ class ExecPlugin(
         catch (e: Exception) { ExecTestResult(backend.label, error = e.message) }
         finally { if (backend is ContainerBackend) kotlinx.coroutines.withContext(NonCancellable) { runCatching { backend.remove() } } }
     }
+
+    override val attachmentStager = AttachmentStager { agent, name, bytes -> backend(agent)?.stage(name, bytes) }
 
     override suspend fun instructions(agent: Agent): InstructionSection? =
         try { backend(agent)?.instructions } catch (e: CancellationException) { throw e } catch (_: Exception) { null }

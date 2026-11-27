@@ -29,6 +29,9 @@ import kotlin.time.TimeSource
 
 private val log = KotlinLogging.logger("kinuvo.codex.auth")
 
+/** The ChatGPT sign-in [CodexAuth.tokens] uses: the Codex login (device code or the CLI's auth.json), the browser's "Continue with ChatGPT", or none. */
+enum class ChatGptSignInKind { SignedOut, Codex, Browser }
+
 data class CodexTokens(val accessToken: String, val accountId: String, val usesChatGptPlan: Boolean = false)
 
 /** ChatGPT OAuth tokens, kept like the Codex CLI's auth.json in [store]; refreshes and writes them back in place. */
@@ -60,6 +63,15 @@ class CodexAuth(
         CodexTokens(root.accessToken, root.tokens.getValue("account_id").jsonPrimitive.content)
     }
 
+    /** Which sign-in [tokens] would use, without refreshing or reaching the network. */
+    suspend fun signInKind(): ChatGptSignInKind = mutex.withLock {
+        when {
+            signIn.credentials()?.get("selected") == JsonPrimitive(true) -> ChatGptSignInKind.Browser
+            runCatching { read().tokens["id_token"] }.getOrNull() != null -> ChatGptSignInKind.Codex
+            else -> ChatGptSignInKind.SignedOut
+        }
+    }
+
     override suspend fun account(): ProviderAccount = mutex.withLock {
         signIn.credentials()?.takeIf { it["selected"] == JsonPrimitive(true) }?.let {
             return@withLock ProviderAccount("access_token" in it, (it["email"] as? JsonPrimitive)?.contentOrNull, true, planAllowed(it))
@@ -68,8 +80,10 @@ class CodexAuth(
         ProviderAccount(true, claims(idToken)?.get("email")?.jsonPrimitive?.content)
     }
 
+    /** Signs out of the sign-in in use; a browser sign-in leaves a separately stored Codex login, e.g. the Codex CLI's, alone. */
     override suspend fun logout() = mutex.withLock {
-        if (browserStore !== store) store.delete()
+        val browser = signIn.credentials()?.get("selected") == JsonPrimitive(true)
+        if (!browser && browserStore !== store) store.delete()
         signIn.logout()
     }
 

@@ -230,6 +230,29 @@ class RunPreparationRuntimeTest {
         } finally { harness.close() }
     }
 
+    @Test fun largeTextStagingNeedsAUsableShellTool() = runBlocking {
+        val exec = object : ServerPlugin {
+            override val definition = PluginDefinition("kinuvo.exec", "Shell")
+            override val attachmentStager = AttachmentStager { _, _, _ -> "/ws/f" }
+            override suspend fun prepare(run: RunContext, activate: Boolean) = PluginTools(listOf(object : Tool {
+                override val descriptor = toolSpec(ToolNames.SHELL, "Run")
+                override val risk = Risk.Low
+                override suspend fun execute(args: JsonObject) = ""
+            }))
+        }
+        val fixture = RuntimeFixture(listOf(exec), listOf(provider))
+        val harness = fixture.runtime()
+        try {
+            val agent = agent(harness).let { it.copy(config = it.config.copy(exec = "host")) }
+            assertTrue(inspect(harness, agent).stagesLargeText)
+            fixture.rules = TrustRules(deny = DenyRules(tools = listOf(ToolIdentity(PluginInstanceId("kinuvo.exec"), ToolNames.SHELL).key)))
+            assertFalse(inspect(harness, agent).stagesLargeText)
+            fixture.rules = TrustRules()
+            assertFalse(inspect(harness, agent.copy(config = agent.config.copy(model = "text"))).stagesLargeText)
+            assertFalse(inspect(harness, agent.copy(config = agent.config.copy(tier = ModelTier.NoTools))).stagesLargeText)
+        } finally { harness.close() }
+    }
+
     @Test fun instructionOnlyPluginKeepsItsSection() = runBlocking {
         val plugin = object : ServerPlugin {
             override val definition = PluginDefinition("test.instructions", "Instructions")

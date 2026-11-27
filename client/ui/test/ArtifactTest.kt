@@ -30,6 +30,14 @@ class ArtifactTest {
     }
 
     @Test
+    fun scriptedPagesGetWebStorageBeforeTheirOwnScriptsRun() {
+        val page = sandboxed("<script>sessionStorage.getItem('x')</script>")
+        val shim = page.indexOf("['localStorage','sessionStorage']")
+        assertTrue(shim in 0 until page.indexOf("</head>"))
+        assertTrue(!sandboxed("<p>x</p>", script = "'nonce-abc'").contains("sessionStorage"))
+    }
+
+    @Test
     fun theAppThemeReachesThePageAndOnlyTheBrowserCopyMayFrame() {
         val viewed = artifactDocument("<p>x</p>", dark = true)
         assertTrue(viewed.contains("dataset.theme=&quot;dark&quot;"))

@@ -10,16 +10,11 @@ dependencies:
   - ai.koog:prompt-executor-openai-client:1.3.0
   - ai.koog:http-client-ktor:1.3.0
   - io.ktor:ktor-client-content-negotiation:3.6.0
+  - io.ktor:ktor-client-websockets:3.6.0
   - io.ktor:ktor-serialization-kotlinx-json:3.6.0
 
 dependencies@jvm:
   - io.ktor:ktor-client-java:3.6.0
-  - io.ktor:ktor-client-webrtc:3.6.0
-  - dev.onvoid.webrtc:webrtc-java:0.20.0
-  - dev.onvoid.webrtc:webrtc-java:0.20.0:macos-aarch64
-  - dev.onvoid.webrtc:webrtc-java:0.20.0:macos-x86_64
-  - dev.onvoid.webrtc:webrtc-java:0.20.0:windows-x86_64
-  - dev.onvoid.webrtc:webrtc-java:0.20.0:linux-x86_64
 
 dependencies@android:
   - io.ktor:ktor-client-okhttp:3.6.0

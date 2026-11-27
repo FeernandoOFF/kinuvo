@@ -79,7 +79,13 @@ fun List<SessionEntry>.estimatedTokens(instructions: String, tools: List<ToolDes
         }
     }) / 4
 
-private fun List<Attachment>.estimatedChars() = sumOf { a -> if (a.mimeType.startsWith("image/")) 6400 else a.size }
+private fun List<Attachment>.estimatedChars() = sumOf { a ->
+    when {
+        a.mimeType.startsWith("image/") -> 6400
+        a.path != null -> minOf(a.size, PREVIEW_CHARS) + 400
+        else -> a.size
+    }
+}
 
 /** Skills activated in [this] history (user activations, activate_skill results, earlier compactions), latest per name. */
 fun List<SessionEntry>.activations(): List<SessionEntry.Activation> {
