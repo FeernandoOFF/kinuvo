@@ -19,7 +19,7 @@ class ServerVoiceViewModel(private val server: ConnectedServer) : ViewModel() {
         try {
             val s = server.call { it.call(Api.VoiceModels, Unit) }
             val live = catching { server.call { it.call(Api.LiveVoiceSettings, Unit) } }.getOrDefault(LiveVoiceSettings())
-            state.value = LocalVoiceState(s.models, s.installed, s.transcription, s.synthesis, s.language, s.downloading, s.downloaded, error = s.error ?: actionError ?: if (!s.supported) "Downloaded voice is unavailable on this Server." else null, live = live)
+            state.value = LocalVoiceState(s.models, s.installed, s.transcription, s.synthesis, s.language, s.downloading, s.downloaded, error = (if (s.supported) s.error else null) ?: actionError, downloadsSupported = s.supported, live = live)
         } catch (e: CancellationException) { throw e }
         catch (e: Exception) { state.update { it.copy(error = userMessage(e.message) ?: "Server voice unavailable") } }
     }
