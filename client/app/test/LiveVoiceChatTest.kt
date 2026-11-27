@@ -438,7 +438,7 @@ class LiveVoiceChatTest {
             }
             val live = calls.attach(AgentId("agent"), SessionId("session"), backgroundScope, { AgentId("agent") to SessionId("session") }) { _, _ -> LiveVoiceChat(server, audio) { AgentId("agent") to SessionId("session") } }
             val selection = CompletableDeferred<Unit>()
-            val screen = PickedVoiceChat(speech, live, backgroundScope) { selection.await(); true }
+            val screen = PickedVoiceChat(speech, live, backgroundScope) { selection.await(); VoiceSetup(speechToSpeech = true) }
             screen.start()
             runCurrent()
             screen.start()

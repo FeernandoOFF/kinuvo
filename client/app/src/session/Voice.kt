@@ -16,6 +16,8 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kinuvo.protocol.Api
+import kinuvo.protocol.agent.AgentId
+import kinuvo.protocol.session.SessionId
 import kinuvo.protocol.voice.VoiceSetup
 
 /** Turns what the user says into text as they talk. Callbacks arrive on the main thread. */
@@ -121,17 +123,25 @@ class VoiceViewModel(device: SpeechEngine, session: SessionViewModel, server: Co
     val chat: VoiceChat = PickedVoiceChat(
         SpeechVoiceChat(engine, session, viewModelScope),
         live?.let { audio ->
-            val route = session.state.value.route
-            if (calls != null)
-                calls.attach(route.agentId, route.sessionId, viewModelScope, session::liveSession, name = { id ->
-                    catching { requireNotNull(server).call { it.call(Api.Agents, Unit) }.firstOrNull { it.id == id }?.name }.getOrNull() ?: id.value
-                }) { agent, id ->
-                    LiveVoiceChat(requireNotNull(server), audio) { agent to id }
-                }
-            else LiveVoiceChat(requireNotNull(server), audio, openSession = session::liveSession)
+            joined(session, server, calls, { agent, id -> LiveVoiceChat(requireNotNull(server), audio) { agent to id } }) {
+                LiveVoiceChat(requireNotNull(server), audio, openSession = session::liveSession)
+            }
         },
         viewModelScope,
-    ) { server?.call { it.call(Api.VoiceSetup, Unit) }?.speechToSpeech == true }
+        held = live?.takeIf { it.callPeerSupported }?.let { audio ->
+            joined(session, server, calls, { agent, id -> LiveCallVoiceChat(requireNotNull(server), audio) { agent to id } }) {
+                LiveCallVoiceChat(requireNotNull(server), audio, session::liveSession)
+            }
+        },
+    ) { server?.call { it.call(Api.VoiceSetup, Unit) } ?: VoiceSetup() }
+
+    private fun joined(session: SessionViewModel, server: ConnectedServer?, calls: LiveCalls?, create: (AgentId, SessionId) -> VoiceChat, direct: () -> VoiceChat): VoiceChat {
+        if (calls == null) return direct()
+        val route = session.state.value.route
+        return calls.attach(route.agentId, route.sessionId, viewModelScope, session::liveSession, name = { id ->
+            catching { requireNotNull(server).call { it.call(Api.Agents, Unit) }.firstOrNull { it.id == id }?.name }.getOrNull() ?: id.value
+        }, create)
+    }
 
     init {
         viewModelScope.launch {

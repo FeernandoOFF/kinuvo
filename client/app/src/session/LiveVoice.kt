@@ -38,6 +38,10 @@ interface LiveAudio {
     /** Replaces a short standalone cue without capturing audio or waiting for playback. */
     fun playCue(pcm: ByteArray, sampleRate: Int) {}
     fun stopCue() {}
+    /** Whether this Device can hold a call itself, with [createCallPeer]. */
+    val callPeerSupported: Boolean get() = false
+    /** A WebRTC peer for a call the Device holds. */
+    fun createCallPeer(): LiveCallPeer? = null
 }
 
 /**
@@ -314,12 +318,16 @@ class LiveVoiceChat(
     private fun fail(error: String) = stop(error)
 }
 
-/** Live calls when the Server offers them and the Device can stream audio, else [speech]; decided at each start. */
+/**
+ * A Device-held [held] call when the Server brokers them, else a Server-held [live] call when it offers speech-to-speech
+ * and the Device can stream audio, else [speech]; decided at each start.
+ */
 class PickedVoiceChat(
     private val speech: VoiceChat,
     private val live: VoiceChat?,
     private val scope: CoroutineScope,
-    private val offered: suspend () -> Boolean,
+    private val held: VoiceChat? = null,
+    private val offered: suspend () -> VoiceSetup,
 ) : VoiceChat {
     private var active = speech
     private var picking: Job? = null
@@ -328,8 +336,9 @@ class PickedVoiceChat(
 
     init {
         scope.launch {
-            merge(speech.state.map { speech to it }, live?.state?.map { live to it } ?: emptyFlow()).collect { (chat, s) ->
-                if (chat === live && s.live && active.state.value.phase == VoicePhase.Off) active = chat
+            val calls = listOfNotNull(live, held)
+            merge(speech.state.map { speech to it }, *calls.map { call -> call.state.map { call to it } }.toTypedArray()).collect { (chat, s) ->
+                if (chat !== speech && s.live && active.state.value.phase == VoicePhase.Off) active = chat
                 if (chat === active && picking?.isActive != true) state.value = s
             }
         }
@@ -337,10 +346,15 @@ class PickedVoiceChat(
 
     override fun start() {
         if (state.value.phase != VoicePhase.Off) return
-        if (live == null) return speech.also { active = it }.start()
+        if (live == null && held == null) return speech.also { active = it }.start()
         state.value = VoiceChatState(VoicePhase.Starting, speaker = state.value.speaker)
         picking = scope.launch {
-            active = if (catching { offered() }.getOrDefault(false)) live else speech
+            val setup = catching { offered() }.getOrDefault(VoiceSetup())
+            active = when {
+                held != null && setup.liveCalls -> held
+                live != null && setup.speechToSpeech -> live
+                else -> speech
+            }
             active.speaker(state.value.speaker)
             active.start()
             state.value = active.state.value
@@ -354,7 +368,7 @@ class PickedVoiceChat(
     override fun letGo() = active.letGo()
     override fun interrupt() = active.interrupt()
     override fun attention() = active.attention()
-    override fun speaker(on: Boolean) { speech.speaker(on); live?.speaker(on) }
+    override fun speaker(on: Boolean) { speech.speaker(on); live?.speaker(on); held?.speaker(on) }
     override fun background() = active.background()
     override fun foreground() = active.foreground()
 }
