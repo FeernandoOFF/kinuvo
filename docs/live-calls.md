@@ -50,7 +50,19 @@ Server once ChatGPT is signed in.
 
 ## iOS
 
-The app declares background audio and Live Activity support. A route change
+The app declares background audio and Live Activity support. When the Server offers Device-held calls, `AppleSpeech.createCallPeer` gives the call an `AppleLiveCallPeer`: Stream's
+libwebrtc build (`StreamWebRTC`, Swift package `stream-video-swift-webrtc`, pinned to an exact version) in Swift,
+adapted to `LiveCallPeer` by `NativeLiveCallPeer` (`client/app/src/native`), which Swift implements with callbacks. The
+peer takes the audio session as `playAndRecord` in `.voiceChat` mode (Apple's echo cancellation and noise
+suppression), defaulting to the speaker with Bluetooth allowed, and starts WebRTC's audio unit only once the connection
+exists (`RTCAudioSession` manual audio). Closing the peer deactivates the session, retrying while a cue still plays, and
+restores the category it found; an interruption that ends with `shouldResume` restarts the audio unit and a
+media-services reset fails the call. Cues play through the call's session without reconfiguring it. The microphone
+permission goes through `authorizeAudio`. `UIBackgroundModes` audio keeps the call running in the background and the
+Live Activity works as for Server-held calls. A phone's own Server offers these calls like any other once ChatGPT is
+signed in.
+
+A Server-held call, from a Server without Device-held calls, runs the app's own audio engine. A route change
 that leaves the engine running with the same microphone format only restores the
 speaker override when output fell back to the receiver. Otherwise route changes,
 and engine configuration changes that stop the engine, coalesce for 250 ms before
