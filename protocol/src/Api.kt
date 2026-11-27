@@ -156,6 +156,13 @@ object Api {
     /** Sent by the Device, unlike other events. */
     val LiveVoiceInput = EventType("voice.live.input", kinuvo.protocol.voice.LiveVoiceInput.serializer())
     val LiveVoiceOutput = EventType("voice.live.output", kinuvo.protocol.voice.LiveVoiceOutput.serializer())
+    /** Starts a live call the Device holds; the Server answers its WebRTC offer and then sends [LiveCallUpdate]s. */
+    val LiveCallStart = Method("voice.call.start", LiveCallParams.serializer(), LiveCallAnswer.serializer())
+    val LiveCallPeer = Method("voice.call.peer", LivePeerParams.serializer(), Unit.serializer())
+    val LiveCallPause = Method("voice.call.pause", LiveVoiceRef.serializer(), Unit.serializer())
+    val LiveCallResume = Method("voice.call.resume", LiveVoiceRef.serializer(), Unit.serializer())
+    val LiveCallEnd = Method("voice.call.end", LiveVoiceRef.serializer(), Unit.serializer())
+    val LiveCallUpdate = EventType("voice.call.update", kinuvo.protocol.voice.LiveCallUpdate.serializer())
     val Capabilities = Method("session.capabilities", CapabilitiesParams.serializer(), SessionCapabilities.serializer())
     val CapabilitiesChanged = EventType("capabilities.changed", Unit.serializer())
     val Models = Method("models.list", ModelsParams.serializer(), ModelsCatalog.serializer())

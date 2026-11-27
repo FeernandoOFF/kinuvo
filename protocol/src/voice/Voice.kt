@@ -7,7 +7,8 @@ import kinuvo.protocol.session.SessionId
 
 /**
  * Which parts of Voice chat the Server provides; the Device does the rest with its own recognizer and voice. Endpoints
- * and keys stay on the Server. [speechToSpeech] replaces the whole pipeline.
+ * and keys stay on the Server. [speechToSpeech] replaces the whole pipeline with the Server holding the call;
+ * [liveCalls] does with the Device holding it, and the Server brokering it.
  */
 @Serializable
 data class VoiceSetup(
@@ -15,6 +16,7 @@ data class VoiceSetup(
     val processor: Boolean = false,
     val synthesizer: Boolean = false,
     val speechToSpeech: Boolean = false,
+    val liveCalls: Boolean = false,
 )
 
 @Serializable

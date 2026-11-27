@@ -70,15 +70,17 @@ sealed interface VoiceOutput {
 
 /**
  * What a Server does for Voice chat. Missing parts stay on the Device, so the default leaves it all to the Device's
- * recognizer and voice; [speechToSpeech] replaces the whole pipeline. Devices learn only [setup], never endpoints or keys.
+ * recognizer and voice; [speechToSpeech] replaces the whole pipeline, as do [liveCalls] when the Device holds the call.
+ * Devices learn only [setup], never endpoints or keys.
  */
 class VoiceProviders(
     val transcriber: Transcriber? = null,
     val processor: TranscriptProcessor? = null,
     val synthesizer: Synthesizer? = null,
     val speechToSpeech: SpeechToSpeech? = null,
+    val liveCalls: LiveCallProvider? = null,
 ) {
-    val setup get() = VoiceSetup(transcriber != null, processor != null, synthesizer != null, speechToSpeech != null)
+    val setup get() = VoiceSetup(transcriber != null, processor != null, synthesizer != null, speechToSpeech != null, liveCalls != null)
 }
 
 sealed interface AgentProgress {
