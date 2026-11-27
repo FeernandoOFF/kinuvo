@@ -274,6 +274,8 @@ class ServerRuntime(
             pending.block { map -> map.values.toList().also { map.clear() } }.forEach { it.completeExceptionally(IllegalStateException("Device disconnected")) }
         }
 
+        override fun <T> offer(type: EventType<T>, payload: T): Boolean = offer(frame(type, payload))
+
         override fun requireDevice() = requireNotNull(deviceId)
 
         override fun setSurfaceCatalogs(catalogs: List<UiCatalog>) = harness.uiCatalogs.connect(this, catalogs)
@@ -395,6 +397,7 @@ class ServerRuntime(
             deviceId?.let { id -> scope.launch { screens.close(id) } }
             clients.remove(this)
             harness.uiCatalogs.disconnect(this)
+            harness.artifacts.states.disconnect(this)
             detachTools()
             outbox.close()
             // Called while the log may hold its lock, so unsubscribing happens after.

@@ -31,6 +31,9 @@ class Artifacts(private val repo: ArtifactRepository, private val clock: () -> L
     private val lock = Mutex()
     private val listeners = AtomicReference(emptyList<(ArtifactChange) -> Unit>())
 
+    /** What pages share between the Devices showing them; goes with the Artifact when it is deleted. */
+    val states = ArtifactStates()
+
     fun onChange(listener: (ArtifactChange) -> Unit) = listeners.update { it + listener }
 
     suspend fun list(): List<ArtifactInfo> = lock.withLock { repo.list() }.sortedByDescending { it.updated }
@@ -62,6 +65,7 @@ class Artifacts(private val repo: ArtifactRepository, private val clock: () -> L
 
     suspend fun delete(id: String) = lock.withLock {
         check(repo.delete(id)) { "No artifact '$id'" }
+        states.clear(id)
         notify(ArtifactChange(id))
     }
 

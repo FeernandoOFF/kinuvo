@@ -243,6 +243,11 @@ object Api {
     val Artifact = Method("artifact.get", ArtifactRef.serializer(), ArtifactData.serializer())
     val SaveArtifact = Method("artifact.save", ArtifactSave.serializer(), ArtifactInfo.serializer())
     val DeleteArtifact = Method("artifact.delete", ArtifactRef.serializer(), Unit.serializer())
+    /** Starts sending this connection the state of an Artifact page, and returns the latest. */
+    val WatchArtifactState = Method("artifact.state.watch", ArtifactRef.serializer(), ArtifactState.serializer())
+    val UnwatchArtifactState = Method("artifact.state.unwatch", ArtifactRef.serializer(), Unit.serializer())
+    /** Sets the state of a watched Artifact page; every other watching connection gets [ArtifactStateChanged]. */
+    val SetArtifactState = Method("artifact.state.set", ArtifactStateSet.serializer(), Unit.serializer())
     val Routines = Method("routines.list", AgentRef.serializer(), ListSerializer(Routine.serializer()))
     val CreateRoutine = Method("routine.create", CreateRoutineParams.serializer(), Routine.serializer())
     val UpdateRoutine = Method("routine.update", UpdateRoutineParams.serializer(), Routine.serializer())
@@ -315,6 +320,8 @@ object Api {
     val KnowledgeChanged = EventType("knowledge.changed", KnowledgeChange.serializer())
     /** An Artifact was saved or deleted. */
     val ArtifactChanged = EventType("artifact.changed", ArtifactChange.serializer())
+    /** Another connection set the state of an Artifact page this one watches. */
+    val ArtifactStateChanged = EventType("artifact.state", ArtifactState.serializer())
     /** A Task changed on the Board, e.g. an Agent started or finished it. */
     val TaskChanged = EventType("task.changed", TaskInfo.serializer())
     /** A Device paired or was revoked. */
