@@ -8,6 +8,7 @@ import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
 import io.ktor.http.headersOf
 import kinuvo.server.plugin.Keychain
+import kinuvo.server.plugin.ReplyKind
 import kinuvo.server.plugin.LiveCallEvent
 import kinuvo.server.plugin.LiveCallException
 import kinuvo.server.plugin.LiveCallUnavailable
@@ -18,6 +19,8 @@ import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.test.advanceTimeBy
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
@@ -194,14 +197,16 @@ class CodexLiveCallsTest {
     @Test fun controlsAreSentOverTheSideband() = runTest {
         val fake = FakeSideband()
         val (call, job) = running(fake, mutableListOf())
-        call.reply("d1", "Sunny")
+        call.reply("d1", "Checking the forecast", ReplyKind.Progress)
+        call.reply("d1", "Sunny", ReplyKind.Final)
         call.notify("The build finished")
         call.pause()
         call.resume()
         call.end()
         suspend fun next(): JsonObject = Json.parseToJsonElement(fake.sent.receive()).jsonObject
-        assertEquals("""{"type":"delegation.context.append","delegation_item_id":"d1","content":[{"type":"input_text","text":"Sunny"}]}""", next().toString())
-        assertEquals("""{"type":"session.context.append","content":[{"type":"input_text","text":"The build finished"}]}""", next().toString())
+        assertEquals("""{"type":"delegation.context.append","delegation_item_id":"d1","channel":"commentary","content":[{"type":"input_text","text":"Checking the forecast"}]}""", next().toString())
+        assertEquals("""{"type":"delegation.context.append","delegation_item_id":"d1","channel":"speakable","content":[{"type":"input_text","text":"Sunny"}]}""", next().toString())
+        assertEquals("""{"type":"session.context.append","channel":"speakable","content":[{"type":"input_text","text":"The build finished"}]}""", next().toString())
         assertEquals("input_audio.pause", next().getValue("type").jsonPrimitive.content)
         assertEquals("input_audio.resume", next().getValue("type").jsonPrimitive.content)
         assertEquals("session.close", next().getValue("type").jsonPrimitive.content)
@@ -212,11 +217,137 @@ class CodexLiveCallsTest {
     @Test fun longRepliesAreSplitUnderTheContextLimit() = runTest {
         val fake = FakeSideband()
         val (call, job) = running(fake, mutableListOf())
-        call.reply("d1", "a".repeat(1200))
+        call.reply("d1", "a".repeat(1200), ReplyKind.Final)
         val texts = List(3) { Json.parseToJsonElement(fake.sent.receive()).jsonObject.getValue("content").jsonArray.single().jsonObject.getValue("text").jsonPrimitive.content }
         assertEquals(listOf(500, 500, 200), texts.map { it.length })
         fake.frames.send("""{"type":"session.closed"}""")
         job.join()
+    }
+
+    private suspend fun kotlinx.coroutines.test.TestScope.connected(fake: FakeSideband): Pair<CodexLiveCall, kotlinx.coroutines.Job> {
+        val call = CodexLiveCall("rtc_1", "session", auth, "wss://sideband/rtc_1", fake, holdMillis = 1_000, nudgeMillis = 500)
+        val job = launch { call.run {} }
+        runCurrent()
+        return call to job
+    }
+
+    private fun FakeSideband.drain(): List<JsonObject> = buildList { while (true) add(Json.parseToJsonElement(sent.tryReceive().getOrNull() ?: break).jsonObject) }
+
+    private fun JsonObject.channel() = getValue("channel").jsonPrimitive.content
+
+    private suspend fun FakeSideband.close(job: kotlinx.coroutines.Job) { frames.send("""{"type":"session.closed"}"""); job.join() }
+
+    @Test fun anAnswerWaitsForAnOpenTurnToEndAndIsThenSpoken() = runTest {
+        val fake = FakeSideband()
+        val (call, job) = connected(fake)
+        fake.frames.send("""{"type":"turn.created","turn":{"id":"t1","role":"assistant"}}""")
+        runCurrent()
+        call.reply("d1", "Sunny", ReplyKind.Final)
+        runCurrent()
+        assertEquals(emptyList(), fake.drain())
+        fake.frames.send("""{"type":"turn.done","turn":{"id":"t1","role":"assistant","transcript":"Let me check"}}""")
+        runCurrent()
+        val sent = fake.drain().single()
+        assertEquals("delegation.context.append", sent.getValue("type").jsonPrimitive.content)
+        assertEquals("speakable", sent.channel())
+        fake.frames.send("""{"type":"turn.created","turn":{"id":"t2","role":"assistant"}}""")
+        fake.close(job)
+    }
+
+    @Test fun anAnswerWaitsForTheUsersTurnToo() = runTest {
+        val fake = FakeSideband()
+        val (call, job) = connected(fake)
+        fake.frames.send("""{"type":"turn.created","turn":{"id":"u1","role":"user"}}""")
+        runCurrent()
+        call.reply("d1", "one", ReplyKind.Final)
+        call.reply("d2", "two", ReplyKind.Final)
+        runCurrent()
+        assertEquals(emptyList(), fake.drain())
+        fake.frames.send("""{"type":"turn.done","turn":{"id":"u1","role":"user","transcript":"hm"}}""")
+        runCurrent()
+        assertEquals(listOf("d1", "d2"), fake.drain().map { it.getValue("delegation_item_id").jsonPrimitive.content })
+        fake.close(job)
+    }
+
+    @Test fun aTurnThatNeverEndsDoesNotHoldTheAnswerBackForever() = runTest {
+        val fake = FakeSideband()
+        val (call, job) = connected(fake)
+        fake.frames.send("""{"type":"turn.created","turn":{"id":"t1","role":"assistant"}}""")
+        runCurrent()
+        call.reply("d1", "Sunny", ReplyKind.Final)
+        advanceTimeBy(999)
+        assertEquals(emptyList(), fake.drain())
+        advanceTimeBy(2)
+        assertEquals(listOf("speakable"), fake.drain().map { it.channel() })
+        fake.close(job)
+    }
+
+    @Test fun approvalsAndQuestionsAreSpokenAtOnceWithoutANudge() = runTest {
+        val fake = FakeSideband()
+        val (call, job) = connected(fake)
+        fake.frames.send("""{"type":"turn.created","turn":{"id":"t1","role":"assistant"}}""")
+        runCurrent()
+        call.reply("d1", "Approve on screen", ReplyKind.Prompt)
+        runCurrent()
+        assertEquals(listOf("speakable"), fake.drain().map { it.channel() })
+        advanceTimeBy(60_000)
+        assertEquals(emptyList(), fake.drain())
+        fake.close(job)
+    }
+
+    @Test fun aModelThatStaysSilentAfterTheAnswerIsNudgedOnce() = runTest {
+        val fake = FakeSideband()
+        val (call, job) = connected(fake)
+        call.reply("d1", "Sunny", ReplyKind.Final)
+        runCurrent()
+        assertEquals(listOf("delegation.context.append"), fake.drain().map { it.getValue("type").jsonPrimitive.content })
+        advanceTimeBy(499)
+        assertEquals(emptyList(), fake.drain())
+        advanceTimeBy(2)
+        val nudge = fake.drain().single()
+        assertEquals("session.context.append", nudge.getValue("type").jsonPrimitive.content)
+        assertEquals("speakable", nudge.channel())
+        advanceTimeBy(60_000)
+        assertEquals(emptyList(), fake.drain())
+        fake.close(job)
+    }
+
+    @Test fun aModelThatSpeaksTheAnswerIsNotNudged() = runTest {
+        val fake = FakeSideband()
+        val (call, job) = connected(fake)
+        call.reply("d1", "Sunny", ReplyKind.Final)
+        runCurrent()
+        fake.drain()
+        advanceTimeBy(300)
+        fake.frames.send("""{"type":"turn.created","turn":{"id":"t3","role":"assistant"}}""")
+        runCurrent()
+        advanceTimeBy(60_000)
+        assertEquals(emptyList(), fake.drain())
+        fake.close(job)
+    }
+
+    @Test fun progressIsCommentaryEvenWhileATurnIsOpen() = runTest {
+        val fake = FakeSideband()
+        val (call, job) = connected(fake)
+        fake.frames.send("""{"type":"turn.created","turn":{"id":"t1","role":"assistant"}}""")
+        runCurrent()
+        call.reply("d1", "Still going", ReplyKind.Progress)
+        runCurrent()
+        assertEquals(listOf("commentary"), fake.drain().map { it.channel() })
+        advanceTimeBy(60_000)
+        assertEquals(emptyList(), fake.drain())
+        fake.close(job)
+    }
+
+    @Test fun aLongAnswerGoesOutInOrderOnTheSpeakableChannel() = runTest {
+        val fake = FakeSideband()
+        val (call, job) = connected(fake)
+        call.reply("d1", "a".repeat(500) + "b".repeat(500) + "c", ReplyKind.Final)
+        runCurrent()
+        val chunks = fake.drain()
+        assertEquals(listOf("a", "b", "c"), chunks.map { it.getValue("content").jsonArray.single().jsonObject.getValue("text").jsonPrimitive.content.first().toString() })
+        assertEquals(setOf("speakable"), chunks.map { it.channel() }.toSet())
+        fake.close(job)
     }
 
     @Test fun aSidebandThatClosesWithoutAnEndIsADroppedCall() = runTest {
