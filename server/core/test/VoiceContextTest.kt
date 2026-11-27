@@ -28,6 +28,13 @@ class VoiceContextTest {
         assertFalse(context.instructions.contains("old"))
     }
 
+    @Test fun theModelIsToldItsNameAndNeverToClaimToBeChatGpt() {
+        val instructions = voiceContext("Ada", emptyList()).instructions
+        assertTrue(instructions.contains("Your name is Ada."))
+        assertTrue(instructions.contains("Never say you are ChatGPT, OpenAI's assistant, or an AI from OpenAI"))
+        assertTrue(instructions.contains("if asked who you are, say you are Ada"))
+    }
+
     @Test fun boundsContextByCountMessageSizeAndTotalSize() {
         val short = voiceContext("Ada", (0..50).map { SessionEntry.UserMessage("$it") })
         assertEquals(40, short.history.size)
