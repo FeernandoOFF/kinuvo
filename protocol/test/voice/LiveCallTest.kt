@@ -14,6 +14,11 @@ class LiveCallTest {
     }
 
     @Test fun anOlderServerSetupHasNoLiveCalls() {
-        assertEquals(VoiceSetup(speechToSpeech = true), ProtocolJson.decodeFromString(VoiceSetup.serializer(), """{"speechToSpeech":true}"""))
+        assertEquals(VoiceSetup(), ProtocolJson.decodeFromString(VoiceSetup.serializer(), """{"speechToSpeech":true}"""))
+        assertEquals(VoiceSetup(transcriber = true), ProtocolJson.decodeFromString(VoiceSetup.serializer(), """{"transcriber":true,"speechToSpeech":true}"""))
+    }
+
+    @Test fun aSetupNoLongerClaimsServerHeldSpeechToSpeech() {
+        assertEquals("""{"transcriber":false,"processor":false,"synthesizer":false,"liveCalls":true}""", ProtocolJson.encodeToString(VoiceSetup.serializer(), VoiceSetup(liveCalls = true)))
     }
 }

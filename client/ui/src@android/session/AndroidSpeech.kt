@@ -12,11 +12,7 @@ import android.content.pm.PackageManager
 import android.media.AudioAttributes
 import android.media.AudioFormat
 import android.media.AudioManager
-import android.media.AudioRecord
 import android.media.AudioTrack
-import android.media.MediaRecorder
-import android.media.audiofx.AcousticEchoCanceler
-import android.media.audiofx.NoiseSuppressor
 import android.os.Handler
 import android.os.IBinder
 import android.os.Looper
@@ -41,9 +37,7 @@ internal class AndroidSpeech(private val context: Context) : SpeechEngine, LiveA
     private var permission: ((String?) -> Unit)? = null
     private var generation = 0L
     private var endCall: (() -> Unit)? = null
-    private var session: AudioSession? = null
     private var call: CallLease? = null
-    override val echoes get() = synchronized(lock) { session?.aec?.enabled != true }
 
     fun attach(activity: ComponentActivity) {
         val launcher = activity.registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
@@ -75,10 +69,10 @@ internal class AndroidSpeech(private val context: Context) : SpeechEngine, LiveA
     override fun speak(text: String, onDone: () -> Unit) = onDone()
     override fun speak(text: String, onDone: () -> Unit, onError: (String) -> Unit) = onError("Device speech synthesis is not available on Android. Choose a Server with live voice.")
     override fun stopSpeaking() {}
-    override fun stop() = stopLive()
+    override fun stop() {}
     override fun onEndRequested(end: () -> Unit) { endCall = end }
-    fun end(epoch: Long) { if (synchronized(lock) { (session != null || call != null) && generation == epoch }) endCall?.invoke() }
-    val active get() = synchronized(lock) { session != null || call != null }
+    fun end(epoch: Long) { if (synchronized(lock) { call != null && generation == epoch }) endCall?.invoke() }
+    val active get() = synchronized(lock) { call != null }
 
     override val callPeerSupported get() = true
 
@@ -131,116 +125,6 @@ internal class AndroidSpeech(private val context: Context) : SpeechEngine, LiveA
         releaseCue?.let { main.removeCallbacks(it) }; releaseCue = null
         cue?.let { runCatching { it.pause(); it.flush(); it.stop() }; it.release() }
         cue = null
-    }
-
-    override fun startLive(sampleRate: Int, onAudio: (ByteArray) -> Unit, onError: (String) -> Unit) {
-        stopLive()
-        synchronized(lock) {
-            val s = AudioSession(sampleRate)
-            session = s
-            val epoch = ++generation
-            try {
-                s.route = AudioRoute(manager, main).also { it.start() }
-                context.startForegroundService(Intent(context, LiveVoiceService::class.java).putExtra("generation", epoch))
-                val chunk = sampleRate / 10 * 2
-                s.mic = AudioRecord(MediaRecorder.AudioSource.VOICE_COMMUNICATION, sampleRate, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT,
-                    maxOf(chunk * 2, AudioRecord.getMinBufferSize(sampleRate, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT)))
-                check(s.mic!!.state == AudioRecord.STATE_INITIALIZED) { "Microphone is unavailable" }
-                s.aec = if (AcousticEchoCanceler.isAvailable()) AcousticEchoCanceler.create(s.mic!!.audioSessionId)?.apply { enabled = true } else null
-                s.ns = if (NoiseSuppressor.isAvailable()) NoiseSuppressor.create(s.mic!!.audioSessionId)?.apply { enabled = true } else null
-                s.track = AudioTrack.Builder().setAudioAttributes(AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_VOICE_COMMUNICATION).setContentType(AudioAttributes.CONTENT_TYPE_SPEECH).build())
-                    .setAudioFormat(AudioFormat.Builder().setSampleRate(sampleRate).setChannelMask(AudioFormat.CHANNEL_OUT_MONO).setEncoding(AudioFormat.ENCODING_PCM_16BIT).build())
-                    .setBufferSizeInBytes(maxOf(chunk * 2, AudioTrack.getMinBufferSize(sampleRate, AudioFormat.CHANNEL_OUT_MONO, AudioFormat.ENCODING_PCM_16BIT))).build()
-                check(s.track!!.state == AudioTrack.STATE_INITIALIZED) { "Speaker is unavailable" }
-                s.mic!!.startRecording()
-                s.track!!.play()
-                s.worker = Thread({
-                    try {
-                        val buffer = ByteArray(chunk)
-                        var filled = 0
-                        while (true) {
-                            var captured: ByteArray? = null
-                            synchronized(lock) {
-                                if (session !== s) return@Thread
-                                val n = s.mic!!.read(buffer, filled, buffer.size - filled, AudioRecord.READ_NON_BLOCKING)
-                                check(n >= 0) { "Microphone read failed ($n)" }
-                                filled += n
-                                if (filled == buffer.size) { captured = buffer.copyOf(); filled = 0 }
-                                val pcm = s.queue.peekFirst()
-                                if (pcm != null) {
-                                    val written = s.track!!.write(pcm, s.offset, pcm.size - s.offset, AudioTrack.WRITE_NON_BLOCKING)
-                                    check(written >= 0) { "Speaker write failed ($written)" }
-                                    s.offset += written
-                                    if (s.offset == pcm.size) { s.queue.removeFirst(); s.offset = 0 }
-                                }
-                            }
-                            captured?.let(onAudio)
-                            Thread.sleep(5)
-                        }
-                    } catch (_: InterruptedException) {
-                    } catch (e: Exception) {
-                        main.post { if (synchronized(lock) { session === s }) onError(e.message?.let { "Call audio failed: $it" } ?: "Call audio failed") }
-                    }
-                }, "kinuvo-live-audio").apply { isDaemon = true; start() }
-            } catch (e: Exception) {
-                stopLive()
-                onError(e.message?.let { "Couldn't start call audio: $it" } ?: "Live audio is unavailable")
-            }
-        }
-    }
-
-    override fun playLive(pcm: ByteArray) = synchronized(lock) {
-        session?.let { s ->
-            require(pcm.size % 2 == 0) { "Invalid PCM16 audio" }
-            s.queue.addLast(pcm.copyOf())
-            s.frames += pcm.size / 2
-        }
-        Unit
-    }
-
-    override fun queuedMillis(): Int = synchronized(lock) {
-        val s = session ?: return 0
-        val head = s.track?.playbackHeadPosition?.toLong()?.and(0xffffffffL) ?: 0
-        s.played += (head - s.head) and 0xffffffffL
-        s.head = head
-        ((s.frames - s.played).coerceAtLeast(0) * 1000 / s.rate).coerceAtMost(Int.MAX_VALUE.toLong()).toInt()
-    }
-
-    override fun flushLive() = synchronized(lock) {
-        session?.let { s ->
-            s.queue.clear(); s.offset = 0
-            s.track?.run { pause(); flush(); stop(); play() }
-            s.frames = 0; s.played = 0; s.head = 0
-        }
-        Unit
-    }
-
-    override fun stopLive() {
-        val s = synchronized(lock) {
-            val current = session ?: return
-            session = null
-            current.mic?.run { runCatching { stop() }; release() }
-            current.track?.run { runCatching { pause(); flush(); stop() }; release() }
-            current.aec?.release(); current.ns?.release()
-            current.route?.release()
-            context.stopService(Intent(context, LiveVoiceService::class.java))
-            current
-        }
-        s.worker?.interrupt()
-    }
-
-    private class AudioSession(val rate: Int) {
-        var route: AudioRoute? = null
-        var mic: AudioRecord? = null
-        var track: AudioTrack? = null
-        var aec: AcousticEchoCanceler? = null
-        var ns: NoiseSuppressor? = null
-        var worker: Thread? = null
-        val queue = ArrayDeque<ByteArray>()
-        var offset = 0
-        var frames = 0L
-        var played = 0L
-        var head = 0L
     }
 }
 
