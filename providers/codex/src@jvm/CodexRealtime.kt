@@ -5,6 +5,7 @@ import kinuvo.protocol.device.Platform
 import kinuvo.protocol.device.currentArch
 import kinuvo.protocol.device.currentPlatform
 import kinuvo.server.plugin.AgentProgress
+import kinuvo.server.plugin.voiceText
 import dev.onvoid.webrtc.PeerConnectionFactory
 import dev.onvoid.webrtc.media.audio.AudioTrackSource
 import dev.onvoid.webrtc.media.audio.CustomAudioSource
@@ -56,11 +57,8 @@ import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
-import kotlinx.serialization.json.longOrNull
 import kotlinx.serialization.json.put
 import java.io.IOException
-import kotlin.time.Clock
-import kotlin.time.Instant
 import kotlin.uuid.Uuid
 
 private val log = KotlinLogging.logger("codex.realtime")
@@ -302,8 +300,6 @@ internal class Transcripts {
     private fun index(user: Boolean) = if (user) 0 else 1
 }
 
-private fun JsonObject.string(key: String) = get(key)?.jsonPrimitive?.content.orEmpty()
-
 private fun mono(data: ByteArray, channels: Int, frames: Int): ByteArray {
     if (channels == 1) return data.copyOf(frames * 2)
     val out = ByteArray(frames * 2)
@@ -319,59 +315,8 @@ private fun mono(data: ByteArray, channels: Int, frames: Int): ByteArray {
     return out
 }
 
-// Match Codex's frameless context append limit, preserving code points and all text.
-internal fun contextAppendChunks(text: String): List<String> {
-    val bytes = text.encodeToByteArray()
-    if (bytes.size <= 500) return listOf(text)
-    return buildList {
-        var start = 0
-        while (start < bytes.size) {
-            var end = minOf(start + 500, bytes.size)
-            while (end < bytes.size && bytes[end].toInt() and 0xc0 == 0x80) end--
-            add(bytes.decodeToString(start, end))
-            start = end
-        }
-    }
-}
-
 /** A call failure worded for the Device; the raw detail goes to the Server log. */
 internal class RealtimeCallException(message: String, cause: Throwable? = null) : Exception(message, cause)
-
-internal const val UNREACHABLE = "Couldn't reach ChatGPT. Check the Server's connection."
-internal const val SIGN_IN = "Sign in to ChatGPT again in Settings → Model providers."
-
-/** What a Device sees when creating the call fails with [status] and [body]. */
-internal fun callFailure(status: Int, body: String, now: Instant = Clock.System.now()): String {
-    val error = runCatching { Json.parseToJsonElement(body).jsonObject["error"]?.jsonObject }.getOrNull()
-    return when (status) {
-        401, 403 -> SIGN_IN
-        429 -> if (error?.string("type") == "usage_limit_reached") {
-            val seconds = error["resets_in_seconds"]?.jsonPrimitive?.longOrNull
-                ?: error["resets_at"]?.jsonPrimitive?.longOrNull?.let { it - now.epochSeconds }
-            "ChatGPT's usage limit is reached." + (seconds?.takeIf { it > 0 }?.let { " It resets in ${duration(it)}." } ?: "")
-        } else "ChatGPT is busy. Try again in a moment."
-        else -> "Couldn't start the call (HTTP $status)."
-    }
-}
-
-private fun duration(seconds: Long): String {
-    val minutes = maxOf(1, (seconds + 30) / 60)
-    fun unit(n: Long, name: String) = "$n $name" + if (n == 1L) "" else "s"
-    return when {
-        minutes < 60 -> unit(minutes, "minute")
-        minutes % 60 == 0L -> unit(minutes / 60, "hour")
-        else -> "${unit(minutes / 60, "hour")} ${unit(minutes % 60, "minute")}"
-    }
-}
-
-internal fun realtimeErrorMessage(error: JsonObject): String = error.string("message").ifBlank { "The call ended unexpectedly." }
-
-// Request validation rejects one event; session/auth failures and unknown errors remain fatal.
-internal fun recoverableRealtimeError(error: JsonObject): Boolean =
-    error.string("type") == "invalid_request_error" && error.string("code") !in setOf(
-        "session_expired", "session_closed", "session_not_found", "invalid_session",
-        "invalid_api_key", "invalid_authentication", "authentication_error", "token_expired",
-    )
 
 internal const val UNSUPPORTED_PLATFORM = "Live voice isn't available on this Server's platform."
 
@@ -389,17 +334,6 @@ internal fun realtimeAvailable(
     return try { probe(); true }
     catch (e: LinkageError) { log.warn(e) { UNSUPPORTED_PLATFORM }; false }
     catch (e: Exception) { log.warn(e) { UNSUPPORTED_PLATFORM }; false }
-}
-
-internal fun AgentProgress.voiceText(): String = when (this) {
-    is AgentProgress.ApprovalRequested -> "Waiting for the user's approval on screen to run ${tool.take(80)}: ${summary.take(240)}. Tell the user to review it in the app. Approvals must only be answered on screen, never by voice."
-    is AgentProgress.ApprovalResolved -> when (allowed) {
-        true -> "The user allowed the action. The Agent is continuing."
-        false -> "The user denied the action."
-        null -> "The approval request is no longer pending. Its decision is unavailable; do not assume it was allowed."
-    }
-    is AgentProgress.Question -> "The Agent asks: ${text.take(600)}. Tell the user to answer in the app."
-    is AgentProgress.Text -> "Agent progress (not the final result): ${text.take(2000)}"
 }
 
 internal fun notificationItem(text: String) = buildJsonObject {

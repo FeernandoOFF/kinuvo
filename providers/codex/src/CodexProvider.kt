@@ -6,6 +6,7 @@ import kinuvo.server.plugin.ProviderPlugin
 import kinuvo.harness.builtin.AgentModel
 import kinuvo.harness.builtin.plugin.ModelSource
 import kinuvo.server.plugin.ImageGeneration
+import kinuvo.server.plugin.LiveCallProvider
 import kinuvo.harness.builtin.koogExecutor
 import kinuvo.protocol.session.Attachment
 import kinuvo.protocol.capability.CapabilityState
@@ -21,9 +22,12 @@ class CodexProvider(override val auth: CodexAuth = CodexAuth(), private val atta
     private val _usage = MutableStateFlow<Usage?>(null)
     private val executor = lazy { koogExecutor(codexLLMClient(auth, _usage)) }
     private val discovery = lazy { codexHttpClient(auth::tokens, _usage) }
+    private val liveHttp = lazy { codexLiveHttpClient() }
+    private val live = lazy { CodexLiveCalls(auth, liveHttp.value) }
 
     val promptExecutor get() = executor.value
     override val images: ImageGeneration get() = CodexImages(discovery.value)
+    override val liveCalls: LiveCallProvider get() = live.value
     override val id = "codex"
     override val name = "ChatGPT / Codex"
     override val catalogId = "openai"
@@ -38,5 +42,5 @@ class CodexProvider(override val auth: CodexAuth = CodexAuth(), private val atta
 
     override fun model(config: AgentConfig): AgentModel = model(config, null)
     override fun model(config: AgentConfig, info: ModelInfo?): AgentModel = openAIModel(config, executor.value, info, attachments)
-    override suspend fun close() { if (executor.isInitialized()) executor.value.close(); if (discovery.isInitialized()) discovery.value.close() }
+    override suspend fun close() { if (executor.isInitialized()) executor.value.close(); if (discovery.isInitialized()) discovery.value.close(); if (liveHttp.isInitialized()) liveHttp.value.close() }
 }

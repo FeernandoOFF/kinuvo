@@ -6,6 +6,7 @@ import kinuvo.protocol.device.currentArch
 import kinuvo.protocol.device.currentPlatform
 import kinuvo.server.plugin.AgentProgress
 import kinuvo.server.plugin.VoiceOutput
+import kinuvo.server.plugin.voiceText
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import kotlin.test.Test
