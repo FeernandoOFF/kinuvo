@@ -185,7 +185,7 @@ private fun ArtifactPane(state: ArtifactsState, agents: List<AgentInfo>, now: Lo
                     wide -> Modifier.align(Alignment.TopStart).fillMaxHeight().padding(end = RemoteWidth)
                     else -> Modifier.align(Alignment.TopStart).fillMaxWidth().fillMaxHeight(RemotePageShare)
                 }
-                HtmlView(data.info.page(data.content), page, fade = if (hiding) null else color(backgroundColor), deck = deck)
+                HtmlView(data.info.page(data.content), page, fade = if (hiding) null else color(backgroundColor), deck = deck, artifact = data.info.id)
                 if (remoting && shownDeck != null && deck != null) {
                     if (wide) Row(Modifier.align(Alignment.TopEnd).fillMaxHeight()) {
                         VerticalSeparator()

@@ -9,7 +9,7 @@ import kinuvo.ui.web.NativeHtml
 internal actual val visualEditing = true
 
 @Composable
-internal actual fun WebView(html: String, modifier: Modifier, onMessage: ((String) -> Unit)?, channel: PageChannel?, editing: Boolean) {
+internal actual fun WebView(html: String, modifier: Modifier, onMessage: ((String) -> Unit)?, channel: PageChannel?, editing: Boolean, origin: ArtifactOrigin?) {
     if (!LocalNativeViews.current) return Box(modifier)
     NativeHtml(html, "window.kinuvoEdit=m=>window.kmpJsBridge.callNative('message',m);", modifier, { onMessage?.invoke(it) }) { navigator ->
         DisposableEffect(channel, navigator) {
