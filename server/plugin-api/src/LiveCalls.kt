@@ -26,10 +26,10 @@ interface LiveCall {
     /** Attaches the side channel and runs until the call ends, passing its events to [onEvent]; throws [LiveCallException] when it fails. */
     suspend fun run(onEvent: suspend (LiveCallEvent) -> Unit)
 
-    /** Gives the model [text] about delegation [id], whether progress or the result. */
-    suspend fun reply(id: String, text: String)
+    /** Gives the model [text] about delegation [id]: the [final] answer, which it must tell the user, or progress it may mention. */
+    suspend fun reply(id: String, text: String, final: Boolean)
 
-    /** Tells the model something happened outside the call, so it can mention it. */
+    /** Tells the model something happened outside the call, which it tells the user. */
     suspend fun notify(text: String)
     suspend fun pause()
     suspend fun resume()
