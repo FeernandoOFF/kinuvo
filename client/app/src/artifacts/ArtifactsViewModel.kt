@@ -12,6 +12,8 @@ import kinuvo.protocol.*
 import kinuvo.protocol.artifact.*
 import kinuvo.protocol.agent.AgentId
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.flow.*
@@ -37,6 +39,8 @@ data class ArtifactsState(
     /** Null when not editing. */
     val draft: ArtifactDraft? = null,
     val saving: Boolean = false,
+    /** The reveal.js deck in the open Artifact's page, once its adapter reported; null for any other page. */
+    val deck: DeckStatus? = null,
 ) {
     /** The open Artifact changed since editing began. */
     val stale get() = draft != null && open != null && open.info.updated != draft.base
@@ -45,18 +49,69 @@ data class ArtifactsState(
     val shown get() = all.orEmpty().filter { (agent == null || it.agentId.value == agent.value) && (query.isBlank() || it.title.contains(query, ignoreCase = true)) }
 }
 
-/** Reloads on every change; a newer load cancels the one in flight, so a late reply can't undo a newer change. */
+/**
+ * Reloads on every change; a newer load cancels the one in flight, so a late reply can't undo a newer change. A page with a
+ * reveal.js deck also shares its position through the Server: the page's reports go out (at most one per [SEND_GAP]) and the
+ * positions other Devices set come back through [pageCommands].
+ */
 class ArtifactsViewModel(route: Route.Artifacts, private val owner: ConnectedServer) : ViewModel() {
     private val client: KinuvoClient = requireNotNull(owner.client) { "Not connected" }
     val state: StateFlow<ArtifactsState>
         field = MutableStateFlow(ArtifactsState(route))
     private var loading: Job? = null
     private val designSaves = Mutex()
+    private val outgoing = Channel<DeckPosition>(Channel.CONFLATED)
+    private var watched: String? = null
+    private var remote: DeckPosition? = null
+
+    /** Messages for the open page: [deckApply] and [deckStep]. */
+    val pageCommands: SharedFlow<String>
+        field = MutableSharedFlow<String>(extraBufferCapacity = 16)
 
     init {
         owner.bind(viewModelScope, client)
-        viewModelScope.launch { client.state.collect { if (it is ConnectionState.Connected) load() } }
+        viewModelScope.launch { client.state.collect { if (it is ConnectionState.Connected) { load(); watched?.let(::watch) } } }
         viewModelScope.launch { client.events(Api.ArtifactChanged).collect { load() } }
+        viewModelScope.launch {
+            client.events(Api.ArtifactStateChanged).collect { change ->
+                if (change.id != watched) return@collect
+                deckPosition(change.state)?.let { remote = it; pageCommands.tryEmit(deckApply(it)) }
+            }
+        }
+        viewModelScope.launch {
+            for (position in outgoing) {
+                val id = watched ?: continue
+                try { client.call(Api.SetArtifactState, ArtifactStateSet(id, position.toState())) } catch (e: CancellationException) { throw e } catch (_: Exception) {}
+                delay(SEND_GAP)
+            }
+        }
+    }
+
+    /** A message from the open page: the deck adapter's report, which is the only kind a page may send an HTML Artifact's host. */
+    fun pageMessage(text: String) {
+        val report = deckReport(text) ?: return
+        val id = state.value.open?.info?.id ?: return
+        state.update { it.copy(deck = report.status) }
+        when {
+            report.ready -> if (watched == id) remote?.let { pageCommands.tryEmit(deckApply(it)) } else { watched = id; remote = null; watch(id) }
+            report.changed -> outgoing.trySend(report.status.position)
+        }
+    }
+
+    /** Moves the open deck one step; the page reports the move back like any other, which shares it. */
+    fun step(forward: Boolean) {
+        pageCommands.tryEmit(deckStep(forward))
+    }
+
+    private fun watch(id: String) {
+        viewModelScope.launch {
+            try {
+                val latest = deckPosition(client.call(Api.WatchArtifactState, ArtifactRef(id)).state)
+                if (watched != id) return@launch
+                remote = latest
+                latest?.let { pageCommands.tryEmit(deckApply(it)) }
+            } catch (e: CancellationException) { throw e } catch (_: Exception) {}
+        }
     }
 
     fun search(query: String) = state.update { it.copy(query = query) }
@@ -117,7 +172,7 @@ class ArtifactsViewModel(route: Route.Artifacts, private val owner: ConnectedSer
                 val all = client.call(Api.Artifacts, Unit)
                 val id = state.value.route.artifact
                 val open = id?.takeIf { all.any { a -> a.id == it } }?.let { client.call(Api.Artifact, ArtifactRef(it)) }
-                state.update { it.copy(all = all, open = open, missing = id != null && open == null, draft = it.draft.takeIf { _ -> open?.info?.id == it.open?.info?.id }) }
+                state.update { it.copy(all = all, open = open, missing = id != null && open == null, draft = it.draft.takeIf { _ -> open?.info?.id == it.open?.info?.id }, deck = it.deck.takeIf { open != null }) }
             }
         }
     }
@@ -132,3 +187,5 @@ class ArtifactsViewModel(route: Route.Artifacts, private val owner: ConnectedSer
         }
     }
 }
+
+private const val SEND_GAP = 250L
