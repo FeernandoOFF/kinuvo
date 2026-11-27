@@ -10,8 +10,6 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.media.AudioAttributes
-import android.media.AudioDeviceCallback
-import android.media.AudioDeviceInfo
 import android.media.AudioFormat
 import android.media.AudioManager
 import android.media.AudioRecord
@@ -19,7 +17,6 @@ import android.media.AudioTrack
 import android.media.MediaRecorder
 import android.media.audiofx.AcousticEchoCanceler
 import android.media.audiofx.NoiseSuppressor
-import android.os.Build
 import android.os.Handler
 import android.os.IBinder
 import android.os.Looper
@@ -30,6 +27,8 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import kinuvo.app.session.LiveAudio
+import kinuvo.app.session.LiveCallException
+import kinuvo.app.session.LiveCallPeer
 import kinuvo.app.session.SpeechEngine
 import org.koin.mp.KoinPlatform.getKoin
 import java.util.ArrayDeque
@@ -43,6 +42,7 @@ internal class AndroidSpeech(private val context: Context) : SpeechEngine, LiveA
     private var generation = 0L
     private var endCall: (() -> Unit)? = null
     private var session: AudioSession? = null
+    private var call: CallLease? = null
     override val echoes get() = synchronized(lock) { session?.aec?.enabled != true }
 
     fun attach(activity: ComponentActivity) {
@@ -77,8 +77,35 @@ internal class AndroidSpeech(private val context: Context) : SpeechEngine, LiveA
     override fun stopSpeaking() {}
     override fun stop() = stopLive()
     override fun onEndRequested(end: () -> Unit) { endCall = end }
-    fun end(epoch: Long) { if (synchronized(lock) { session != null && generation == epoch }) endCall?.invoke() }
-    val active get() = synchronized(lock) { session != null }
+    fun end(epoch: Long) { if (synchronized(lock) { (session != null || call != null) && generation == epoch }) endCall?.invoke() }
+    val active get() = synchronized(lock) { session != null || call != null }
+
+    override val callPeerSupported get() = true
+
+    override fun createCallPeer(): LiveCallPeer {
+        val lease = synchronized(lock) {
+            call?.release()
+            val route = AudioRoute(manager, main)
+            CallLease(++generation, route).also { call = it }
+        }
+        try {
+            lease.route.start()
+            context.startForegroundService(Intent(context, LiveVoiceService::class.java).putExtra("generation", lease.epoch))
+        } catch (e: Exception) {
+            lease.release()
+            throw LiveCallException("Couldn't set up audio for the call.", e)
+        }
+        return AndroidLiveCallPeer(context, lease::release)
+    }
+
+    /** The audio route and background service a call peer holds until it closes. */
+    private inner class CallLease(val epoch: Long, val route: AudioRoute) {
+        fun release() {
+            synchronized(lock) { if (call !== this) return; call = null }
+            route.release()
+            context.stopService(Intent(context, LiveVoiceService::class.java))
+        }
+    }
 
     private var cue: AudioTrack? = null
     private var releaseCue: Runnable? = null
@@ -109,25 +136,11 @@ internal class AndroidSpeech(private val context: Context) : SpeechEngine, LiveA
     override fun startLive(sampleRate: Int, onAudio: (ByteArray) -> Unit, onError: (String) -> Unit) {
         stopLive()
         synchronized(lock) {
-            val s = AudioSession(sampleRate, manager.mode, manager.isSpeakerphoneOn, manager.isBluetoothScoOn)
+            val s = AudioSession(sampleRate)
             session = s
             val epoch = ++generation
             try {
-                manager.mode = AudioManager.MODE_IN_COMMUNICATION
-                if (Build.VERSION.SDK_INT >= 31) {
-                    s.previousDevice = manager.communicationDevice
-                    route()
-                    s.devices = object : AudioDeviceCallback() {
-                        override fun onAudioDevicesAdded(added: Array<AudioDeviceInfo>) = updateRoute(s)
-                        override fun onAudioDevicesRemoved(removed: Array<AudioDeviceInfo>) = updateRoute(s)
-                    }
-                    manager.registerAudioDeviceCallback(s.devices, main)
-                } else {
-                    @Suppress("DEPRECATION")
-                    val bluetooth = manager.getDevices(AudioManager.GET_DEVICES_OUTPUTS).any { it.type == AudioDeviceInfo.TYPE_BLUETOOTH_SCO }
-                    manager.isSpeakerphoneOn = !manager.isWiredHeadsetOn && !bluetooth
-                    if (bluetooth && !s.sco) { manager.startBluetoothSco(); manager.isBluetoothScoOn = true }
-                }
+                s.route = AudioRoute(manager, main).also { it.start() }
                 context.startForegroundService(Intent(context, LiveVoiceService::class.java).putExtra("generation", epoch))
                 val chunk = sampleRate / 10 * 2
                 s.mic = AudioRecord(MediaRecorder.AudioSource.VOICE_COMMUNICATION, sampleRate, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT,
@@ -206,44 +219,23 @@ internal class AndroidSpeech(private val context: Context) : SpeechEngine, LiveA
         val s = synchronized(lock) {
             val current = session ?: return
             session = null
-            current.devices?.let { manager.unregisterAudioDeviceCallback(it) }
             current.mic?.run { runCatching { stop() }; release() }
             current.track?.run { runCatching { pause(); flush(); stop() }; release() }
             current.aec?.release(); current.ns?.release()
-            if (Build.VERSION.SDK_INT >= 31) {
-                manager.clearCommunicationDevice()
-                current.previousDevice?.let { manager.setCommunicationDevice(it) }
-            } else {
-                @Suppress("DEPRECATION")
-                manager.isSpeakerphoneOn = current.speaker
-                if (!current.sco && manager.isBluetoothScoOn) { manager.stopBluetoothSco(); manager.isBluetoothScoOn = false }
-            }
-            manager.mode = current.mode
+            current.route?.release()
             context.stopService(Intent(context, LiveVoiceService::class.java))
             current
         }
         s.worker?.interrupt()
     }
 
-    private fun updateRoute(s: AudioSession) = synchronized(lock) {
-        if (session === s && Build.VERSION.SDK_INT >= 31) route()
-    }
-
-    private fun route() {
-        if (Build.VERSION.SDK_INT < 31) return
-        val devices = manager.availableCommunicationDevices
-        val external = devices.firstOrNull { it.type in setOf(AudioDeviceInfo.TYPE_BLUETOOTH_SCO, AudioDeviceInfo.TYPE_BLE_HEADSET, AudioDeviceInfo.TYPE_WIRED_HEADSET, AudioDeviceInfo.TYPE_USB_HEADSET, AudioDeviceInfo.TYPE_WIRED_HEADPHONES) }
-        (external ?: devices.firstOrNull { it.type == AudioDeviceInfo.TYPE_BUILTIN_SPEAKER })?.let { manager.setCommunicationDevice(it) }
-    }
-
-    private class AudioSession(val rate: Int, val mode: Int, val speaker: Boolean, val sco: Boolean) {
+    private class AudioSession(val rate: Int) {
+        var route: AudioRoute? = null
         var mic: AudioRecord? = null
         var track: AudioTrack? = null
         var aec: AcousticEchoCanceler? = null
         var ns: NoiseSuppressor? = null
-        var previousDevice: AudioDeviceInfo? = null
         var worker: Thread? = null
-        var devices: AudioDeviceCallback? = null
         val queue = ArrayDeque<ByteArray>()
         var offset = 0
         var frames = 0L
