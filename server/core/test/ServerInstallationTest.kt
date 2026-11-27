@@ -32,6 +32,21 @@ class ServerInstallationTest {
             assertNotNull(files.config().voice.synthesis)
         } finally { dependencies.resources.close() }
     }
+    @Test fun aPluginsLiveCallsReachTheVoiceProviders() = runTest {
+        val calls = object : LiveCallProvider {
+            override suspend fun available() = true
+            override suspend fun start(context: VoiceContext, offerSdp: String): LiveCallStart = error("Not started")
+        }
+        val plugin = object : ServerPlugin {
+            override val definition = PluginDefinition("test.serverinstallationtest.live", "Live")
+            override val liveCalls = calls
+        }
+        val dependencies = ServerInstallation.assemble(AgentFiles(home), plugins = listOf(plugin))
+        try {
+            assertSame(calls, dependencies.voice.liveCalls)
+            assertEquals(VoiceSetup(liveCalls = true), dependencies.voice.setup)
+        } finally { dependencies.resources.close() }
+    }
     @Test fun duplicateNamedInstancesFailDuringAssemblyAndCloseTheirResources() = runTest {
         var closes = 0
         fun plugin() = object : ServerPlugin {

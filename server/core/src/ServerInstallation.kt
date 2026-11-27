@@ -66,7 +66,7 @@ object ServerInstallation {
             }.also { hosts = it }
             val voiceProviders = OpenAICompatibleVoice(client) { value ->
                 secrets.expand(value, files.loadEnv(), "Kinuvo: voice provider")
-            }.also { voice = it }.providers(files.config().voice)
+            }.also { voice = it }.providers(files.config().voice).let { VoiceProviders(it.transcriber, it.processor, it.synthesizer, it.speechToSpeech, plugins.firstNotNullOfOrNull { plugin -> plugin.liveCalls }) }
             val settings = FileServerSettings(files, userHome, installedStore, plugins, secrets, pluginHosts, clock)
             val catalog = ModelCatalog(Path(files.home, "cache", "models.json"), providers, {
                 val response = client.get("https://models.dev/api.json")

@@ -5,6 +5,11 @@ import kinuvo.protocol.Api
 internal fun RouteBuilder.voiceRoutes() {
     device(Api.LiveVoiceStart, ordered = true) { caller.startLiveVoice(it) }
     device(Api.LiveVoiceEnd, ordered = true) { caller.endLiveVoice(it.callId) }
+    device(Api.LiveCallStart, ordered = true) { caller.startLiveCall(it) }
+    device(Api.LiveCallPeer, ordered = true) { caller.liveCallPeer(it) }
+    device(Api.LiveCallPause, ordered = true) { caller.pauseLiveCall(it.callId) }
+    device(Api.LiveCallResume, ordered = true) { caller.resumeLiveCall(it.callId) }
+    device(Api.LiveCallEnd, ordered = true) { caller.endLiveCall(it.callId) }
     device(Api.LiveVoiceSettings) { server.voice.liveSettings() }
     handle(Api.SaveLiveVoice) { server.voice.saveLive(it) }
     handle(Api.VoiceModels) { server.voice.models() }

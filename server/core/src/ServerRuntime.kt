@@ -92,7 +92,7 @@ class ServerRuntime(
         override fun <T> broadcast(type: EventType<T>, payload: T) = this@ServerRuntime.broadcast(type, payload)
         override fun changedCapabilities() = this@ServerRuntime.changedCapabilities()
         override suspend fun notifyVoice(sessionId: SessionId, text: String) {
-            clients.block { it.toList() }.filter { it.voiceSessionId == sessionId }.forEach { it.liveVoice?.notify(text) }
+            clients.block { it.toList() }.filter { it.voiceSessionId == sessionId }.forEach { it.liveVoice?.notify(text); it.liveCall?.notify(text) }
         }
     }
     private val assembly = ServerAssembly(harness, auth, name, scope, hub, executionRegistry, executionFactory, nativeFactory, executionStorage, remoteLinks, remoteHarness, prepareAttachment)
@@ -204,6 +204,7 @@ class ServerRuntime(
         override val management get() = authenticated(auth::management)
         override val surfaceCatalogs get() = harness.uiCatalogs.forRun(this)
         var liveVoice: LiveVoiceSession? = null
+        var liveCall: LiveCallSession? = null
         var voiceSessionId: SessionId? = null
         var callScope: CoroutineScope = scope
         override val browser = connection.credential != null
@@ -329,11 +330,23 @@ class ServerRuntime(
 
         context(_: Raise<VoiceError>, _: Raise<AgentError>)
         override suspend fun startLiveVoice(params: LiveVoiceParams): LiveVoiceCall {
-            if (liveVoice?.active == true) raise(VoiceError.CallActive)
+            if (liveVoice?.active == true || liveCall?.active == true) raise(VoiceError.CallActive)
             return voiceCalls.start(params, callScope, ::offerLiveVoice) { voiceSessionId = params.sessionId; liveVoice = it }
         }
 
         override fun endLiveVoice(callId: String) { if (liveVoice?.id == callId) liveVoice?.close() }
+
+        context(_: Raise<VoiceError>, _: Raise<AgentError>)
+        override suspend fun startLiveCall(params: LiveCallParams): LiveCallAnswer {
+            if (liveVoice?.active == true || liveCall?.active == true) raise(VoiceError.CallActive)
+            return voiceCalls.startCall(params, callScope, { offer(frame(Api.LiveCallUpdate, it)) }) { voiceSessionId = params.sessionId; liveCall = it }
+        }
+
+        override suspend fun liveCallPeer(params: LivePeerParams) { call(params.callId)?.peer(params.state) }
+        override suspend fun pauseLiveCall(callId: String) { call(callId)?.pause() }
+        override suspend fun resumeLiveCall(callId: String) { call(callId)?.resume() }
+        override suspend fun endLiveCall(callId: String) { call(callId)?.end() }
+        private fun call(callId: String) = liveCall?.takeIf { it.id == callId }
 
         context(_: Raise<ExecutionError>)
         override suspend fun remoteExecution(call: RemoteExecutionCall) = assembly.execution.remoteExecution(requireNotNull(token), call)
@@ -534,6 +547,7 @@ class ServerRuntime(
             }
         } finally {
             client.liveVoice?.close()
+            client.liveCall?.close()
             clients.remove(client)
             client.detachTools()
             if (authed) broadcast(Api.DevicesChanged, Unit)

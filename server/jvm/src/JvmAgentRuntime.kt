@@ -47,7 +47,7 @@ class JvmAgentRuntime private constructor(home: Path, installed: Installed, mode
                 secrets = secrets, userHome = Path(System.getProperty("user.home")), clock = clock).also { dependencies ->
                     if (auth.account().signedIn && CodexRealtime.available()) {
                         val voice = dependencies.voice
-                        dependencies.voice = VoiceProviders(voice.transcriber, voice.processor, voice.synthesizer, CodexRealtime(auth))
+                        dependencies.voice = VoiceProviders(voice.transcriber, voice.processor, voice.synthesizer, CodexRealtime(auth), voice.liveCalls)
                     }
                 }.let { Installed(it, sources) }
         }

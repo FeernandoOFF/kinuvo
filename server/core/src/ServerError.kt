@@ -93,6 +93,8 @@ sealed class VoiceError(override val code: String, override val message: String)
     data object NoLiveVoice : VoiceError(WireErrorCode.Unavailable, "Live voice is unavailable or disabled on this Server")
     data object RequestActive : VoiceError(WireErrorCode.Conflict, "Voice request is already active")
     data object CallActive : VoiceError(WireErrorCode.Conflict, "A live voice call is already active on this connection")
+    /** The provider refused or couldn't start a call; [reason] is worded for the user. */
+    data class CallFailed(val reason: String) : VoiceError(WireErrorCode.Unavailable, reason)
 }
 
 sealed class ProviderError(override val code: String, override val message: String) : ServerError {

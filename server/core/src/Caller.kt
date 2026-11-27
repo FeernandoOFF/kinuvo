@@ -8,6 +8,9 @@ import kinuvo.protocol.execution.RemoteExecutionResult
 import kinuvo.protocol.push.PushSubscription
 import kinuvo.protocol.session.SessionId
 import kinuvo.protocol.surface.UiCatalog
+import kinuvo.protocol.voice.LiveCallAnswer
+import kinuvo.protocol.voice.LiveCallParams
+import kinuvo.protocol.voice.LivePeerParams
 import kinuvo.protocol.voice.LiveVoiceCall
 import kinuvo.protocol.voice.LiveVoiceParams
 import kinuvo.server.screens.Screens
@@ -38,6 +41,12 @@ interface Caller {
     context(_: Raise<VoiceError>, _: Raise<AgentError>)
     suspend fun startLiveVoice(params: LiveVoiceParams): LiveVoiceCall
     fun endLiveVoice(callId: String)
+    context(_: Raise<VoiceError>, _: Raise<AgentError>)
+    suspend fun startLiveCall(params: LiveCallParams): LiveCallAnswer
+    suspend fun liveCallPeer(params: LivePeerParams)
+    suspend fun pauseLiveCall(callId: String)
+    suspend fun resumeLiveCall(callId: String)
+    suspend fun endLiveCall(callId: String)
     context(_: Raise<ExecutionError>)
     suspend fun remoteExecution(call: RemoteExecutionCall): RemoteExecutionResult
 }
