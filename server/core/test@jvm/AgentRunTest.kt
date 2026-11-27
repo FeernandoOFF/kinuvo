@@ -332,4 +332,14 @@ class AgentRunTest {
         assertTrue(result.isError && "timed out" in result.output, result.output)
         assertEquals("It failed; moving on.", store.entries(agent.id, session.id).filterIsInstance<SessionEntry.AssistantMessage>().last().text)
     }
+
+    @Test
+    fun aTimeoutOutsideToolsFailsTheTurnInsteadOfCancellingIt() = runTest {
+        val model = scriptedModel { _, _ -> flow<StreamFrame> { withTimeout(10) { awaitCancellation() } } }
+        val session = store.createSession(agent.id, "")
+        val events = AgentRun(agent, store, model, emptyList()).run(session.id, "go").toList()
+
+        val error = assertIs<AgentEvent.RunError>(events.last())
+        assertTrue("took too long" in error.message, error.message)
+    }
 }
