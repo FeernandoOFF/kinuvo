@@ -103,10 +103,11 @@ class ArtifactFullScreenTest {
         }
     }
 
-    @Test fun fullScreenPagesRelayEscapeAndTopPointerMoves() {
+    @Test fun fullScreenPagesRelayTheBackBindingAndTopPointerMoves() {
         assertTrue("kinuvo:top" !in artifactDocument("<p>x</p>"))
         val page = artifactDocument("<p>x</p>", fullScreen = true)
-        assertTrue("kinuvo:top" in page && "kinuvo:away" in page && "stopImmediatePropagation" in page)
-        assertTrue(FULL_SCREEN_RELAY.startsWith("addEventListener('keydown'"))
+        assertTrue("kinuvo:top" in page && "kinuvo:away" in page)
+        assertTrue("e.key==='['" in FULL_SCREEN_RELAY && "e.button===3" in FULL_SCREEN_RELAY)
+        assertTrue("Escape" !in FULL_SCREEN_RELAY)
     }
 }

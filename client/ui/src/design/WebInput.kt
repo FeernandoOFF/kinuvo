@@ -20,10 +20,12 @@ internal const val RevealCornerWidthPx = 160
 internal const val RevealCornerHeightPx = 120
 
 /**
- * A full-screen page leaves on Esc even when it uses Esc itself, as reveal.js does for its overview, and reports pointer
- * moves near its top edge or corners (`kinuvo:top`, at most every 200 ms) and leaving them (`kinuvo:away`).
+ * A full-screen page passes the app's back binding (⌘[ or Ctrl+[, and the mouse back button) on as `kinuvo:escape`, and
+ * reports pointer moves near its top edge or corners (`kinuvo:top`, at most every 200 ms) and leaving them (`kinuvo:away`).
  */
-internal const val FULL_SCREEN_RELAY = "addEventListener('keydown',function(e){if(e.key==='Escape'){e.preventDefault();e.stopImmediatePropagation();parent.postMessage('kinuvo:escape','*')}},true);" +
-    "(function(){var t=-1e9,a=false;addEventListener('pointermove',function(e){var x=e.clientX,y=e.clientY," +
+internal const val FULL_SCREEN_RELAY = "(function(){function b(){parent.postMessage('kinuvo:escape','*')}" +
+    "addEventListener('keydown',function(e){if(e.key==='['&&(e.metaKey||e.ctrlKey)){e.preventDefault();b()}},true);" +
+    "addEventListener('mouseup',function(e){if(e.button===3)b()},true);" +
+    "var t=-1e9,a=false;addEventListener('pointermove',function(e){var x=e.clientX,y=e.clientY," +
     "n=y<$RevealEdgePx||y<$RevealCornerHeightPx&&(x<$RevealCornerWidthPx||x>innerWidth-$RevealCornerWidthPx);" +
     "if(n&&e.timeStamp-t>200){t=e.timeStamp;parent.postMessage('kinuvo:top','*')}else if(!n&&a)parent.postMessage('kinuvo:away','*');a=n},true)})();"

@@ -246,7 +246,7 @@ private fun ArtifactPane(state: ArtifactsState, agents: List<AgentInfo>, now: Lo
             verticalAlignment = Alignment.CenterVertically,
         ) {
             if (back != null) FloatingBar { FloatingButton(Lucide.ArrowLeft, "Back", back) }
-            else if (leave != null) FloatingBar { FloatingButton(Lucide.Minimize2, "Exit full screen", leave) }
+            else if (leave != null) FloatingBar { FloatingButton(Lucide.X, "Exit full screen", leave) }
             Spacer(Modifier.weight(1f))
             if (data != null) {
                 if (editing) editBar() else FloatingBar {
