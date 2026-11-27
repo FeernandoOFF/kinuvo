@@ -5,7 +5,7 @@ description: "Let Agents read and change your Reminders and Calendar events from
 
 A Server running in the Kinuvo desktop app on a Mac, or in the iPhone app, can reach your Reminders and Calendar through Apple's own frameworks. Nothing is installed besides Kinuvo, and your data stays on that device until an Agent's tool result goes into a Session.
 
-A Server started with the `kinuvo` command, as a service, or on another system cannot reach them; their tools explain this when called. Use a CalDAV, Todoist or local Task provider there instead.
+On macOS, the packaged `kinuvo` command can also reach Reminders and Calendar, including when run as a service. When started from a terminal, macOS attributes permission to the terminal app; under launchd, to `kinuvo`. Allow access for that app in System Settings. Servers on other systems cannot reach Apple’s frameworks; use a CalDAV, Todoist or local Task provider there instead.
 
 ## Allow access
 
