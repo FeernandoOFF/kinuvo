@@ -21,9 +21,13 @@ class VoiceService internal constructor(private val harness: AgentRuntime, priva
             harness.voice.liveCalls.takeIf { harness.liveVoiceEnabled })
     }
 
-    fun liveSettings() = LiveVoiceSettings(harness.voice.liveCalls != null, harness.liveVoiceEnabled)
+    suspend fun liveSettings(): LiveVoiceSettings {
+        val provider = harness.voice.liveCalls
+        val fix = provider?.unavailable()
+        return LiveVoiceSettings(provider != null && fix == null, harness.liveVoiceEnabled, fix?.let { LiveUnavailable(it.reason, it.signInProvider) })
+    }
 
-    fun saveLive(enabled: Boolean): LiveVoiceSettings {
+    suspend fun saveLive(enabled: Boolean): LiveVoiceSettings {
         harness.liveVoiceEnabled = enabled
         changed()
         return liveSettings()

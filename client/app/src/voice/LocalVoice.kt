@@ -1,5 +1,7 @@
 package kinuvo.app.voice
 
+import kinuvo.protocol.model.DeviceCode
+
 typealias VoiceModelKind = kinuvo.protocol.voice.VoiceModelKind
 typealias ModelFile = kinuvo.protocol.voice.ModelFile
 typealias VoiceModel = kinuvo.protocol.voice.VoiceModel
@@ -16,6 +18,7 @@ data class LocalVoiceState(
     val removing: String? = null,
     val error: String? = null,
     val live: LiveVoiceSettings = LiveVoiceSettings(),
+    val deviceCode: DeviceCode? = null,
 )
 
 

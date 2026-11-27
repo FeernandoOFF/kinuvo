@@ -21,17 +21,24 @@ import kinuvo.server.plugin.LiveCall
 import kinuvo.server.plugin.LiveCallEvent
 import kinuvo.server.plugin.LiveCallException
 import kinuvo.server.plugin.LiveCallProvider
+import kinuvo.server.plugin.LiveCallUnavailable
 import kinuvo.server.plugin.LiveCallStart
+import kinuvo.server.plugin.ReplyKind
 import kinuvo.server.plugin.VoiceContext
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.filterIsInstance
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.takeWhile
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.io.IOException
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
@@ -58,6 +65,7 @@ fun codexLiveHttpClient() = HttpClient(codexEngine()) { install(WebSockets) }
 class CodexLiveCalls(
     private val auth: CodexAuth,
     private val http: HttpClient,
+    private val providerId: String = "codex",
     private val voice: String = "cove",
     private val model: String = "gpt-live-1-codex",
     private val callsUrl: String = CALLS_URL,
@@ -65,7 +73,9 @@ class CodexLiveCalls(
 ) : LiveCallProvider {
     private val sidebands = ktorSidebands(http)
 
-    override suspend fun available() = auth.account().signedIn
+    override suspend fun available() = auth.signInKind() == ChatGptSignInKind.Codex
+
+    override suspend fun unavailable() = LiveCallUnavailable(DEVICE_CODE_REASON, providerId).takeIf { auth.signInKind() == ChatGptSignInKind.Browser }
 
     override suspend fun start(context: VoiceContext, offerSdp: String): LiveCallStart {
         val session = Uuid.random().toString()
@@ -113,7 +123,7 @@ class CodexLiveCalls(
             }
         }
         val first = send(forceRefresh = false)
-        return if (first.status == HttpStatusCode.Unauthorized) send(forceRefresh = true) else first
+        return if (first.status == HttpStatusCode.Unauthorized && !accessRejected(first.bodyAsText())) send(forceRefresh = true) else first
     }
 
     companion object {
@@ -167,11 +177,20 @@ internal class CodexLiveCall(
     private val auth: CodexAuth,
     private val url: String,
     private val sidebands: Sidebands,
+    private val holdMillis: Long = HOLD_MILLIS,
+    private val nudgeMillis: Long = NUDGE_MILLIS,
 ) : LiveCall {
     private val outgoing = Channel<String>(Channel.UNLIMITED)
     private val transcripts = TranscriptStream()
     @Volatile private var ended = false
     @Volatile private var closing = false
+
+    private val gate = Mutex()
+    private val open = mutableSetOf<String>()
+    private val held = mutableListOf<Pair<String, String>>()
+    @Volatile private var scope: CoroutineScope? = null
+    private var holdTimer: Job? = null
+    private var nudgeTimer: Job? = null
 
     override suspend fun run(onEvent: suspend (LiveCallEvent) -> Unit) {
         val tokens = codexTokens(auth)
@@ -179,11 +198,15 @@ internal class CodexLiveCall(
             sidebands.connect(url, tokens, session) { socket ->
                 coroutineScope {
                     val writer = launch { for (message in outgoing) socket.send(message) }
+                    scope = this
                     try {
                         log.info { "Call $id attached" }
                         onEvent(LiveCallEvent.Ready)
                         socket.incoming.takeWhile { handle(it, onEvent) }.collect {}
-                    } finally { writer.cancel() }
+                    } finally {
+                        scope = null
+                        writer.cancel(); holdTimer?.cancel(); nudgeTimer?.cancel()
+                    }
                 }
             }
         } catch (e: CancellationException) { throw e }
@@ -195,12 +218,59 @@ internal class CodexLiveCall(
         if (!ended && !closing) throw LiveCallException(CALL_DROPPED)
     }
 
-    override suspend fun reply(id: String, text: String) {
-        for (chunk in contextAppendChunks(text)) outgoing.send(delegationContext(id, chunk).toString())
+    /** Progress is commentary, which the model may mention. An answer is speakable, so it waits for a turn in progress to end: context appended mid-turn is not spoken afterwards. */
+    override suspend fun reply(id: String, text: String, kind: ReplyKind) {
+        if (kind == ReplyKind.Progress) return append(text) { delegationContext(id, it, COMMENTARY) }
+        if (kind == ReplyKind.Prompt) return append(text) { delegationContext(id, it, SPEAKABLE) }
+        gate.withLock {
+            val active = scope
+            if (open.isEmpty() || active == null) deliver(id, text)
+            else {
+                log.info { "Call ${this.id} holds the answer to $id until the open turn ends" }
+                held += id to text
+                if (holdTimer == null) holdTimer = active.launch {
+                    delay(holdMillis)
+                    gate.withLock {
+                        holdTimer = null
+                        log.warn { "Call ${this@CodexLiveCall.id} still has a turn open after ${holdMillis}ms; delivering the answer anyway" }
+                        flush()
+                    }
+                }
+            }
+        }
     }
 
-    override suspend fun notify(text: String) {
-        for (chunk in contextAppendChunks(text)) outgoing.send(sessionContext(chunk).toString())
+    override suspend fun notify(text: String) = append(text) { sessionContext(it, SPEAKABLE) }
+
+    private suspend fun append(text: String, message: (String) -> JsonObject) {
+        for (chunk in contextAppendChunks(text)) outgoing.send(message(chunk).toString())
+    }
+
+    private suspend fun deliver(delegation: String, text: String) {
+        append(text) { delegationContext(delegation, it, SPEAKABLE) }
+        val active = scope ?: return
+        nudgeTimer?.cancel()
+        nudgeTimer = active.launch {
+            delay(nudgeMillis)
+            log.warn { "Call ${this@CodexLiveCall.id} did not speak the answer to $delegation within ${nudgeMillis}ms; nudging the model" }
+            append(NUDGE) { sessionContext(it, SPEAKABLE) }
+        }
+    }
+
+    private suspend fun flush() {
+        val answers = held.toList()
+        held.clear()
+        for ((delegation, text) in answers) deliver(delegation, text)
+    }
+
+    private suspend fun turnStarted(turn: String, user: Boolean) = gate.withLock {
+        open += turn
+        if (!user) { nudgeTimer?.cancel(); nudgeTimer = null }
+    }
+
+    private suspend fun turnEnded(turn: String) = gate.withLock {
+        open -= turn
+        if (open.isEmpty() && held.isNotEmpty()) { holdTimer?.cancel(); holdTimer = null; flush() }
     }
 
     override suspend fun pause() = outgoing.send(control("input_audio.pause"))
@@ -221,6 +291,7 @@ internal class CodexLiveCall(
                 val turn = json.getValue("turn").jsonObject
                 val user = turn.string("role") == "user"
                 transcripts.started(user, turn.string("id"))
+                turnStarted(turn.string("id"), user)
                 onEvent(if (user) LiveCallEvent.Listening else LiveCallEvent.Speaking)
             }
             "input_transcript.added", "output_transcript.added" -> {
@@ -230,6 +301,7 @@ internal class CodexLiveCall(
             "turn.done" -> {
                 val turn = json.getValue("turn").jsonObject
                 val user = turn.string("role") == "user"
+                turnEnded(turn.string("id"))
                 onEvent(transcripts.done(user, turn.string("id"), turn.string("transcript")))
                 if (!user) onEvent(LiveCallEvent.Listening)
             }
@@ -252,6 +324,11 @@ internal class CodexLiveCall(
 
     private companion object {
         const val CALL_DROPPED = "The call dropped."
+        const val SPEAKABLE = "speakable"
+        const val COMMENTARY = "commentary"
+        const val HOLD_MILLIS = 8_000L
+        const val NUDGE_MILLIS = 8_000L
+        const val NUDGE = "The Agent's answer has arrived. Tell the user the result now."
         val AUDIO = setOf("session.input_audio.append", "session.output_audio.delta")
 
         /** The event type without parsing the frame, when it leads it. */
@@ -264,14 +341,16 @@ internal class CodexLiveCall(
 
         fun control(type: String) = buildJsonObject { put("type", type) }.toString()
 
-        fun delegationContext(id: String, text: String) = buildJsonObject {
+        fun delegationContext(id: String, text: String, channel: String) = buildJsonObject {
             put("type", "delegation.context.append")
             put("delegation_item_id", id)
+            put("channel", channel)
             put("content", inputText(text))
         }
 
-        fun sessionContext(text: String) = buildJsonObject {
+        fun sessionContext(text: String, channel: String) = buildJsonObject {
             put("type", "session.context.append")
+            put("channel", channel)
             put("content", inputText(text))
         }
 

@@ -14,6 +14,7 @@ import kinuvo.protocol.session.*
 import kinuvo.protocol.voice.*
 import kinuvo.server.devices.PeerRegistry
 import kinuvo.server.plugin.LiveCall
+import kinuvo.server.plugin.ReplyKind
 import kinuvo.server.plugin.LiveCallEvent
 import kinuvo.server.plugin.LiveCallException
 import kinuvo.server.plugin.LiveCallProvider
@@ -24,18 +25,22 @@ import kinuvo.server.rpc.serverRoutes
 import kinuvo.testing.harness.scriptedModel
 import kotlinx.coroutines.*
 import kotlinx.coroutines.channels.Channel
-import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.builtins.serializer
+import kinuvo.protocol.voice.LiveUnavailable
+import kinuvo.protocol.voice.LiveVoiceSettings
+import kinuvo.server.plugin.LiveCallUnavailable
 import kotlin.test.*
 
 class LiveCallRpcTest {
-    private class FakeCalls(var failure: LiveCallException? = null) : LiveCallProvider {
+    private class FakeCalls(var failure: LiveCallException? = null, var needs: LiveCallUnavailable? = null) : LiveCallProvider {
         val call = FakeCall()
         val contexts = mutableListOf<VoiceContext>()
         val offers = mutableListOf<String>()
-        override suspend fun available() = true
+        override suspend fun available() = needs == null
+        override suspend fun unavailable() = needs
         override suspend fun start(context: VoiceContext, offerSdp: String): LiveCallStart {
             failure?.let { throw it }
             contexts += context
@@ -48,7 +53,7 @@ class LiveCallRpcTest {
         val events = Channel<LiveCallEvent>(Channel.UNLIMITED)
         val sent = Channel<String>(Channel.UNLIMITED)
         override suspend fun run(onEvent: suspend (LiveCallEvent) -> Unit) { sent.send("run"); for (event in events) onEvent(event) }
-        override suspend fun reply(id: String, text: String) { sent.send("reply $id: $text") }
+        override suspend fun reply(id: String, text: String, kind: ReplyKind) { sent.send("reply $id${if (kind == ReplyKind.Final) "" else " (${kind.name.lowercase()})"}: $text") }
         override suspend fun notify(text: String) { sent.send("notify: $text") }
         override suspend fun pause() { sent.send("pause") }
         override suspend fun resume() { sent.send("resume") }
@@ -89,10 +94,10 @@ class LiveCallRpcTest {
         override fun setTools(token: String, tools: Set<DeviceToolKind>) = "test"
     }
 
-    private suspend fun <T> withCall(calls: FakeCalls, enabled: Boolean = true, reply: String = "Known reply", block: suspend CoroutineScope.(Device, RuntimeFixture, SessionInfo) -> T): T = coroutineScope {
+    private suspend fun <T> withCall(calls: FakeCalls, enabled: Boolean = true, reply: String = "Known reply", thinkMillis: Long = 0, block: suspend CoroutineScope.(Device, RuntimeFixture, SessionInfo) -> T): T = coroutineScope {
         val fixture = RuntimeFixture(voice = VoiceProviders(liveCalls = calls))
         fixture.settings.liveVoiceEnabled = enabled
-        val harness = fixture.runtime(scriptedModel { _, _ -> flowOf(StreamFrame.TextDelta(reply), StreamFrame.End()) })
+        val harness = fixture.runtime(scriptedModel { _, _ -> flow { delay(thinkMillis); emit(StreamFrame.TextDelta(reply)); emit(StreamFrame.End()) } })
         val session = harness.newSession(fixture.agent)
         val server = ServerRuntime(harness, peers(), serverRoutes())
         val device = Device()
@@ -139,7 +144,9 @@ class LiveCallRpcTest {
 
             val entries = fixture.transcripts.entries(fixture.agent.id, session.id)
             assertTrue(entries.filterIsInstance<SessionEntry.UserMessage>().single().voice)
-            assertEquals(listOf(VoiceTurn(true, "what is up"), VoiceTurn(false, "Known reply")), entries.filterIsInstance<SessionEntry.VoiceCall>().single().turns)
+            assertEquals(listOf(listOf(VoiceTurn(true, "what is up")), listOf(VoiceTurn(false, "Known reply"))), entries.filterIsInstance<SessionEntry.VoiceCall>().map { it.turns })
+            val order = entries.filter { it is SessionEntry.VoiceCall || it is SessionEntry.UserMessage || it is SessionEntry.AssistantMessage }.map { it::class }
+            assertEquals(listOf(SessionEntry.VoiceCall::class, SessionEntry.UserMessage::class, SessionEntry.AssistantMessage::class, SessionEntry.VoiceCall::class), order)
         }
     }
 
@@ -192,10 +199,89 @@ class LiveCallRpcTest {
         } finally { server.close(); serving.cancelAndJoin() }
     }
 
+    @Test fun aBuiltInAgentsRunKeepsGoingAfterTheCallEnds() = runTest {
+        val calls = FakeCalls()
+        withCall(calls, reply = "Built it", thinkMillis = 400) { device, fixture, session ->
+            val answer = device.call(Api.LiveCallStart, LiveCallParams(fixture.agent.id, session.id, "offer"))
+            device.call(Api.LiveCallPeer, LivePeerParams(answer.callId, LivePeerState.Connecting))
+            assertEquals("run", calls.call.sent.receive())
+            calls.call.events.send(LiveCallEvent.Delegation("d1", "build it"))
+            assertEquals(LiveCallUpdate.Phase(answer.callId, LiveCallPhase.Thinking), device.updates.receive())
+            withContext(Dispatchers.Default.limitedParallelism(1)) {
+                while (fixture.transcripts.entries(fixture.agent.id, session.id).none { it is SessionEntry.UserMessage }) delay(10)
+            }
+            device.call(Api.LiveCallEnd, LiveCallRef(answer.callId))
+            assertEquals("end", calls.call.sent.receive())
+            assertEquals(LiveCallUpdate.Ended(answer.callId), device.updates.receive())
+            withContext(Dispatchers.Default.limitedParallelism(1)) { delay(1_000) }
+            val entries = fixture.transcripts.entries(fixture.agent.id, session.id)
+            assertEquals("Built it", entries.filterIsInstance<SessionEntry.AssistantMessage>().single().text)
+            assertTrue(calls.call.sent.tryReceive().isFailure)
+        }
+    }
+
+    @Test fun theAgentsRunKeepsGoingAfterTheCallEndsAndItsAnswerIsOnlyInTheSession() = runTest {
+        val registry = ExecutionRegistry().also {
+            it.save(HarnessConnection("c", "ACP", ExecutionConnection.Acp(listOf("mock"))))
+            it.register(AgentRegistration(AgentId("external"), "Agent", "c", cwd = "/tmp"))
+        }
+        val cancelled = CompletableDeferred<Boolean>()
+        val factory = object : ExecutionFactory {
+            override suspend fun open(config: HarnessConnection, registration: AgentRegistration, state: ExecutionState, broker: ExecutionBroker, scope: CoroutineScope): ExecutionSession = object : ExecutionSession {
+                override val capabilities = ExecutionCapabilities()
+                override suspend fun prompt(input: ExecutionInput): ExecutionAcceptance {
+                    scope.launch {
+                        delay(300)
+                        state.boundSink().commit(listOf(SessionEntry.AssistantMessage("the long result", "reply")))
+                        state.boundSink().publish(AgentEvent.ExecutionPhaseChanged(ExecutionPhase.Idle))
+                    }
+                    return ExecutionAcceptance("accepted")
+                }
+                override suspend fun cancel() { cancelled.complete(true) }
+                override suspend fun answer(requestId: InteractionId, answer: InteractionAnswer) {}
+            }
+        }
+        val calls = FakeCalls()
+        val fixture = RuntimeFixture(voice = VoiceProviders(liveCalls = calls))
+        fixture.settings.liveVoiceEnabled = true
+        val server = ServerRuntime(fixture.runtime(), peers(), serverRoutes(), executionRegistry = registry, executionFactory = factory)
+        val device = Device()
+        server.start()
+        val serving = launch { server.serve(device.connection) }
+        try {
+            device.call(Api.Connect, ConnectParams("test"))
+            val session = device.call(Api.CreateSession, AgentRef(AgentId("external")))
+            val answer = device.call(Api.LiveCallStart, LiveCallParams(AgentId("external"), session.id, "offer"))
+            device.call(Api.LiveCallPeer, LivePeerParams(answer.callId, LivePeerState.Connecting))
+            assertEquals("run", calls.call.sent.receive())
+            calls.call.events.send(LiveCallEvent.Delegation("d1", "build the artifact"))
+            assertEquals(LiveCallUpdate.Phase(answer.callId, LiveCallPhase.Thinking), device.updates.receive())
+            device.call(Api.LiveCallEnd, LiveCallRef(answer.callId))
+            assertEquals("end", calls.call.sent.receive())
+            assertEquals(LiveCallUpdate.Ended(answer.callId), device.updates.receive())
+            withContext(Dispatchers.Default.limitedParallelism(1)) { delay(800) }
+            assertFalse(cancelled.isCompleted)
+            assertTrue(calls.call.sent.tryReceive().isFailure)
+            val entries = fixture.transcripts.entries(AgentId("external"), session.id)
+            assertEquals("the long result", entries.filterIsInstance<SessionEntry.AssistantMessage>().single().text)
+        } finally { server.close(); serving.cancelAndJoin() }
+    }
+
     @Test fun anOlderDevicesServerHeldLiveVoiceMethodsAreUnknownAndFailCleanly() = runTest {
         withCall(FakeCalls()) { device, _, _ ->
             val start = device.response(Method("voice.live.start", Unit.serializer(), Unit.serializer()), Unit)
             assertFalse(start.ok)
+            assertTrue(device.call(Api.VoiceSetup, Unit).liveCalls)
+        }
+    }
+
+    @Test fun aDeviceLearnsWhyLiveVoiceIsUnavailableAndWhichSignInFixesIt() = runTest {
+        val calls = FakeCalls(needs = LiveCallUnavailable("Needs a device code.", "codex"))
+        withCall(calls) { device, _, _ ->
+            assertEquals(LiveVoiceSettings(available = false, enabled = true, LiveUnavailable("Needs a device code.", "codex")), device.call(Api.LiveVoiceSettings, Unit))
+            assertFalse(device.call(Api.VoiceSetup, Unit).liveCalls)
+            calls.needs = null
+            assertEquals(LiveVoiceSettings(available = true, enabled = true), device.call(Api.LiveVoiceSettings, Unit))
             assertTrue(device.call(Api.VoiceSetup, Unit).liveCalls)
         }
     }

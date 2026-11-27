@@ -55,6 +55,10 @@ data class CancelVoiceParams(val requestId: String)
 @Serializable
 data class LiveCallRef(val callId: String)
 
-/** Whether the Server offers live calls, and whether the owner turned them on. */
+/** Whether the Server offers live calls, and whether the owner turned them on; [unavailable] says why it can't offer them and what fixes it. */
 @Serializable
-data class LiveVoiceSettings(val available: Boolean = false, val enabled: Boolean = true)
+data class LiveVoiceSettings(val available: Boolean = false, val enabled: Boolean = true, val unavailable: LiveUnavailable? = null)
+
+/** Why live calls can't start with the current sign-in; the Device can start a device-code sign-in for [signInProvider]. */
+@Serializable
+data class LiveUnavailable(val reason: String, val signInProvider: String)
