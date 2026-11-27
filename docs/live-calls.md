@@ -37,6 +37,17 @@ end and openSession. The app retains the Live Activity observer for its lifetime
 The call minimizes to a strip at the top of the app and keeps running in the
 background. Approvals appear in a sheet over the call.
 
+## Android
+
+When the Server offers Device-held calls, `AndroidSpeech.createCallPeer` gives the call an `AndroidLiveCallPeer`:
+libwebrtc (`io.getstream:stream-webrtc-android`) with its Java audio device module on the voice-communication
+source and stream, using the phone's echo canceller and noise suppressor where it has them and WebRTC's otherwise.
+Creating the peer also starts `AudioRoute` (communication mode, audio focus, speakerphone unless a wired,
+USB or Bluetooth headset is connected) and `LiveVoiceService`, a foreground service of type `microphone` with an End
+action that keeps the call alive in the background. Closing the peer releases both; stopping the service ends the call.
+The microphone permission goes through `authorizeAudio`. Phones' own Servers offer these calls like any other
+Server once ChatGPT is signed in.
+
 ## iOS
 
 The app declares background audio and Live Activity support. A route change
