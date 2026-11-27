@@ -274,7 +274,9 @@ class RunComposer internal constructor(
                 else -> CapabilityState.unsupported("This file type isn't supported by this provider and model")
             }
         }
-        return SessionCapabilities(revision, server, chat, listOf("text", "image", "file", "audio").associateWith(::input), prepared.catalog, attachments, queue = true, steer = true)
+        return SessionCapabilities(revision, server, chat, listOf("text", "image", "file", "audio").associateWith(::input), prepared.catalog, attachments, queue = true, steer = true,
+            stagesLargeText = dependencies.attachmentStager != null && prepared.tools.any { it.identity?.instance?.pluginId == "kinuvo.exec" && it.identity?.localId == ToolNames.SHELL } &&
+                prepared.catalog.any { it.identity?.instance?.pluginId == "kinuvo.exec" && it.identity?.localId == ToolNames.SHELL && it.state.authorization != Authorization.Denied && it.state.support != Support.Unsupported })
     }
 
     /**

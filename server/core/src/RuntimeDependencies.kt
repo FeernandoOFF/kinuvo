@@ -60,5 +60,6 @@ class RuntimeDependencies(
     val plugins get() = resources.plugins
     val mcp = plugins.firstNotNullOfOrNull { it.mcp } ?: McpManagement.Unavailable
     val execCheck = plugins.firstNotNullOfOrNull { it.execCheck }
+    val attachmentStager = plugins.firstNotNullOfOrNull { it.attachmentStager }
     val usage: StateFlow<Usage?> = modelProviders.firstNotNullOfOrNull { it.usage } ?: MutableStateFlow(null)
 }

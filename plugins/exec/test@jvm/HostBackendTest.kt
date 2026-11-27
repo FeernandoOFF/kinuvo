@@ -35,6 +35,19 @@ class HostBackendTest {
     }
 
     @Test
+    fun stagingWritesBinaryIgnoresItAndDropsOldFiles() = runTest {
+        val dir = File(root, ".kinuvo/attachments").apply { mkdirs() }
+        val old = File(dir, "old.txt").apply { writeText("old"); setLastModified(System.currentTimeMillis() - 40L * 24 * 3600 * 1000) }
+        val bytes = ByteArray(300_000) { it.toByte() }
+        val path = backend.stage("id-it's.bin", bytes)
+        assertEquals("${root.path}/.kinuvo/attachments/id-it's.bin", path)
+        assertTrue(File(path).readBytes().contentEquals(bytes))
+        assertEquals(setOf(java.nio.file.attribute.PosixFilePermission.OWNER_READ, java.nio.file.attribute.PosixFilePermission.OWNER_WRITE), java.nio.file.Files.getPosixFilePermissions(File(path).toPath()))
+        assertEquals("*\n", File(dir, ".gitignore").readText())
+        assertTrue(!old.exists())
+    }
+
+    @Test
     fun shellTimesOutAndTruncates() = runTest {
         val r = backend.run("sleep 5", null, 1.seconds)
         assertTrue(r.timedOut)

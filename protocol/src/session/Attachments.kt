@@ -5,6 +5,7 @@ import kotlinx.serialization.Serializable
 const val MAX_ATTACHMENTS = 4
 const val MAX_ATTACHMENT_BYTES = 10 * 1024 * 1024
 const val MAX_ATTACHMENT_TOTAL_BYTES = 20 * 1024 * 1024
+const val MAX_TEXT_ATTACHMENT_BYTES = 256 * 1024
 
 val ATTACHMENT_MIME_TYPES = setOf(
     "image/png", "image/jpeg", "image/gif", "image/webp", "application/pdf",
@@ -21,7 +22,8 @@ fun attachmentInput(mimeType: String) = when {
 }
 
 @Serializable
-data class Attachment(val id: String, val name: String, val mimeType: String, val size: Int)
+/** [path] is where a text file too large to inline sits in the Agent's Workspace, set when it is sent. */
+data class Attachment(val id: String, val name: String, val mimeType: String, val size: Int, val path: String? = null)
 
 @Serializable
 data class UploadAttachmentParams(val name: String, val base64: String)
