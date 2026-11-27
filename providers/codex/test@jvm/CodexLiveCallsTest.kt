@@ -10,6 +10,7 @@ import io.ktor.http.headersOf
 import kinuvo.server.plugin.Keychain
 import kinuvo.server.plugin.LiveCallEvent
 import kinuvo.server.plugin.LiveCallException
+import kinuvo.server.plugin.LiveCallUnavailable
 import kinuvo.server.plugin.VoiceContext
 import kinuvo.server.plugin.VoiceMessage
 import kotlinx.coroutines.CompletableDeferred
@@ -105,6 +106,36 @@ class CodexLiveCallsTest {
         })
         assertEquals(false, CodexLiveCalls(signedOut, HttpClient(MockEngine { respond("") })).available())
         assertEquals(true, provider(Requests()).available())
+    }
+
+    @Test fun onlyTheCodexLoginOffersCallsAndABrowserSignInSaysWhichSignInFixesIt() = runTest {
+        val codex = provider(Requests())
+        assertEquals(true, codex.available())
+        assertNull(codex.unavailable())
+
+        val browser = CodexLiveCalls(CodexAuth(store = keychain("""{"siwc":{"selected":true,"access_token":"siwc-access","refresh_token":"r","expires_at":4102444800,"scope":"chatgpt.tokens.use.direct"}}""")), HttpClient(MockEngine { respond("") }))
+        assertEquals(false, browser.available())
+        assertEquals(LiveCallUnavailable(DEVICE_CODE_REASON, "codex"), browser.unavailable())
+
+        val signedOut = CodexLiveCalls(CodexAuth(store = keychain(null)), HttpClient(MockEngine { respond("") }))
+        assertEquals(false, signedOut.available())
+        assertNull(signedOut.unavailable())
+    }
+
+    @Test fun anAccessEnforcementRejectionPointsAtTheDeviceCodeSignIn() = runTest {
+        val requests = Requests()
+        val message = assertFailsWith<LiveCallException> {
+            provider(requests, HttpStatusCode.Unauthorized, """{"error":{"type":"rejected_by_access_enforcement","code":"no_matching_rule"}}""", null).start(context, "offer")
+        }.message
+        assertEquals(NEEDS_DEVICE_CODE, message)
+        assertEquals(1, requests.seen.size)
+    }
+
+    private fun keychain(text: String?) = object : Keychain {
+        override val name = "test"
+        override suspend fun read() = text
+        override suspend fun write(token: String) {}
+        override suspend fun delete() {}
     }
 
     private class FakeSideband : Sidebands {

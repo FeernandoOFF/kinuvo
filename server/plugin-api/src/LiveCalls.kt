@@ -9,9 +9,15 @@ interface LiveCallProvider {
     /** Whether a call could start now, e.g. the owner is signed in. */
     suspend fun available(): Boolean
 
+    /** Why [available] is false when signing in another way would fix it; null when nothing the Device can offer helps. */
+    suspend fun unavailable(): LiveCallUnavailable? = null
+
     /** Creates the call for the Device's WebRTC [offerSdp]; throws [LiveCallException] with a message fit for the Device. */
     suspend fun start(context: VoiceContext, offerSdp: String): LiveCallStart
 }
+
+/** [signInProvider] is the model provider whose device-code sign-in makes calls available. */
+data class LiveCallUnavailable(val reason: String, val signInProvider: String)
 
 /** [answerSdp] goes back to the Device; [call] is then run once the Device applies it. */
 class LiveCallStart(val answerSdp: String, val call: LiveCall)

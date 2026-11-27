@@ -28,14 +28,18 @@ import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.builtins.serializer
+import kinuvo.protocol.voice.LiveUnavailable
+import kinuvo.protocol.voice.LiveVoiceSettings
+import kinuvo.server.plugin.LiveCallUnavailable
 import kotlin.test.*
 
 class LiveCallRpcTest {
-    private class FakeCalls(var failure: LiveCallException? = null) : LiveCallProvider {
+    private class FakeCalls(var failure: LiveCallException? = null, var needs: LiveCallUnavailable? = null) : LiveCallProvider {
         val call = FakeCall()
         val contexts = mutableListOf<VoiceContext>()
         val offers = mutableListOf<String>()
-        override suspend fun available() = true
+        override suspend fun available() = needs == null
+        override suspend fun unavailable() = needs
         override suspend fun start(context: VoiceContext, offerSdp: String): LiveCallStart {
             failure?.let { throw it }
             contexts += context
@@ -196,6 +200,17 @@ class LiveCallRpcTest {
         withCall(FakeCalls()) { device, _, _ ->
             val start = device.response(Method("voice.live.start", Unit.serializer(), Unit.serializer()), Unit)
             assertFalse(start.ok)
+            assertTrue(device.call(Api.VoiceSetup, Unit).liveCalls)
+        }
+    }
+
+    @Test fun aDeviceLearnsWhyLiveVoiceIsUnavailableAndWhichSignInFixesIt() = runTest {
+        val calls = FakeCalls(needs = LiveCallUnavailable("Needs a device code.", "codex"))
+        withCall(calls) { device, _, _ ->
+            assertEquals(LiveVoiceSettings(available = false, enabled = true, LiveUnavailable("Needs a device code.", "codex")), device.call(Api.LiveVoiceSettings, Unit))
+            assertFalse(device.call(Api.VoiceSetup, Unit).liveCalls)
+            calls.needs = null
+            assertEquals(LiveVoiceSettings(available = true, enabled = true), device.call(Api.LiveVoiceSettings, Unit))
             assertTrue(device.call(Api.VoiceSetup, Unit).liveCalls)
         }
     }

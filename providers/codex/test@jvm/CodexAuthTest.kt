@@ -79,6 +79,18 @@ class CodexAuthTest {
     }
 
     @Test
+    fun signInKindFollowsTheTokensThatWouldBeUsed() = runTest {
+        assertEquals(ChatGptSignInKind.SignedOut, auth().signInKind())
+        writeAuth(jwt(1.hours))
+        assertEquals(ChatGptSignInKind.Codex, auth().signInKind())
+        assertTrue(requests.isEmpty())
+        file.writeText("""{"tokens":{"id_token":"id","access_token":"a","refresh_token":"r","account_id":"acct"},"siwc":{"selected":true,"access_token":"siwc","refresh_token":"r"}}""")
+        assertEquals(ChatGptSignInKind.Browser, auth().signInKind())
+        file.writeText("""{"siwc":{"selected":false,"access_token":"siwc"}}""")
+        assertEquals(ChatGptSignInKind.SignedOut, auth().signInKind())
+    }
+
+    @Test
     fun forcedRefreshAndFailureLeavesFileUntouched() = runTest {
         writeAuth(jwt(1.hours))
         val before = file.readText()

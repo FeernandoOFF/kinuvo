@@ -69,6 +69,10 @@ class RealtimeCommonTest {
         assertEquals("ChatGPT is busy. Try again in a moment.", callFailure(429, "Too many"))
         assertEquals(SIGN_IN, callFailure(401, "{}"))
         assertEquals(SIGN_IN, callFailure(403, ""))
+        val rejected = """{"error":{"type":"rejected_by_access_enforcement","code":"no_matching_rule"}}"""
+        assertEquals(NEEDS_DEVICE_CODE, callFailure(401, rejected))
+        assertEquals(NEEDS_DEVICE_CODE, callFailure(403, rejected))
+        assertEquals(SIGN_IN, callFailure(401, """{"error":{"type":"invalid_token"}}"""))
         assertEquals("Couldn't start the call (HTTP 500).", callFailure(500, "<html>"))
     }
 

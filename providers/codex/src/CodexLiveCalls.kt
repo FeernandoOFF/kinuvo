@@ -21,6 +21,7 @@ import kinuvo.server.plugin.LiveCall
 import kinuvo.server.plugin.LiveCallEvent
 import kinuvo.server.plugin.LiveCallException
 import kinuvo.server.plugin.LiveCallProvider
+import kinuvo.server.plugin.LiveCallUnavailable
 import kinuvo.server.plugin.LiveCallStart
 import kinuvo.server.plugin.VoiceContext
 import kotlinx.coroutines.CancellationException
@@ -58,6 +59,7 @@ fun codexLiveHttpClient() = HttpClient(codexEngine()) { install(WebSockets) }
 class CodexLiveCalls(
     private val auth: CodexAuth,
     private val http: HttpClient,
+    private val providerId: String = "codex",
     private val voice: String = "cove",
     private val model: String = "gpt-live-1-codex",
     private val callsUrl: String = CALLS_URL,
@@ -65,7 +67,9 @@ class CodexLiveCalls(
 ) : LiveCallProvider {
     private val sidebands = ktorSidebands(http)
 
-    override suspend fun available() = auth.account().signedIn
+    override suspend fun available() = auth.signInKind() == ChatGptSignInKind.Codex
+
+    override suspend fun unavailable() = LiveCallUnavailable(DEVICE_CODE_REASON, providerId).takeIf { auth.signInKind() == ChatGptSignInKind.Browser }
 
     override suspend fun start(context: VoiceContext, offerSdp: String): LiveCallStart {
         val session = Uuid.random().toString()
@@ -113,7 +117,7 @@ class CodexLiveCalls(
             }
         }
         val first = send(forceRefresh = false)
-        return if (first.status == HttpStatusCode.Unauthorized) send(forceRefresh = true) else first
+        return if (first.status == HttpStatusCode.Unauthorized && !accessRejected(first.bodyAsText())) send(forceRefresh = true) else first
     }
 
     companion object {
