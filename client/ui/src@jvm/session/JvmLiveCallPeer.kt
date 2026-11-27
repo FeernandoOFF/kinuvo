@@ -47,10 +47,10 @@ import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 
 /** The WebRTC stack behind one peer: [source] feeds the microphone track; [close] releases everything. */
-internal class PeerAudio(val factory: PeerConnectionFactory, val source: AudioTrackSource, val close: () -> Unit)
+class PeerAudio(val factory: PeerConnectionFactory, val source: AudioTrackSource, val close: () -> Unit)
 
 /** The default microphone and speaker through WebRTC's audio device module, with echo cancellation, noise suppression and gain control on. */
-internal fun deviceAudio(): PeerAudio {
+fun deviceAudio(): PeerAudio {
     try {
         val module = AudioDeviceModule()
         if (module.recordingDevices.isEmpty()) { module.dispose(); throw LiveCallException("No microphone found. Connect one and try again.") }
@@ -74,7 +74,7 @@ internal fun deviceAudio(): PeerAudio {
     }
 }
 
-internal fun callProcessing() = AudioProcessing().apply {
+fun callProcessing() = AudioProcessing().apply {
     applyConfig(AudioProcessingConfig().apply {
         echoCanceller.enabled = true
         noiseSuppression.enabled = true
@@ -83,7 +83,7 @@ internal fun callProcessing() = AudioProcessing().apply {
     })
 }
 
-internal class JvmLiveCallPeer(private val audio: () -> PeerAudio = ::deviceAudio) : LiveCallPeer {
+class JvmLiveCallPeer(private val audio: () -> PeerAudio = ::deviceAudio) : LiveCallPeer {
     override val state: StateFlow<LivePeerState>
         field = MutableStateFlow(LivePeerState.Connecting)
     override val levels: StateFlow<LiveCallLevels>
