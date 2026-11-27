@@ -21,6 +21,9 @@ import kinuvo.protocol.surface.*
 import kinuvo.protocol.usage.*
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.TimeoutCancellationException
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.buffer
 import kotlinx.coroutines.flow.channelFlow
@@ -98,8 +101,13 @@ class AgentRun(
             finally { koog.close() }
             AgentEvent.RunFinished(runId)
         } catch (e: CancellationException) {
-            cancelled = true
-            throw e
+            // Something timing out inside the run fails the turn; only stopping the run itself cancels it.
+            if (e !is TimeoutCancellationException || !currentCoroutineContext().isActive) {
+                cancelled = true
+                throw e
+            }
+            stopped = "Stopped before this call could run"
+            AgentEvent.RunError(runId, "This took too long and stopped; send another message to try again.")
         } catch (e: Exception) {
             stopped = "Stopped before this call could run"
             val message = if (e is AIAgentMaxNumberOfIterationsReachedException || e is RequestLimitReached)

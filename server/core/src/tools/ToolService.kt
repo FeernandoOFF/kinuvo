@@ -18,6 +18,9 @@ import kinuvo.harness.ToolProvider
 import kinuvo.harness.ToolReports
 import kinuvo.protocol.tool.ToolNames
 import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.TimeoutCancellationException
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
 import kinuvo.harness.ToolTurn
 import kinuvo.protocol.session.AgentEvent
@@ -200,6 +203,10 @@ class ToolService(
             val args = Json.parseToJsonElement(call.args.ifBlank { "{}" }).jsonObject
             val result = tool.executeResult(args.clampItems(tool.itemLimits(maxItems)), call.id.value, toolRun(call, approvalId, turn, attached))
             result.copy(name = call.name, attachments = attached + result.attachments)
+        } catch (e: TimeoutCancellationException) {
+            // A timeout inside the tool fails only this call; the run goes on unless it was stopped itself.
+            currentCoroutineContext().ensureActive()
+            SessionEntry.ToolResult(call.id, call.name, "Error: ${tool.displayName} timed out", isError = true, attachments = attached)
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
