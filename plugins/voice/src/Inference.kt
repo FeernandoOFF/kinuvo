@@ -86,6 +86,7 @@ class Inference(private val executable: File) {
                     }
                 }
             }
+            extractBundledVoiceWorker(Inference::class.java.classLoader, worker)?.let { return it }
             val resources = System.getProperty("compose.application.resources.dir")
             if (resources != null) return File(resources, "voice-worker/$worker")
             val root = generateSequence(File(".").canonicalFile) { it.parentFile }.firstOrNull { File(it, "project.yaml").isFile }
@@ -98,5 +99,27 @@ class Inference(private val executable: File) {
             while (input.hasRemaining()) output.putFloat(input.short / 32768f)
             return output.array()
         }
+    }
+}
+
+internal fun extractBundledVoiceWorker(loader: ClassLoader, worker: String): File? {
+    val entries = loader.getResourceAsStream("server-voice/files.list")?.bufferedReader()?.use { it.readLines() } ?: return null
+    if ("server-voice/$worker" !in entries) return null
+    val root = Files.createTempDirectory("kinuvo-voice-").toFile().canonicalFile
+    Runtime.getRuntime().addShutdownHook(Thread { root.deleteRecursively() })
+    try {
+        for (entry in entries) {
+            require(entry.startsWith("server-voice/"))
+            val file = File(root, entry.removePrefix("server-voice/")).canonicalFile
+            require(file.toPath().startsWith(root.toPath()))
+            file.parentFile.mkdirs()
+            requireNotNull(loader.getResourceAsStream(entry)) { "Voice resource missing: $entry" }.use { input ->
+                file.outputStream().use { input.copyTo(it) }
+            }
+        }
+        return File(root, worker).apply { check(setExecutable(true, true)) { "Voice worker is not executable" } }
+    } catch (e: Exception) {
+        root.deleteRecursively()
+        throw e
     }
 }
