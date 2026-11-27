@@ -98,3 +98,19 @@ expanded Dynamic Island. The orb is static; the system updates the elapsed timer
 Hardware verification must cover locked-screen and background streaming,
 Bluetooth and wired routes, phone/Siri interruptions, Live Activity actions,
 deep-link navigation, and signed extension installation.
+
+## Web
+
+The web app holds calls itself when the browser has `RTCPeerConnection` and `getUserMedia`, which means a secure context
+(HTTPS, or localhost); otherwise it offers no voice. `WebSpeech` is the web app's `LiveAudio`: it supports Device-held calls
+only, so Dictation, reading aloud, Server-held live voice and speech-based Voice chat stay unavailable in the browser. Starting voice
+chat against a Server without Device-held calls shows that.
+`WebLiveCallPeer` (js and wasmJs share it in `client/ui/src@web`) asks for the microphone with echo cancellation, noise
+suppression and auto gain on only when the offer is made, so the browser's permission prompt follows the tap that started
+the call. It builds a max-bundle connection with the microphone's one audio track, returns the offer once ICE gathering is
+complete and plays the model's voice through an `<audio>` element; a browser that blocks that until a gesture is retried on
+the next tap or key press. Mute disables the microphone track. Levels come from `getStats` audio levels, which a browser may
+not report. Denied, missing and busy microphones each get their own message. Connection cues play through one `AudioContext`
+opened when the call starts. The browser connects to the realtime model directly, so nothing in the Server's headers needs to
+allow it: the sample Caddyfile sets no `connect-src`, `media-src` or Permissions-Policy that would block WebRTC or the
+microphone. The call ends when the tab closes or navigates away.

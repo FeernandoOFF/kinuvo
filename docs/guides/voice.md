@@ -13,6 +13,8 @@ Start a Voice call from the Session's voice controls. Audio streams continuously
 
 The voice model hands tasks to the Session's Agent, including External Agents. These run as ordinary Session messages labelled **By voice**, with Approvals shown in a sheet over the call. When the call ends, its transcript is saved in the Session as one collapsible **Voice call** block.
 
+In a browser, Live voice needs the Server's HTTPS address and your permission to use the microphone; the call ends when you close or leave the tab.
+
 Calls keep running in the background. Minimize a call to a strip at the top of the app; iOS also shows a Live Activity. **Mute** stops only the microphone; replies keep playing. Use **End** to finish the call.
 
 ## Transcription and synthesis
@@ -31,7 +33,7 @@ Configure `voice.transcription` for speech to text (STT), `voice.synthesis` for 
 
 Restart the Server after editing the configuration. Voice chat chooses the advertised providers when it starts; end an existing chat and start it again to use a changed selection. No separate model-provider login is needed: audio providers use their own optional `apiKey`.
 
-For this transcription-and-synthesis mode, Server-backed Voice chat and Dictation are available on iOS and macOS. Windows uses Device speech. Android offers Live voice through a supported Server; browser clients do not currently offer Voice chat. On desktop, allow microphone access in system settings; Device transcription also needs speech recognition access. Microphone access is always needed; Device speech recognition access is needed only when using Device transcription or Dictation.
+For this transcription-and-synthesis mode, Server-backed Voice chat and Dictation are available on iOS and macOS. Windows uses Device speech. Android offers Live voice through a supported Server; browser clients offer only live calls, not this mode. On desktop, allow microphone access in system settings; Device transcription also needs speech recognition access. Microphone access is always needed; Device speech recognition access is needed only when using Device transcription or Dictation.
 
 Server transcription records a WAV turn and uploads it after about 1.3 seconds of quiet. Hold to talk to include pauses, then let go to transcribe and send. Recordings stop after 30 seconds; ten seconds without speech restarts listening without a provider request. The 30-second cap bounds memory use and upload latency for a buffered turn; it is an application limit, not an OpenAI API requirement. At 16 kHz mono PCM16, a full turn contains about 960 KB of audio. Transcripts appear after the recording is uploaded, rather than word by word.
 
