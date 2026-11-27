@@ -21,7 +21,6 @@ import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.cancelChildren
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.currentCoroutineContext
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
@@ -45,7 +44,6 @@ internal class LiveCallSession(
     private val keepAwake: () -> AutoCloseable = { AutoCloseable {} },
     private val attachTimeoutMillis: Long = 15_000,
     private val endTimeoutMillis: Long = 5_000,
-    private val heartbeatMillis: Long = 20_000,
 ) {
     val id = Uuid.random().toString()
     private val attached = CompletableDeferred<Unit>()
@@ -105,20 +103,16 @@ internal class LiveCallSession(
         }
     }
 
-    /** Runs the Agent on [event]'s task. Its run belongs to the Server, so it carries on if the call ends; only this wait stops. */
-    private suspend fun delegate(event: LiveCallEvent.Delegation) = coroutineScope {
-        val reported = Reported()
-        val heartbeat = launch {
-            while (true) {
-                delay(heartbeatMillis)
-                if (!reported.value) reply(event.id, "The Agent is still working on: ${event.task.take(80)}. If the user has been waiting, briefly tell them it is still in progress; don't invent details.", ReplyKind.Progress)
-                reported.value = false
-            }
+    /**
+     * Runs the Agent on [event]'s task. Its run belongs to the Server, so it carries on if the call ends; only this wait stops.
+     * Only what the user must act on (approvals, questions) reaches the model before the answer; other progress would be read out.
+     */
+    private suspend fun delegate(event: LiveCallEvent.Delegation) {
+        val answer = try {
+            askAgent(event.task) { if (it is AgentProgress.ApprovalRequested || it is AgentProgress.Question) reply(event.id, it.voiceText(), ReplyKind.Prompt) }
         }
-        val answer = try { askAgent(event.task) { reported.value = true; reply(event.id, it.voiceText(), if (it is AgentProgress.ApprovalRequested || it is AgentProgress.Question) ReplyKind.Prompt else ReplyKind.Progress) } }
         catch (e: CancellationException) { throw e }
         catch (e: Exception) { "The task failed: ${e.message}" }
-        heartbeat.cancel()
         reply(event.id, answer, ReplyKind.Final)
     }
 
@@ -173,7 +167,6 @@ internal class LiveCallSession(
     }
 }
 
-private class Reported { @Volatile var value = false }
 
 /** The call's turns, saved to the Session in parts: each delegation saves what was said before it, so the Session reads in the order things happened. */
 private class Transcript(private val callId: String, private val record: suspend (SessionEntry.VoiceCall) -> Unit) {

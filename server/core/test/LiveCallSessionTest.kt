@@ -127,14 +127,14 @@ class LiveCallSessionTest {
         override suspend fun end() { events.close() }
     }
 
-    @Test fun progressIsNotFinalAndTheAnswerIs() = runTest {
+    @Test fun progressStaysOffTheCallAndTheAnswerIsFinal() = runTest {
         val call = Replies()
         val session = LiveCallSession(call, this, { true }, { _, progress -> progress(AgentProgress.Text("half way")); "done" })
         session.start()
         session.peer(LivePeerState.Connecting)
         call.events.send(LiveCallEvent.Delegation("d1", "task"))
         runCurrent()
-        assertEquals(listOf(Triple("d1", "Agent progress (not the final result): half way", ReplyKind.Progress), Triple("d1", "done", ReplyKind.Final)), call.replies)
+        assertEquals(listOf(Triple("d1", "done", ReplyKind.Final)), call.replies)
         session.end()
         runCurrent()
     }
@@ -151,35 +151,6 @@ class LiveCallSessionTest {
         call.events.send(LiveCallEvent.Delegation("d1", "task"))
         runCurrent()
         assertEquals(listOf(ReplyKind.Prompt, ReplyKind.Prompt, ReplyKind.Final), call.replies.map { it.third })
-        session.end()
-        runCurrent()
-    }
-
-    @Test fun aLongRunningTaskGetsAReassuringNoteAtMostEveryTwentySecondsOfSilence() = runTest {
-        val call = Replies()
-        val finish = CompletableDeferred<String>()
-        val session = LiveCallSession(call, this, { true }, { _, progress ->
-            delay(25_000)
-            progress(AgentProgress.Text("working"))
-            finish.await()
-        })
-        session.start()
-        session.peer(LivePeerState.Connecting)
-        call.events.send(LiveCallEvent.Delegation("d1", "build the artifact"))
-        advanceTimeBy(19_999)
-        assertEquals(emptyList(), call.replies)
-        advanceTimeBy(2)
-        assertEquals(listOf(Triple("d1", "The Agent is still working on: build the artifact. If the user has been waiting, briefly tell them it is still in progress; don't invent details.", ReplyKind.Progress)), call.replies)
-        advanceTimeBy(5_000)
-        assertEquals(2, call.replies.size)
-        advanceTimeBy(15_000)
-        assertEquals(2, call.replies.size)
-        advanceTimeBy(20_000)
-        assertEquals(3, call.replies.size)
-        assertTrue(call.replies.none { it.third == ReplyKind.Final })
-        finish.complete("ready")
-        runCurrent()
-        assertEquals(Triple("d1", "ready", ReplyKind.Final), call.replies.last())
         session.end()
         runCurrent()
     }
