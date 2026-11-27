@@ -120,6 +120,23 @@ class CodexAuthTest {
     }
 
     @Test
+    fun browserSignOutKeepsTheSeparateCodexLogin() = runTest {
+        writeAuth(jwt(1.hours))
+        val browser = File(temporaryDirectories.create("home").toFile(), "chatgpt-auth.json")
+        browser.writeText("""{"siwc":{"selected":true,"client_id":"oaiapp_x","subject":"s","access_token":"a","expires_at":${(Clock.System.now() + 1.hours).epochSeconds},"scope":"chatgpt.tokens.use.direct"}}""")
+        val auth = CodexAuth(store = PrivateFile(Path(file.path)), http = HttpClient(MockEngine { respond("", HttpStatusCode.NotFound) }),
+            browserStore = PrivateFile(Path(browser.path)))
+
+        auth.logout()
+
+        assertTrue(file.exists())
+        assertTrue(auth.account().signedIn)
+        assertEquals("acct", auth.tokens().accountId)
+        auth.logout()
+        assertFalse(file.exists())
+    }
+
+    @Test
     fun deviceLoginPollsExchangesAndWritesAuthJson() = runTest {
         val claims = """{"https://api.openai.com/auth":{"chatgpt_account_id":"acct-9"}}"""
         val idToken = "h." + Base64.getUrlEncoder().withoutPadding().encodeToString(claims.toByteArray()) + ".s"
