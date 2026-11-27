@@ -1,6 +1,7 @@
 package kinuvo.server
 
 import arrow.core.raise.Raise
+import kinuvo.protocol.EventType
 import kinuvo.protocol.device.DeviceToolKind
 import kinuvo.protocol.device.PairedDeviceInfo
 import kinuvo.protocol.execution.RemoteExecutionCall
@@ -25,6 +26,8 @@ interface Caller {
     /** The Surface catalogs this connection renders, for runs it starts. */
     val surfaceCatalogs: List<UiCatalog>
 
+    /** Sends this connection an event; false when it can no longer take one. */
+    fun <T> offer(type: EventType<T>, payload: T): Boolean
     fun requireDevice(): String
     fun setSurfaceCatalogs(catalogs: List<UiCatalog>)
     suspend fun presence(active: Boolean, viewing: SessionId?)
