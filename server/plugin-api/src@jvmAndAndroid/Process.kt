@@ -5,7 +5,7 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.runInterruptible
 import kotlinx.coroutines.withContext
-import kotlinx.coroutines.withTimeout
+import kotlinx.coroutines.withTimeoutOrNull
 
 class ProcessOutput(val code: Int, val out: String, val err: String) {
     val ok get() = code == 0
@@ -13,9 +13,9 @@ class ProcessOutput(val code: Int, val out: String, val err: String) {
     fun value(command: String): String = if (ok) out else error(err.trim().removePrefix("Error: ").ifEmpty { "$command failed ($code)" })
 }
 
-/** Runs [command] with [env] added to the Server's environment, writing [stdin] to it; IOException when it can't start. */
+/** Runs [command] with [env] added to the Server's environment, writing [stdin] to it; IOException when it can't start, an error after 60 s. */
 suspend fun runProcess(command: List<String>, env: Map<String, String> = emptyMap(), stdin: String? = null): ProcessOutput = withContext(Dispatchers.IO) {
-    withTimeout(60_000) {
+    withTimeoutOrNull(60_000) {
         coroutineScope {
             val process = ProcessBuilder(command).also { it.environment().putAll(env) }.start()
             try {
@@ -28,5 +28,5 @@ suspend fun runProcess(command: List<String>, env: Map<String, String> = emptyMa
                 if (process.isAlive) process.destroyForcibly()
             }
         }
-    }
+    } ?: error("${command.first().substringAfterLast('/')} didn't finish within 60 seconds")
 }

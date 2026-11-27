@@ -20,6 +20,7 @@ import kinuvo.server.plugin.ToolRun
 import kinuvo.protocol.session.Attachment
 import kinuvo.protocol.session.ToolCallId
 import kotlinx.coroutines.awaitCancellation
+import kotlinx.coroutines.withTimeout
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
@@ -310,5 +311,25 @@ class AgentRunTest {
         AgentRun(agent, store, model, listOf(slowTool)).run(session.id, "go").first { it is AgentEvent.ToolCallStart }
 
         assertEquals(SessionEntry.ToolResult(ToolCallId("c1"), "slow", "Cancelled by user", isError = true), store.entries(agent.id, session.id).last().withWrittenAt(null))
+    }
+
+    @Test
+    fun aToolTimingOutFailsOnlyThatCallAndTheRunGoesOn() = runTest {
+        val stuck = object : Tool {
+            override val descriptor = toolSpec("stuck", "times out")
+            override suspend fun execute(args: JsonObject): String = withTimeout(10) { awaitCancellation() }
+        }
+        var calls = 0
+        val model = scriptedModel { _, _ ->
+            if (calls++ == 0) flowOf(StreamFrame.ToolCallComplete("c1", "stuck", "{}"), StreamFrame.End())
+            else flowOf(StreamFrame.TextDelta("It failed; moving on."), StreamFrame.End())
+        }
+        val session = store.createSession(agent.id, "")
+        val events = AgentRun(agent, store, model, listOf(stuck)).run(session.id, "go").toList()
+
+        assertIs<AgentEvent.RunFinished>(events.last())
+        val result = store.entries(agent.id, session.id).filterIsInstance<SessionEntry.ToolResult>().single()
+        assertTrue(result.isError && "timed out" in result.output, result.output)
+        assertEquals("It failed; moving on.", store.entries(agent.id, session.id).filterIsInstance<SessionEntry.AssistantMessage>().last().text)
     }
 }
