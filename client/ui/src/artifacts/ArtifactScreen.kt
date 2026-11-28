@@ -38,6 +38,8 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.PointerEventType
+import androidx.compose.ui.input.pointer.PointerType
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -145,7 +147,10 @@ private fun ArtifactPane(state: ArtifactsState, agents: List<AgentInfo>, now: Lo
     val editing = state.draft != null
     val leave = if (state.route.fullScreen && actions.onClose == null) ({ actions.onFullScreen(false) }) else null
     val focus = remember { androidx.compose.ui.focus.FocusRequester() }
-    if (leave != null) LaunchedEffect(Unit) { runCatching { focus.requestFocus() } }
+    if (leave != null) {
+        LaunchedEffect(Unit) { runCatching { focus.requestFocus() } }
+        HideSystemBars()
+    }
     BoxWithConstraints(Modifier.fillMaxSize().then(if (leave == null) Modifier else Modifier.focusRequester(focus).focusable().onPreviewKeyEvent { e ->
         (e.type == KeyEventType.KeyDown && e.key == Key.Escape).also { if (it) leave() }
     })) { CompositionLocalProvider(LocalWebEscape provides leave) {
@@ -161,12 +166,13 @@ private fun ArtifactPane(state: ArtifactsState, agents: List<AgentInfo>, now: Lo
         val shownDeck = state.deck.takeIf { deck != null && data?.info?.web == true && !editing }
         val background = color(backgroundColor)
         var controls by remember { mutableStateOf(ControlsHeight) }
-        // A full-screen page, e.g. a presentation, takes the whole window; its controls fade out until the pointer reaches the top.
-        val hiding = actions.onClose == null && state.route.fullScreen && !editing && data?.info?.web == true &&
-            LocalInteractionMode.current != InteractionMode.Touch
+        // A full-screen page, e.g. a presentation, takes the whole screen; its controls fade out until the pointer or a tap reaches the top.
+        val hiding = leave != null && !editing && data?.info?.web == true
         var shown by remember(hiding) { mutableStateOf(true) }
         var hovered by remember(hiding) { mutableStateOf(false) }
-        LaunchedEffect(hiding, shown, hovered) { if (hiding && shown && !hovered) { delay(2500); shown = false } }
+        var poked by remember(hiding) { mutableIntStateOf(0) }
+        val reveal: () -> Unit = { shown = true; poked++ }
+        LaunchedEffect(hiding, shown, hovered, poked) { if (hiding && shown && !hovered) { delay(ControlsLinger); shown = false } }
         when {
             data == null -> (if (state.missing) "This artifact was deleted." else state.errors.lastOrNull())
                 ?.let { ErrorMessage(it, Modifier.align(Alignment.Center).padding(Spacing.space24)) } ?: Spinner(Modifier.align(Alignment.Center))
@@ -178,14 +184,14 @@ private fun ArtifactPane(state: ArtifactsState, agents: List<AgentInfo>, now: Lo
                     if (visualEditing) actions.onSaveDesign else null,
                 )
             }
-            data.info.web -> Box(Modifier.fillMaxSize().padding(top = if (hiding) 0.dp else controls)) {
+            data.info.web -> CompositionLocalProvider(LocalWebPointer provides { near: Boolean -> hovered = near; if (near) reveal() }.takeIf { hiding }) { Box(Modifier.fillMaxSize().padding(top = if (hiding) 0.dp else controls)) {
                 val remoting = remote && shownDeck != null
                 val page = when {
                     !remoting -> Modifier.fillMaxSize()
                     wide -> Modifier.align(Alignment.TopStart).fillMaxHeight().padding(end = RemoteWidth)
                     else -> Modifier.align(Alignment.TopStart).fillMaxWidth().fillMaxHeight(RemotePageShare)
                 }
-                HtmlView(data.info.page(data.content), page, fade = if (hiding) null else color(backgroundColor), deck = deck)
+                HtmlView(data.info.page(data.content), page, fade = if (hiding) null else color(backgroundColor), deck = deck, fullScreen = hiding)
                 if (remoting && shownDeck != null && deck != null) {
                     if (wide) Row(Modifier.align(Alignment.TopEnd).fillMaxHeight()) {
                         VerticalSeparator()
@@ -195,7 +201,7 @@ private fun ArtifactPane(state: ArtifactsState, agents: List<AgentInfo>, now: Lo
                         DeckRemote(shownDeck, deck.onStep, Modifier.fillMaxWidth().weight(1f))
                     }
                 }
-            }
+            } }
             else -> SelectionContainer(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(start = Spacing.space24, end = Spacing.space24, top = controls + Spacing.space8, bottom = Spacing.space24)) {
                 if (data.info.type == "md") Markdown(data.content, Modifier.fillMaxWidth())
                 else CodeBlock(data.content, language = data.info.type)
@@ -236,19 +242,28 @@ private fun ArtifactPane(state: ArtifactsState, agents: List<AgentInfo>, now: Lo
                 if (data != null && editing) editBar()
             }
             HorizontalSeparator()
-        } else Box(Modifier.fillMaxWidth().defaultMinSize(minHeight = 8.dp).then(if (hiding) Modifier.pointerInput(Unit) {
-            awaitPointerEventScope {
-                while (true) when (awaitPointerEvent(PointerEventPass.Initial).type) {
-                    PointerEventType.Enter, PointerEventType.Move -> { hovered = true; shown = true }
-                    PointerEventType.Exit -> hovered = false
+        } else {
+            if (hiding && !shown) RevealZones(reveal)
+            Box(Modifier.fillMaxWidth().then(if (hiding) Modifier.pointerInput(Unit) {
+                awaitPointerEventScope {
+                    while (true) {
+                        val event = awaitPointerEvent(PointerEventPass.Initial)
+                        val mouse = event.changes.any { it.type == PointerType.Mouse }
+                        when (event.type) {
+                            PointerEventType.Enter, PointerEventType.Move -> { if (mouse) hovered = true; reveal() }
+                            PointerEventType.Press -> reveal()
+                            PointerEventType.Exit -> hovered = false
+                        }
+                    }
                 }
-            }
-        } else Modifier)) { AnimatedVisibility(!hiding || shown, enter = fadeIn(), exit = fadeOut()) { Row(
+            } else Modifier)) { AnimatedVisibility(!hiding || shown, enter = fadeIn(), exit = fadeOut()) { Row(
             Modifier.fillMaxWidth().onSizeChanged { controls = with(density) { it.height.toDp() } }
+                .then(if (leave != null) Modifier.windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal)) else Modifier)
                 .padding(chrome?.padding(leading, true) ?: PaddingValues()).padding(horizontal = Spacing.space10, vertical = Spacing.space8),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             if (back != null) FloatingBar { FloatingButton(Lucide.ArrowLeft, "Back", back) }
+            else if (leave != null) FloatingBar { FloatingButton(Lucide.X, "Exit full screen", leave) }
             Spacer(Modifier.weight(1f))
             if (data != null) {
                 if (editing) editBar() else FloatingBar {
@@ -259,7 +274,7 @@ private fun ArtifactPane(state: ArtifactsState, agents: List<AgentInfo>, now: Lo
                     ArtifactMenu(data, agents, now, state.route.fullScreen, actions)
                 }
             }
-        } } }
+        } } } }
         val shownBoard = design?.artboards?.firstOrNull { it.id == focus }
         LaunchedEffect(shownBoard == null, focus) { if (focus != null && shownBoard == null && design != null) focus = null }
         if (shownBoard != null && data != null && !editing) DesignFocus(data.content, shownBoard.id, shownBoard.name.ifBlank { shownBoard.id }, background, actions.onSaveDesign) { focus = null }
@@ -269,6 +284,28 @@ private fun ArtifactPane(state: ArtifactsState, agents: List<AgentInfo>, now: Lo
 }
 
 internal val ControlsHeight = 56.dp
+private const val ControlsLinger = 2500L
+
+/** Where hidden full-screen controls come back: the whole top edge and, more generously, both top corners. */
+@Composable
+private fun BoxScope.RevealZones(onReveal: () -> Unit) {
+    val current by rememberUpdatedState(onReveal)
+    val zone = Modifier.pointerInput(Unit) {
+        awaitPointerEventScope {
+            while (true) {
+                val event = awaitPointerEvent()
+                if (event.type == PointerEventType.Enter || event.type == PointerEventType.Move || event.type == PointerEventType.Press) {
+                    event.changes.forEach { it.consume() }
+                    current()
+                }
+            }
+        }
+    }
+    Box(Modifier.align(Alignment.TopCenter).fillMaxWidth().height(RevealEdgePx.dp).testTag("reveal-top").then(zone))
+    Box(Modifier.align(Alignment.TopStart).size(RevealCornerWidthPx.dp, RevealCornerHeightPx.dp).testTag("reveal-start").then(zone))
+    Box(Modifier.align(Alignment.TopEnd).size(RevealCornerWidthPx.dp, RevealCornerHeightPx.dp).testTag("reveal-end").then(zone))
+}
+
 private val RemoteWidth = 360.dp
 private const val RemotePageShare = 0.34f
 private val PointerButtonSize = 32.dp
