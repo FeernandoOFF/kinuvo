@@ -7,6 +7,7 @@ import kinuvo.app.agent.*
 import kinuvo.app.settings.*
 import kinuvo.app.board.*
 import kinuvo.app.knowledge.*
+import kinuvo.app.artifacts.ArtifactCache
 import kinuvo.app.routine.*
 import kinuvo.app.team.TeamRepository
 
@@ -44,6 +45,7 @@ class ConnectedServer(notifications: Notifications, private val deviceAccess: De
     val harnesses = owned(HarnessRepository(this))
     val board = owned(BoardRepository(notifications, this))
     val knowledge = owned(KnowledgeRepository(this))
+    val artifacts = owned(ArtifactCache())
     val devices = owned(DevicesRepository(this))
     private val push = owned(PushRegistration(this, push))
 
@@ -69,6 +71,7 @@ class ConnectedServer(notifications: Notifications, private val deviceAccess: De
         sessions.restore(snapshot.lists, snapshot.sessions, snapshot.capabilities)
         routines.restore(snapshot.routines)
         board.restore(BoardData(snapshot.taskLists, snapshot.tasks))
+        artifacts.restore(snapshot.artifacts)
     }
 
     fun close() {

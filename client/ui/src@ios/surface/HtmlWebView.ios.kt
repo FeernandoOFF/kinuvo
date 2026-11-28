@@ -1,6 +1,7 @@
 package kinuvo.ui.surface
 
 import kinuvo.ui.design.keepNativeTouches
+import kinuvo.ui.artifacts.pageData
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
@@ -26,7 +27,7 @@ internal actual fun HtmlWebView(document: String, bridge: HtmlBridge, modifier: 
     val handler = remember(bridge) { HtmlHandler(bridge) }
     UIKitView(factory = {
         WKWebView(CGRectMake(0.0, 0.0, 0.0, 0.0), WKWebViewConfiguration().apply {
-            websiteDataStore = WKWebsiteDataStore.nonPersistentDataStore()
+            websiteDataStore = pageData
             userContentController.addScriptMessageHandler(handler, "kinuvoNative")
         }).apply {
             scrollView.scrollEnabled = false

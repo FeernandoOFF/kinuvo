@@ -1,6 +1,7 @@
 package kinuvo.app.connection
 
 import kinuvo.app.session.*
+import kinuvo.app.artifacts.CachedArtifacts
 
 import io.github.xxfast.kstore.KStore
 import kinuvo.protocol.*
@@ -27,6 +28,7 @@ data class Snapshot(
     val routines: Map<AgentId, List<Routine>> = emptyMap(),
     val taskLists: List<TaskListInfo> = emptyList(),
     val tasks: List<TaskInfo>? = null,
+    val artifacts: CachedArtifacts = CachedArtifacts(),
 )
 
 /** [Snapshot]s kept on this Device, one per Server key. */

@@ -64,7 +64,7 @@ internal class FilePreferences(dir: File) : Preferences {
 }
 
 /** The desktop app's home, shared with its local Server: `KINUVO_HOME`, else `~/.kinuvo`. */
-private val home get() = System.getenv("KINUVO_HOME")?.let(::File) ?: File(System.getProperty("user.home"), ".kinuvo")
+internal val home get() = System.getenv("KINUVO_HOME")?.let(::File) ?: File(System.getProperty("user.home"), ".kinuvo")
 
 internal actual val platformModule = module {
     // The desktop app installs the log files at launch; this only reads them and writes the ZIP beside them.

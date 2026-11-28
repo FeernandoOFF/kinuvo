@@ -12,6 +12,8 @@ import dev.nucleusframework.webview.web.WebViewNavigator
 import dev.nucleusframework.webview.web.rememberWebViewNavigator
 import dev.nucleusframework.webview.web.rememberWebViewState
 import kotlin.io.encoding.Base64
+import java.io.File
+import kinuvo.ui.home
 import kinuvo.ui.design.LocalWebEscape
 import kinuvo.ui.design.LocalWebPointer
 import kinuvo.ui.design.LocalWebWheel
@@ -52,7 +54,9 @@ internal fun NativeHtml(document: String, script: String, modifier: Modifier, re
     }
     state.webSettings.desktopWebSettings.apply {
         transparent = true
-        incognito = true
+        // Cached in the app's home, so a reopened page loads its scripts, styles and fonts from disk.
+        incognito = false
+        dataDirectory = File(home, "web-cache").path
         initScript = RELAY + script
     }
     connect(navigator)
