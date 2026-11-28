@@ -15,7 +15,7 @@ internal actual val visualEditing = false
 /** The page in a sandboxed iframe over the canvas, like HTML Surfaces. */
 @OptIn(ExperimentalComposeUiApi::class)
 @Composable
-internal actual fun WebView(html: String, modifier: Modifier, onMessage: ((String) -> Unit)?, channel: PageChannel?) {
+internal actual fun WebView(html: String, modifier: Modifier, onMessage: ((String) -> Unit)?, channel: PageChannel?, editing: Boolean) {
     val frame = remember { (document.createElement("iframe") as HTMLIFrameElement).apply {
         setAttribute("sandbox", "allow-scripts")
         setAttribute("referrerpolicy", "no-referrer")

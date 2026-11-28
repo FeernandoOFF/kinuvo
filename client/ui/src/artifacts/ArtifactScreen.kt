@@ -88,23 +88,24 @@ fun ArtifactsScreen(app: AppViewModel, artifacts: ArtifactsViewModel, actions: A
             value = Clock.System.now().toEpochMilliseconds()
         }
     }
-    ArtifactsContent(state, appState.agents, now, actions)
+    val deck = remember(artifacts) { DeckControls(artifacts::pageMessage, artifacts::step, artifacts.pageCommands) }
+    ArtifactsContent(state, appState.agents, now, actions, deck)
 }
 
-/** The list beside the open Artifact ≥900dp; narrower, or [Route.Artifacts.fullScreen], the open Artifact takes the screen. */
+/** The list beside the open Artifact ≥900dp; narrower, or [Route.Artifacts.fullScreen], the open Artifact takes the screen. [deck] shares a reveal.js deck in an HTML page. */
 @Composable
-fun ArtifactsContent(state: ArtifactsState, agents: List<AgentInfo>, now: Long, actions: ArtifactsActions) {
+fun ArtifactsContent(state: ArtifactsState, agents: List<AgentInfo>, now: Long, actions: ArtifactsActions, deck: DeckControls? = null) {
     BoxWithConstraints(Modifier.fillMaxSize().background(color(backgroundColor))) {
         val open = state.route.artifact
-        if (open != null && state.route.fullScreen) ArtifactPane(state, agents, now, actions, back = null)
+        if (open != null && state.route.fullScreen) ArtifactPane(state, agents, now, actions, back = null, deck)
         else if (maxWidth >= 900.dp) Row(Modifier.fillMaxSize()) {
             Box(Modifier.width(ListColumnWidth).fillMaxHeight().background(color(backgroundColor))) { ArtifactList(state, agents, now, actions) }
             VerticalSeparator()
             Box(Modifier.weight(1f)) {
-                if (open != null) ArtifactPane(state, agents, now, actions, back = null)
+                if (open != null) ArtifactPane(state, agents, now, actions, back = null, deck)
                 else Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Text("Pick an artifact to open it.", color = color(mutedColor)) }
             }
-        } else if (open != null) ArtifactPane(state, agents, now, actions, actions.onBack)
+        } else if (open != null) ArtifactPane(state, agents, now, actions, actions.onBack, deck)
         else ArtifactList(state, agents, now, actions)
     }
 }
@@ -141,7 +142,7 @@ private fun ArtifactList(state: ArtifactsState, agents: List<AgentInfo>, now: Lo
 
 /** Content fills the pane; the back button, the actions or the editing controls float over it. HTML and SVG render in a web view, Markdown as text, anything else as code. */
 @Composable
-private fun ArtifactPane(state: ArtifactsState, agents: List<AgentInfo>, now: Long, actions: ArtifactsActions, back: (() -> Unit)?) {
+private fun ArtifactPane(state: ArtifactsState, agents: List<AgentInfo>, now: Long, actions: ArtifactsActions, back: (() -> Unit)?, deck: DeckControls?) {
     val data = state.open?.takeIf { it.info.id == state.route.artifact }
     val editing = state.draft != null
     val leave = if (state.route.fullScreen && actions.onClose == null) ({ actions.onFullScreen(false) }) else null
@@ -161,6 +162,8 @@ private fun ArtifactPane(state: ArtifactsState, agents: List<AgentInfo>, now: Lo
         val design = remember(data?.content, data?.info?.type) { data?.takeIf { it.info.isDesign }?.let { designOf(it.content) } }
         var present by remember(data?.info?.id) { mutableStateOf<Int?>(null) }
         var focus by remember(data?.info?.id) { mutableStateOf<String?>(null) }
+        var remote by remember(data?.info?.id) { mutableStateOf(false) }
+        val shownDeck = state.deck.takeIf { deck != null && data?.info?.web == true && !editing }
         val background = color(backgroundColor)
         var controls by remember { mutableStateOf(ControlsHeight) }
         // A full-screen page, e.g. a presentation, takes the whole screen; its controls fade out until the pointer or a tap reaches the top.
@@ -181,11 +184,24 @@ private fun ArtifactPane(state: ArtifactsState, agents: List<AgentInfo>, now: Lo
                     if (visualEditing) actions.onSaveDesign else null,
                 )
             }
-            data.info.web -> {
-                CompositionLocalProvider(LocalWebPointer provides { near: Boolean -> hovered = near; if (near) reveal() }.takeIf { hiding }) {
-                    HtmlView(data.info.page(data.content), Modifier.fillMaxSize().padding(top = if (hiding) 0.dp else controls), fade = if (hiding) null else color(backgroundColor), fullScreen = hiding)
+            data.info.web -> CompositionLocalProvider(LocalWebPointer provides { near: Boolean -> hovered = near; if (near) reveal() }.takeIf { hiding }) { Box(Modifier.fillMaxSize().padding(top = if (hiding) 0.dp else controls)) {
+                val remoting = remote && shownDeck != null
+                val page = when {
+                    !remoting -> Modifier.fillMaxSize()
+                    wide -> Modifier.align(Alignment.TopStart).fillMaxHeight().padding(end = RemoteWidth)
+                    else -> Modifier.align(Alignment.TopStart).fillMaxWidth().fillMaxHeight(RemotePageShare)
                 }
-            }
+                HtmlView(data.info.page(data.content), page, fade = if (hiding) null else color(backgroundColor), deck = deck, fullScreen = hiding)
+                if (remoting && shownDeck != null && deck != null) {
+                    if (wide) Row(Modifier.align(Alignment.TopEnd).fillMaxHeight()) {
+                        VerticalSeparator()
+                        DeckRemote(shownDeck, deck.onStep, Modifier.width(RemoteWidth).fillMaxHeight())
+                    } else Column(Modifier.align(Alignment.BottomStart).fillMaxWidth().fillMaxHeight(1 - RemotePageShare)) {
+                        HorizontalSeparator()
+                        DeckRemote(shownDeck, deck.onStep, Modifier.fillMaxWidth().weight(1f))
+                    }
+                }
+            } }
             else -> SelectionContainer(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(start = Spacing.space24, end = Spacing.space24, top = controls + Spacing.space8, bottom = Spacing.space24)) {
                 if (data.info.type == "md") Markdown(data.content, Modifier.fillMaxWidth())
                 else CodeBlock(data.content, language = data.info.type)
@@ -216,6 +232,7 @@ private fun ArtifactPane(state: ArtifactsState, agents: List<AgentInfo>, now: Lo
                 }
                 if (data != null && !editing) {
                     if (design?.artboards?.isNotEmpty() == true) HeaderButton(Lucide.Play, "Present", { present = 0 })
+                    if (shownDeck != null) HeaderButton(Lucide.Presentation, if (remote) "Stop presenting" else "Present from this device", { remote = !remote }, selected = remote)
                     if (!data.info.isDesign) HeaderButton(Lucide.Pencil, "Edit", actions.onEdit)
                     data.info.sessionId?.let { s -> HeaderButton(Lucide.MessageSquare, "Open the chat", { actions.onOpenSession(data.info.agentId, s) }) }
                     ArtifactMenu(data, agents, now, state.route.fullScreen, actions)
@@ -251,6 +268,7 @@ private fun ArtifactPane(state: ArtifactsState, agents: List<AgentInfo>, now: Lo
             if (data != null) {
                 if (editing) editBar() else FloatingBar {
                     if (design?.artboards?.isNotEmpty() == true) FloatingButton(Lucide.Play, "Present") { present = 0 }
+                    if (shownDeck != null) FloatingToggle(Lucide.Presentation, if (remote) "Stop presenting" else "Present from this device", remote) { remote = !remote }
                     if (data.info.isDesign.not()) FloatingButton(Lucide.Pencil, "Edit", actions.onEdit)
                     data.info.sessionId?.let { s -> FloatingButton(Lucide.MessageSquare, "Open the chat", { actions.onOpenSession(data.info.agentId, s) }) }
                     ArtifactMenu(data, agents, now, state.route.fullScreen, actions)
@@ -287,6 +305,9 @@ private fun BoxScope.RevealZones(onReveal: () -> Unit) {
     Box(Modifier.align(Alignment.TopStart).size(RevealCornerWidthPx.dp, RevealCornerHeightPx.dp).testTag("reveal-start").then(zone))
     Box(Modifier.align(Alignment.TopEnd).size(RevealCornerWidthPx.dp, RevealCornerHeightPx.dp).testTag("reveal-end").then(zone))
 }
+
+private val RemoteWidth = 360.dp
+private const val RemotePageShare = 0.34f
 private val PointerButtonSize = 32.dp
 
 @Composable
@@ -300,9 +321,12 @@ internal fun FloatingBar(content: @Composable RowScope.() -> Unit) {
 }
 
 @Composable
-internal fun FloatingButton(icon: ImageVector, label: String, onClick: () -> Unit) {
+internal fun FloatingButton(icon: ImageVector, label: String, onClick: () -> Unit) = FloatingToggle(icon, label, false, onClick)
+
+@Composable
+internal fun FloatingToggle(icon: ImageVector, label: String, active: Boolean, onClick: () -> Unit) {
     val touch = LocalInteractionMode.current == InteractionMode.Touch
-    IconButton(onClick, Modifier.size(if (touch) 40.dp else PointerButtonSize).titleBarControl(), style = ButtonStyle.Ghost, shape = CircleShape, contentColor = color(if (touch) onBackgroundColor else mutedColor)) {
+    IconButton(onClick, Modifier.size(if (touch) 40.dp else PointerButtonSize).titleBarControl(), style = ButtonStyle.Ghost, shape = CircleShape, contentColor = color(if (active) accentColor else if (touch) onBackgroundColor else mutedColor)) {
         Icon(icon, Modifier.size(17.dp), contentDescription = label)
     }
 }
