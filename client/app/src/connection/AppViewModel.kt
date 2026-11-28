@@ -501,10 +501,10 @@ class AppViewModel(
     /** While online, saves what's shown once it settles for a second. */
     private suspend fun save(cache: ClientCache) {
         if (cache === ClientCache.None) return
-        combine(state, owner.board.state) { s, board -> s to board }
-            .filter { (s, _) -> s.online && s.connection is Connection.Ready }
-            .map { (s, board) -> Snapshot(0, agents = s.agents, capabilities = s.capabilities, lists = s.sessions.lists, sessions = owner.sessions.saved(),
-                routines = s.routines, taskLists = board.lists, tasks = board.tasks) }
+        combine(state, owner.board.state, owner.artifacts.state) { s, board, artifacts -> Triple(s, board, artifacts) }
+            .filter { (s, _, _) -> s.online && s.connection is Connection.Ready }
+            .map { (s, board, artifacts) -> Snapshot(0, agents = s.agents, capabilities = s.capabilities, lists = s.sessions.lists, sessions = owner.sessions.saved(),
+                routines = s.routines, taskLists = board.lists, tasks = board.tasks, artifacts = artifacts.saved) }
             .distinctUntilChanged()
             .collectLatest { snapshot ->
                 delay(1.seconds)

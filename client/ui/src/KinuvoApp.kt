@@ -85,7 +85,10 @@ import org.koin.compose.koinInject
 import kinuvo.ui.voice.LiveCallHost
 import kinuvo.ui.diagnostics.CrashPrompt
 import org.koin.core.parameter.parametersOf
+import androidx.lifecycle.ViewModelStore
+import androidx.lifecycle.ViewModelStoreOwner
 import androidx.lifecycle.compose.LifecycleStartEffect
+import androidx.lifecycle.viewmodel.compose.LocalViewModelStoreOwner
 import androidx.lifecycle.viewmodel.navigation3.rememberViewModelStoreNavEntryDecorator
 import androidx.navigation3.runtime.entryProvider
 import androidx.navigation3.runtime.rememberSaveableStateHolderNavEntryDecorator
@@ -328,7 +331,33 @@ fun KinuvoApp(app: AppViewModel = koinViewModel(), initialRoute: Route? = null, 
             // The chat gives up its minimum before the panel narrows past its own.
             val panelMax = (room - if (beside && !foldColumn) ColumnWidth else 0.dp).coerceAtLeast(MinPanelWidth.dp)
             val windowChrome = LocalWindowChrome.current
-            val content = @Composable {
+            @Composable fun Artifacts(route: Route.Artifacts) {
+                if (connection !is Connection.Ready) Loading(connection)
+                else {
+                    val artifacts = koinViewModel<ArtifactsViewModel>(key = "artifacts/${app.serverLifetime}/${route.artifact}") { parametersOf(route) }
+                    ArtifactsScreen(app, artifacts, ArtifactsActions(
+                        onBack = back.takeIf { history.canGoBack },
+                        onOpen = { history.open(Route.Artifacts(it)) },
+                        onSearch = artifacts::search,
+                        onFilter = artifacts::filter,
+                        onDelete = { id -> artifacts.delete(id); if (id == route.artifact) history.open(Route.Artifacts()) },
+                        onOpenSession = { agent, session -> history.open(Route.Chat(agent, session)) },
+                        onEdit = artifacts::edit,
+                        onChange = artifacts::change,
+                        onSave = artifacts::save,
+                        onCancel = artifacts::cancel,
+                        onKeepMine = artifacts::keepMine,
+                        onSaveDesign = artifacts::saveDesign,
+                        onFullScreen = { history.replace(route.copy(fullScreen = it)) },
+                    ), route.fullScreen)
+                }
+            }
+            val windowWidth = maxWidth
+            // Not state: set while composing, read below in the same pass.
+            val kept = remember { arrayOf<Route.Artifacts?>(null) }
+            val shownArtifact = (top as? Route.Artifacts)?.takeIf { it.artifact != null }
+            if (shownArtifact != null) kept[0] = shownArtifact
+            val content = @Composable { Box(Modifier.fillMaxSize()) {
                 NavDisplay(
                     backStack = backStack,
                     onBack = back,
@@ -445,26 +474,10 @@ fun KinuvoApp(app: AppViewModel = koinViewModel(), initialRoute: Route? = null, 
                             BoardScreen(app, koinViewModel<BoardViewModel>(key = "board/${app.serverLifetime}"), onOpenSession = history::open,
                                 onSettings = { serverSettings(SettingsSection.Tasks) }, onOpenTask = { history.open(Route.Task(it)) })
                         }
-                        entry<Route.Artifacts> { route ->
-                            if (connection !is Connection.Ready) Loading(connection)
-                            else {
-                                val artifacts = koinViewModel<ArtifactsViewModel>(key = "artifacts/${app.serverLifetime}/${route.artifact}") { parametersOf(route) }
-                                ArtifactsScreen(app, artifacts, ArtifactsActions(
-                                    onBack = back.takeIf { history.canGoBack },
-                                    onOpen = { history.open(Route.Artifacts(it)) },
-                                    onSearch = artifacts::search,
-                                    onFilter = artifacts::filter,
-                                    onDelete = { id -> artifacts.delete(id); if (id == route.artifact) history.open(Route.Artifacts()) },
-                                    onOpenSession = { agent, session -> history.open(Route.Chat(agent, session)) },
-                                    onEdit = artifacts::edit,
-                                    onChange = artifacts::change,
-                                    onSave = artifacts::save,
-                                    onCancel = artifacts::cancel,
-                                    onKeepMine = artifacts::keepMine,
-                                    onSaveDesign = artifacts::saveDesign,
-                                    onFullScreen = { if (it) history.open(route.copy(fullScreen = true)) else if (history.canGoBack) back() else history.reset(route.copy(fullScreen = false)) },
-                                ))
-                            }
+                        // Full screen keeps the screen, and its open web page, in place.
+                        entry<Route.Artifacts>(clazzContentKey = { it.copy(fullScreen = false) }) { route ->
+                            // An open Artifact is shown by the kept host below, so its page outlives this entry.
+                            if (route.artifact == null) Artifacts(route)
                         }
                         entry<Route.Workflows> { route ->
                             val id = route.id
@@ -495,7 +508,7 @@ fun KinuvoApp(app: AppViewModel = koinViewModel(), initialRoute: Route? = null, 
                                 }
                             } else {
                                 val live = koinViewModel<LiveViewModel>(key = "live/${app.serverLifetime}/$route") { parametersOf(route) }
-                                val showChat = !compact && maxWidth >= 1200.dp
+                                val showChat = !compact && windowWidth >= 1200.dp
                                 val chat = Route.Chat(route.agentId, route.sessionId)
                                 val dock = PageAction(Lucide.Minimize2, "Dock beside chat") {
                                     panel.open(PanelTab.Browser(route.agentId, route.sessionId))
@@ -531,7 +544,19 @@ fun KinuvoApp(app: AppViewModel = koinViewModel(), initialRoute: Route? = null, 
                         }
                     },
                 )
-            }
+                // The last opened Artifact stays alive, hidden, after leaving it, so coming back shows its page as it was.
+                val keptRoute = kept[0]
+                if (keptRoute != null && connection is Connection.Ready) key(app.serverLifetime, keptRoute.artifact) {
+                    val visible = shownArtifact?.artifact == keptRoute.artifact
+                    val owner = remember { object : ViewModelStoreOwner { override val viewModelStore = ViewModelStore() } }
+                    DisposableEffect(owner) { onDispose { owner.viewModelStore.clear() } }
+                    Box(if (visible) Modifier.fillMaxSize() else Modifier.size(0.dp).clearAndSetSemantics {}) {
+                        CompositionLocalProvider(LocalViewModelStoreOwner provides owner, LocalPageHidden provides !visible) {
+                            Artifacts(shownArtifact.takeIf { visible } ?: keptRoute.copy(fullScreen = false))
+                        }
+                    }
+                }
+            } }
             // Moved, not rebuilt, when rotating or resizing across the compact width, so open screens keep running, e.g. voice chat.
             val current by rememberUpdatedState(content)
             val screens = remember { movableContentOf { current() } }

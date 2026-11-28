@@ -40,6 +40,9 @@ import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.input.pointer.PointerType
 import androidx.compose.ui.platform.testTag
+import androidx.navigationevent.NavigationEventInfo
+import androidx.navigationevent.compose.NavigationBackHandler
+import androidx.navigationevent.compose.rememberNavigationEventState
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -79,7 +82,8 @@ class ArtifactsActions(
 )
 
 @Composable
-fun ArtifactsScreen(app: AppViewModel, artifacts: ArtifactsViewModel, actions: ArtifactsActions) {
+/** [fullScreen] follows the current route, which full screen replaces in place while the same [artifacts] stays. */
+fun ArtifactsScreen(app: AppViewModel, artifacts: ArtifactsViewModel, actions: ArtifactsActions, fullScreen: Boolean? = null) {
     val appState by app.state.collectAsState()
     val state by artifacts.state.collectAsState()
     val now by produceState(Clock.System.now().toEpochMilliseconds()) {
@@ -89,7 +93,7 @@ fun ArtifactsScreen(app: AppViewModel, artifacts: ArtifactsViewModel, actions: A
         }
     }
     val deck = remember(artifacts) { DeckControls(artifacts::pageMessage, artifacts::step, artifacts.pageCommands) }
-    ArtifactsContent(state, appState.agents, now, actions, deck)
+    ArtifactsContent(fullScreen?.let { state.copy(route = state.route.copy(fullScreen = it)) } ?: state, appState.agents, now, actions, deck)
 }
 
 /** The list beside the open Artifact ≥900dp; narrower, or [Route.Artifacts.fullScreen], the open Artifact takes the screen. [deck] shares a reveal.js deck in an HTML page. */
@@ -97,16 +101,20 @@ fun ArtifactsScreen(app: AppViewModel, artifacts: ArtifactsViewModel, actions: A
 fun ArtifactsContent(state: ArtifactsState, agents: List<AgentInfo>, now: Long, actions: ArtifactsActions, deck: DeckControls? = null) {
     BoxWithConstraints(Modifier.fillMaxSize().background(color(backgroundColor))) {
         val open = state.route.artifact
-        if (open != null && state.route.fullScreen) ArtifactPane(state, agents, now, actions, back = null, deck)
-        else if (maxWidth >= 900.dp) Row(Modifier.fillMaxSize()) {
-            Box(Modifier.width(ListColumnWidth).fillMaxHeight().background(color(backgroundColor))) { ArtifactList(state, agents, now, actions) }
-            VerticalSeparator()
+        val full = open != null && state.route.fullScreen
+        val wide = maxWidth >= 900.dp
+        if (!wide && open == null) ArtifactList(state, agents, now, actions)
+        // The open Artifact keeps its place whatever shows beside it, so entering full screen doesn't reload its page.
+        else Row(Modifier.fillMaxSize()) {
+            if (wide && !full) {
+                Box(Modifier.width(ListColumnWidth).fillMaxHeight().background(color(backgroundColor))) { ArtifactList(state, agents, now, actions) }
+                VerticalSeparator()
+            }
             Box(Modifier.weight(1f)) {
-                if (open != null) ArtifactPane(state, agents, now, actions, back = null, deck)
+                if (open != null) ArtifactPane(state, agents, now, actions, actions.onBack.takeIf { !wide && !full }, deck)
                 else Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Text("Pick an artifact to open it.", color = color(mutedColor)) }
             }
-        } else if (open != null) ArtifactPane(state, agents, now, actions, actions.onBack, deck)
-        else ArtifactList(state, agents, now, actions)
+        }
     }
 }
 
@@ -150,6 +158,7 @@ private fun ArtifactPane(state: ArtifactsState, agents: List<AgentInfo>, now: Lo
     if (leave != null) {
         LaunchedEffect(Unit) { runCatching { focus.requestFocus() } }
         HideSystemBars()
+        NavigationBackHandler(rememberNavigationEventState(NavigationEventInfo.None), isBackEnabled = true) { leave() }
     }
     BoxWithConstraints(Modifier.fillMaxSize().then(if (leave == null) Modifier else Modifier.focusRequester(focus).focusable().onPreviewKeyEvent { e ->
         (e.type == KeyEventType.KeyDown && e.key == Key.Escape).also { if (it) leave() }
@@ -191,7 +200,7 @@ private fun ArtifactPane(state: ArtifactsState, agents: List<AgentInfo>, now: Lo
                     wide -> Modifier.align(Alignment.TopStart).fillMaxHeight().padding(end = RemoteWidth)
                     else -> Modifier.align(Alignment.TopStart).fillMaxWidth().fillMaxHeight(RemotePageShare)
                 }
-                HtmlView(data.info.page(data.content), page, fade = if (hiding) null else color(backgroundColor), deck = deck, fullScreen = hiding)
+                HtmlView(data.info.page(data.content), page, fade = color(backgroundColor), deck = deck, fullScreen = hiding)
                 if (remoting && shownDeck != null && deck != null) {
                     if (wide) Row(Modifier.align(Alignment.TopEnd).fillMaxHeight()) {
                         VerticalSeparator()

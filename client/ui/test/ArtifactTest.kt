@@ -178,4 +178,13 @@ class ArtifactTest {
         }
         assertTrue(!artifactDocument("<p>x</p>").contains("kinuvoReceive"))
     }
+
+    @Test
+    fun fullScreenOnlyHidesTheFadeOfAPageThatKeepsTheRelay() {
+        val shown = artifactDocument("<p>x</p>", Color.White, relay = true)
+        val full = artifactDocument("<p>x</p>", Color.White, fullScreen = true, relay = true)
+        assertTrue("kinuvo:top" in shown && "kinuvo:top" in full)
+        assertTrue("id=\"kinuvo-fade\" style=\"position" in shown && "id=\"kinuvo-fade\" style=\"display:none;" in full)
+        assertTrue(fullScreenMessage(true) == "{\"kinuvoFullScreen\":true}" && "kinuvoFullScreen" in shown)
+    }
 }

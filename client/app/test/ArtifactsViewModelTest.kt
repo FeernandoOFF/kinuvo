@@ -106,4 +106,54 @@ class ArtifactsViewModelTest {
             assertEquals("""{"artboards":[]}""", vm.state.value.open?.content)
         } finally { store.clear(); server.close(); client.close(); Dispatchers.resetMain() }
     }
+
+    @Test fun aReopenedArtifactShowsAtOnceAndIsFetchedOnlyWhenItChanged() = runTest {
+        Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+        val frames = Channel<Frame>(Channel.UNLIMITED)
+        var info = ArtifactInfo("a1", "Deck", "html", AgentId("main"), SessionId("s1"), 1, 1)
+        var content = "<section>1</section>"
+        var fetched = 0
+        val transport = object : FrameConnection {
+            override val incoming = frames.receiveAsFlow()
+            override suspend fun send(frame: Frame) {
+                val request = frame as Frame.Request
+                val payload = when (request.method) {
+                    "connect" -> ProtocolJson.encodeToJsonElement(ConnectResult("token", "Server", capabilities = ServerCapabilities("server"), management = true))
+                    Api.Presence.name -> buildJsonObject {}
+                    Api.Artifacts.name -> ProtocolJson.encodeToJsonElement(listOf(info))
+                    Api.Artifact.name -> { fetched++; ProtocolJson.encodeToJsonElement(ArtifactData(info, content)) }
+                    else -> { frames.send(Frame.Response(request.id, false, error = WireError(WireErrorCode.Internal, "Unused in test"))); return }
+                }
+                frames.send(Frame.Response(request.id, true, payload))
+            }
+            override suspend fun close() { frames.close() }
+        }
+        val client = KinuvoClient("local:test", "test", connection = { transport }, dispatcher = StandardTestDispatcher(testScheduler))
+        val reader = object : DeviceReader {
+            override val kinds = emptyList<String>()
+            override fun authorize(kind: String, completion: (String?) -> Unit) = completion(null)
+            override fun read(requestJson: String, completion: (String) -> Unit) {}
+        }
+        val server = ConnectedServer(Notifications(emptyList()), DeviceAccess(MemoryPreferences(), reader))
+        val store = ViewModelStore()
+        fun open() = ArtifactsViewModel(Route.Artifacts("a1"), server).also { store.clear(); store.put("artifacts", it) }
+        try {
+            client.connect(); server.open(client, "local:test")
+            open(); runCurrent()
+            assertEquals(1, fetched)
+
+            val again = open()
+            assertEquals(content, again.state.value.open?.content)
+            runCurrent()
+            assertEquals(1, fetched)
+
+            info = info.copy(updated = 2); content = "<section>2</section>"
+            val changed = open()
+            assertEquals("<section>1</section>", changed.state.value.open?.content)
+            runCurrent()
+            assertEquals(2, fetched)
+            assertEquals(content, changed.state.value.open?.content)
+            assertEquals(content, server.artifacts.get("a1")?.content)
+        } finally { store.clear(); server.close(); client.close(); Dispatchers.resetMain() }
+    }
 }

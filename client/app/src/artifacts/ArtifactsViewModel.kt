@@ -56,8 +56,9 @@ data class ArtifactsState(
  */
 class ArtifactsViewModel(route: Route.Artifacts, private val owner: ConnectedServer) : ViewModel() {
     private val client: KinuvoClient = requireNotNull(owner.client) { "Not connected" }
+    private val cache = owner.artifacts
     val state: StateFlow<ArtifactsState>
-        field = MutableStateFlow(ArtifactsState(route))
+        field = MutableStateFlow(ArtifactsState(route, all = cache.state.value.all, open = route.artifact?.let(cache::get)))
     private var loading: Job? = null
     private val designSaves = Mutex()
     private val outgoing = Channel<DeckPosition>(Channel.CONFLATED)
@@ -142,7 +143,7 @@ class ArtifactsViewModel(route: Route.Artifacts, private val owner: ConnectedSer
         viewModelScope.launch {
             attempt {
                 val info = client.call(Api.SaveArtifact, ArtifactSave(id, draft.text))
-                state.update { it.copy(open = ArtifactData(info, draft.text), draft = null, errors = emptyList()) }
+                ArtifactData(info, draft.text).let { saved -> cache.put(saved); state.update { it.copy(open = saved, draft = null, errors = emptyList()) } }
             }
             state.update { it.copy(saving = false) }
         }
@@ -158,6 +159,7 @@ class ArtifactsViewModel(route: Route.Artifacts, private val owner: ConnectedSer
                 attempt {
                     // Finishes even if the screen closes, so the last edit is never dropped.
                     val info = withContext(NonCancellable) { client.call(Api.SaveArtifact, ArtifactSave(id, json)) }
+                    cache.put(ArtifactData(info, json))
                     state.update { if (it.open?.info?.id == id) it.copy(open = ArtifactData(info, json), errors = emptyList()) else it }
                 }
                 if (state.value.errors.size > failed) load()
@@ -170,8 +172,12 @@ class ArtifactsViewModel(route: Route.Artifacts, private val owner: ConnectedSer
         loading = viewModelScope.launch {
             attempt {
                 val all = client.call(Api.Artifacts, Unit)
+                cache.list(all)
                 val id = state.value.route.artifact
-                val open = id?.takeIf { all.any { a -> a.id == it } }?.let { client.call(Api.Artifact, ArtifactRef(it)) }
+                val listed = all.firstOrNull { it.id == id }
+                // The copy this Device keeps stands while it's as new as the Server's; only a changed Artifact is fetched.
+                val open = listed?.let { info -> cache.get(info.id)?.takeIf { it.info.updated == info.updated }?.copy(info = info) ?: client.call(Api.Artifact, ArtifactRef(info.id)) }
+                open?.let(cache::put)
                 state.update { it.copy(all = all, open = open, missing = id != null && open == null, draft = it.draft.takeIf { _ -> open?.info?.id == it.open?.info?.id }, deck = it.deck.takeIf { open != null }) }
             }
         }

@@ -22,6 +22,12 @@ private class EditHandler(val onMessage: () -> ((String) -> Unit)?) : NSObject()
     }
 }
 
+/**
+ * One in-memory store for every page while the app runs, so a reopened page loads its scripts, styles and fonts from
+ * cache; nothing is written to disk.
+ */
+internal val pageData: WKWebsiteDataStore by lazy { WKWebsiteDataStore.nonPersistentDataStore() }
+
 @OptIn(ExperimentalForeignApi::class)
 @Composable
 internal actual fun WebView(html: String, modifier: Modifier, onMessage: ((String) -> Unit)?, channel: PageChannel?, editing: Boolean) {
@@ -30,7 +36,7 @@ internal actual fun WebView(html: String, modifier: Modifier, onMessage: ((Strin
     UIKitView(
         factory = {
             WKWebView(CGRectMake(0.0, 0.0, 0.0, 0.0), WKWebViewConfiguration().apply {
-                websiteDataStore = WKWebsiteDataStore.nonPersistentDataStore()
+                websiteDataStore = pageData
                 if (onMessage != null) userContentController.addScriptMessageHandler(EditHandler { current }, "kinuvo")
             }).also {
                 // The page handles its own panning and zooming.
