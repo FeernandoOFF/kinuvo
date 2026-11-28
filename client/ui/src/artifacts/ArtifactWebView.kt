@@ -45,9 +45,11 @@ internal fun HtmlView(html: String, modifier: Modifier = Modifier, fade: Color? 
     val receive by rememberUpdatedState(deck?.onMessage)
     LaunchedEffect(deck, channel) { if (sync) deck?.commands?.collect { channel.send(it) } }
     val dark = LocalColorScheme.current == ColorScheme.Dark
-    // Built once per page: a deck with embedded media is megabytes of text to rewrite and escape.
-    val document = remember(html, fade, dark, sync, fullScreen) { artifactDocument(html, fade, dark, sync, fullScreen) }
-    WebView(document, modifier, if (sync) { text -> receive?.invoke(text) } else null, if (sync) channel else null, editing = false)
+    val full by rememberUpdatedState(fullScreen)
+    // Built once per page, as a deck with embedded media is megabytes of text; full screen only toggles the fade in it.
+    val document = remember(html, fade, dark, sync) { artifactDocument(html, fade, dark, sync, full, relay = true) }
+    LaunchedEffect(document, fullScreen) { channel.send(fullScreenMessage(fullScreen)) }
+    WebView(document, modifier, if (sync) { text -> receive?.invoke(text) } else null, channel, editing = false)
 }
 
 private fun csp(script: String, remote: String, frames: String) = "<meta data-kinuvo-editor http-equiv=\"Content-Security-Policy\" content=\"default-src 'none'; " +
@@ -82,8 +84,16 @@ private val EDITOR_POLICY = Regex("<meta http-equiv=\"Content-Security-Policy\" 
 /** The artifact as its own page for the system browser, where it may frame itself, as reveal.js speaker notes do. */
 internal fun browserDocument(html: String, dark: Boolean) = sandboxed(html, dark = dark, frames = "'self' file: blob: data:")
 
-internal fun artifactDocument(html: String, fade: Color? = null, dark: Boolean? = null, deck: Boolean = false, fullScreen: Boolean = false) =
-    framed(sandboxed(html, dark = dark, deck = deck, fullScreen = fullScreen), fade?.let(::topFade).orEmpty() + if (deck) deckWrapper() else "")
+/** [relay] adds the [FULL_SCREEN_RELAY], which pages that may go full screen keep throughout; [fullScreen] hides the [fade]. */
+internal fun artifactDocument(html: String, fade: Color? = null, dark: Boolean? = null, deck: Boolean = false, fullScreen: Boolean = false, relay: Boolean = fullScreen) =
+    framed(sandboxed(html, dark = dark, deck = deck, fullScreen = relay), (if (deck) deckWrapper() else "") + fade?.let { topFade(it, hidden = fullScreen) + CHROME_RECEIVE }.orEmpty())
+
+internal fun fullScreenMessage(on: Boolean) = "{\"kinuvoFullScreen\":$on}"
+
+/** Takes the app's full-screen message ahead of any other receiver, such as the deck's. */
+private const val CHROME_RECEIVE = "<script>(function(){var next=window.kinuvoReceive;window.kinuvoReceive=function(m){var d=JSON.parse(m);" +
+    "if(d&&typeof d.kinuvoFullScreen==='boolean'){var e=document.getElementById('kinuvo-fade');if(e)e.style.display=d.kinuvoFullScreen?'none':'';return}" +
+    "if(next)next(m)}})();</script>"
 
 /** The app's theme for the page: `data-theme` on its root and its `color-scheme`, which pages style with `:root[data-theme=dark]`. */
 internal fun themeHint(dark: Boolean): String {
@@ -92,9 +102,9 @@ internal fun themeHint(dark: Boolean): String {
         "<script data-kinuvo-editor>document.documentElement.dataset.theme=\"$theme\"</script>"
 }
 
-internal fun topFade(c: Color): String {
+internal fun topFade(c: Color, hidden: Boolean = false): String {
     val rgb = "${(c.red * 255).toInt()},${(c.green * 255).toInt()},${(c.blue * 255).toInt()}"
-    return "<div style=\"position:fixed;left:0;right:0;top:0;height:24px;pointer-events:none;background:linear-gradient(rgb($rgb),rgba($rgb,0))\"></div>"
+    return "<div id=\"kinuvo-fade\" style=\"${if (hidden) "display:none;" else ""}position:fixed;left:0;right:0;top:0;height:24px;pointer-events:none;background:linear-gradient(rgb($rgb),rgba($rgb,0))\"></div>"
 }
 
 internal fun attr(text: String) = text.replace("&", "&amp;").replace("\"", "&quot;").replace("<", "&lt;").replace(">", "&gt;")

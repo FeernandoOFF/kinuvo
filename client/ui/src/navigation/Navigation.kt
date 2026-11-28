@@ -96,6 +96,11 @@ class History(val backStack: SnapshotStateList<Route>, private val ahead: Snapsh
         if (compact) while (backStack.size > 1) backStack.removeAt(0)
     }
 
+    /** Swaps the current screen for [route] without a step back, e.g. the same Artifact in full screen. */
+    fun replace(route: Route) {
+        if (backStack.isEmpty()) backStack.add(route) else backStack[backStack.lastIndex] = route
+    }
+
     fun reset(route: Route) {
         ahead.clear()
         backStack.reset(route)

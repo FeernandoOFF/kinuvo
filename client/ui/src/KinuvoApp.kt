@@ -445,7 +445,8 @@ fun KinuvoApp(app: AppViewModel = koinViewModel(), initialRoute: Route? = null, 
                             BoardScreen(app, koinViewModel<BoardViewModel>(key = "board/${app.serverLifetime}"), onOpenSession = history::open,
                                 onSettings = { serverSettings(SettingsSection.Tasks) }, onOpenTask = { history.open(Route.Task(it)) })
                         }
-                        entry<Route.Artifacts> { route ->
+                        // Full screen keeps the screen, and its open web page, in place.
+                        entry<Route.Artifacts>(clazzContentKey = { it.copy(fullScreen = false) }) { route ->
                             if (connection !is Connection.Ready) Loading(connection)
                             else {
                                 val artifacts = koinViewModel<ArtifactsViewModel>(key = "artifacts/${app.serverLifetime}/${route.artifact}") { parametersOf(route) }
@@ -462,8 +463,8 @@ fun KinuvoApp(app: AppViewModel = koinViewModel(), initialRoute: Route? = null, 
                                     onCancel = artifacts::cancel,
                                     onKeepMine = artifacts::keepMine,
                                     onSaveDesign = artifacts::saveDesign,
-                                    onFullScreen = { if (it) history.open(route.copy(fullScreen = true)) else if (history.canGoBack) back() else history.reset(route.copy(fullScreen = false)) },
-                                ))
+                                    onFullScreen = { history.replace(route.copy(fullScreen = it)) },
+                                ), route.fullScreen)
                             }
                         }
                         entry<Route.Workflows> { route ->
