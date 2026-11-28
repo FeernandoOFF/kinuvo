@@ -10,11 +10,16 @@ import kotlinx.serialization.Serializable
 
 /** What this Device last saw of a Server's Artifacts: the list, and the most recently opened ones (newest first) with their content. */
 @Serializable
-data class CachedArtifacts(val all: List<ArtifactInfo>? = null, val recent: List<ArtifactData> = emptyList())
+data class CachedArtifacts(val all: List<ArtifactInfo>? = null, val recent: List<ArtifactData> = emptyList()) {
+    /** What the Device's snapshot keeps: large Artifacts, e.g. decks with embedded video, stay in memory only. */
+    val saved get() = copy(recent = recent.filter { it.content.length <= MAX_SAVED_CHARS })
+}
+
+private const val MAX_SAVED_CHARS = 1_000_000
 
 /**
  * Lets a reopened Artifact show at once while the Server is asked whether it changed. Keeps at most [MAX_RECENT]
- * Artifacts and [MAX_CHARS] characters of content; the Device's snapshot saves them for the next launch.
+ * Artifacts and [MAX_CHARS] characters of content; the Device's snapshot saves the smaller ones for the next launch.
  */
 class ArtifactCache : ServerBound {
     val state: StateFlow<CachedArtifacts>

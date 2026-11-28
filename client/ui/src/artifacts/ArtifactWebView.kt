@@ -44,7 +44,10 @@ internal fun HtmlView(html: String, modifier: Modifier = Modifier, fade: Color? 
     val channel = remember { PageChannel() }
     val receive by rememberUpdatedState(deck?.onMessage)
     LaunchedEffect(deck, channel) { if (sync) deck?.commands?.collect { channel.send(it) } }
-    WebView(artifactDocument(html, fade, LocalColorScheme.current == ColorScheme.Dark, sync, fullScreen), modifier, if (sync) { text -> receive?.invoke(text) } else null, if (sync) channel else null, editing = false)
+    val dark = LocalColorScheme.current == ColorScheme.Dark
+    // Built once per page: a deck with embedded media is megabytes of text to rewrite and escape.
+    val document = remember(html, fade, dark, sync, fullScreen) { artifactDocument(html, fade, dark, sync, fullScreen) }
+    WebView(document, modifier, if (sync) { text -> receive?.invoke(text) } else null, if (sync) channel else null, editing = false)
 }
 
 private fun csp(script: String, remote: String, frames: String) = "<meta data-kinuvo-editor http-equiv=\"Content-Security-Policy\" content=\"default-src 'none'; " +
