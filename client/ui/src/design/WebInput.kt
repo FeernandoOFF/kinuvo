@@ -20,10 +20,12 @@ internal const val RevealCornerWidthPx = 160
 internal const val RevealCornerHeightPx = 120
 
 /**
- * A full-screen page passes the app's back binding (⌘[ or Ctrl+[, and the mouse back button) on as `kinuvo:escape`, and
- * reports pointer moves near its top edge or corners (`kinuvo:top`, at most every 200 ms) and leaving them (`kinuvo:away`).
+ * A page that may go full screen pauses its media when the app hides it (`kinuvo:pause`), passes the app's back binding
+ * (⌘[ or Ctrl+[, and the mouse back button) on as `kinuvo:escape`, and reports pointer moves near its top edge or corners
+ * (`kinuvo:top`, at most every 200 ms) and leaving them (`kinuvo:away`).
  */
 internal const val FULL_SCREEN_RELAY = "(function(){function b(){parent.postMessage('kinuvo:escape','*')}" +
+    "addEventListener('message',function(e){if(e.source===parent&&e.data==='kinuvo:pause')document.querySelectorAll('video,audio').forEach(function(m){m.pause()})});" +
     "addEventListener('keydown',function(e){if(e.key==='['&&(e.metaKey||e.ctrlKey)){e.preventDefault();b()}},true);" +
     "addEventListener('mouseup',function(e){if(e.button===3)b()},true);" +
     "var t=-1e9,a=false;addEventListener('pointermove',function(e){var x=e.clientX,y=e.clientY," +

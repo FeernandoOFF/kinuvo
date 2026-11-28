@@ -5,6 +5,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.staticCompositionLocalOf
 import com.composables.ui.theme.ColorScheme
 import com.composables.ui.theme.LocalColorScheme
@@ -13,6 +14,9 @@ import androidx.compose.ui.graphics.Color
 import kotlinx.serialization.json.JsonPrimitive
 import kinuvo.ui.design.ESCAPE_RELAY
 import kinuvo.ui.design.FULL_SCREEN_RELAY
+
+/** True while the page is kept alive but off screen; it pauses its videos and audio. */
+internal val LocalPageHidden = compositionLocalOf { false }
 
 /** False in hosts with no native view layer, such as the test scene, where [WebView] on the desktop draws nothing instead of failing. */
 internal val LocalNativeViews = staticCompositionLocalOf { true }
@@ -49,6 +53,8 @@ internal fun HtmlView(html: String, modifier: Modifier = Modifier, fade: Color? 
     // Built once per page, as a deck with embedded media is megabytes of text; full screen only toggles the fade in it.
     val document = remember(html, fade, dark, sync) { artifactDocument(html, fade, dark, sync, full, relay = true) }
     LaunchedEffect(document, fullScreen) { channel.send(fullScreenMessage(fullScreen)) }
+    val hidden = LocalPageHidden.current
+    LaunchedEffect(document, hidden) { if (hidden) channel.send(PAUSE_MESSAGE) }
     WebView(document, modifier, if (sync) { text -> receive?.invoke(text) } else null, channel, editing = false)
 }
 
@@ -90,9 +96,12 @@ internal fun artifactDocument(html: String, fade: Color? = null, dark: Boolean? 
 
 internal fun fullScreenMessage(on: Boolean) = "{\"kinuvoFullScreen\":$on}"
 
+private const val PAUSE_MESSAGE = "{\"kinuvoPause\":true}"
+
 /** Takes the app's full-screen message ahead of any other receiver, such as the deck's. */
 private const val CHROME_RECEIVE = "<script>(function(){var next=window.kinuvoReceive;window.kinuvoReceive=function(m){var d=JSON.parse(m);" +
     "if(d&&typeof d.kinuvoFullScreen==='boolean'){var e=document.getElementById('kinuvo-fade');if(e)e.style.display=d.kinuvoFullScreen?'none':'';return}" +
+    "if(d&&d.kinuvoPause){var f=document.getElementById('f');if(f&&f.contentWindow)f.contentWindow.postMessage('kinuvo:pause','*');return}" +
     "if(next)next(m)}})();</script>"
 
 /** The app's theme for the page: `data-theme` on its root and its `color-scheme`, which pages style with `:root[data-theme=dark]`. */
